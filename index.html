@@ -113,12 +113,12 @@ let pdrResolveReady;
 window.__pdrAuthReady = new Promise((res) => { pdrResolveReady = res; });
 
 // Farklı bir kullanıcı giriş yaptığında önceki kullanıcının önbellek
-// verilerinin görünmemesi için, önce yerel "pdr__" anahtarlarını temizleriz.
+// verilerinin görünmemesi için, önce yerel "rpusula__" anahtarlarını temizleriz.
 function pdrClearLocalCache() {
   const toRemove = [];
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
-    if (k && k.startsWith("pdr__")) toRemove.push(k);
+    if (k && k.startsWith("rpusula__")) toRemove.push(k);
   }
   toRemove.forEach((k) => localStorage.removeItem(k));
 }
@@ -135,7 +135,7 @@ async function pdrSyncDown(uid) {
     snap.forEach((doc) => {
       const d = doc.data();
       if (d && typeof d.value === "string") {
-        localStorage.setItem("pdr__" + doc.id, d.value);
+        localStorage.setItem("rpusula__" + doc.id, d.value);
       }
     });
   } catch (e) { console.log("Firestore indirme hatası:", e); }
@@ -248,13 +248,13 @@ if ("serviceWorker" in navigator) {
 window.storage = {
   get: async (key) => {
     try {
-      const v = localStorage.getItem("pdr__" + key);
+      const v = localStorage.getItem("rpusula__" + key);
       return v ? { key, value: v } : null;
     } catch { return null; }
   },
   set: async (key, value) => {
     try {
-      localStorage.setItem("pdr__" + key, value);
+      localStorage.setItem("rpusula__" + key, value);
       const user = pdrAuth.currentUser;
       if (user) {
         pdrDb.collection("users").doc(user.uid).collection("data").doc(key)
@@ -265,7 +265,7 @@ window.storage = {
     } catch { return null; }
   },
   delete: async (key) => {
-    localStorage.removeItem("pdr__" + key);
+    localStorage.removeItem("rpusula__" + key);
     const user = pdrAuth.currentUser;
     if (user) {
       pdrDb.collection("users").doc(user.uid).collection("data").doc(key)
@@ -277,8 +277,8 @@ window.storage = {
     const keys = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.startsWith("pdr__" + (prefix || ""))) {
-        keys.push(k.replace("pdr__", ""));
+      if (k && k.startsWith("rpusula__" + (prefix || ""))) {
+        keys.push(k.replace("rpusula__", ""));
       }
     }
     return { keys };
@@ -594,7 +594,7 @@ async function storageKapasite() {
     let total = 0;
     for (let i=0; i<localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.startsWith("pdr__")) total += (localStorage.getItem(k)||"").length * 2;
+      if (k && k.startsWith("rpusula__")) total += (localStorage.getItem(k)||"").length * 2;
     }
     const mb = (total/1024/1024).toFixed(2);
     return { used: parseFloat(mb), limit: 5, yuzde: Math.round((parseFloat(mb)/5)*100) };
@@ -5962,7 +5962,6 @@ export default function App() {
     { key: "degerlendirme", label: "🧭 Değerlendir" },
     { key: "kutuphane", label: "📚 Kütüphane" },
     { key: "istatistik", label: "İstatistik" },
-    { key: "prof_danisma", label: "🎓 Prof. Hakan" },
     { key: "yeni", label: "+ Not" },
   ];
 
