@@ -117,8 +117,12 @@ body {
       <input type="password" id="pdr-login-pass2" placeholder="Şifre (tekrar)" autocomplete="new-password" style="display:none" />
       <button type="submit" id="pdr-login-btn">Giriş Yap</button>
       <div id="pdr-login-error"></div>
+      <div id="pdr-login-info" style="color:#1A4D3B;font-size:12px;margin-top:8px;min-height:16px"></div>
       <p class="pdr-sub" style="margin-top:14px">
         <a href="#" id="pdr-toggle-mode" style="color:#1A4D3B;font-weight:600;text-decoration:underline">Hesabınız yok mu? Kayıt olun</a>
+      </p>
+      <p class="pdr-sub" style="margin-top:6px">
+        <a href="#" id="pdr-forgot-pass" style="color:#666;font-size:12px;text-decoration:underline">Şifremi unuttum</a>
       </p>
     </form>
   </div>
@@ -177,12 +181,36 @@ async function pdrSyncDown(uid) {
 const pdrLoginOverlay = document.getElementById("pdr-login-overlay");
 const pdrLoginForm = document.getElementById("pdr-login-form");
 const pdrLoginError = document.getElementById("pdr-login-error");
+const pdrLoginInfo = document.getElementById("pdr-login-info");
 const pdrLoginBtn = document.getElementById("pdr-login-btn");
 const pdrLoginTitle = document.getElementById("pdr-login-title");
 const pdrToggleMode = document.getElementById("pdr-toggle-mode");
 const pdrPass2 = document.getElementById("pdr-login-pass2");
 const pdrLogoutBtn = document.getElementById("pdr-logout-btn");
+const pdrForgotPass = document.getElementById("pdr-forgot-pass");
 let pdrIsRegisterMode = false;
+
+if (pdrForgotPass) {
+  pdrForgotPass.addEventListener("click", async (e) => {
+    e.preventDefault();
+    if (pdrLoginError) pdrLoginError.textContent = "";
+    if (pdrLoginInfo) pdrLoginInfo.textContent = "";
+    const email = document.getElementById("pdr-login-email").value.trim();
+    if (!email) {
+      if (pdrLoginError) pdrLoginError.textContent = "Önce e-posta adresinizi yukarıya yazın.";
+      return;
+    }
+    try {
+      await pdrAuth.sendPasswordResetEmail(email);
+      if (pdrLoginInfo) pdrLoginInfo.textContent = "Şifre sıfırlama bağlantısı e-postanıza gönderildi. Gelen kutunuzu (ve gereksiz/spam klasörünü) kontrol edin.";
+    } catch (err) {
+      let msg = "Bir hata oluştu, tekrar deneyin.";
+      if (err && err.code === "auth/user-not-found") msg = "Bu e-posta ile kayıtlı bir hesap bulunamadı.";
+      if (err && err.code === "auth/invalid-email") msg = "Geçersiz e-posta adresi.";
+      if (pdrLoginError) pdrLoginError.textContent = msg;
+    }
+  });
+}
 
 if (pdrToggleMode) {
   pdrToggleMode.addEventListener("click", (e) => {
