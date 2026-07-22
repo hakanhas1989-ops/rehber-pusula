@@ -139,7 +139,7 @@ body {
   </div>
 </div>
 
-<button id="pdr-logout-btn" style="display:none;position:fixed;top:10px;right:10px;z-index:9999;background:#f5f5f5;border:1px solid #ccc;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;">Çıkış Yap</button>
+<button id="pdr-logout-btn" style="display:none;position:fixed;bottom:14px;right:14px;z-index:9999;background:#f5f5f5;border:1px solid #ccc;border-radius:20px;padding:8px 16px;font-size:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.15);">Çıkış Yap</button>
 
 <div id="root"></div>
 
@@ -1801,7 +1801,9 @@ function exportToExcel(records) {
 
 // ── Radar SVG ─────────────────────────────────────────────────────────────────
 function RadarChart({ scores, size = 240 }) {
-  const cx = size / 2, cy = size / 2, r = size * 0.375, n = DIMENSIONS.length;
+  const pad = size * 0.30; // Etiketler için ekstra kenar boşluğu
+  const total = size + pad * 2;
+  const cx = total / 2, cy = total / 2, r = size * 0.34, n = DIMENSIONS.length;
   const angleStep = (2 * Math.PI) / n;
   const getPoint = (i, val, maxVal = 5) => {
     const angle = i * angleStep - Math.PI / 2;
@@ -1813,7 +1815,7 @@ function RadarChart({ scores, size = 240 }) {
   const gid = "radarFillGrad" + size;
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg width={total} height={total} viewBox={`0 0 ${total} ${total}`}>
       <defs>
         <radialGradient id={gid} cx="50%" cy="45%" r="60%">
           <stop offset="0%" stopColor={ACCENT} stopOpacity="0.6" />
@@ -1840,16 +1842,18 @@ function RadarChart({ scores, size = 240 }) {
       {dataPoints.map((p, i) => (
         <circle key={i} cx={p.x} cy={p.y} r={5} fill={DIMENSIONS[i].color} stroke="#fff" strokeWidth={2} />
       ))}
-      {/* Labels */}
+      {/* Labels: yön bazlı hizalama, kutu dışına taşmaz */}
       {DIMENSIONS.map((d, i) => {
         const angle = i * angleStep - Math.PI / 2;
-        const lx = cx + (r + size * 0.075) * Math.cos(angle);
-        const ly = cy + (r + size * 0.075) * Math.sin(angle);
+        const cosA = Math.cos(angle), sinA = Math.sin(angle);
+        const lx = cx + (r + size * 0.16) * cosA;
+        const ly = cy + (r + size * 0.16) * sinA;
+        const anchor = Math.abs(cosA) < 0.3 ? "middle" : (cosA > 0 ? "start" : "end");
         return (
-          <text key={i} x={lx} y={ly} textAnchor="middle" dominantBaseline="middle"
-            fontSize={size * 0.0375} fill={TEXT} fontWeight={700}>
+          <text key={i} x={lx} y={ly} textAnchor={anchor} dominantBaseline="middle"
+            fontSize={size * 0.052} fill={TEXT} fontWeight={700}>
             {d.label.split(" ").map((w, wi) => (
-              <tspan key={wi} x={lx} dy={wi === 0 ? 0 : size * 0.046}>{w}</tspan>
+              <tspan key={wi} x={lx} dy={wi === 0 ? 0 : size * 0.06}>{w}</tspan>
             ))}
           </text>
         );
