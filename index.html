@@ -16,11 +16,20 @@
 <script>
   // Kullanıcının kendi Anthropic API anahtarını yönetir. Her müşteri kendi
   // anahtarını Ayarlar bölümünden girer; AI faturası doğrudan ona kesilir.
+  // "rpusula__" ön ekiyle saklanan her anahtar otomatik olarak Firestore'a da
+  // senkronize edilir (pdrSyncDown ile), böylece anahtar tarayıcıya değil hesaba bağlı olur.
   function pdrGetApiKey() {
-    return localStorage.getItem("rpusula_api_key") || "";
+    return localStorage.getItem("rpusula__apiKey") || "";
   }
   function pdrSetApiKey(key) {
-    localStorage.setItem("rpusula_api_key", key.trim());
+    const trimmed = key.trim();
+    localStorage.setItem("rpusula__apiKey", trimmed);
+    const user = window.pdrAuth && window.pdrAuth.currentUser;
+    if (user && window.pdrDb) {
+      window.pdrDb.collection("users").doc(user.uid).collection("data").doc("apiKey")
+        .set({ value: trimmed, updatedAt: Date.now() })
+        .catch(err => console.log("API anahtarı buluta kaydedilemedi:", err));
+    }
   }
   // Tüm AI çağrılarının geçtiği tek nokta. Eski Cloudflare Worker çağrılarının
   // yerini alır — { model, max_tokens, system, messages } aynı formatı kabul eder.
@@ -156,6 +165,8 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const pdrAuth = firebase.auth();
 const pdrDb = firebase.firestore();
+window.pdrAuth = pdrAuth;
+window.pdrDb = pdrDb;
 
 let pdrResolveReady;
 window.__pdrAuthReady = new Promise((res) => { pdrResolveReady = res; });
