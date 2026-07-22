@@ -1155,8 +1155,14 @@ function DegerlendirmeEkrani({ onTransfer, onClose, records, profiles, profiles2
   // Sonuç
   return (
     <div style={{ padding: "16px 16px 80px" }}>
-      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 14, marginBottom: 14, display: "flex", justifyContent: "center" }}>
-        <RadarChart scores={DIMENSIONS.reduce((acc, d) => { acc[d.key] = degBoyutPuan(cevaplar, d.key) || 3; return acc; }, {})} size={280} />
+      <div style={{
+        background: `linear-gradient(135deg, ${ACCENT}E6 0%, #164A35E6 100%)`,
+        backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
+        border: "1px solid rgba(255,255,255,0.25)", borderRadius: 16, padding: 18, marginBottom: 14,
+        display: "flex", flexDirection: "column", alignItems: "center", boxShadow: "0 8px 24px rgba(15,61,46,0.3)"
+      }}>
+        <div style={{ color: "#fff", fontSize: 12, fontWeight: 700, letterSpacing: 0.5, opacity: 0.85, marginBottom: 6, alignSelf: "flex-start" }}>◈ Gelişim Radarı</div>
+        <RadarChart scores={DIMENSIONS.reduce((acc, d) => { acc[d.key] = degBoyutPuan(cevaplar, d.key) || 3; return acc; }, {})} size={280} glass />
       </div>
 
       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
@@ -1800,7 +1806,7 @@ function exportToExcel(records) {
 }
 
 // ── Radar SVG ─────────────────────────────────────────────────────────────────
-function RadarChart({ scores, size = 240 }) {
+function RadarChart({ scores, size = 240, glass = false }) {
   const pad = size * 0.30; // Etiketler için ekstra kenar boşluğu
   const total = size + pad * 2;
   const cx = total / 2, cy = total / 2, r = size * 0.34, n = DIMENSIONS.length;
@@ -1812,35 +1818,40 @@ function RadarChart({ scores, size = 240 }) {
   };
   const dataPoints = DIMENSIONS.map((d, i) => getPoint(i, scores[d.key] || 0));
   const gridLevels = [1, 2, 3, 4, 5];
-  const gid = "radarFillGrad" + size;
+  const gid = "radarFillGrad" + size + (glass ? "g" : "");
+  const gridColor = glass ? "rgba(255,255,255,0.35)" : "#EEF3F0";
+  const gridColorOuter = glass ? "rgba(255,255,255,0.55)" : BORDER;
+  const axisColor = glass ? "rgba(255,255,255,0.3)" : BORDER;
+  const fillColor = glass ? "#ffffff" : ACCENT;
+  const labelColor = glass ? "#ffffff" : TEXT;
 
   return (
     <svg width={total} height={total} viewBox={`0 0 ${total} ${total}`}>
       <defs>
         <radialGradient id={gid} cx="50%" cy="45%" r="60%">
-          <stop offset="0%" stopColor={ACCENT} stopOpacity="0.6" />
-          <stop offset="100%" stopColor={ACCENT} stopOpacity="0.15" />
+          <stop offset="0%" stopColor={fillColor} stopOpacity={glass ? 0.5 : 0.6} />
+          <stop offset="100%" stopColor={fillColor} stopOpacity={glass ? 0.12 : 0.15} />
         </radialGradient>
-        <filter id={"radarGlow" + size} x="-40%" y="-40%" width="180%" height="180%">
-          <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor={ACCENT} floodOpacity="0.4" />
+        <filter id={"radarGlow" + size + (glass ? "g" : "")} x="-40%" y="-40%" width="180%" height="180%">
+          <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor={glass ? "#000000" : ACCENT} floodOpacity={glass ? 0.25 : 0.4} />
         </filter>
       </defs>
       {/* Grid */}
       {gridLevels.map(level => {
         const pts = DIMENSIONS.map((_, i) => getPoint(i, level));
         return <polygon key={level} points={pts.map(p => `${p.x},${p.y}`).join(" ")}
-          fill="none" stroke={level === 5 ? BORDER : "#EEF3F0"} strokeWidth={level === 5 ? 1.4 : 1} />;
+          fill="none" stroke={level === 5 ? gridColorOuter : gridColor} strokeWidth={level === 5 ? 1.4 : 1} />;
       })}
       {/* Axes */}
       {DIMENSIONS.map((_, i) => {
         const outer = getPoint(i, 5);
-        return <line key={i} x1={cx} y1={cy} x2={outer.x} y2={outer.y} stroke={BORDER} strokeWidth={1} />;
+        return <line key={i} x1={cx} y1={cy} x2={outer.x} y2={outer.y} stroke={axisColor} strokeWidth={1} />;
       })}
       {/* Data: gradyanlı dolgu + parlaklık gölgesi */}
       <polygon points={dataPoints.map(p => `${p.x},${p.y}`).join(" ")}
-        fill={`url(#${gid})`} filter={`url(#radarGlow${size})`} stroke={ACCENT} strokeWidth={2.5} strokeLinejoin="round" />
+        fill={`url(#${gid})`} filter={`url(#radarGlow${size}${glass ? "g" : ""})`} stroke={fillColor} strokeWidth={2.5} strokeLinejoin="round" />
       {dataPoints.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r={5} fill={DIMENSIONS[i].color} stroke="#fff" strokeWidth={2} />
+        <circle key={i} cx={p.x} cy={p.y} r={5} fill={glass ? "#fff" : DIMENSIONS[i].color} stroke={glass ? ACCENT : "#fff"} strokeWidth={2} />
       ))}
       {/* Labels: yön bazlı hizalama, kutu dışına taşmaz */}
       {DIMENSIONS.map((d, i) => {
@@ -1851,7 +1862,7 @@ function RadarChart({ scores, size = 240 }) {
         const anchor = Math.abs(cosA) < 0.3 ? "middle" : (cosA > 0 ? "start" : "end");
         return (
           <text key={i} x={lx} y={ly} textAnchor={anchor} dominantBaseline="middle"
-            fontSize={size * 0.052} fill={TEXT} fontWeight={700}>
+            fontSize={size * 0.052} fill={labelColor} fontWeight={700}>
             {d.label.split(" ").map((w, wi) => (
               <tspan key={wi} x={lx} dy={wi === 0 ? 0 : size * 0.06}>{w}</tspan>
             ))}
