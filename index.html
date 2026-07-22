@@ -1166,6 +1166,7 @@ function DegerlendirmeEkrani({ onTransfer, onClose, records, profiles, profiles2
   // Sonuç
   return (
     <div style={{ padding: "16px 16px 80px" }}>
+      <div id="deg-sonuc-icerik">
       <div style={{
         background: `linear-gradient(135deg, ${ACCENT}E6 0%, #164A35E6 100%)`,
         backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
@@ -1198,6 +1199,7 @@ function DegerlendirmeEkrani({ onTransfer, onClose, records, profiles, profiles2
       <div style={{ background: "#EEF0FD", border: "1px solid #c7ccf5", borderRadius: 12, padding: 14, marginBottom: 14 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "#3B4FD8", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>✦ AI PDR Analizi</div>
         <div style={{ fontSize: 13, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{analiz}</div>
+      </div>
       </div>
 
 
@@ -1259,15 +1261,16 @@ async function raporIndir(elementId, dosyaAdi) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${dosyaAdi}</title>
 <style>
-  @page { size: A4; margin: 12mm; }
+  @page { size: A4; margin: 8mm; }
   * { box-sizing: border-box; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1a1a1a; background: #fff; padding: 0; margin: 0; }
   @media print {
     .noprint { display: none !important; }
-    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin-top: 0 !important; }
+    #pdr-print-spacer { display: none !important; }
   }
   @media screen {
-    body { padding: 20px; max-width: 800px; margin: 0 auto; }
+    body { padding: 16px; max-width: 1100px; margin: 0 auto; }
   }
   table { width: 100%; border-collapse: collapse; }
   svg { max-width: 100%; }
@@ -1281,7 +1284,7 @@ async function raporIndir(elementId, dosyaAdi) {
     <button onclick="window.close()" style="background:rgba(255,255,255,0.2);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:14px;cursor:pointer;">✕</button>
   </div>
 </div>
-<div style="margin-top:60px;">${icerik}</div>
+<div id="pdr-print-spacer" style="margin-top:60px;">${icerik}</div>
 </body>
 </html>`;
 
