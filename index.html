@@ -1837,7 +1837,7 @@ function RadarChart({ scores, size = 240, glass = false }) {
   const labelColor = glass ? "#ffffff" : TEXT;
 
   return (
-    <svg width={total} height={total} viewBox={`0 0 ${total} ${total}`}>
+    <svg width="100%" height="auto" style={{ maxWidth: total, display: "block" }} viewBox={`0 0 ${total} ${total}`}>
       <defs>
         <radialGradient id={gid} cx="50%" cy="45%" r="60%">
           <stop offset="0%" stopColor={fillColor} stopOpacity={glass ? 0.5 : 0.6} />
