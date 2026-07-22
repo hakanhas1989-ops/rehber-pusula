@@ -43,7 +43,7 @@
       const errText = await res.text();
       throw new Error("API_ERROR: " + errText);
     }
-    return res.json();
+    return res;
   }
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
