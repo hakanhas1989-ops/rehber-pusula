@@ -56,9 +56,20 @@
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow-x: hidden; }
-body { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; overscroll-behavior: none; background: #F8FAF9; }
+body { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; overscroll-behavior: none; background: linear-gradient(160deg, #F4F9F6 0%, #E9F3EE 45%, #F8FAF9 100%); background-attachment: fixed; }
 input, textarea, button, select { font-family: inherit; }
 input[type=range] { cursor: pointer; }
+/* Kartlara genel derinlik/gölge: satır içi stilleri hedefleyen öznitelik seçicisi */
+div[style*="border-radius: 12px"][style*="1px solid"] {
+  box-shadow: 0 2px 10px rgba(15,61,46,0.07), 0 1px 2px rgba(15,61,46,0.04) !important;
+}
+div[style*="border-radius: 12px"][style*="1px solid"]:active {
+  box-shadow: 0 1px 4px rgba(15,61,46,0.08) !important;
+}
+/* Küçük başlıklarda daha keskin/net görünüm */
+div[style*="text-transform: uppercase"][style*="letter-spacing"] {
+  text-shadow: 0 0.5px 0 rgba(0,0,0,0.02);
+}
 /* iOS safe area */
 body {
   padding-top: env(safe-area-inset-top);
@@ -1144,6 +1155,10 @@ function DegerlendirmeEkrani({ onTransfer, onClose, records, profiles, profiles2
   // Sonuç
   return (
     <div style={{ padding: "16px 16px 80px" }}>
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 14, marginBottom: 14, display: "flex", justifyContent: "center" }}>
+        <RadarChart scores={DIMENSIONS.reduce((acc, d) => { acc[d.key] = degBoyutPuan(cevaplar, d.key) || 3; return acc; }, {})} size={280} />
+      </div>
+
       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Boyut Puanları</div>
         {DIMENSIONS.map(d => {
@@ -1785,8 +1800,8 @@ function exportToExcel(records) {
 }
 
 // ── Radar SVG ─────────────────────────────────────────────────────────────────
-function RadarChart({ scores }) {
-  const cx = 120, cy = 120, r = 90, n = DIMENSIONS.length;
+function RadarChart({ scores, size = 240 }) {
+  const cx = size / 2, cy = size / 2, r = size * 0.375, n = DIMENSIONS.length;
   const angleStep = (2 * Math.PI) / n;
   const getPoint = (i, val, maxVal = 5) => {
     const angle = i * angleStep - Math.PI / 2;
@@ -1794,38 +1809,47 @@ function RadarChart({ scores }) {
     return { x: cx + dist * Math.cos(angle), y: cy + dist * Math.sin(angle) };
   };
   const dataPoints = DIMENSIONS.map((d, i) => getPoint(i, scores[d.key] || 0));
-  const dataPath = dataPoints.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ") + " Z";
   const gridLevels = [1, 2, 3, 4, 5];
+  const gid = "radarFillGrad" + size;
 
   return (
-    <svg width={240} height={240} viewBox="0 0 240 240">
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <defs>
+        <radialGradient id={gid} cx="50%" cy="45%" r="60%">
+          <stop offset="0%" stopColor={ACCENT} stopOpacity="0.6" />
+          <stop offset="100%" stopColor={ACCENT} stopOpacity="0.15" />
+        </radialGradient>
+        <filter id={"radarGlow" + size} x="-40%" y="-40%" width="180%" height="180%">
+          <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor={ACCENT} floodOpacity="0.4" />
+        </filter>
+      </defs>
       {/* Grid */}
       {gridLevels.map(level => {
         const pts = DIMENSIONS.map((_, i) => getPoint(i, level));
         return <polygon key={level} points={pts.map(p => `${p.x},${p.y}`).join(" ")}
-          fill="none" stroke={BORDER} strokeWidth={1} />;
+          fill="none" stroke={level === 5 ? BORDER : "#EEF3F0"} strokeWidth={level === 5 ? 1.4 : 1} />;
       })}
       {/* Axes */}
       {DIMENSIONS.map((_, i) => {
         const outer = getPoint(i, 5);
         return <line key={i} x1={cx} y1={cy} x2={outer.x} y2={outer.y} stroke={BORDER} strokeWidth={1} />;
       })}
-      {/* Data */}
+      {/* Data: gradyanlı dolgu + parlaklık gölgesi */}
       <polygon points={dataPoints.map(p => `${p.x},${p.y}`).join(" ")}
-        fill={`${ACCENT}33`} stroke={ACCENT} strokeWidth={2} />
+        fill={`url(#${gid})`} filter={`url(#radarGlow${size})`} stroke={ACCENT} strokeWidth={2.5} strokeLinejoin="round" />
       {dataPoints.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r={4} fill={DIMENSIONS[i].color} stroke="#fff" strokeWidth={1.5} />
+        <circle key={i} cx={p.x} cy={p.y} r={5} fill={DIMENSIONS[i].color} stroke="#fff" strokeWidth={2} />
       ))}
       {/* Labels */}
       {DIMENSIONS.map((d, i) => {
         const angle = i * angleStep - Math.PI / 2;
-        const lx = cx + (r + 18) * Math.cos(angle);
-        const ly = cy + (r + 18) * Math.sin(angle);
+        const lx = cx + (r + size * 0.075) * Math.cos(angle);
+        const ly = cy + (r + size * 0.075) * Math.sin(angle);
         return (
           <text key={i} x={lx} y={ly} textAnchor="middle" dominantBaseline="middle"
-            fontSize={9} fill={TEXT} fontWeight={600}>
+            fontSize={size * 0.0375} fill={TEXT} fontWeight={700}>
             {d.label.split(" ").map((w, wi) => (
-              <tspan key={wi} x={lx} dy={wi === 0 ? 0 : 11}>{w}</tspan>
+              <tspan key={wi} x={lx} dy={wi === 0 ? 0 : size * 0.046}>{w}</tspan>
             ))}
           </text>
         );
@@ -6023,7 +6047,7 @@ export default function App() {
 
       <RaporModal rapor={raporVerisi} onKapat={() => setRaporVerisi(null)} />
       {/* Header */}
-      <div style={{ background: ACCENT, color: "#fff", padding: "16px 20px 12px", position: "sticky", top: 0, zIndex: 10 }}>
+      <div style={{ background: `linear-gradient(135deg, ${ACCENT} 0%, #164A35 100%)`, color: "#fff", padding: "16px 20px 12px", position: "sticky", top: 0, zIndex: 10, boxShadow: "0 4px 16px rgba(15,61,46,0.35)" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1, opacity: 0.7, textTransform: "uppercase" }}>PDR Servisi</div>
           <button onClick={() => { setTab("ogrenciler"); setYilEkrani(true); }} style={{
@@ -6044,7 +6068,7 @@ export default function App() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", background: CARD, borderBottom: `1px solid ${BORDER}`, overflowX: "auto" }}>
+      <div style={{ display: "flex", background: CARD, borderBottom: `1px solid ${BORDER}`, overflowX: "auto", boxShadow: "0 3px 8px rgba(0,0,0,0.06)", position: "sticky", top: 0, zIndex: 9 }}>
         {TABS.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             flexShrink: 0, padding: "11px 10px", border: "none", background: "none",
