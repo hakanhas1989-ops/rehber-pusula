@@ -1879,20 +1879,20 @@ function RadarChart({ scores, size = 240, glass = false }) {
       {dataPoints.map((p, i) => (
         <circle key={i} cx={p.x} cy={p.y} r={5} fill={glass ? "#fff" : DIMENSIONS[i].color} stroke={glass ? ACCENT : "#fff"} strokeWidth={2} />
       ))}
-      {/* Labels: her boyut kendi rengiyle, seçili etiketler ortalı */}
+      {/* Labels: her boyut kendi canlı rengiyle, hepsi ortalı */}
       {DIMENSIONS.map((d, i) => {
         const angle = i * angleStep - Math.PI / 2;
         const cosA = Math.cos(angle), sinA = Math.sin(angle);
         const lx = cx + (r + size * 0.16) * cosA;
         const ly = cy + (r + size * 0.16) * sinA;
-        const ortalanacak = d.key === "kariyer" || d.key === "duygusal";
-        const anchor = ortalanacak ? "middle" : (Math.abs(cosA) < 0.3 ? "middle" : (cosA > 0 ? "start" : "end"));
-        const etiketRengi = glass && d.color === ACCENT ? ACCENT_LIGHT : d.color;
+        const GLASS_RENK = { akademik: "#5DC8FF", sosyal: "#7CFFB2", duygusal: "#FF9466", aile: "#C79CFF", ozguven: "#FFD966", uyum: "#5EEAD4", kariyer: "#FF6B6B", akran: "#FFB877" };
+        const etiketRengi = glass ? (GLASS_RENK[d.key] || d.color) : d.color;
         return (
-          <text key={i} x={lx} y={ly} textAnchor={anchor} dominantBaseline="middle"
-            fontSize={size * 0.052} fill={etiketRengi} fontWeight={800}>
+          <text key={i} x={lx} y={ly} textAnchor="middle" dominantBaseline="middle"
+            fontSize={size * 0.055} fill={etiketRengi} fontWeight={900}
+            stroke={glass ? "rgba(6,26,19,0.55)" : "none"} strokeWidth={glass ? 0.7 : 0} paintOrder="stroke">
             {d.label.split(" ").map((w, wi) => (
-              <tspan key={wi} x={lx} dy={wi === 0 ? 0 : size * 0.06}>{w}</tspan>
+              <tspan key={wi} x={lx} dy={wi === 0 ? 0 : size * 0.062}>{w}</tspan>
             ))}
           </text>
         );
@@ -6345,7 +6345,7 @@ export default function App() {
             }}>
               <div style={{ color: "#fff", fontSize: 12, fontWeight: 700, letterSpacing: 0.5, opacity: 0.9, marginBottom: 10 }}>⚠ Risk Takip Özeti</div>
               <div style={{ display: "flex", gap: 10 }}>
-                {[["Yüksek", "#FF6B5B"], ["Orta", "#FFD166"], ["Düşük", "#8FE3B0"]].map(([lvl, c]) => {
+                {[["Yüksek", "#FF5A4E"], ["Orta", "#FFA53E"], ["Düşük", "#FFD84A"]].map(([lvl, c]) => {
                   const sayi = riskListesi.filter(r => !r.kapandi && r.oncelik === lvl).length;
                   return (
                     <div key={lvl} style={{ flex: 1, background: "rgba(255,255,255,0.12)", borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
@@ -6429,45 +6429,53 @@ export default function App() {
             {(() => {
               const aktif = riskListesi.filter(r => !r.kapandi);
               const kapali = riskListesi.filter(r => r.kapandi);
-              const oncelikRenk = { "Yüksek": ["#C0392B","#FDECEA"], "Orta": ["#B07D1A","#FDF6E3"], "Düşük": ["#2D6A4F","#E6F5EE"] };
+              // [ana renk, camsı arka plan gradyanı, parlaklık gölgesi]
+              const oncelikRenk = {
+                "Yüksek": ["#FF5A4E", "linear-gradient(135deg, rgba(255,90,78,0.35) 0%, rgba(120,20,15,0.55) 100%)", "rgba(255,90,78,0.45)"],
+                "Orta":   ["#FFA53E", "linear-gradient(135deg, rgba(255,165,62,0.32) 0%, rgba(120,70,10,0.5) 100%)", "rgba(255,165,62,0.4)"],
+                "Düşük":  ["#FFD84A", "linear-gradient(135deg, rgba(255,216,74,0.28) 0%, rgba(110,90,10,0.45) 100%)", "rgba(255,216,74,0.35)"],
+              };
               return (
                 <>
                   {aktif.length === 0 && <div style={{ textAlign:"center", color:MUTED, marginTop:20, fontSize:14 }}>Aktif risk kaydı yok ✓</div>}
                   {aktif.map(r => {
-                    const [rc, rbg] = oncelikRenk[r.oncelik] || ["#888","#eee"];
+                    const [rc, rbgGrad, rglow] = oncelikRenk[r.oncelik] || ["#888", "rgba(120,120,120,0.3)", "rgba(120,120,120,0.3)"];
                     return (
-                      <div key={r.id} style={{ background: CARD, border:`2px solid ${rc}22`, borderLeft:`4px solid ${rc}`, borderRadius:12, padding:14, marginBottom:10 }}>
+                      <div key={r.id} style={{
+                        background: rbgGrad, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+                        border: `1.5px solid ${rc}`, borderRadius: 16, padding: 16, marginBottom: 12,
+                        boxShadow: `0 0 20px ${rglow}, 0 6px 18px rgba(0,0,0,0.25)`
+                      }}>
                         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
                           <div>
-                            <div style={{ fontWeight:800, fontSize:14, color:TEXT }}>{r.studentName}</div>
-                            <div style={{ fontSize:11, color:MUTED }}>{r.tarih} · {r.className}</div>
+                            <div style={{ fontWeight:900, fontSize:15, color:"#fff" }}>{r.studentName}</div>
+                            <div style={{ fontSize:11, color:"rgba(255,255,255,0.75)" }}>{r.tarih} · {r.className}</div>
                           </div>
                           <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-                            <span style={{ background:rbg, color:rc, borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>{r.oncelik}</span>
-                            {r.riskTuru && <span style={{ background:"#FDECEA", color:"#C0392B", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>{r.riskTuru}</span>}
+                            <span style={{ background:"rgba(255,255,255,0.22)", color:"#fff", borderRadius:20, padding:"3px 12px", fontSize:11, fontWeight:800, border:`1px solid ${rc}` }}>{r.oncelik}</span>
+                            {r.riskTuru && <span style={{ background:"rgba(255,255,255,0.15)", color:"#fff", borderRadius:20, padding:"3px 12px", fontSize:11, fontWeight:700 }}>{r.riskTuru}</span>}
                           </div>
                         </div>
-                        {r.aciklama && <div style={{ fontSize:12, color:TEXT, lineHeight:1.6, marginBottom:10 }}>{r.aciklama}</div>}
+                        <div style={{ height:1, background:"rgba(255,255,255,0.25)", margin:"8px 0" }} />
+                        {r.aciklama && <div style={{ fontSize:12, color:"rgba(255,255,255,0.92)", lineHeight:1.6, marginBottom:10 }}>{r.aciklama}</div>}
                         <div style={{ display:"flex", gap:8 }}>
                           {r.aiAnaliz && (() => {
                             const duz = r.aiAnaliz.includes("YÜKSEK") ? "YÜKSEK" : r.aiAnaliz.includes("ORTA") ? "ORTA" : "HAFİF";
-                            const dc = duz==="YÜKSEK" ? "#C0392B" : duz==="ORTA" ? "#B07D1A" : "#1A8C5B";
-                            const dbg = duz==="YÜKSEK" ? "#FDECEA" : duz==="ORTA" ? "#FDF6E3" : "#E6F5EE";
                             return (
                               <div style={{ marginBottom:8 }}>
                                 <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-                                  <span style={{ background:dbg, color:dc, borderRadius:20, padding:"3px 12px", fontSize:12, fontWeight:800 }}>
-                                    {duz==="YÜKSEK"?"🔴":"duz"==="ORTA"?"🟡":"🟢"} Risk Düzeyi: {duz}
+                                  <span style={{ background:"rgba(255,255,255,0.2)", color:"#fff", borderRadius:20, padding:"3px 12px", fontSize:12, fontWeight:800 }}>
+                                    {duz==="YÜKSEK"?"🔴":duz==="ORTA"?"🟡":"🟢"} Risk Düzeyi: {duz}
                                   </span>
                                 </div>
-                                <div style={{ fontSize:12, color:TEXT, lineHeight:1.7, whiteSpace:"pre-wrap", background:"#FAFDF7", borderRadius:8, padding:10 }}>
+                                <div style={{ fontSize:12, color:"#fff", lineHeight:1.7, whiteSpace:"pre-wrap", background:"rgba(0,0,0,0.2)", borderRadius:10, padding:10 }}>
                                   {r.aiAnaliz}
                                 </div>
                               </div>
                             );
                           })()}
-                        <button onClick={() => handleRiskKapat(r.id)} style={{ flex:1, padding:"7px", background:ACCENT_LIGHT, color:ACCENT, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>✓ Kapat</button>
-                          <button onClick={() => handleRiskSil(r.id)} style={{ padding:"7px 12px", background:"none", border:`1px solid #F28B82`, color:"#C5221F", borderRadius:8, fontSize:12, cursor:"pointer" }}>Sil</button>
+                        <button onClick={() => handleRiskKapat(r.id)} style={{ flex:1, padding:"9px", background:"rgba(255,255,255,0.9)", color:"#1a1a1a", border:"none", borderRadius:10, fontSize:12, fontWeight:800, cursor:"pointer" }}>✓ Kapat</button>
+                          <button onClick={() => handleRiskSil(r.id)} style={{ padding:"9px 14px", background:"rgba(0,0,0,0.2)", border:`1px solid rgba(255,255,255,0.4)`, color:"#fff", borderRadius:10, fontSize:12, cursor:"pointer" }}>Sil</button>
                         </div>
                       </div>
                     );
