@@ -1288,18 +1288,30 @@ async function raporIndir(elementId, dosyaAdi) {
 </body>
 </html>`;
 
-  // Yöntem 1: Yeni sekme (masaüstü)
-  try {
-    const w = window.open("", "_blank");
-    if (w && !w.closed) {
-      w.document.open();
-      w.document.write(htmlStr);
-      w.document.close();
-      return;
-    }
-  } catch(e) {}
+  const isMobil = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 
-  // Yöntem 2: Blob + link (mobil)
+  if (isMobil) {
+    // Mobilde: dosya indirmek yerine doğrudan aynı sekmede aç (dosya yöneticisine gitmeye gerek kalmaz)
+    try {
+      const blob = new Blob([htmlStr], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      window.location.href = url;
+      return;
+    } catch(e) {}
+  } else {
+    // Masaüstü: Yeni sekme
+    try {
+      const w = window.open("", "_blank");
+      if (w && !w.closed) {
+        w.document.open();
+        w.document.write(htmlStr);
+        w.document.close();
+        return;
+      }
+    } catch(e) {}
+  }
+
+  // Yöntem 2: Blob + link (yedek)
   try {
     const blob = new Blob([htmlStr], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -4801,26 +4813,6 @@ function ProfilMerkez({
   }
 
   // Radar mini
-  const RadarMiniComp = ({ scores }) => {
-    if (!scores) return null;
-    const cx=110,cy=110,r=80,n=DIMENSIONS.length, step=(2*Math.PI)/n;
-    const pt=(i,val)=>{ const a=i*step-Math.PI/2,d=(Math.min(val||0,5)/5)*r; return {x:cx+d*Math.cos(a),y:cy+d*Math.sin(a)}; };
-    const dataPts=DIMENSIONS.map((b,i)=>pt(i,scores[b.key]||0));
-    const pathD=dataPts.map((p,i)=>`${i===0?"M":"L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")+" Z";
-    return (
-      <svg width={220} height={220} viewBox="0 0 220 220">
-        {[1,2,3,4,5].map(lv=><polygon key={lv} points={DIMENSIONS.map((_,i)=>{const p=pt(i,lv);return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;}).join(" ")} fill="none" stroke={BORDER} strokeWidth={0.8}/>)}
-        {DIMENSIONS.map((_,i)=>{const p=pt(i,5);return <line key={i} x1={cx} y1={cy} x2={p.x.toFixed(1)} y2={p.y.toFixed(1)} stroke={BORDER} strokeWidth={0.8}/>;} )}
-        <polygon points={dataPts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")} fill={`${ACCENT}22`} stroke={ACCENT} strokeWidth={2}/>
-        {dataPts.map((p,i)=><circle key={i} cx={p.x.toFixed(1)} cy={p.y.toFixed(1)} r={4} fill={DIMENSIONS[i].color} stroke="#fff" strokeWidth={1.5}/>)}
-        {DIMENSIONS.map((b,i)=>{
-          const a=i*step-Math.PI/2,lx=(cx+(r+20)*Math.cos(a)).toFixed(1),ly=(cy+(r+20)*Math.sin(a)).toFixed(1);
-          return <text key={i} x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" fontSize={8} fontWeight={600} fill={b.color}>{b.label}</text>;
-        })}
-      </svg>
-    );
-  };
-
   const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, background:CARD, color:TEXT, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
   const lbl = { fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4, textTransform:"uppercase" };
 
@@ -4919,8 +4911,13 @@ function ProfilMerkez({
                   </div>
 
                   {/* Radar + sliderlar */}
-                  <div style={{display:"flex",justifyContent:"center",marginBottom:12}}>
-                    <RadarMiniComp scores={profForm.scores} />
+                  <div style={{
+                    background: `linear-gradient(135deg, ${ACCENT}E6 0%, #164A35E6 100%)`,
+                    backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
+                    border: "1px solid rgba(255,255,255,0.25)", borderRadius: 16, padding: 16, marginBottom: 12,
+                    display: "flex", justifyContent: "center", boxShadow: "0 8px 24px rgba(15,61,46,0.3)"
+                  }}>
+                    <RadarChart scores={profForm.scores} size={240} glass />
                   </div>
                   <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,padding:14,marginBottom:12}}>
                     {DIMENSIONS.map(dim=>(
@@ -5077,10 +5074,15 @@ function ProfilMerkez({
             <div>
               {/* Radar */}
               {mevcutP1 && (
-                <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,padding:14,marginBottom:12}}>
-                  <div style={{fontSize:12,fontWeight:700,color:ACCENT,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>PDR Profil Radar</div>
+                <div style={{
+                  background: `linear-gradient(135deg, ${ACCENT}E6 0%, #164A35E6 100%)`,
+                  backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
+                  border: "1px solid rgba(255,255,255,0.25)", borderRadius: 16, padding: 16, marginBottom: 12,
+                  boxShadow: "0 8px 24px rgba(15,61,46,0.3)"
+                }}>
+                  <div style={{fontSize:12,fontWeight:700,color:"#fff",opacity:0.85,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>◈ PDR Profil Radar</div>
                   <div style={{display:"flex",justifyContent:"center"}}>
-                    <RadarMiniComp scores={mevcutP1.scores} />
+                    <RadarChart scores={mevcutP1.scores} size={240} glass />
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,marginTop:8}}>
                     {DIMENSIONS.map(d=>{
