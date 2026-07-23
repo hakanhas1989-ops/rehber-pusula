@@ -1491,7 +1491,7 @@ function RaporModal({ rapor, onKapat }) {
                           <div style={{ fontSize:10, color:"#555", lineHeight:1.6, background:"#fafafa", borderRadius:4, padding:"4px 7px", fontStyle:"italic" }}>{r.raw}</div>
                         </div>
                       )}
-                      <div style={{ fontSize:9, fontWeight:700, color:"#2D6A4F", textTransform:"uppercase", marginBottom:3 }}>Görüşme Özeti</div>
+                      <div style={{ fontSize:9, fontWeight:700, color:"#2D6A4F", textTransform:"uppercase", marginBottom:3 }}>Bir Sonraki Seans Planlaması</div>
                       <div style={{ fontSize:11, color:"#333", lineHeight:1.7 }}>{r.summary}</div>
                     </div>
                   ))}
@@ -1713,14 +1713,6 @@ function RaporModal({ rapor, onKapat }) {
                 <div style={{ marginTop:16, pageBreakInside:"avoid" }}>
                   <div style={{ ...S.bolumBaslik2 }}>Bir Sonraki Seans Planı</div>
                   <div style={{ ...S.bolumIcerik2 }}>
-
-                    {/* Son görüşme özeti */}
-                    {sonGorusme && (
-                      <div style={{ marginBottom:10 }}>
-                        <div style={{ fontSize:9, fontWeight:700, color:"#555", textTransform:"uppercase", marginBottom:4 }}>Son Görüşme Özeti ({sonGorusme.date})</div>
-                        <div style={{ fontSize:10, color:"#333", background:"#f9f9f9", padding:"6px 8px", borderRadius:4, lineHeight:1.6 }}>{sonGorusme.summary}</div>
-                      </div>
-                    )}
 
                     {/* Aktif müdahale planları */}
                     {aktifPlanlar.length > 0 && (
