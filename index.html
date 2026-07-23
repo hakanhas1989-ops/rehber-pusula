@@ -6368,11 +6368,12 @@ export default function App() {
                       const s = riskForm.studentName === o.name;
                       return (
                         <button key={o.name} onClick={() => setRiskForm(f => ({ ...f, studentName: o.name, className: o.className }))} style={{
-                          padding: "5px 10px", borderRadius: 20,
-                          border: `2px solid ${s ? "#C0392B" : BORDER}`,
-                          background: s ? "#FDECEA" : CARD,
-                          color: s ? "#C0392B" : MUTED,
-                          fontSize: 11, fontWeight: s ? 700 : 500, cursor: "pointer"
+                          padding: "6px 12px", borderRadius: 18,
+                          border: s ? "1.5px solid #FF5A4E" : `1.5px solid ${BORDER}`,
+                          background: s ? "linear-gradient(135deg, #FF6B5B 0%, #C0392B 100%)" : CARD,
+                          color: s ? "#fff" : MUTED,
+                          boxShadow: s ? "0 0 12px rgba(255,90,78,0.5)" : "none",
+                          fontSize: 11, fontWeight: s ? 800 : 500, cursor: "pointer", transition: "all 0.15s"
                         }}>{o.name}</button>
                       );
                     })}
@@ -6387,28 +6388,36 @@ export default function App() {
               </div>
               <div style={{ marginBottom: 8 }}>
                 <label style={labelStyle}>RİSK TÜRÜ</label>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {["Davranış", "Akademik", "Aile", "Akran / Zorbalık", "Duygusal", "Devamsızlık", "Öz Zarar", "Sağlık", "Madde Kullanımı", "Ekonomik Güçlük", "Yas / Kayıp", "Travma", "Özel Öğrenme Güçlüğü", "Diğer"].map(t => (
-                    <button key={t} onClick={() => setRiskForm(f=>({...f, riskTuru:t}))} style={{
-                      padding: "5px 10px", borderRadius: 16,
-                      border: `2px solid ${riskForm.riskTuru===t ? "#C0392B" : BORDER}`,
-                      background: riskForm.riskTuru===t ? "#FDECEA" : CARD,
-                      color: riskForm.riskTuru===t ? "#C0392B" : MUTED,
-                      fontSize: 12, fontWeight: riskForm.riskTuru===t ? 700 : 500, cursor: "pointer"
-                    }}>{t}</button>
-                  ))}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                  {["Davranış", "Akademik", "Aile", "Akran / Zorbalık", "Duygusal", "Devamsızlık", "Öz Zarar", "Sağlık", "Madde Kullanımı", "Ekonomik Güçlük", "Yas / Kayıp", "Travma", "Özel Öğrenme Güçlüğü", "Diğer"].map(t => {
+                    const s = riskForm.riskTuru === t;
+                    return (
+                      <button key={t} onClick={() => setRiskForm(f=>({...f, riskTuru:t}))} style={{
+                        padding: "7px 13px", borderRadius: 18,
+                        border: s ? "1.5px solid #FF5A4E" : `1.5px solid ${BORDER}`,
+                        background: s ? "linear-gradient(135deg, #FF6B5B 0%, #C0392B 100%)" : CARD,
+                        color: s ? "#fff" : MUTED,
+                        boxShadow: s ? "0 0 14px rgba(255,90,78,0.5)" : "none",
+                        fontSize: 12, fontWeight: s ? 800 : 500, cursor: "pointer", transition: "all 0.15s"
+                      }}>{t}</button>
+                    );
+                  })}
                 </div>
               </div>
               <div style={{ marginBottom: 8 }}>
                 <label style={labelStyle}>ÖNCELİK</label>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {[["Yüksek","#C0392B","#FDECEA"],["Orta","#B07D1A","#FDF6E3"],["Düşük","#2D6A4F","#E6F5EE"]].map(([p,c,bg]) => (
-                    <button key={p} onClick={() => setRiskForm(f=>({...f, oncelik:p}))} style={{
-                      flex:1, padding:"7px", border:`2px solid ${riskForm.oncelik===p ? c : BORDER}`,
-                      borderRadius:8, background: riskForm.oncelik===p ? bg : CARD,
-                      color: riskForm.oncelik===p ? c : MUTED, fontSize:12, fontWeight:700, cursor:"pointer"
-                    }}>{p}</button>
-                  ))}
+                <div style={{ display: "flex", gap: 8 }}>
+                  {[["Yüksek","#FF5A4E","linear-gradient(135deg, #FF6B5B 0%, #C0392B 100%)","rgba(255,90,78,0.5)"],["Orta","#FFA53E","linear-gradient(135deg, #FFB65C 0%, #C97A18 100%)","rgba(255,165,62,0.5)"],["Düşük","#FFD84A","linear-gradient(135deg, #FFE375 0%, #C9A017 100%)","rgba(255,216,74,0.5)"]].map(([p,c,grad,glow]) => {
+                    const s = riskForm.oncelik === p;
+                    return (
+                      <button key={p} onClick={() => setRiskForm(f=>({...f, oncelik:p}))} style={{
+                        flex:1, padding:"10px", border: s ? `1.5px solid ${c}` : `1.5px solid ${BORDER}`,
+                        borderRadius:12, background: s ? grad : CARD,
+                        boxShadow: s ? `0 0 16px ${glow}` : "none",
+                        color: s ? "#fff" : MUTED, fontSize:13, fontWeight:800, cursor:"pointer", transition:"all 0.15s"
+                      }}>{p}</button>
+                    );
+                  })}
                 </div>
               </div>
               <div style={{ marginBottom: 10 }}>
@@ -6418,10 +6427,11 @@ export default function App() {
                   rows={2} style={{...inputStyle, resize:"vertical"}} />
               </div>
               <button onClick={handleRiskEkle} disabled={!riskForm.studentName.trim() || riskAiLoading} style={{
-                width:"100%", padding:"11px",
-                background: riskAiLoading ? BORDER : riskForm.studentName ? "#C0392B" : BORDER,
+                width:"100%", padding:"13px",
+                background: riskAiLoading ? BORDER : riskForm.studentName ? "linear-gradient(135deg, #FF6B5B 0%, #C0392B 100%)" : BORDER,
                 color: riskAiLoading || !riskForm.studentName ? MUTED : "#fff",
-                border:"none", borderRadius:10, fontSize:14, fontWeight:800, cursor:"pointer"
+                boxShadow: (!riskAiLoading && riskForm.studentName) ? "0 0 18px rgba(255,90,78,0.45)" : "none",
+                border:"none", borderRadius:12, fontSize:14, fontWeight:800, cursor:"pointer", transition:"all 0.15s"
               }}>{riskAiLoading ? "⏳ AI risk analizi yapıyor…" : "✦ AI Analiz Et ve Kaydet"}</button>
             </div>
 
