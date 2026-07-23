@@ -6381,19 +6381,24 @@ export default function App() {
               <div style={{ marginBottom: 8 }}>
                 <label style={labelStyle}>RİSK TÜRÜ</label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-                  {["Davranış", "Akademik", "Aile", "Akran / Zorbalık", "Duygusal", "Devamsızlık", "Öz Zarar", "Sağlık", "Madde Kullanımı", "Ekonomik Güçlük", "Yas / Kayıp", "Travma", "Özel Öğrenme Güçlüğü", "Diğer"].map(t => {
-                    const s = riskForm.riskTuru === t;
-                    return (
-                      <button key={t} onClick={() => setRiskForm(f=>({...f, riskTuru:t}))} style={{
-                        padding: "7px 13px", borderRadius: 18,
-                        border: s ? "1.5px solid #FF5A4E" : `1.5px solid ${BORDER}`,
-                        background: s ? "linear-gradient(135deg, #FF6B5B 0%, #C0392B 100%)" : CARD,
-                        color: s ? "#fff" : MUTED,
-                        boxShadow: s ? "0 0 14px rgba(255,90,78,0.5)" : "none",
-                        fontSize: 12, fontWeight: s ? 800 : 500, cursor: "pointer", transition: "all 0.15s"
-                      }}>{t}</button>
-                    );
-                  })}
+                  {(() => {
+                    const TUR_PALET = ["#E63946","#457B9D","#2A9D8F","#E76F51","#7B5EA7","#E9C46A","#C0392B","#1A8C5B","#8E5B3C","#3B4FD8","#D45D9C","#B07D1A","#00A8A8","#6C757D"];
+                    const turler = ["Davranış", "Akademik", "Aile", "Akran / Zorbalık", "Duygusal", "Devamsızlık", "Öz Zarar", "Sağlık", "Madde Kullanımı", "Ekonomik Güçlük", "Yas / Kayıp", "Travma", "Özel Öğrenme Güçlüğü", "Diğer"];
+                    return turler.map((t, ti) => {
+                      const s = riskForm.riskTuru === t;
+                      const rc = TUR_PALET[ti % TUR_PALET.length];
+                      return (
+                        <button key={t} onClick={() => setRiskForm(f=>({...f, riskTuru:t}))} style={{
+                          padding: "7px 13px", borderRadius: 18,
+                          border: `2px solid ${rc}`,
+                          background: s ? `linear-gradient(135deg, ${rc} 0%, ${rc}CC 100%)` : `${rc}1A`,
+                          color: s ? "#fff" : rc,
+                          boxShadow: s ? `0 0 14px ${rc}88` : "none",
+                          fontSize: 12, fontWeight: s ? 800 : 700, cursor: "pointer", transition: "all 0.15s"
+                        }}>{t}</button>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
               <div style={{ marginBottom: 8 }}>
