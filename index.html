@@ -1414,7 +1414,7 @@ function RaporModal({ rapor, onKapat }) {
                 <div style={S.bolumBaslik}>Profil 1 — PDR Değerlendirmesi</div>
                 <div style={S.bolumIcerik}>
                   <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
-                    <RadarChart scores={profil1.scores} size={150} />
+                    <RadarChart scores={profil1.scores} size={230} />
                   </div>
                   {DIMENSIONS.map(d => {
                     const val = profil1.scores?.[d.key] || 0;
