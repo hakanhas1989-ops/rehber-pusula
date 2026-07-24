@@ -1794,14 +1794,18 @@ function exportToExcel(records) {
 
 // ── Radar SVG ─────────────────────────────────────────────────────────────────
 function RadarChart({ scores, size = 240, glass = false }) {
-  const pad = size * 0.30; // Etiketler için ekstra kenar boşluğu
-  const total = size + pad * 2;
-  const cx = total / 2, cy = total / 2, r = size * 0.34, n = DIMENSIONS.length;
+  const rx = size * 0.42; // yatayda daha geniş
+  const ry = size * 0.30; // dikeyde daha basık (oval görünüm)
+  const padX = size * 0.30;
+  const padY = size * 0.34;
+  const totalW = rx * 2 + padX * 2;
+  const totalH = ry * 2 + padY * 2;
+  const cx = totalW / 2, cy = totalH / 2, n = DIMENSIONS.length;
   const angleStep = (2 * Math.PI) / n;
   const getPoint = (i, val, maxVal = 5) => {
     const angle = i * angleStep - Math.PI / 2;
-    const dist = (val / maxVal) * r;
-    return { x: cx + dist * Math.cos(angle), y: cy + dist * Math.sin(angle) };
+    const ratio = val / maxVal;
+    return { x: cx + ratio * rx * Math.cos(angle), y: cy + ratio * ry * Math.sin(angle) };
   };
   const dataPoints = DIMENSIONS.map((d, i) => getPoint(i, scores[d.key] || 0));
   const gridLevels = [1, 2, 3, 4, 5];
@@ -1813,7 +1817,7 @@ function RadarChart({ scores, size = 240, glass = false }) {
   const labelColor = glass ? "#ffffff" : TEXT;
 
   return (
-    <svg width="100%" height="auto" style={{ maxWidth: total, display: "block" }} viewBox={`0 0 ${total} ${total}`}>
+    <svg width="100%" height="auto" style={{ maxWidth: totalW, display: "block" }} viewBox={`0 0 ${totalW} ${totalH}`}>
       <defs>
         <radialGradient id={gid} cx="50%" cy="45%" r="60%">
           <stop offset="0%" stopColor={fillColor} stopOpacity={glass ? 0.5 : 0.6} />
@@ -1844,8 +1848,8 @@ function RadarChart({ scores, size = 240, glass = false }) {
       {DIMENSIONS.map((d, i) => {
         const angle = i * angleStep - Math.PI / 2;
         const cosA = Math.cos(angle), sinA = Math.sin(angle);
-        const lx = cx + (r + size * 0.16) * cosA;
-        const ly = cy + (r + size * 0.16) * sinA;
+        const lx = cx + (rx + size * 0.16) * cosA;
+        const ly = cy + (ry + size * 0.20) * sinA;
         const GLASS_RENK = { akademik: "#5DC8FF", sosyal: "#7CFFB2", duygusal: "#FF9466", aile: "#C79CFF", ozguven: "#FFD966", uyum: "#5EEAD4", kariyer: "#FF6B6B", akran: "#FFB877" };
         const etiketRengi = glass ? (GLASS_RENK[d.key] || d.color) : d.color;
         return (
