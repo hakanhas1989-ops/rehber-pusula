@@ -1794,8 +1794,8 @@ function exportToExcel(records) {
 
 // ── Radar SVG ─────────────────────────────────────────────────────────────────
 function RadarChart({ scores, size = 240, glass = false }) {
-  const rx = size * 0.42; // yatayda daha geniş
-  const ry = size * 0.30; // dikeyde daha basık (oval görünüm)
+  const rx = size * 0.38; // yatayda hafif geniş (dengeli oval)
+  const ry = size * 0.33; // dikeyde hafif basık (dengeli oval)
   const padX = size * 0.30;
   const padY = size * 0.34;
   const totalW = rx * 2 + padX * 2;
