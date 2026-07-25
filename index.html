@@ -3758,6 +3758,7 @@ function OgrenciYonetim({
   const [formAcik, setFormAcik] = useState(false);
   const [aktifSekme, setAktifSekme] = useState("ozet"); // ozet | gorusme | deneme | profil
   const [sinifFiltre, setSinifFiltre] = useState("Tümü");
+  const [gorunumModu, setGorunumModu] = useState("liste"); // liste | aylik
   const [duzenlemeId, setDuzenlemeId] = useState(null);
   const [duzenleForm, setDuzenleForm] = useState(null);
   const [duzenleAiLoading, setDuzenleAiLoading] = useState(false);
@@ -3929,6 +3930,68 @@ function OgrenciYonetim({
             </div>
           )}
 
+          {/* Görünüm modu: Liste / Aylara Göre */}
+          <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+            <button onClick={() => setGorunumModu("liste")} style={{
+              flex:1, padding:"7px", borderRadius:9, border:`1px solid ${gorunumModu==="liste"?ACCENT:BORDER}`,
+              background:gorunumModu==="liste"?ACCENT_LIGHT:CARD, color:gorunumModu==="liste"?ACCENT:MUTED,
+              fontSize:12, fontWeight:700, cursor:"pointer"
+            }}>📋 Liste</button>
+            <button onClick={() => setGorunumModu("aylik")} style={{
+              flex:1, padding:"7px", borderRadius:9, border:`1px solid ${gorunumModu==="aylik"?ACCENT:BORDER}`,
+              background:gorunumModu==="aylik"?ACCENT_LIGHT:CARD, color:gorunumModu==="aylik"?ACCENT:MUTED,
+              fontSize:12, fontWeight:700, cursor:"pointer"
+            }}>📅 Aylara Göre</button>
+          </div>
+
+          {gorunumModu === "aylik" ? (
+            (() => {
+              const aylar = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
+              const gruplar = {};
+              records.forEach(r => {
+                const parts = (r.date || "").split(".");
+                if (parts.length !== 3) return;
+                const ayIndex = parseInt(parts[1], 10) - 1;
+                const anahtar = `${aylar[ayIndex] || parts[1]} ${parts[2]}`;
+                if (!gruplar[anahtar]) gruplar[anahtar] = { sirala: parts[2] + parts[1].padStart(2,"0"), kayitlar: [] };
+                const ogr = tumOgrenciler.find(o => o.studentName?.toLowerCase().trim() === r.studentName?.toLowerCase().trim());
+                gruplar[anahtar].kayitlar.push({
+                  id: r.id, date: r.date, studentName: r.studentName,
+                  className: ogr?.className || "", numara: ogr?.numara || "",
+                });
+              });
+              const siraliAylar = Object.entries(gruplar).sort((a,b) => b[1].sirala.localeCompare(a[1].sirala));
+
+              if (siraliAylar.length === 0) {
+                return <div style={{ textAlign:"center", color:MUTED, marginTop:30, fontSize:13 }}>Henüz görüşme kaydı yok</div>;
+              }
+              return (
+                <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                  {siraliAylar.map(([ay, veri]) => (
+                    <div key={ay}>
+                      <div style={{ fontSize:12, fontWeight:800, color:ACCENT, marginBottom:6, display:"flex", alignItems:"center", gap:6 }}>
+                        📅 {ay} <span style={{ fontSize:10, fontWeight:600, color:MUTED }}>({veri.kayitlar.length} görüşme)</span>
+                      </div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+                        {veri.kayitlar
+                          .slice()
+                          .sort((a,b) => (a.date||"").localeCompare(b.date||""))
+                          .map(k => (
+                          <div key={k.id} onClick={() => { setSeciliOgrenci(k.studentName); if(setAktifOgrenci) setAktifOgrenci({ name:k.studentName, className:k.className||"" }); }}
+                            style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:10, padding:"9px 12px", display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
+                            <span style={{ fontSize:11, color:MUTED, minWidth:44 }}>{k.date}</span>
+                            <span style={{ flex:1, fontSize:13, fontWeight:700, color:TEXT }}>{k.studentName}</span>
+                            <span style={{ fontSize:11, color:MUTED }}>{k.className}{k.numara ? ` · No: ${k.numara}` : ""}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()
+          ) : (
+          <>
           {/* Sınıf filtresi */}
           {siniflar.length > 0 && (
             <div style={{ display:"flex", gap:5, overflowX:"auto", marginBottom:10, paddingBottom:4 }}>
@@ -3992,6 +4055,8 @@ function OgrenciYonetim({
               );
             })}
           </div>
+          </>
+          )}
         </div>
       ) : (
         /* ── SAĞ: Öğrenci Detay ──────────────────────────────── */
