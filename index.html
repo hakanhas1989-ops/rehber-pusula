@@ -1607,6 +1607,32 @@ function pdrAyniOgrenci(ad1, sinif1, ad2, sinif2) {
   return s1 === s2;
 }
 
+// denemeler, mudahalePlan, hazırlıkNotlari gibi "isimle anahtarlanan" sözlük
+// yapıları için: aynı isimli farklı sınıf öğrencilerinin verisi karışmasın diye
+// anahtar artık isim+sınıf birleşimi. Eski (sadece isimle kaydedilmiş) veriler
+// hâlâ okunabilsin diye, yeni anahtar bulunamazsa eski düz-isim anahtarına da bakılır.
+function pdrOgrAnahtar(name, className) {
+  const n = (name || "").trim();
+  const c = (className || "").trim();
+  return c ? n + " || " + c : n;
+}
+function pdrSozlukOku(sozluk, name, className) {
+  if (!sozluk) return undefined;
+  const yeniKey = pdrOgrAnahtar(name, className);
+  if (sozluk[yeniKey] !== undefined) return sozluk[yeniKey];
+  return sozluk[name]; // eski format (sadece isim) — geriye dönük uyumluluk
+}
+// Yazarken yeni (isim+sınıf) anahtara kaydedilir. Eski düz-isim anahtarına
+// DOKUNULMAZ — çünkü o anahtar, aynı isimli ama farklı sınıftaki başka bir
+// öğrenciye ait olabilir; silinirse o öğrencinin verisi kaybolur. Okuma
+// tarafında (pdrSozlukOku) zaten önce yeni anahtar denendiği için, bu öğrenci
+// için yeni anahtar bir kez oluştuktan sonra eski anahtar artık okunmaz —
+// ekstra silme işlemine gerek yok.
+function pdrSozlukYaz(sozluk, name, className, value) {
+  const yeniKey = pdrOgrAnahtar(name, className);
+  return { ...sozluk, [yeniKey]: value };
+}
+
 
 // ── Rapor İndirme Yardımcısı (mobil uyumlu) ────────────────────────────────────
 async function raporIndir(elementId, dosyaAdi) {
@@ -2490,7 +2516,7 @@ function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, mudahalePlan, setMud
   useEffect(() => { if (aktifOgrenci?.name) setSeciliAd(aktifOgrenci.name); }, [aktifOgrenci?.name]);
 
   const seciliSinif = kayitliListesi.find(o => o.name === seciliAd)?.className || aktifOgrenci?.className || "";
-  const ogrPlanlar = (mudahalePlan[seciliAd] || []).sort((a,b) => new Date(b.tarih) - new Date(a.tarih));
+  const ogrPlanlar = (pdrSozlukOku(mudahalePlan, seciliAd, seciliSinif) || []).sort((a,b) => new Date(b.tarih) - new Date(a.tarih));
   const ogrRec = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, seciliAd, seciliSinif));
 
   async function handleAiPlan() {
@@ -2533,16 +2559,18 @@ Sade yaz, Markdown kullanma.`}]
 
   async function handleKaydet() {
     if (!seciliAd || !form.hedef.trim()) return;
-    const yeni = { id: uid(), tarih: today(), ogrenci: seciliAd, ...form };
-    const updated = { ...mudahalePlan, [seciliAd]: [yeni, ...(mudahalePlan[seciliAd]||[])] };
+    const yeni = { id: uid(), tarih: today(), ogrenci: seciliAd, ogrenciSinif: seciliSinif, ...form };
+    const mevcutPlanlar = pdrSozlukOku(mudahalePlan, seciliAd, seciliSinif) || [];
+    const updated = pdrSozlukYaz(mudahalePlan, seciliAd, seciliSinif, [yeni, ...mevcutPlanlar]);
     setMudahalePlan(updated);
     await saveMudahalePlan(updated);
     setForm({ hedef:"", adimlar:"", sorumlu:"pdr", sure:"", oncelik:"Orta", durum:"Devam Ediyor" });
     setKaydedildi(true); setTimeout(() => setKaydedildi(false), 2000);
   }
 
-  async function handleDurumGuncelle(ogrenci, id, durum) {
-    const updated = { ...mudahalePlan, [ogrenci]: (mudahalePlan[ogrenci]||[]).map(p => p.id===id ? {...p, durum} : p) };
+  async function handleDurumGuncelle(ogrenci, ogrenciSinif, id, durum) {
+    const mevcutPlanlar = pdrSozlukOku(mudahalePlan, ogrenci, ogrenciSinif) || [];
+    const updated = pdrSozlukYaz(mudahalePlan, ogrenci, ogrenciSinif, mevcutPlanlar.map(p => p.id===id ? {...p, durum} : p));
     setMudahalePlan(updated);
     await saveMudahalePlan(updated);
   }
@@ -2623,7 +2651,7 @@ Sade yaz, Markdown kullanma.`}]
                     {p.adimlar && <div style={{fontSize:12,color:TEXT,lineHeight:1.7,whiteSpace:"pre-wrap",background:"#f9f9f9",borderRadius:6,padding:"6px 8px",marginBottom:8}}>{p.adimlar}</div>}
                     <div style={{display:"flex",gap:6}}>
                       {["Devam Ediyor","Tamamlandı","Askıda"].map(d=>(
-                        <button key={d} onClick={()=>handleDurumGuncelle(p.ogrenci,p.id,d)} style={{flex:1,padding:"5px",fontSize:10,fontWeight:p.durum===d?700:500,borderRadius:7,border:`1px solid ${p.durum===d?rc:BORDER}`,background:p.durum===d?rbg:CARD,color:p.durum===d?rc:MUTED,cursor:"pointer"}}>{d}</button>
+                        <button key={d} onClick={()=>handleDurumGuncelle(p.ogrenci,p.ogrenciSinif,p.id,d)} style={{flex:1,padding:"5px",fontSize:10,fontWeight:p.durum===d?700:500,borderRadius:7,border:`1px solid ${p.durum===d?rc:BORDER}`,background:p.durum===d?rbg:CARD,color:p.durum===d?rc:MUTED,cursor:"pointer"}}>{d}</button>
                       ))}
                     </div>
                   </div>
@@ -3068,19 +3096,19 @@ function YilSecimEkrani({ yillar, setYillar, aktifYil, setAktifYil, ogrenciler, 
 }
 
 // ── Özet Kartı Bileşeni (Seans Öncesi Hazırlık) ─────────────────────────────
-function OzetKarti({ ogrenci, ogrRec, ogrP1, ogrP2, ogrRisk, denemeGirilen, denemeAvg, mudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, setTab }) {
+function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denemeGirilen, denemeAvg, mudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, setTab }) {
   const [hazirlikAiLoading, setHazirlikAiLoading] = useState(false);
   const [aktifPanel, setAktifPanel] = useState("ozet"); // ozet | hazirlik | ilerleme
 
   // Storage'dan yükle
-  const hazirlikNotu = hazirlikNotlari[ogrenci] || "";
+  const hazirlikNotu = pdrSozlukOku(hazirlikNotlari, ogrenci, ogrenciSinif) || "";
   async function setHazirlikNotu(metin) {
-    const updated = { ...hazirlikNotlari, [ogrenci]: metin };
+    const updated = pdrSozlukYaz(hazirlikNotlari, ogrenci, ogrenciSinif, metin);
     setHazirlikNotlari(updated);
     await saveHazirlikNotlari(updated);
   }
 
-  const ogrMudahale = (mudahalePlan[ogrenci] || []).filter(p => p.durum === "Devam Ediyor");
+  const ogrMudahale = (pdrSozlukOku(mudahalePlan, ogrenci, ogrenciSinif) || []).filter(p => p.durum === "Devam Ediyor");
   const sonGorusme = ogrRec[0];
   const ilkGorusme = ogrRec[ogrRec.length - 1];
 
@@ -3360,7 +3388,7 @@ Kısa ve pratik yaz, Markdown kullanma.`}]
 
           {/* Seans Arası İlerleme Değerlendirmesi */}
           {ogrRec.length >= 2 && (
-            <IlerlemeYazisi ogrenci={ogrenci} ogrRec={ogrRec} ogrP1={ogrP1} denemeGirilen={denemeGirilen} ilerlemeNotlari={ilerlemeNotlari} setIlerlemeNotlari={setIlerlemeNotlari} />
+            <IlerlemeYazisi ogrenci={ogrenci} ogrenciSinif={ogrenciSinif} ogrRec={ogrRec} ogrP1={ogrP1} denemeGirilen={denemeGirilen} ilerlemeNotlari={ilerlemeNotlari} setIlerlemeNotlari={setIlerlemeNotlari} />
           )}
 
           {ogrRec.length === 0 && !ogrP1 && (
@@ -3377,13 +3405,13 @@ Kısa ve pratik yaz, Markdown kullanma.`}]
 
 
 // ── İlerleme Yazısı Bileşeni ─────────────────────────────────────────────────
-function IlerlemeYazisi({ ogrenci, ogrRec, ogrP1, denemeGirilen, ilerlemeNotlari, setIlerlemeNotlari }) {
+function IlerlemeYazisi({ ogrenci, ogrenciSinif, ogrRec, ogrP1, denemeGirilen, ilerlemeNotlari, setIlerlemeNotlari }) {
   const [loading, setLoading] = useState(false);
 
   // Storage'dan yükle
-  const yazı = ilerlemeNotlari[ogrenci] || "";
+  const yazı = pdrSozlukOku(ilerlemeNotlari, ogrenci, ogrenciSinif) || "";
   async function setYazi(metin) {
-    const updated = { ...ilerlemeNotlari, [ogrenci]: metin };
+    const updated = pdrSozlukYaz(ilerlemeNotlari, ogrenci, ogrenciSinif, metin);
     setIlerlemeNotlari(updated);
     await saveIlerlemeNotlari(updated);
   }
@@ -3720,9 +3748,10 @@ function ExcelTopluYukle({ ogrenciler, setOgrenciler, denemeler, setDenemeler, a
 
           // 7.sınıf denemelerini "7s_" prefix ile kaydet
           if (Object.keys(deneme7).length > 0) {
-            const ogrDen = yeniDenemeler[adSoyad] || {};
+            const denemeKey = pdrOgrAnahtar(adSoyad, sube);
+            const ogrDen = yeniDenemeler[denemeKey] || yeniDenemeler[adSoyad] || {};
             ogrDen["7sinif"] = { denemeler: deneme7, ortalama: ort.toFixed(1), risk: risk7 };
-            yeniDenemeler[adSoyad] = ogrDen;
+            yeniDenemeler[denemeKey] = ogrDen;
           }
         }
 
@@ -3954,7 +3983,7 @@ function OgrenciYonetim({
   const ogrRec = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, seciliOgrenci, seciliOgrenciSinif));
   const ogrP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliOgrenci, seciliOgrenciSinif));
   const ogrP2 = profiles2.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliOgrenci, seciliOgrenciSinif));
-  const ogrDeneme = denemeler[seciliOgrenci] || {};
+  const ogrDeneme = pdrSozlukOku(denemeler, seciliOgrenci, seciliOgrenciSinif) || {};
   const ogrRisk = riskListesi.filter(r => pdrAyniOgrenci(r.studentName, r.className, seciliOgrenci, seciliOgrenciSinif) && !r.kapandi);
   const denemeGirilen = Object.entries(ogrDeneme).sort((a,b)=>a[0]-b[0]).map(([no,nets])=>({
     no:parseInt(no), nets,
@@ -4111,9 +4140,9 @@ function OgrenciYonetim({
             {gosterilecek.map(o => {
               const oRec = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className));
               const oP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, o.studentName, o.className));
-              const oDen = Object.keys(denemeler[o.studentName] || {}).length;
+              const oDen = Object.keys(pdrSozlukOku(denemeler, o.studentName, o.className) || {}).length;
               const oRsk = riskListesi.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className) && !r.kapandi).length;
-              const oDenAvg = oDen > 0 ? (Object.values(denemeler[o.studentName]||{}).reduce((s,nets)=>s+LGS_DERSLER.reduce((ss,d)=>ss+(parseFloat(nets[d.key])||0),0),0)/oDen).toFixed(1) : null;
+              const oDenAvg = oDen > 0 ? (Object.values(pdrSozlukOku(denemeler, o.studentName, o.className)||{}).reduce((s,nets)=>s+LGS_DERSLER.reduce((ss,d)=>ss+(parseFloat(nets[d.key])||0),0),0)/oDen).toFixed(1) : null;
 
               // Basit 3'lü kategori: Riskli / Takip Gerekli / İyi Gidiyor
               const oPdrParse = d => { const [g,ay,y] = (d||"").split("."); return new Date(`${y}-${ay}-${g}`); };
@@ -4208,6 +4237,7 @@ function OgrenciYonetim({
           {aktifSekme === "ozet" && (
             <OzetKarti
               ogrenci={seciliOgrenci}
+              ogrenciSinif={seciliOgrenciSinif}
               ogrRec={ogrRec}
               ogrP1={ogrP1}
               ogrP2={ogrP2}
@@ -4445,8 +4475,9 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, ha
   const filtreliListe = kayitliListesi.filter(o =>
     o.name.toLowerCase().includes(aramaMetni.toLowerCase())
   );
+  const seciliOgrenciSinif = kayitliListesi.find(o => o.name === seciliOgrenci)?.className || aktifOgrenci?.className || "";
 
-  const ogrenciDenemeler = denemeler[seciliOgrenci] || {};
+  const ogrenciDenemeler = pdrSozlukOku(denemeler, seciliOgrenci, seciliOgrenciSinif) || {};
   const sinif7Data = ogrenciDenemeler["7sinif"] || null;
 
   // Toplam net hesapla
@@ -4596,10 +4627,8 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, ha
   }
 
   async function handleKaydet(no, nets) {
-    const updated = {
-      ...denemeler,
-      [seciliOgrenci]: { ...(denemeler[seciliOgrenci] || {}), [no]: nets }
-    };
+    const guncelNets = { ...(pdrSozlukOku(denemeler, seciliOgrenci, seciliOgrenciSinif) || {}), [no]: nets };
+    const updated = pdrSozlukYaz(denemeler, seciliOgrenci, seciliOgrenciSinif, guncelNets);
     setDenemeler(updated);
     await saveDenemeler(updated);
     setAktifDeneme(null);
@@ -4608,9 +4637,9 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, ha
   }
 
   async function handleSil(no) {
-    const ogr = { ...(denemeler[seciliOgrenci] || {}) };
+    const ogr = { ...(pdrSozlukOku(denemeler, seciliOgrenci, seciliOgrenciSinif) || {}) };
     delete ogr[no];
-    const updated = { ...denemeler, [seciliOgrenci]: ogr };
+    const updated = pdrSozlukYaz(denemeler, seciliOgrenci, seciliOgrenciSinif, ogr);
     setDenemeler(updated);
     await saveDenemeler(updated);
   }
@@ -4659,7 +4688,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, ha
           {/* Öğrenci listesi */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
             {filtreliListe.map(o => {
-              const ogrNets = denemeler[o.name] || {};
+              const ogrNets = pdrSozlukOku(denemeler, o.name, o.className) || {};
               const dCount = Object.keys(ogrNets).length;
               const s = seciliOgrenci === o.name;
               return (
@@ -4796,13 +4825,13 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, ha
                   </div>
                   {/* AI Analiz Butonu */}
                   <button onClick={() => handleDenemeAnaliz(seciliOgrenci, seciliOgrenciSinif)} disabled={denemeAiLoading}
-                    style={{ width:"100%", padding:"11px", background: denemeAiLoading ? BORDER : "#457B9D", color: denemeAiLoading ? MUTED : "#fff", border:"none", borderRadius:10, fontSize:13, fontWeight:700, cursor:"pointer", marginBottom: denemeAnaliz[seciliOgrenci] ? 12 : 0 }}>
+                    style={{ width:"100%", padding:"11px", background: denemeAiLoading ? BORDER : "#457B9D", color: denemeAiLoading ? MUTED : "#fff", border:"none", borderRadius:10, fontSize:13, fontWeight:700, cursor:"pointer", marginBottom: pdrSozlukOku(denemeAnaliz, seciliOgrenci, seciliOgrenciSinif) ? 12 : 0 }}>
                     {denemeAiLoading ? "⏳ AI analiz yapıyor…" : "✦ AI Deneme & Hazırlık Analizi"}
                   </button>
-                  {denemeAnaliz[seciliOgrenci] && (
+                  {pdrSozlukOku(denemeAnaliz, seciliOgrenci, seciliOgrenciSinif) && (
                     <div style={{ background: "#EEF2FF", border: `1px solid #c7ccf5`, borderRadius: 10, padding: 12 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: BLUE, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>✦ AI LGS Hazırlık Analizi</div>
-                      <div style={{ fontSize: 13, color: TEXT, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{denemeAnaliz[seciliOgrenci]}</div>
+                      <div style={{ fontSize: 13, color: TEXT, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{pdrSozlukOku(denemeAnaliz, seciliOgrenci, seciliOgrenciSinif)}</div>
                     </div>
                   )}
                 </div>
@@ -4851,7 +4880,7 @@ function ProfilMerkez({
   const mevcutP2 = profiles2.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif));
   const ogrRec = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, seciliAd, seciliSinif));
   const ogrRec2 = ogrRec; // alias for P2 context
-  const ogrDeneme = denemeler[seciliAd] || {};
+  const ogrDeneme = pdrSozlukOku(denemeler, seciliAd, seciliSinif) || {};
   const denemeGirilen = Object.entries(ogrDeneme).sort((a,b)=>a[0]-b[0]).map(([no,nets])=>({
     no:parseInt(no), nets, toplam: LGS_DERSLER.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
   }));
@@ -6058,7 +6087,7 @@ export default function App() {
   async function handleProfileAnalyze() {
     setProfAiLoading(true);
     // Öğrencinin deneme verilerini de bağlama ekle
-    const ogrenciDenemeler = denemeler[profForm.studentName] || {};
+    const ogrenciDenemeler = pdrSozlukOku(denemeler, profForm.studentName, profForm.className) || {};
     const denemeOzeti = Object.entries(ogrenciDenemeler).length > 0
       ? "DENEME SONUÇLARI: " + Object.entries(ogrenciDenemeler)
           .sort((a,b) => a[0]-b[0])
@@ -6142,13 +6171,13 @@ export default function App() {
   async function handleDenemeAnaliz(studentName, className) {
     const ad = studentName.toLowerCase().trim();
     const gorusmeler = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, studentName, className));
-    const ogrDeneme = denemeler[studentName] || {};
+    const ogrDeneme = pdrSozlukOku(denemeler, studentName, className) || {};
     const girilen = Object.entries(ogrDeneme).sort((a,b)=>a[0]-b[0]).map(([no,nets])=>({
       no:parseInt(no), nets, toplam: LGS_DERSLER.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
     }));
     setDenemeAiLoading(true);
     const analiz = await getDenemeAnalizi(studentName, gorusmeler, girilen);
-    setDenemeAnaliz(prev => ({ ...prev, [studentName]: analiz }));
+    setDenemeAnaliz(prev => pdrSozlukYaz(prev, studentName, className, analiz));
     setDenemeAiLoading(false);
   }
 
@@ -6167,7 +6196,7 @@ export default function App() {
         const parse = d => { const [g, ay, y] = (d||"").split("."); return new Date(`${y}-${ay}-${g}`); };
         return parse(a.date) - parse(b.date);
       });
-    setRaporVerisi(raporVerisiOlustur({ ogrenci: ogrenciAdi, ogrenciSinif: profil1.className, profil1, profil2, gorusmeler, denemeler: denemeler[ogrenciAdi] || {}, mudahalePlan, riskListesi }));
+    setRaporVerisi(raporVerisiOlustur({ ogrenci: ogrenciAdi, ogrenciSinif: profil1.className, profil1, profil2, gorusmeler, denemeler: pdrSozlukOku(denemeler, ogrenciAdi, profil1.className) || {}, mudahalePlan, riskListesi }));
   }
 
   async function handleProf2Analiz() {
@@ -6175,7 +6204,7 @@ export default function App() {
     const gorusmeBolum2 = ogrRec2.length > 0
       ? "GÖRÜŞME NOTLARI:\n" + ogrRec2.map((r,i)=>`Görüşme ${i+1} (${r.date}): ${r.summary}`).join("\n\n")
       : "";
-    const ogrDen2 = denemeler[seciliAd] || {};
+    const ogrDen2 = pdrSozlukOku(denemeler, seciliAd, seciliSinif) || {};
     const girilen2 = Object.entries(ogrDen2).sort((a,b)=>a[0]-b[0]).map(([no,nets])=>({
       no:parseInt(no), nets, toplam: LGS_DERSLER.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
     }));
@@ -6251,7 +6280,7 @@ export default function App() {
       ...records.filter(r => (r.meetingType || "Öğrenci") === "Öğrenci"),
       ...profiles,
       ...profiles2,
-    ].map(r => [r.studentName.toLowerCase().trim(), { name: r.studentName, className: r.className || "" }]))
+    ].map(r => [pdrOgrAnahtar(r.studentName.toLowerCase().trim(), (r.className||"").toLowerCase().trim()), { name: r.studentName, className: r.className || "" }]))
     .values()
   ).sort((a, b) => a.name.localeCompare(b.name, "tr")),
   [ogrenciler, records, profiles, profiles2]);
