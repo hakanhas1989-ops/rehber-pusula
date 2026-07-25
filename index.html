@@ -222,6 +222,12 @@ body {
       <input type="email" id="pdr-login-email" placeholder="E-posta" required autocomplete="username" />
       <input type="password" id="pdr-login-pass" placeholder="Şifre" required autocomplete="current-password" />
       <input type="password" id="pdr-login-pass2" placeholder="Şifre (tekrar)" autocomplete="new-password" style="display:none" />
+      <div id="pdr-tos-row" style="display:none;align-items:flex-start;gap:8px;margin:10px 0;text-align:left">
+        <input type="checkbox" id="pdr-tos-checkbox" style="margin-top:3px;flex-shrink:0" />
+        <label for="pdr-tos-checkbox" style="font-size:12px;color:#555;line-height:1.5">
+          <a href="#" id="pdr-tos-link" style="color:#1A4D3B;font-weight:600;text-decoration:underline">Kullanım Şartları</a>'nı okudum ve kabul ediyorum.
+        </label>
+      </div>
       <button type="submit" id="pdr-login-btn">Giriş Yap</button>
       <div id="pdr-login-error"></div>
       <div id="pdr-login-info" style="color:#1A4D3B;font-size:12px;margin-top:8px;min-height:16px"></div>
@@ -391,9 +397,40 @@ const pdrLoginBtn = document.getElementById("pdr-login-btn");
 const pdrLoginTitle = document.getElementById("pdr-login-title");
 const pdrToggleMode = document.getElementById("pdr-toggle-mode");
 const pdrPass2 = document.getElementById("pdr-login-pass2");
+const pdrTosRow = document.getElementById("pdr-tos-row");
+const pdrTosCheckbox = document.getElementById("pdr-tos-checkbox");
+const pdrTosLink = document.getElementById("pdr-tos-link");
 const pdrLogoutBtn = document.getElementById("pdr-logout-btn");
 const pdrForgotPass = document.getElementById("pdr-forgot-pass");
 let pdrIsRegisterMode = false;
+
+if (pdrTosLink) {
+  pdrTosLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    let el = document.getElementById("pdr-tos-overlay");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "pdr-tos-overlay";
+      el.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(10,30,20,0.6);display:flex;align-items:center;justify-content:center;padding:20px;";
+      document.body.appendChild(el);
+    }
+    el.innerHTML = `
+      <div style="max-width:480px;width:100%;max-height:80vh;overflow-y:auto;background:#fff;color:#1A1A1A;border-radius:16px;padding:24px 22px;box-shadow:0 20px 50px rgba(0,0,0,0.4);">
+        <div style="font-weight:800;font-size:17px;margin-bottom:14px;color:#1A4D3B;">🧭 Rehber Pusula — Kullanım Şartları</div>
+        <div style="font-size:12.5px;line-height:1.8;color:#333;">
+          <p><b>1. Hizmetin Kapsamı</b><br/>Rehber Pusula, rehber öğretmenler/PDR uzmanları için öğrenci görüşme, profil ve takip kayıtlarının yönetimini kolaylaştıran bir yazılım hizmetidir.</p>
+          <p><b>2. Hesap ve Erişim</b><br/>Hesabınız kişiseldir. Kullanıcı adı ve şifrenizi başkalarıyla paylaşamaz, hesabınızı başka bir kişi veya kuruma devredemez ya da kiralayamazsınız.</p>
+          <p><b>3. Kopyalama ve Yeniden Satış Yasağı</b><br/>Yazılımın kaynak kodunu, tasarımını veya işlevselliğini kopyalayamaz, çoğaltamaz, tersine mühendislik yapamaz, başka bir ürün olarak yeniden paketleyip satamaz veya üçüncü kişilere devredemezsiniz. Bu maddenin ihlali hesabın askıya alınmasına ve hukuki yollara başvurulmasına sebep olabilir.</p>
+          <p><b>4. Öğrenci Verilerinin Sorumluluğu</b><br/>Sisteme girdiğiniz öğrenci/veli verilerinin doğruluğundan ve ilgili mevzuata (KVKK dahil) uygun şekilde işlenmesinden siz sorumlusunuz.</p>
+          <p><b>5. Ücretlendirme</b><br/>Hesabınızın aktif kalabilmesi için belirlenen ücretin ödenmesi veya tarafımızca ücretsiz kullanıcı olarak tanımlanmış olmanız gerekir. Ödeme yapılmayan hesaplar erişime kapatılabilir.</p>
+          <p><b>6. Hizmetin Sona Ermesi</b><br/>Bu şartların ihlali durumunda hesabınız önceden bildirim yapılmaksızın askıya alınabilir veya kapatılabilir.</p>
+        </div>
+        <button id="pdr-tos-close" style="width:100%;margin-top:16px;padding:11px;background:#2D6A4F;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;">Kapat</button>
+      </div>`;
+    el.style.display = "flex";
+    document.getElementById("pdr-tos-close").onclick = () => { el.style.display = "none"; };
+  });
+}
 
 if (pdrForgotPass) {
   pdrForgotPass.addEventListener("click", async (e) => {
@@ -426,12 +463,15 @@ if (pdrToggleMode) {
       pdrLoginBtn.textContent = "Kayıt Ol";
       pdrPass2.style.display = "block";
       pdrPass2.required = true;
+      if (pdrTosRow) pdrTosRow.style.display = "flex";
       pdrToggleMode.textContent = "Zaten hesabınız var mı? Giriş yapın";
     } else {
       pdrLoginTitle.textContent = "🔒 Giriş Yap";
       pdrLoginBtn.textContent = "Giriş Yap";
       pdrPass2.style.display = "none";
       pdrPass2.required = false;
+      if (pdrTosRow) pdrTosRow.style.display = "none";
+      if (pdrTosCheckbox) pdrTosCheckbox.checked = false;
       pdrToggleMode.textContent = "Hesabınız yok mu? Kayıt olun";
     }
     if (pdrLoginError) pdrLoginError.textContent = "";
@@ -498,6 +538,10 @@ if (pdrLoginForm) {
       }
       if (pass !== pass2) {
         pdrLoginError.textContent = "Şifreler eşleşmiyor.";
+        return;
+      }
+      if (pdrTosCheckbox && !pdrTosCheckbox.checked) {
+        pdrLoginError.textContent = "Devam etmek için Kullanım Şartları'nı kabul etmeniz gerekiyor.";
         return;
       }
     }
