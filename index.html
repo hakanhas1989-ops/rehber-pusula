@@ -97,9 +97,51 @@ body {
 #splash.hide { display: none; }
 /* Giriş ekranı */
 #pdr-login-overlay {
-  position: fixed; inset: 0; background: #2D6A4F; z-index: 9998;
+  position: fixed; inset: 0;
+  background: radial-gradient(circle at 50% 42%, #1f4d3a 0%, #163b2c 55%, #0a1f18 100%);
+  z-index: 9998; overflow: hidden;
   display: none; flex-direction: column; align-items: center; justify-content: center;
   color: white; padding: 24px;
+}
+#pdr-compass-wrap {
+  position: absolute; top: 50%; left: 50%;
+  width: 680px; height: 680px; max-width: 140vw; max-height: 140vw;
+  transform: translate(-50%, -50%);
+  z-index: 0; opacity: 0.55;
+  filter: drop-shadow(0 0 40px rgba(0,0,0,0.4));
+  pointer-events: none;
+}
+#pdr-outer-ring { transform-origin: 340px 340px; animation: pdrSlowspin 90s linear infinite; }
+@keyframes pdrSlowspin { to { transform: rotate(360deg); } }
+#pdr-sheen { transform-origin: 340px 340px; animation: pdrSheenspin 14s linear infinite reverse; opacity: 0.35; }
+@keyframes pdrSheenspin { to { transform: rotate(360deg); } }
+#pdr-needle-group {
+  transform-origin: 340px 340px;
+  animation: pdrSeek 8s cubic-bezier(0.33, 1, 0.68, 1) infinite;
+}
+@keyframes pdrSeek {
+  0%    { transform: rotate(0deg); }
+  45%   { transform: rotate(980deg); }
+  58%   { transform: rotate(1055deg); }
+  68%   { transform: rotate(1015deg); }
+  76%   { transform: rotate(1040deg); }
+  84%   { transform: rotate(1025deg); }
+  92%   { transform: rotate(1030deg); }
+  100%  { transform: rotate(1030deg); }
+}
+#pdr-ping { transform-origin: 340px 340px; animation: pdrPing 8s ease-out infinite; }
+@keyframes pdrPing {
+  0%, 90% { opacity: 0; transform: scale(0.9); }
+  92%     { opacity: 0.8; transform: scale(0.9); }
+  100%    { opacity: 0; transform: scale(1.5); }
+}
+#pdr-tip-glow { animation: pdrGlow 2.2s ease-in-out infinite; }
+@keyframes pdrGlow { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+#pdr-login-overlay .pdr-login-box { position: relative; z-index: 1; }
+/* Giriş sonrası canlı bilgi şeridi */
+@keyframes pdrTickerScroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
 }
 #pdr-login-overlay .pdr-login-box {
   background: #fff; border-radius: 16px; padding: 28px 24px;
@@ -128,6 +170,51 @@ body {
 </div>
 
 <div id="pdr-login-overlay">
+  <div id="pdr-compass-wrap">
+    <svg viewBox="0 0 680 680" width="100%" height="100%">
+      <defs>
+        <radialGradient id="pdrRingGrad" cx="35%" cy="30%" r="75%">
+          <stop offset="0%" stop-color="#f5f5f5"/>
+          <stop offset="45%" stop-color="#cfd2d4"/>
+          <stop offset="75%" stop-color="#8d9194"/>
+          <stop offset="100%" stop-color="#4d5052"/>
+        </radialGradient>
+        <radialGradient id="pdrFaceGrad" cx="40%" cy="35%" r="70%">
+          <stop offset="0%" stop-color="#f0f6f2"/>
+          <stop offset="100%" stop-color="#c7d3cc"/>
+        </radialGradient>
+        <linearGradient id="pdrSheenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
+          <stop offset="45%" stop-color="#ffffff" stop-opacity="0.8"/>
+          <stop offset="55%" stop-color="#ffffff" stop-opacity="0"/>
+        </linearGradient>
+        <radialGradient id="pdrTipGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#ff6b52" stop-opacity="0.9"/>
+          <stop offset="100%" stop-color="#ff6b52" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <g id="pdr-outer-ring">
+        <circle cx="340" cy="340" r="320" fill="url(#pdrRingGrad)" />
+        <g stroke="#6d7174" stroke-width="2" id="pdr-ticks"></g>
+      </g>
+      <circle cx="340" cy="340" r="270" fill="url(#pdrFaceGrad)" stroke="#7a7d80" stroke-width="4"/>
+      <g font-family="Segoe UI, sans-serif" font-weight="800" fill="#2c3a33" font-size="30">
+        <text x="340" y="100" text-anchor="middle">K</text>
+        <text x="340" y="600" text-anchor="middle">G</text>
+        <text x="100" y="350" text-anchor="middle">B</text>
+        <text x="580" y="350" text-anchor="middle">D</text>
+      </g>
+      <circle id="pdr-sheen" cx="340" cy="340" r="268" fill="url(#pdrSheenGrad)"/>
+      <circle id="pdr-ping" cx="340" cy="340" r="150" fill="none" stroke="#ff6b52" stroke-width="4"/>
+      <g id="pdr-needle-group">
+        <circle id="pdr-tip-glow" cx="340" cy="140" r="26" fill="url(#pdrTipGlow)"/>
+        <polygon points="340,120 364,340 340,362 316,340" fill="#C0392B"/>
+        <polygon points="340,560 364,340 340,318 316,340" fill="#ececeb" stroke="#9a9a9a" stroke-width="1"/>
+        <circle cx="340" cy="340" r="24" fill="#3a3d40" stroke="#111" stroke-width="2"/>
+        <circle cx="340" cy="340" r="7" fill="#c9ccce"/>
+      </g>
+    </svg>
+  </div>
   <div class="pdr-login-box">
     <h2 id="pdr-login-title">🔒 Giriş Yap</h2>
     <p class="pdr-sub">Verileriniz güvenle bulutta saklanır.</p>
@@ -154,6 +241,24 @@ body {
 
 <script>
 // Firebase kurulumu
+// Pusula kadranı için 72 derece çizgisi çiz
+(function pdrDrawTicks() {
+  const ticksGroup = document.getElementById('pdr-ticks');
+  if (!ticksGroup) return;
+  const cx = 340, cy = 340, rOuter = 315, rInner = 300;
+  for (let i = 0; i < 72; i++) {
+    const angle = (i * 5) * Math.PI / 180;
+    const x1 = cx + rInner * Math.sin(angle);
+    const y1 = cy - rInner * Math.cos(angle);
+    const x2 = cx + rOuter * Math.sin(angle);
+    const y2 = cy - rOuter * Math.cos(angle);
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", x1); line.setAttribute("y1", y1);
+    line.setAttribute("x2", x2); line.setAttribute("y2", y2);
+    ticksGroup.appendChild(line);
+  }
+})();
+
 const firebaseConfig = {
   apiKey: "AIzaSyAhS-sfwpZa2zb8GKSqcvihLdrBMtPOCTQ",
   authDomain: "rehber-pusula.firebaseapp.com",
@@ -5626,6 +5731,16 @@ export default function App() {
   const veliRecs = records.filter(r => r.meetingType === "Veli");
   const uniqueStudents = new Set(studentRecs.map(r => r.studentName)).size;
   const uniqueParents = new Set(veliRecs.map(r => r.studentName)).size;
+  const bekleyenSevk = sevkler.filter(s => s.sonucBekleniyor).length;
+  const tickerItems = [
+    `📊 ${totalRecs} görüşme kaydı`,
+    `👥 ${uniqueStudents} farklı öğrenci`,
+    `👪 ${uniqueParents} veli görüşmesi`,
+    `📋 ${profiles.length} öğrenci profili`,
+    `⚠️ ${riskListesi.length} risk takibi`,
+    `📮 ${bekleyenSevk} bekleyen sevk sonucu`,
+    `📅 Aktif yıl: ${aktifYil}`,
+  ];
   const topicCount = records.reduce((acc, r) => { const t = r.topic || "Belirtilmemiş"; acc[t] = (acc[t] || 0) + 1; return acc; }, {});
   const topTopics = Object.entries(topicCount).sort((a, b) => b[1] - a[1]);
   const maxTopic = topTopics[0]?.[1] || 1;
@@ -5690,8 +5805,17 @@ export default function App() {
         </div>
       </div>
 
+      {/* Canlı bilgi şeridi (ticker) */}
+      <div style={{ background: "#0F3D2E", overflow: "hidden", position: "sticky", top: 0, zIndex: 9, borderBottom: `1px solid ${BORDER}` }}>
+        <div style={{ display: "inline-flex", whiteSpace: "nowrap", padding: "6px 0", animation: "pdrTickerScroll 26s linear infinite" }}>
+          {[...tickerItems, ...tickerItems].map((item, i) => (
+            <span key={i} style={{ color: "#fff", fontSize: 12, fontWeight: 600, marginRight: 36 }}>{item}</span>
+          ))}
+        </div>
+      </div>
+
       {/* Tabs */}
-      <div style={{ display: "flex", background: CARD, borderBottom: `1px solid ${BORDER}`, overflowX: "auto", boxShadow: "0 3px 8px rgba(0,0,0,0.06)", position: "sticky", top: 0, zIndex: 9 }}>
+      <div style={{ display: "flex", background: CARD, borderBottom: `1px solid ${BORDER}`, overflowX: "auto", boxShadow: "0 3px 8px rgba(0,0,0,0.06)", position: "sticky", top: 0, zIndex: 8 }}>
         {TABS.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             flexShrink: 0, padding: "11px 10px", border: "none", background: "none",
