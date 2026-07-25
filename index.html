@@ -402,13 +402,71 @@ async function pdrSyncDown(uid) {
   localStorage.setItem("pdr_last_uid", uid);
   try {
     const snap = await pdrDb.collection("users").doc(uid).collection("data").get();
-    snap.forEach((doc) => {
+    for (const doc of snap.docs) {
       const d = doc.data();
-      if (d && typeof d.value === "string") {
-        localStorage.setItem("rpusula__" + doc.id, d.value);
+      let deger = null;
+      if (d && d.chunked) {
+        deger = await pdrParcalariBirlestir(uid, doc.id, d.parcaSayisi || 0);
+      } else if (d && typeof d.value === "string") {
+        deger = d.value;
       }
-    });
+      if (deger !== null) {
+        try { localStorage.setItem("rpusula__" + doc.id, deger); }
+        catch (e) { console.warn("Yerel depolama dolu, atlanıyor:", doc.id, e); }
+      }
+    }
   } catch (e) { console.log("Firestore indirme hatası:", e); }
+}
+
+// Firestore tek doküman başına ~1MB sınırına sahiptir. Büyük veriler (yıllar
+// içinde biriken görüşme kayıtları gibi) bu sınırı aşabilir; bunu aşmak için
+// büyük değerleri otomatik olarak parçalara bölüp ayrı dokümanlarda saklıyoruz.
+const PDR_PARCA_LIMIT = 700000; // güvenli pay bırakılmış karakter sınırı
+
+async function pdrParcalariBirlestir(uid, key, parcaSayisi) {
+  let birlesik = "";
+  for (let i = 0; i < parcaSayisi; i++) {
+    try {
+      const parcaSnap = await pdrDb.collection("users").doc(uid).collection("data_chunks").doc(`${key}__${i}`).get();
+      birlesik += parcaSnap.exists ? (parcaSnap.data().deger || "") : "";
+    } catch (e) { console.warn("Parça okunamadı:", key, i, e); }
+  }
+  return birlesik;
+}
+
+async function pdrEskiParcalariTemizle(uid, key) {
+  try {
+    const batch = pdrDb.batch();
+    for (let i = 0; i < 60; i++) {
+      batch.delete(pdrDb.collection("users").doc(uid).collection("data_chunks").doc(`${key}__${i}`));
+    }
+    await batch.commit();
+  } catch (e) { /* sessizce geç — parça yoksa zaten silinecek bir şey yok */ }
+}
+
+async function pdrFirestoreYaz(uid, key, value) {
+  const ref = pdrDb.collection("users").doc(uid).collection("data").doc(key);
+  if (value.length <= PDR_PARCA_LIMIT) {
+    await ref.set({ value, chunked: false, updatedAt: Date.now() });
+    await pdrEskiParcalariTemizle(uid, key);
+    return;
+  }
+  const parcaSayisi = Math.ceil(value.length / PDR_PARCA_LIMIT);
+  const batch = pdrDb.batch();
+  for (let i = 0; i < parcaSayisi; i++) {
+    const parca = value.slice(i * PDR_PARCA_LIMIT, (i + 1) * PDR_PARCA_LIMIT);
+    batch.set(pdrDb.collection("users").doc(uid).collection("data_chunks").doc(`${key}__${i}`), { deger: parca, updatedAt: Date.now() });
+  }
+  batch.set(ref, { chunked: true, parcaSayisi, updatedAt: Date.now() });
+  await batch.commit();
+}
+
+async function pdrFirestoreOku(uid, key) {
+  const snap = await pdrDb.collection("users").doc(uid).collection("data").doc(key).get();
+  if (!snap.exists) return null;
+  const d = snap.data();
+  if (d.chunked) return await pdrParcalariBirlestir(uid, key, d.parcaSayisi || 0);
+  return typeof d.value === "string" ? d.value : null;
 }
 
 const pdrLoginOverlay = document.getElementById("pdr-login-overlay");
@@ -607,27 +665,40 @@ window.storage = {
   get: async (key) => {
     try {
       const v = localStorage.getItem("rpusula__" + key);
-      return v ? { key, value: v } : null;
-    } catch { return null; }
+      if (v !== null) return { key, value: v };
+    } catch (e) { console.warn("Yerel okuma hatası:", key, e); }
+    // Yerelde yoksa (örn. yeni cihaz, henüz senkronize olmadı) doğrudan buluttan dene
+    const user = pdrAuth.currentUser;
+    if (!user) return null;
+    try {
+      const bulutDeger = await pdrFirestoreOku(user.uid, key);
+      if (bulutDeger !== null) {
+        try { localStorage.setItem("rpusula__" + key, bulutDeger); } catch {}
+        return { key, value: bulutDeger };
+      }
+    } catch (e) { console.warn("Bulut okuma hatası:", key, e); }
+    return null;
   },
   set: async (key, value) => {
+    let yerelBasarili = true;
     try {
       localStorage.setItem("rpusula__" + key, value);
-      const user = pdrAuth.currentUser;
-      if (user) {
-        pdrDb.collection("users").doc(user.uid).collection("data").doc(key)
-          .set({ value, updatedAt: Date.now() })
-          .catch(err => console.log("Firestore yazma hatası:", err));
-      }
-      return { key, value };
-    } catch { return null; }
+    } catch (e) {
+      yerelBasarili = false;
+      console.warn("Yerel depolama dolu — bu cihazda kapasite doldu, sadece buluta yazılacak:", key, e);
+    }
+    const user = pdrAuth.currentUser;
+    if (user) {
+      pdrFirestoreYaz(user.uid, key, value).catch(err => console.log("Firestore yazma hatası:", key, err));
+    }
+    return yerelBasarili ? { key, value } : (user ? { key, value } : null);
   },
   delete: async (key) => {
     localStorage.removeItem("rpusula__" + key);
     const user = pdrAuth.currentUser;
     if (user) {
-      pdrDb.collection("users").doc(user.uid).collection("data").doc(key)
-        .delete().catch(() => {});
+      pdrDb.collection("users").doc(user.uid).collection("data").doc(key).delete().catch(() => {});
+      pdrEskiParcalariTemizle(user.uid, key);
     }
     return { key, deleted: true };
   },
