@@ -3489,6 +3489,21 @@ function OgrenciYonetim({
   const [formAcik, setFormAcik] = useState(false);
   const [aktifSekme, setAktifSekme] = useState("ozet"); // ozet | gorusme | deneme | profil
   const [sinifFiltre, setSinifFiltre] = useState("Tümü");
+  const [duzenlemeId, setDuzenlemeId] = useState(null);
+  const [duzenleForm, setDuzenleForm] = useState(null);
+
+  async function handleGorusmeGuncelle(id, fields) {
+    const updated = records.map(r => r.id === id ? { ...r, ...fields } : r);
+    setRecords(updated);
+    await saveRecords(updated);
+    setDuzenlemeId(null);
+    setDuzenleForm(null);
+  }
+  async function handleGorusmeSil(id) {
+    const updated = records.filter(r => r.id !== id);
+    setRecords(updated);
+    await saveRecords(updated);
+  }
 
   async function handleOgrenciSil(studentName) {
     const ad = studentName.toLowerCase().trim();
@@ -3693,7 +3708,7 @@ function OgrenciYonetim({
         /* ── SAĞ: Öğrenci Detay ──────────────────────────────── */
         <div>
           {/* Geri + Başlık */}
-          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, flexWrap:"wrap", rowGap:8 }}>
             <button onClick={() => { setSeciliOgrenci(null); setAktifSekme("ozet"); }} style={{
               background:BG, border:`1px solid ${BORDER}`, borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:700, color:MUTED, cursor:"pointer"
             }}>← Geri</button>
@@ -3701,15 +3716,11 @@ function OgrenciYonetim({
               background:"none", border:"1px solid #F28B82", color:"#C5221F",
               borderRadius:8, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer"
             }}>🗑 Öğrenciyi Sil</button>
-            <button onClick={() => handleOgrenciSil(seciliOgrenci)} style={{
-              background:"none", border:"1px solid #F28B82", color:"#C5221F", borderRadius:8, padding:"6px 10px", fontSize:11, fontWeight:700, cursor:"pointer"
-            }}>🗑 Sil</button>
-            <div style={{ flex:1 }}>
+            <div style={{ flex:1, minWidth:120 }}>
               <div style={{ fontWeight:800, fontSize:16, color:TEXT }}>{seciliOgrenci}</div>
               {(() => { const o = tumOgrenciler.find(x=>x.studentName===seciliOgrenci); return o ? <div style={{ fontSize:11, color:MUTED }}>{o.className}{o.numara ? ` · No: ${o.numara}` : ""}</div> : null; })()}
             </div>
             {ogrRisk.length > 0 && <span style={{ background:"#FDECEA", color:"#C0392B", borderRadius:8, padding:"4px 10px", fontSize:11, fontWeight:700 }}>⚠ Risk</span>}
-            <button onClick={() => handleOgrenciSil(seciliOgrenci)} style={{ background:"none", border:"1px solid #F28B82", color:"#C5221F", borderRadius:8, padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer" }}>🗑 Sil</button>
             <button onClick={() => {
               onRaporAc({
                 ogrenci: seciliOgrenci,
@@ -3820,8 +3831,33 @@ function OgrenciYonetim({
                               </div>
                               {gunFark!==null&&<span style={{fontSize:10,color:MUTED}}>{gunFark} gün önce</span>}
                             </div>
-                            {r.raw&&<div style={{fontSize:11,color:MUTED,fontStyle:"italic",marginBottom:4,background:"#fafafa",borderRadius:5,padding:"3px 7px"}}>{r.raw}</div>}
-                            <div style={{fontSize:12,color:TEXT,lineHeight:1.7}}>{r.summary}</div>
+                            {duzenlemeId===r.id ? (
+                              <div style={{marginTop:6}}>
+                                <div style={{display:"flex",gap:6,marginBottom:6}}>
+                                  {["Öğrenci","Veli","Öğretmen"].map(t=>(
+                                    <button key={t} onClick={()=>setDuzenleForm(f=>({...f,meetingType:t}))} style={{flex:1,padding:"6px",borderRadius:8,border:`2px solid ${duzenleForm?.meetingType===t?ACCENT:BORDER}`,background:duzenleForm?.meetingType===t?ACCENT_LIGHT:CARD,color:duzenleForm?.meetingType===t?ACCENT:MUTED,fontSize:11,fontWeight:700,cursor:"pointer"}}>{t}</button>
+                                  ))}
+                                </div>
+                                <input placeholder="Konu (örn: Sınav kaygısı)" value={duzenleForm?.topic||""} onChange={e=>setDuzenleForm(f=>({...f,topic:e.target.value}))} style={{width:"100%",padding:"7px 9px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:12,marginBottom:6,boxSizing:"border-box"}}/>
+                                <label style={{fontSize:10,fontWeight:600,color:MUTED,display:"block",marginBottom:2}}>HAM NOT</label>
+                                <textarea value={duzenleForm?.raw||""} onChange={e=>setDuzenleForm(f=>({...f,raw:e.target.value}))} rows={3} style={{width:"100%",padding:"7px 9px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:12,resize:"vertical",boxSizing:"border-box",marginBottom:6}}/>
+                                <label style={{fontSize:10,fontWeight:600,color:MUTED,display:"block",marginBottom:2}}>ÖZET</label>
+                                <textarea value={duzenleForm?.summary||""} onChange={e=>setDuzenleForm(f=>({...f,summary:e.target.value}))} rows={4} style={{width:"100%",padding:"7px 9px",border:`1px solid ${ACCENT_LIGHT}`,borderRadius:8,fontSize:12,resize:"vertical",boxSizing:"border-box",background:"#F0FAF4",marginBottom:8}}/>
+                                <div style={{display:"flex",gap:8}}>
+                                  <button onClick={()=>{setDuzenlemeId(null);setDuzenleForm(null);}} style={{flex:1,padding:"8px",background:BG,border:`1px solid ${BORDER}`,borderRadius:8,fontSize:12,fontWeight:700,color:MUTED,cursor:"pointer"}}>İptal</button>
+                                  <button onClick={()=>handleGorusmeGuncelle(r.id,duzenleForm)} disabled={!duzenleForm?.summary?.trim()} style={{flex:1,padding:"8px",background:duzenleForm?.summary?.trim()?ACCENT:BORDER,color:duzenleForm?.summary?.trim()?"#fff":MUTED,border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>💾 Kaydet</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                {r.raw&&<div style={{fontSize:11,color:MUTED,fontStyle:"italic",marginBottom:4,background:"#fafafa",borderRadius:5,padding:"3px 7px"}}>{r.raw}</div>}
+                                <div style={{fontSize:12,color:TEXT,lineHeight:1.7,marginBottom:6}}>{r.summary}</div>
+                                <div style={{display:"flex",gap:6}}>
+                                  <button onClick={()=>{setDuzenlemeId(r.id);setDuzenleForm({meetingType:r.meetingType||"Öğrenci",topic:r.topic||"",raw:r.raw||"",summary:r.summary||""});}} style={{padding:"5px 10px",background:ACCENT_LIGHT,color:ACCENT,border:"none",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer"}}>✎ Düzenle</button>
+                                  <button onClick={()=>{ if(window.confirm("Bu görüşme notunu silmek istediğinize emin misiniz?")) handleGorusmeSil(r.id); }} style={{padding:"5px 10px",background:"none",border:"1px solid #F28B82",color:"#C5221F",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer"}}>🗑 Sil</button>
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
                       );
