@@ -273,6 +273,84 @@ const pdrDb = firebase.firestore();
 window.pdrAuth = pdrAuth;
 window.pdrDb = pdrDb;
 
+// Sadece bu e-posta adresi admin sayılır ve onay sistemine takılmaz.
+const PDR_ADMIN_EMAIL = "hakanhas1989@gmail.com";
+window.PDR_ADMIN_EMAIL = PDR_ADMIN_EMAIL;
+
+// Kullanıcının başvuru/onay durumunu getirir. Kayıt yoksa (özellik eklenmeden
+// önce açılmış eski hesap gibi) otomatik "onaylı" sayılır — geriye dönük uyumluluk için.
+async function pdrOnayDurumuGetir(user) {
+  const ref = pdrDb.collection("basvurular").doc(user.uid);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    const kayit = { email: user.email || "", tarih: Date.now(), durum: "onayli", ucretsiz: false, odemeAlindi: false };
+    await ref.set(kayit);
+    return kayit;
+  }
+  return snap.data();
+}
+
+function pdrOnayEkraniGoster(durum) {
+  let el = document.getElementById("pdr-onay-overlay");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "pdr-onay-overlay";
+    el.style.cssText = "position:fixed;inset:0;z-index:9997;background:radial-gradient(circle at 50% 42%, #1f4d3a 0%, #163b2c 55%, #0a1f18 100%);display:flex;align-items:center;justify-content:center;padding:24px;";
+    document.body.appendChild(el);
+  }
+  const reddedildi = durum === "reddedildi";
+  const mesaj = reddedildi
+    ? "Üzgünüz, hesap başvurunuz onaylanmadı. Detaylı bilgi için bizimle iletişime geçebilirsiniz."
+    : "Hesabınız incelemeye alındı. Onaylandığında bu ekran otomatik olarak kapanıp uygulamaya yönlendirileceksiniz.";
+  const ikon = reddedildi ? "🚫" : "⏳";
+  el.innerHTML = `
+    <div style="max-width:340px;width:100%;background:rgba(255,255,255,0.97);color:#1A4D3B;border-radius:18px;padding:32px 26px;box-shadow:0 20px 50px rgba(0,0,0,0.35);text-align:center;">
+      <div style="font-size:40px;margin-bottom:12px;">${ikon}</div>
+      <div style="font-size:19px;font-weight:800;margin-bottom:8px;">🧭 Rehber Pusula</div>
+      <div style="font-size:13px;color:#4a5c53;line-height:1.7;margin-bottom:18px;">${mesaj}</div>
+      <button id="pdr-onay-cikis" style="width:100%;padding:12px;background:#2D6A4F;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;">Çıkış Yap</button>
+    </div>`;
+  el.style.display = "flex";
+  document.getElementById("pdr-onay-cikis").onclick = async () => {
+    await pdrAuth.signOut();
+    pdrClearLocalCache();
+    localStorage.removeItem("pdr_last_uid");
+    location.reload();
+  };
+}
+function pdrOnayEkraniGizle() {
+  const el = document.getElementById("pdr-onay-overlay");
+  if (el) el.style.display = "none";
+}
+
+function pdrOdemeEkraniGoster() {
+  let el = document.getElementById("pdr-odeme-overlay");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "pdr-odeme-overlay";
+    el.style.cssText = "position:fixed;inset:0;z-index:9996;background:radial-gradient(circle at 50% 42%, #1f4d3a 0%, #163b2c 55%, #0a1f18 100%);display:flex;align-items:center;justify-content:center;padding:24px;";
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `
+    <div style="max-width:340px;width:100%;background:rgba(255,255,255,0.97);color:#1A4D3B;border-radius:18px;padding:32px 26px;box-shadow:0 20px 50px rgba(0,0,0,0.35);text-align:center;">
+      <div style="font-size:40px;margin-bottom:12px;">💳</div>
+      <div style="font-size:19px;font-weight:800;margin-bottom:8px;">🧭 Rehber Pusula</div>
+      <div style="font-size:13px;color:#4a5c53;line-height:1.7;margin-bottom:18px;">Hesabınız onaylandı, ancak erişimin açılması için ödemenizin tamamlanması gerekiyor. Ödeme yaptıktan sonra hesabınız kısa süre içinde aktif edilecektir.</div>
+      <button id="pdr-odeme-cikis" style="width:100%;padding:12px;background:#2D6A4F;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;">Çıkış Yap</button>
+    </div>`;
+  el.style.display = "flex";
+  document.getElementById("pdr-odeme-cikis").onclick = async () => {
+    await pdrAuth.signOut();
+    pdrClearLocalCache();
+    localStorage.removeItem("pdr_last_uid");
+    location.reload();
+  };
+}
+function pdrOdemeEkraniGizle() {
+  const el = document.getElementById("pdr-odeme-overlay");
+  if (el) el.style.display = "none";
+}
+
 let pdrResolveReady;
 window.__pdrAuthReady = new Promise((res) => { pdrResolveReady = res; });
 
@@ -375,12 +453,33 @@ pdrAuth.onAuthStateChanged(async (user) => {
   if (user) {
     if (pdrLoginOverlay) pdrLoginOverlay.style.display = "none";
     if (pdrLogoutBtn) pdrLogoutBtn.style.display = "block";
+
+    // Admin hariç herkes için onay durumu kontrolü
+    if (user.email !== PDR_ADMIN_EMAIL) {
+      const basvuru = await pdrOnayDurumuGetir(user);
+      if (basvuru.durum !== "onayli") {
+        if (splashEl) splashEl.className = "hide";
+        pdrOnayEkraniGoster(basvuru.durum);
+        return;
+      }
+      // Onaylı ama ne ücretsiz ne de ödemesi alınmış — erişimi ödeme bekleme ekranında durdur
+      if (!basvuru.ucretsiz && !basvuru.odemeAlindi) {
+        if (splashEl) splashEl.className = "hide";
+        pdrOdemeEkraniGoster();
+        return;
+      }
+    }
+    pdrOnayEkraniGizle();
+    pdrOdemeEkraniGizle();
+
     await pdrSyncDown(user.uid);
     if (pdrFirstReady) { pdrFirstReady = false; pdrResolveReady(user); }
   } else {
     if (splashEl) splashEl.className = "hide";
     if (pdrLoginOverlay) pdrLoginOverlay.style.display = "flex";
     if (pdrLogoutBtn) pdrLogoutBtn.style.display = "none";
+    pdrOnayEkraniGizle();
+    pdrOdemeEkraniGizle();
   }
 });
 
@@ -407,7 +506,12 @@ if (pdrLoginForm) {
     pdrLoginBtn.textContent = pdrIsRegisterMode ? "Kayıt olunuyor..." : "Giriş yapılıyor...";
     try {
       if (pdrIsRegisterMode) {
-        await pdrAuth.createUserWithEmailAndPassword(email, pass);
+        const cred = await pdrAuth.createUserWithEmailAndPassword(email, pass);
+        if (cred && cred.user) {
+          await pdrDb.collection("basvurular").doc(cred.user.uid).set({
+            email: email, tarih: Date.now(), durum: "bekliyor", ucretsiz: false, odemeAlindi: false
+          });
+        }
       } else {
         await pdrAuth.signInWithEmailAndPassword(email, pass);
       }
@@ -3226,6 +3330,90 @@ Sade, klinik ama sıcak bir dil kullan. Markdown kullanma.`}]
 
 
 // ── Ayarlar Ekranı (kendi Anthropic API anahtarı) ─────────────────
+function KullaniciOnaylari() {
+  const [basvurular, setBasvurular] = useState([]);
+  const [yukleniyor, setYukleniyor] = useState(true);
+
+  async function yenile() {
+    setYukleniyor(true);
+    try {
+      const snap = await window.pdrDb.collection("basvurular").get();
+      const liste = [];
+      snap.forEach(doc => liste.push({ uid: doc.id, ...doc.data() }));
+      liste.sort((a, b) => (b.tarih || 0) - (a.tarih || 0));
+      setBasvurular(liste);
+    } catch (e) { console.log("Onay listesi yüklenemedi:", e); }
+    setYukleniyor(false);
+  }
+
+  useEffect(() => { yenile(); }, []);
+
+  async function guncelle(uid, fields) {
+    await window.pdrDb.collection("basvurular").doc(uid).update(fields);
+    setBasvurular(list => list.map(b => b.uid === uid ? { ...b, ...fields } : b));
+  }
+
+  const renkler = {
+    bekliyor: { bg: "#FDF6E3", color: "#B07D1A", label: "⏳ Bekliyor" },
+    onayli: { bg: "#E6F5EE", color: "#1A8C5B", label: "✓ Onaylı" },
+    reddedildi: { bg: "#FDECEA", color: "#C0392B", label: "🚫 Reddedildi" },
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: TEXT }}>🛠 Kullanıcı Onayları</div>
+        <button onClick={yenile} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "5px 12px", fontSize: 12, fontWeight: 700, color: MUTED, cursor: "pointer" }}>↻ Yenile</button>
+      </div>
+
+      {yukleniyor ? (
+        <div style={{ textAlign: "center", color: MUTED, marginTop: 30, fontSize: 13 }}>Yükleniyor...</div>
+      ) : basvurular.length === 0 ? (
+        <div style={{ textAlign: "center", color: MUTED, marginTop: 30, fontSize: 13 }}>Henüz başvuru yok.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {basvurular.map(b => {
+            const durumStil = renkler[b.durum] || renkler.bekliyor;
+            return (
+              <div key={b.uid} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "12px 14px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: TEXT }}>{b.email}</div>
+                    <div style={{ fontSize: 11, color: MUTED }}>{b.tarih ? new Date(b.tarih).toLocaleDateString("tr-TR") : ""}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <span style={{ background: durumStil.bg, color: durumStil.color, borderRadius: 12, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>{durumStil.label}</span>
+                    {b.durum === "onayli" && (
+                      (b.ucretsiz || b.odemeAlindi)
+                        ? <span style={{ background: "#E6F5EE", color: "#1A8C5B", borderRadius: 12, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>🔓 Erişim Açık</span>
+                        : <span style={{ background: "#FDECEA", color: "#C0392B", borderRadius: 12, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>🔒 Ödeme Bekliyor</span>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                  <button onClick={() => guncelle(b.uid, { durum: "onayli" })} disabled={b.durum === "onayli"} style={{ padding: "6px 12px", background: b.durum === "onayli" ? BORDER : ACCENT, color: b.durum === "onayli" ? MUTED : "#fff", border: "none", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: b.durum === "onayli" ? "default" : "pointer" }}>✓ Onayla</button>
+                  <button onClick={() => guncelle(b.uid, { durum: "reddedildi" })} disabled={b.durum === "reddedildi"} style={{ padding: "6px 12px", background: "none", border: "1px solid #F28B82", color: "#C5221F", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: b.durum === "reddedildi" ? "default" : "pointer" }}>🚫 Reddet</button>
+                  <button onClick={() => guncelle(b.uid, { durum: "bekliyor" })} disabled={b.durum === "bekliyor"} style={{ padding: "6px 12px", background: "none", border: `1px solid ${BORDER}`, color: MUTED, borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: b.durum === "bekliyor" ? "default" : "pointer" }}>↺ Beklemeye Al</button>
+                </div>
+                <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", marginTop: 8, paddingTop: 8, borderTop: `1px solid ${BORDER}` }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: b.odemeAlindi ? "#1A8C5B" : MUTED, cursor: "pointer" }}>
+                    <input type="checkbox" checked={!!b.odemeAlindi} onChange={e => guncelle(b.uid, { odemeAlindi: e.target.checked })} />
+                    💳 Ödeme Alındı
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: b.ucretsiz ? ACCENT : MUTED, cursor: "pointer" }}>
+                    <input type="checkbox" checked={!!b.ucretsiz} onChange={e => guncelle(b.uid, { ucretsiz: e.target.checked })} />
+                    🎁 Ücretsiz kullanıcı
+                  </label>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AyarlarEkrani() {
   const [key, setKey] = useState(() => pdrGetApiKey());
   const [gosterKey, setGosterKey] = useState(false);
@@ -5811,6 +5999,7 @@ export default function App() {
   ).sort((a, b) => a.name.localeCompare(b.name, "tr")),
   [ogrenciler, records, profiles, profiles2]);
 
+  const pdrIsAdmin = window.pdrAuth?.currentUser?.email === window.PDR_ADMIN_EMAIL;
   const TABS = [
     { key: "ogrenciler", label: "👥 Öğrenciler" },
     { key: "profil_merkez", label: "📋 Profil" },
@@ -5826,6 +6015,7 @@ export default function App() {
     { key: "istatistik", label: "İstatistik" },
     { key: "ayarlar", label: "⚙️ Ayarlar" },
     { key: "yeni", label: "+ Not" },
+    ...(pdrIsAdmin ? [{ key: "onaylar", label: "🛠 Onaylar" }] : []),
   ];
 
   return (
@@ -6341,6 +6531,7 @@ export default function App() {
           </div>
         )}
         {tab === "ayarlar" && <AyarlarEkrani />}
+        {tab === "onaylar" && pdrIsAdmin && <KullaniciOnaylari />}
       </div>
     </div>
   );
