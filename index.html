@@ -3988,11 +3988,12 @@ function OgrenciYonetim({
 
   // Seçili öğrencinin verileri
   const seciliOgrenciSinif = tumOgrenciler.find(x => x.studentName === seciliOgrenci)?.className || "";
-  const ogrRec = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, seciliOgrenci, seciliOgrenciSinif));
-  const ogrP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliOgrenci, seciliOgrenciSinif));
-  const ogrP2 = profiles2.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliOgrenci, seciliOgrenciSinif));
+  const seciliOgrenciNumara = tumOgrenciler.find(x => x.studentName === seciliOgrenci)?.numara || "";
+  const ogrRec = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, seciliOgrenci, seciliOgrenciSinif, r.numara, seciliOgrenciNumara));
+  const ogrP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliOgrenci, seciliOgrenciSinif, p.numara, seciliOgrenciNumara));
+  const ogrP2 = profiles2.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliOgrenci, seciliOgrenciSinif, p.numara, seciliOgrenciNumara));
   const ogrDeneme = pdrSozlukOku(denemeler, seciliOgrenci, seciliOgrenciSinif) || {};
-  const ogrRisk = riskListesi.filter(r => pdrAyniOgrenci(r.studentName, r.className, seciliOgrenci, seciliOgrenciSinif) && !r.kapandi);
+  const ogrRisk = riskListesi.filter(r => pdrAyniOgrenci(r.studentName, r.className, seciliOgrenci, seciliOgrenciSinif, r.numara, seciliOgrenciNumara) && !r.kapandi);
   const denemeGirilen = Object.entries(ogrDeneme).sort((a,b)=>a[0]-b[0]).map(([no,nets])=>({
     no:parseInt(no), nets,
     toplam: LGS_DERSLER.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
@@ -4146,10 +4147,10 @@ function OgrenciYonetim({
               <div style={{ textAlign:"center", color:MUTED, marginTop:30, fontSize:13 }}>Sonuç bulunamadı</div>
             )}
             {gosterilecek.map(o => {
-              const oRec = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className));
-              const oP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, o.studentName, o.className));
+              const oRec = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className, r.numara, o.numara));
+              const oP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, o.studentName, o.className, p.numara, o.numara));
               const oDen = Object.keys(pdrSozlukOku(denemeler, o.studentName, o.className) || {}).length;
-              const oRsk = riskListesi.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className) && !r.kapandi).length;
+              const oRsk = riskListesi.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className, r.numara, o.numara) && !r.kapandi).length;
               const oDenAvg = oDen > 0 ? (Object.values(pdrSozlukOku(denemeler, o.studentName, o.className)||{}).reduce((s,nets)=>s+LGS_DERSLER.reduce((ss,d)=>ss+(parseFloat(nets[d.key])||0),0),0)/oDen).toFixed(1) : null;
 
               // Basit 3'lü kategori: Riskli / Takip Gerekli / İyi Gidiyor
@@ -4864,9 +4865,13 @@ function ProfilMerkez({
   // Seçili öğrenci
   const [seciliAd, setSeciliAd] = useState(aktifOgrenci?.name || "");
   const [seciliSinif, setSeciliSinif] = useState(aktifOgrenci?.className || "");
+  const [seciliNumara, setSeciliNumara] = useState("");
   const [aramaMetni, setAramaMetni] = useState("");
   useEffect(() => {
-    if (aktifOgrenci?.name) { setSeciliAd(aktifOgrenci.name); setSeciliSinif(aktifOgrenci.className || ""); }
+    if (aktifOgrenci?.name) {
+      setSeciliAd(aktifOgrenci.name); setSeciliSinif(aktifOgrenci.className || "");
+      setSeciliNumara(kayitliListesi.find(o => pdrAyniOgrenci(o.name, o.className, aktifOgrenci.name, aktifOgrenci.className))?.numara || "");
+    }
   }, [aktifOgrenci?.name]);
 
   // Form state
@@ -4884,9 +4889,9 @@ function ProfilMerkez({
   const [altSekme, setAltSekme] = useState("p1");
 
   // Mevcut kayıtları yükle
-  const mevcutP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif));
-  const mevcutP2 = profiles2.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif));
-  const ogrRec = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, seciliAd, seciliSinif));
+  const mevcutP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif, p.numara, seciliNumara));
+  const mevcutP2 = profiles2.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif, p.numara, seciliNumara));
+  const ogrRec = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, seciliAd, seciliSinif, r.numara, seciliNumara));
   const ogrRec2 = ogrRec; // alias for P2 context
   const ogrDeneme = pdrSozlukOku(denemeler, seciliAd, seciliSinif) || {};
   const denemeGirilen = Object.entries(ogrDeneme).sort((a,b)=>a[0]-b[0]).map(([no,nets])=>({
@@ -4895,8 +4900,8 @@ function ProfilMerkez({
 
   useEffect(() => {
     if (!seciliAd) return;
-    const p1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif));
-    const p2 = profiles2.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif));
+    const p1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif, p.numara, seciliNumara));
+    const p2 = profiles2.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif, p.numara, seciliNumara));
     if (p1) setProfForm({ notes:p1.notes||"", scores:{...EMPTY_SCORES,...p1.scores}, analysis:p1.analysis||"" });
     else setProfForm({ notes:"", scores:{...EMPTY_SCORES}, analysis:"" });
     if (p2) {
@@ -4916,7 +4921,7 @@ function ProfilMerkez({
   // AI: görüşme notlarından puan
   async function handleScoresFromNotes() {
     const ad = seciliAd.toLowerCase().trim();
-    const recs = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, seciliAd, seciliSinif) && r.summary);
+    const recs = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, seciliAd, seciliSinif, r.numara, seciliNumara) && r.summary);
 
     // Değerlendirme sorularından mevcut puanları oku
     let degSkorlar = null;
@@ -5000,19 +5005,19 @@ function ProfilMerkez({
     if (!seciliAd.trim()) return;
     const adKey = seciliAd.toLowerCase().trim();
     // Stale closure sorununu önle — anlık bul
-    const curP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif));
-    const curP2 = profiles2.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif));
+    const curP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif, p.numara, seciliNumara));
+    const curP2 = profiles2.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif, p.numara, seciliNumara));
     // P1 kaydet
     const p1 = {
       id: curP1?.id || uid(),
       date: curP1?.date || today(),
-      studentName: seciliAd, className: seciliSinif,
+      studentName: seciliAd, className: seciliSinif, numara: seciliNumara,
       notes: profForm.notes,
       scores: { ...profForm.scores },
       analysis: profForm.analysis
     };
     const updP1 = curP1
-      ? profiles.map(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif) ? p1 : p)
+      ? profiles.map(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif, p.numara, seciliNumara) ? p1 : p)
       : [p1, ...profiles];
     setProfiles(updP1);
     await saveProfiles(updP1);
@@ -5020,7 +5025,7 @@ function ProfilMerkez({
     const p2 = {
       id: curP2?.id || uid(),
       date: curP2?.date || today(),
-      studentName: seciliAd, className: seciliSinif,
+      studentName: seciliAd, className: seciliSinif, numara: seciliNumara,
       sinavlar: { ...EMPTY_SINAV, ...(prof2Form.sinavlar || {}) },
       d2: { ...EMPTY_D2, ...(prof2Form.d2 || {}) },
       ilgiler: prof2Form.ilgiler || [],
@@ -5030,7 +5035,7 @@ function ProfilMerkez({
       d2_analiz: prof2Analiz || curP2?.d2_analiz || ""
     };
     const updP2 = curP2
-      ? profiles2.map(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif) ? p2 : p)
+      ? profiles2.map(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif, p.numara, seciliNumara) ? p2 : p)
       : [p2, ...profiles2];
     setProfiles2(updP2);
     await saveProfiles2(updP2);
@@ -5053,7 +5058,7 @@ function ProfilMerkez({
           {filtreliListe.slice(0,20).map(o=>{
             const s = seciliAd===o.name;
             return (
-              <button key={o.name} onClick={()=>{setSeciliAd(o.name);setSeciliSinif(o.className||"");setMod("form");}} style={{
+              <button key={o.name} onClick={()=>{setSeciliAd(o.name);setSeciliSinif(o.className||"");setSeciliNumara(o.numara||"");setMod("form");}} style={{
                 padding:"5px 12px", borderRadius:20,
                 border:`2px solid ${s?ACCENT:BORDER}`,
                 background:s?ACCENT_LIGHT:CARD, color:s?ACCENT:MUTED,
@@ -5591,8 +5596,8 @@ function SinifProfili({ ogrenciler, records, riskListesi, aktifYil }) {
             <div style={{textAlign:"center",color:MUTED,fontSize:12}}>Bu sınıfta kayıtlı öğrenci yok</div>
           )}
           {enCokGorusulen.map(o => {
-            const gSayisi = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className)).length;
-            const oRisk = riskListesi.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className) && !r.kapandi);
+            const gSayisi = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className, r.numara, o.numara)).length;
+            const oRisk = riskListesi.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className, r.numara, o.numara) && !r.kapandi);
             return (
               <div key={o.studentName} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${BORDER}`}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -5993,8 +5998,8 @@ export default function App() {
   const [profiles, setProfiles] = useState([]);
   const [profiles2, setProfiles2] = useState([]);
   const [tab, setTab] = useState("ogrenci");
-  const [form, setForm] = useState({ studentName: "", className: "", meetingType: "Öğrenci", topic: "", raw: "", summary: "" });
-  const [profForm, setProfForm] = useState({ studentName: "", className: "", notes: "", scores: { ...EMPTY_SCORES }, analysis: "" });
+  const [form, setForm] = useState({ studentName: "", className: "", numara: "", meetingType: "Öğrenci", topic: "", raw: "", summary: "" });
+  const [profForm, setProfForm] = useState({ studentName: "", className: "", numara: "", notes: "", scores: { ...EMPTY_SCORES }, analysis: "" });
   const [prof2Form, setProf2Form] = useState({ ...EMPTY_PROF2 });
   const [scoresSet, setScoresSet] = useState(false);
   const [scoresLoading, setScoresLoading] = useState(false);
@@ -6013,7 +6018,7 @@ export default function App() {
   const [ogrenciler, setOgrenciler] = useState([]);
   const [aktifOgrenci, setAktifOgrenci] = useState({ name: "", className: "" });
   const [profMerkezKey, setProfMerkezKey] = useState(0); // force re-render
-  const [riskForm, setRiskForm] = useState({ studentName: "", className: "", riskTuru: "", aciklama: "", oncelik: "Orta" });
+  const [riskForm, setRiskForm] = useState({ studentName: "", className: "", numara: "", riskTuru: "", aciklama: "", oncelik: "Orta" });
   const [riskAiLoading, setRiskAiLoading] = useState(false);
   const [denemeAiLoading, setDenemeAiLoading] = useState(false);
   const [denemeAnaliz, setDenemeAnaliz] = useState({});
@@ -6050,9 +6055,10 @@ export default function App() {
   // aktifOgrenci değişince formu güncelle
   useEffect(() => {
     if (aktifOgrenci?.name) {
-      setForm(f => ({ ...f, studentName: aktifOgrenci.name, className: aktifOgrenci.className || "" }));
+      const bulunanNumara = kayitliListesi.find(o => pdrAyniOgrenci(o.name, o.className, aktifOgrenci.name, aktifOgrenci.className))?.numara || "";
+      setForm(f => ({ ...f, studentName: aktifOgrenci.name, className: aktifOgrenci.className || "", numara: bulunanNumara }));
     } else {
-      setForm({ studentName: "", className: "", meetingType: "Öğrenci", topic: "", raw: "", summary: "" });
+      setForm({ studentName: "", className: "", numara: "", meetingType: "Öğrenci", topic: "", raw: "", summary: "" });
     }
   }, [aktifOgrenci?.name]);
 
@@ -6080,7 +6086,7 @@ export default function App() {
     const rec = { id: uid(), date: today(), ...form };
     const updated = [rec, ...records];
     setRecords(updated); await saveRecords(updated);
-    setForm({ studentName: "", className: "", meetingType: "Öğrenci", topic: "", raw: "", summary: "" });
+    setForm({ studentName: "", className: "", numara: "", meetingType: "Öğrenci", topic: "", raw: "", summary: "" });
     setSaved(true); setTimeout(() => setSaved(false), 2000); setTab("ogrenciler");
   }
 
@@ -6115,7 +6121,7 @@ export default function App() {
     const p = { id: uid(), date: today(), ...profForm };
     const updated = [p, ...profiles];
     setProfiles(updated); await saveProfiles(updated);
-    setProfForm({ studentName: "", className: "", notes: "", scores: { ...EMPTY_SCORES }, analysis: "" });
+    setProfForm({ studentName: "", className: "", numara: "", notes: "", scores: { ...EMPTY_SCORES }, analysis: "" });
     setScoresSet(false);
     setProfSaved(true); setTimeout(() => setProfSaved(false), 2000); setTab("profil_merkez");
   }
@@ -6140,8 +6146,8 @@ export default function App() {
     if (!riskForm.studentName.trim()) return;
     setRiskAiLoading(true);
     const ad = riskForm.studentName.toLowerCase().trim();
-    const ogrGorusmeler = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, riskForm.studentName, riskForm.className));
-    const ogrP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, riskForm.studentName, riskForm.className));
+    const ogrGorusmeler = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, riskForm.studentName, riskForm.className, r.numara, riskForm.numara));
+    const ogrP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, riskForm.studentName, riskForm.className, p.numara, riskForm.numara));
     const aiAnaliz = await getRiskAnalizi(riskForm, ogrGorusmeler, ogrP1);
     // Risk düzeyini AI cevabından çek
     // Risk düzeyi
@@ -6164,7 +6170,7 @@ export default function App() {
     const item = { id: uid(), tarih: today(), ...riskForm, riskTuru: aiRiskTuru, oncelik: aiOncelik, aiAnaliz, kapandi: false };
     const updated = [item, ...riskListesi];
     setRiskListesi(updated); await saveRiskListesi(updated);
-    setRiskForm({ studentName: "", className: "", riskTuru: "", aciklama: "", oncelik: "Orta" });
+    setRiskForm({ studentName: "", className: "", numara: "", riskTuru: "", aciklama: "", oncelik: "Orta" });
     setRiskAiLoading(false);
   }
   async function handleRiskKapat(id) {
@@ -6197,9 +6203,9 @@ export default function App() {
 
   function handleReport(profil1) {
     const ogrenciAdi = profil1.studentName;
-    const profil2 = profiles2.find(p => pdrAyniOgrenci(p.studentName, p.className, profil1.studentName, profil1.className)) || null;
+    const profil2 = profiles2.find(p => pdrAyniOgrenci(p.studentName, p.className, profil1.studentName, profil1.className, p.numara, profil1.numara)) || null;
     const gorusmeler = records
-      .filter(r => pdrAyniOgrenci(r.studentName, r.className, profil1.studentName, profil1.className))
+      .filter(r => pdrAyniOgrenci(r.studentName, r.className, profil1.studentName, profil1.className, r.numara, profil1.numara))
       .sort((a, b) => {
         const parse = d => { const [g, ay, y] = (d||"").split("."); return new Date(`${y}-${ay}-${g}`); };
         return parse(a.date) - parse(b.date);
@@ -6239,7 +6245,7 @@ export default function App() {
     const updated = [p, ...profiles];
     setProfiles(updated);
     await saveProfiles(updated);
-    setProfForm({ studentName: "", className: "", notes: "", scores: { ...EMPTY_SCORES }, analysis: "" });
+    setProfForm({ studentName: "", className: "", numara: "", notes: "", scores: { ...EMPTY_SCORES }, analysis: "" });
     setTab("profil_merkez");
   }
 
@@ -6282,16 +6288,20 @@ export default function App() {
   const maxMonth = Math.max(...Object.values(monthCount), 1);
 
   // Tüm kaynaklardan benzersiz öğrenci listesi
-  const kayitliListesi = useMemo(() => Array.from(
-    new Map([
+  const kayitliListesi = useMemo(() => {
+    const temelMap = new Map([
       ...ogrenciler.map(o => ({ studentName: o.studentName, className: o.className || "" })),
       ...records.filter(r => (r.meetingType || "Öğrenci") === "Öğrenci"),
       ...profiles,
       ...profiles2,
-    ].map(r => [pdrOgrAnahtar(r.studentName.toLowerCase().trim(), (r.className||"").toLowerCase().trim()), { name: r.studentName, className: r.className || "" }]))
-    .values()
-  ).sort((a, b) => a.name.localeCompare(b.name, "tr")),
-  [ogrenciler, records, profiles, profiles2]);
+    ].map(r => [pdrOgrAnahtar(r.studentName.toLowerCase().trim(), (r.className||"").toLowerCase().trim()), { name: r.studentName, className: r.className || "" }]));
+    // Öğrenci numarası sadece asıl öğrenci listesinde (ogrenciler) güvenilir şekilde tutulur;
+    // görüşme/profil kayıtlarının numarayı ezmesini önlemek için ayrıca ekleniyor.
+    const numaraMap = new Map(ogrenciler.map(o => [pdrOgrAnahtar(o.studentName.toLowerCase().trim(), (o.className||"").toLowerCase().trim()), o.numara || ""]));
+    return Array.from(temelMap.entries())
+      .map(([key, val]) => ({ ...val, numara: numaraMap.get(key) || "" }))
+      .sort((a, b) => a.name.localeCompare(b.name, "tr"));
+  }, [ogrenciler, records, profiles, profiles2]);
 
   const pdrIsAdmin = window.pdrAuth?.currentUser?.email === window.PDR_ADMIN_EMAIL;
   const TABS = [
@@ -6382,7 +6392,7 @@ export default function App() {
                 <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:8 }}>
                   {kayitliListesi.map(o => {
                     const s = form.studentName === o.name;
-                    return <button key={o.name} onClick={() => setForm(f=>({...f, studentName:o.name, className:o.className||""}))} style={{ padding:"5px 10px", borderRadius:16, border:`2px solid ${s?ACCENT:BORDER}`, background:s?ACCENT_LIGHT:CARD, color:s?ACCENT:MUTED, fontSize:12, fontWeight:s?700:500, cursor:"pointer" }}>{o.name}</button>;
+                    return <button key={o.name} onClick={() => setForm(f=>({...f, studentName:o.name, className:o.className||"", numara:o.numara||""}))} style={{ padding:"5px 10px", borderRadius:16, border:`2px solid ${s?ACCENT:BORDER}`, background:s?ACCENT_LIGHT:CARD, color:s?ACCENT:MUTED, fontSize:12, fontWeight:s?700:500, cursor:"pointer" }}>{o.name}</button>;
                   })}
                 </div>
                 <input placeholder="veya ad yaz..." value={form.studentName} onChange={e=>setForm(f=>({...f,studentName:e.target.value}))} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, boxSizing:"border-box" }} />
@@ -6593,7 +6603,7 @@ export default function App() {
                     {kayitliListesi.map(o => {
                       const s = riskForm.studentName === o.name;
                       return (
-                        <button key={o.name} onClick={() => setRiskForm(f => ({ ...f, studentName: o.name, className: o.className }))} style={{
+                        <button key={o.name} onClick={() => setRiskForm(f => ({ ...f, studentName: o.name, className: o.className, numara: o.numara || "" }))} style={{
                           padding: "6px 12px", borderRadius: 18,
                           border: s ? "1.5px solid #FF5A4E" : `1.5px solid ${BORDER}`,
                           background: s ? "linear-gradient(135deg, #FF6B5B 0%, #C0392B 100%)" : CARD,
