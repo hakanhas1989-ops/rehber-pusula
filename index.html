@@ -3044,9 +3044,9 @@ Kısa ve pratik yaz, Markdown kullanma.`}]
               {label:"Aktif Risk",val:ogrRisk.length>0?"⚠ Var":"✓",color:ogrRisk.length>0?"#C0392B":"#1A8C5B"},
               {label:"Müdahale",val:ogrMudahale.length>0?ogrMudahale.length+" aktif":"—",color:ogrMudahale.length>0?PURPLE:MUTED},
             ].map(c=>(
-              <div key={c.label} style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:10,padding:"10px",textAlign:"center"}}>
-                <div style={{fontSize:18,fontWeight:900,color:c.color}}>{c.val}</div>
-                <div style={{fontSize:10,color:MUTED}}>{c.label}</div>
+              <div key={c.label} style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:14,padding:"16px 10px",textAlign:"center"}}>
+                <div style={{fontSize:26,fontWeight:900,color:c.color,letterSpacing:-0.5}}>{c.val}</div>
+                <div style={{fontSize:11,color:MUTED,fontWeight:600,marginTop:2}}>{c.label}</div>
               </div>
             ))}
           </div>
@@ -3374,6 +3374,27 @@ Sade, klinik ama sıcak bir dil kullan. Markdown kullanma.`}]
 
 
 // ── Ayarlar Ekranı (kendi Anthropic API anahtarı) ─────────────────
+function PdrToggle({ checked, onChange, color, label }) {
+  return (
+    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+      <span
+        onClick={() => onChange(!checked)}
+        style={{
+          position: "relative", width: 38, height: 22, borderRadius: 999, flexShrink: 0,
+          background: checked ? color : "#d7dbd9", transition: "background 0.2s ease",
+        }}
+      >
+        <span style={{
+          position: "absolute", top: 2, left: checked ? 18 : 2, width: 18, height: 18,
+          borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+          transition: "left 0.2s ease",
+        }} />
+      </span>
+      <span style={{ fontSize: 11, fontWeight: 700, color: checked ? color : MUTED }}>{label}</span>
+    </label>
+  );
+}
+
 function KullaniciOnaylari() {
   const [basvurular, setBasvurular] = useState([]);
   const [yukleniyor, setYukleniyor] = useState(true);
@@ -3439,15 +3460,9 @@ function KullaniciOnaylari() {
                   <button onClick={() => guncelle(b.uid, { durum: "reddedildi" })} disabled={b.durum === "reddedildi"} style={{ padding: "6px 12px", background: "none", border: "1px solid #F28B82", color: "#C5221F", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: b.durum === "reddedildi" ? "default" : "pointer" }}>🚫 Reddet</button>
                   <button onClick={() => guncelle(b.uid, { durum: "bekliyor" })} disabled={b.durum === "bekliyor"} style={{ padding: "6px 12px", background: "none", border: `1px solid ${BORDER}`, color: MUTED, borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: b.durum === "bekliyor" ? "default" : "pointer" }}>↺ Beklemeye Al</button>
                 </div>
-                <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", marginTop: 8, paddingTop: 8, borderTop: `1px solid ${BORDER}` }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: b.odemeAlindi ? "#1A8C5B" : MUTED, cursor: "pointer" }}>
-                    <input type="checkbox" checked={!!b.odemeAlindi} onChange={e => guncelle(b.uid, { odemeAlindi: e.target.checked })} />
-                    💳 Ödeme Alındı
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: b.ucretsiz ? ACCENT : MUTED, cursor: "pointer" }}>
-                    <input type="checkbox" checked={!!b.ucretsiz} onChange={e => guncelle(b.uid, { ucretsiz: e.target.checked })} />
-                    🎁 Ücretsiz kullanıcı
-                  </label>
+                <div style={{ display: "flex", gap: 18, flexWrap: "wrap", alignItems: "center", marginTop: 8, paddingTop: 8, borderTop: `1px solid ${BORDER}` }}>
+                  <PdrToggle checked={!!b.odemeAlindi} onChange={v => guncelle(b.uid, { odemeAlindi: v })} color="#1A8C5B" label="💳 Ödeme Alındı" />
+                  <PdrToggle checked={!!b.ucretsiz} onChange={v => guncelle(b.uid, { ucretsiz: v })} color={ACCENT} label="🎁 Ücretsiz kullanıcı" />
                 </div>
               </div>
             );
