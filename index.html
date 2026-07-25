@@ -3759,6 +3759,7 @@ function OgrenciYonetim({
   const [aktifSekme, setAktifSekme] = useState("ozet"); // ozet | gorusme | deneme | profil
   const [sinifFiltre, setSinifFiltre] = useState("Tümü");
   const [gorunumModu, setGorunumModu] = useState("liste"); // liste | aylik
+  const [acikAylar, setAcikAylar] = useState({});
   const [duzenlemeId, setDuzenlemeId] = useState(null);
   const [duzenleForm, setDuzenleForm] = useState(null);
   const [duzenleAiLoading, setDuzenleAiLoading] = useState(false);
@@ -3966,27 +3967,34 @@ function OgrenciYonetim({
                 return <div style={{ textAlign:"center", color:MUTED, marginTop:30, fontSize:13 }}>Henüz görüşme kaydı yok</div>;
               }
               return (
-                <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-                  {siraliAylar.map(([ay, veri]) => (
-                    <div key={ay}>
-                      <div style={{ fontSize:12, fontWeight:800, color:ACCENT, marginBottom:6, display:"flex", alignItems:"center", gap:6 }}>
+                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                  {siraliAylar.map(([ay, veri]) => {
+                    const acik = !!acikAylar[ay];
+                    return (
+                    <div key={ay} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, overflow:"hidden" }}>
+                      <div onClick={() => setAcikAylar(a => ({ ...a, [ay]: !a[ay] }))}
+                        style={{ fontSize:13, fontWeight:800, color:ACCENT, padding:"12px 14px", display:"flex", alignItems:"center", gap:6, cursor:"pointer", background:acik?ACCENT_LIGHT:CARD }}>
+                        <span style={{ display:"inline-block", transform:acik?"rotate(90deg)":"rotate(0deg)", transition:"transform 0.15s ease", fontSize:11 }}>›</span>
                         📅 {ay} <span style={{ fontSize:10, fontWeight:600, color:MUTED }}>({veri.kayitlar.length} görüşme)</span>
                       </div>
-                      <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-                        {veri.kayitlar
-                          .slice()
-                          .sort((a,b) => (a.date||"").localeCompare(b.date||""))
-                          .map(k => (
-                          <div key={k.id} onClick={() => { setSeciliOgrenci(k.studentName); if(setAktifOgrenci) setAktifOgrenci({ name:k.studentName, className:k.className||"" }); }}
-                            style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:10, padding:"9px 12px", display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
-                            <span style={{ fontSize:11, color:MUTED, minWidth:44 }}>{k.date}</span>
-                            <span style={{ flex:1, fontSize:13, fontWeight:700, color:TEXT }}>{k.studentName}</span>
-                            <span style={{ fontSize:11, color:MUTED }}>{k.className}{k.numara ? ` · No: ${k.numara}` : ""}</span>
-                          </div>
-                        ))}
-                      </div>
+                      {acik && (
+                        <div style={{ display:"flex", flexDirection:"column", gap:5, padding:"0 12px 12px" }}>
+                          {veri.kayitlar
+                            .slice()
+                            .sort((a,b) => (a.date||"").localeCompare(b.date||""))
+                            .map(k => (
+                            <div key={k.id} onClick={() => { setSeciliOgrenci(k.studentName); if(setAktifOgrenci) setAktifOgrenci({ name:k.studentName, className:k.className||"" }); }}
+                              style={{ background:BG, border:`1px solid ${BORDER}`, borderRadius:10, padding:"9px 12px", display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
+                              <span style={{ fontSize:11, color:MUTED, minWidth:44 }}>{k.date}</span>
+                              <span style={{ flex:1, fontSize:13, fontWeight:700, color:TEXT }}>{k.studentName}</span>
+                              <span style={{ fontSize:11, color:MUTED }}>{k.className}{k.numara ? ` · No: ${k.numara}` : ""}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               );
             })()
