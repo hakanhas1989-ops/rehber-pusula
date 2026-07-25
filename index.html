@@ -6508,10 +6508,52 @@ export default function App() {
               setYilEkrani(false);
             }}
             onYilSil={async (yil) => {
-              // O yıla ait öğrencileri sil
+              // O yıla ait öğrenciler (silinecekler) ve kalacaklar
+              const silinecekler = ogrenciler.filter(o => o.yil === yil);
               const kalacaklar = ogrenciler.filter(o => o.yil && o.yil !== yil);
               setOgrenciler(kalacaklar);
               await saveOgrenciler(kalacaklar);
+
+              // Bu öğrencilerden biri mi? (isim+sınıf+numara ile, sağlam eşleştirme)
+              const silinecekMi = (ad, sinif, no) =>
+                silinecekler.some(s => pdrAyniOgrenci(s.studentName, s.className, ad, sinif, s.numara, no));
+
+              const kalanRecords = records.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
+              setRecords(kalanRecords); await saveRecords(kalanRecords);
+
+              const kalanRisk = riskListesi.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
+              setRiskListesi(kalanRisk); await saveRiskListesi(kalanRisk);
+
+              const kalanProfiles = profiles.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
+              setProfiles(kalanProfiles); await saveProfiles(kalanProfiles);
+
+              const kalanProfiles2 = profiles2.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
+              setProfiles2(kalanProfiles2); await saveProfiles2(kalanProfiles2);
+
+              const kalanSevkler = sevkler.filter(s => !silinecekMi(s.studentName, s.className, s.numara));
+              setSevkler(kalanSevkler); await saveSevkler(kalanSevkler);
+
+              // İsimle anahtarlanan sözlükler (deneme, müdahale planı, hazırlık/ilerleme notları):
+              // silinen her öğrencinin hem yeni (isim+sınıf) hem eski (düz isim) anahtarını temizle
+              function pdrSozlukTemizle(sozluk) {
+                const yeni = { ...sozluk };
+                silinecekler.forEach(o => {
+                  delete yeni[pdrOgrAnahtar(o.studentName, o.className)];
+                  delete yeni[o.studentName];
+                });
+                return yeni;
+              }
+              const kalanDenemeler = pdrSozlukTemizle(denemeler);
+              setDenemeler(kalanDenemeler); await saveDenemeler(kalanDenemeler);
+
+              const kalanMudahale = pdrSozlukTemizle(mudahalePlan);
+              setMudahalePlan(kalanMudahale); await saveMudahalePlan(kalanMudahale);
+
+              const kalanHazirlik = pdrSozlukTemizle(hazirlikNotlari);
+              setHazirlikNotlari(kalanHazirlik); await saveHazirlikNotlari(kalanHazirlik);
+
+              const kalanIlerleme = pdrSozlukTemizle(ilerlemeNotlari);
+              setIlerlemeNotlari(kalanIlerleme); await saveIlerlemeNotlari(kalanIlerleme);
             }}
           />
         )}
