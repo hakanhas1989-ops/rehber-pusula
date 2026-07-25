@@ -3918,6 +3918,17 @@ function OgrenciYonetim({
               const oDen = Object.keys(denemeler[o.studentName] || {}).length;
               const oRsk = riskListesi.filter(r => r.studentName?.toLowerCase().trim() === o.studentName.toLowerCase().trim() && !r.kapandi).length;
               const oDenAvg = oDen > 0 ? (Object.values(denemeler[o.studentName]||{}).reduce((s,nets)=>s+LGS_DERSLER.reduce((ss,d)=>ss+(parseFloat(nets[d.key])||0),0),0)/oDen).toFixed(1) : null;
+
+              // Basit 3'lü kategori: Riskli / Takip Gerekli / İyi Gidiyor
+              const oPdrParse = d => { const [g,ay,y] = (d||"").split("."); return new Date(`${y}-${ay}-${g}`); };
+              const oSonGorusmeTarihi = oRec.length > 0 ? oRec.reduce((en, r) => (!en || oPdrParse(r.date) > oPdrParse(en)) ? r.date : en, null) : null;
+              const oGunFarki = oSonGorusmeTarihi ? Math.round((new Date() - oPdrParse(oSonGorusmeTarihi)) / (1000*60*60*24)) : null;
+              const oKategori = oRsk > 0
+                ? { label: "🔴 Riskli", bg: "#FDECEA", color: "#C0392B" }
+                : (oRec.length === 0 || oGunFarki === null || oGunFarki > 60)
+                  ? { label: "🟡 Takip Gerekli", bg: "#FDF6E3", color: "#B07D1A" }
+                  : { label: "🟢 İyi Gidiyor", bg: "#E6F5EE", color: "#1A8C5B" };
+
               return (
                 <div key={o.studentName} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, padding:"10px 14px", display:"flex", alignItems:"center", gap:8 }}>
                   {/* Tıklanabilir alan */}
@@ -3930,8 +3941,8 @@ function OgrenciYonetim({
                       <div style={{ fontWeight:700, fontSize:14, color:TEXT }}>{o.studentName}</div>
                       <div style={{ fontSize:11, color:MUTED }}>{o.className}{o.numara ? ` · No: ${o.numara}` : ""}</div>
                     </div>
-                    <div style={{ display:"flex", gap:4, flexShrink:0 }}>
-                      {oRsk > 0 && <span style={{ background:"#FDECEA", color:"#C0392B", borderRadius:12, padding:"2px 6px", fontSize:10, fontWeight:700 }}>⚠</span>}
+                    <div style={{ display:"flex", gap:4, flexShrink:0, flexWrap:"wrap", justifyContent:"flex-end" }}>
+                      <span style={{ background:oKategori.bg, color:oKategori.color, borderRadius:12, padding:"2px 7px", fontSize:10, fontWeight:800, whiteSpace:"nowrap" }}>{oKategori.label}</span>
                       {oRec.length > 0 && <span style={{ background:ACCENT_LIGHT, color:ACCENT, borderRadius:12, padding:"2px 6px", fontSize:10, fontWeight:700 }}>{oRec.length} görüşme</span>}
                       {oDenAvg && <span style={{ background:"#EEF2FF", color:BLUE, borderRadius:12, padding:"2px 6px", fontSize:10, fontWeight:700 }}>Ort:{oDenAvg}</span>}
                       {oP1 && <span style={{ background:ACCENT_LIGHT, color:ACCENT, borderRadius:12, padding:"2px 6px", fontSize:10, fontWeight:700 }}>P1</span>}
