@@ -3491,6 +3491,15 @@ function OgrenciYonetim({
   const [sinifFiltre, setSinifFiltre] = useState("Tümü");
   const [duzenlemeId, setDuzenlemeId] = useState(null);
   const [duzenleForm, setDuzenleForm] = useState(null);
+  const [duzenleAiLoading, setDuzenleAiLoading] = useState(false);
+
+  async function handleDuzenleAiOzetle() {
+    if (!duzenleForm?.raw?.trim()) return;
+    setDuzenleAiLoading(true);
+    const summary = await getAISummary(duzenleForm.raw);
+    setDuzenleForm(f => ({ ...f, summary }));
+    setDuzenleAiLoading(false);
+  }
 
   async function handleGorusmeGuncelle(id, fields) {
     const updated = records.map(r => r.id === id ? { ...r, ...fields } : r);
@@ -3841,6 +3850,9 @@ function OgrenciYonetim({
                                 <input placeholder="Konu (örn: Sınav kaygısı)" value={duzenleForm?.topic||""} onChange={e=>setDuzenleForm(f=>({...f,topic:e.target.value}))} style={{width:"100%",padding:"7px 9px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:12,marginBottom:6,boxSizing:"border-box"}}/>
                                 <label style={{fontSize:10,fontWeight:600,color:MUTED,display:"block",marginBottom:2}}>HAM NOT</label>
                                 <textarea value={duzenleForm?.raw||""} onChange={e=>setDuzenleForm(f=>({...f,raw:e.target.value}))} rows={3} style={{width:"100%",padding:"7px 9px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:12,resize:"vertical",boxSizing:"border-box",marginBottom:6}}/>
+                                <button onClick={handleDuzenleAiOzetle} disabled={!duzenleForm?.raw?.trim()||duzenleAiLoading} style={{width:"100%",padding:"7px",background:duzenleForm?.raw?.trim()&&!duzenleAiLoading?PURPLE:BORDER,color:duzenleForm?.raw?.trim()&&!duzenleAiLoading?"#fff":MUTED,border:"none",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer",marginBottom:6}}>
+                                  {duzenleAiLoading?"⏳ Özetleniyor...":"✦ AI ile Yeniden Özetle"}
+                                </button>
                                 <label style={{fontSize:10,fontWeight:600,color:MUTED,display:"block",marginBottom:2}}>ÖZET</label>
                                 <textarea value={duzenleForm?.summary||""} onChange={e=>setDuzenleForm(f=>({...f,summary:e.target.value}))} rows={4} style={{width:"100%",padding:"7px 9px",border:`1px solid ${ACCENT_LIGHT}`,borderRadius:8,fontSize:12,resize:"vertical",boxSizing:"border-box",background:"#F0FAF4",marginBottom:8}}/>
                                 <div style={{display:"flex",gap:8}}>
