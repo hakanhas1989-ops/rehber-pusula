@@ -88,28 +88,156 @@ body {
 }
 /* iOS dokunma gecikmesi kaldır */
 * { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-/* Yükleme ekranı */
+/* Yükleme ekranı — yıldız ve pusulanın merkezde buluşması */
 #splash {
-  position: fixed; inset: 0; background: #2D6A4F;
+  position: fixed; inset: 0; overflow: hidden;
+  background: radial-gradient(circle at 50% 45%, #1f4d3a 0%, #163b2c 50%, #071510 100%);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   color: white; font-size: 18px; font-weight: 700; gap: 16px; z-index: 9999;
+  perspective: 1100px;
 }
 #splash.hide { display: none; }
-/* Yükleme ekranındaki hareketli turuncu simge */
-#pdr-splash-spinner { position: relative; width: 64px; height: 64px; }
-#pdr-splash-spinner span {
-  position: absolute; top: 50%; left: 50%; width: 9px; height: 9px; border-radius: 50%;
-  background: #FB923C; margin: -4.5px; animation: pdrDotFade 1.1s linear infinite;
+
+.pdr-splash-particle {
+  position:absolute; border-radius:50%; background:rgba(255,255,255,0.5);
+  animation: pdrFloatUp linear infinite;
 }
-#pdr-splash-spinner span:nth-child(1) { transform: rotate(0deg) translateX(27px); animation-delay: 0s; }
-#pdr-splash-spinner span:nth-child(2) { transform: rotate(45deg) translateX(27px); animation-delay: -0.96s; }
-#pdr-splash-spinner span:nth-child(3) { transform: rotate(90deg) translateX(27px); animation-delay: -0.82s; }
-#pdr-splash-spinner span:nth-child(4) { transform: rotate(135deg) translateX(27px); animation-delay: -0.69s; }
-#pdr-splash-spinner span:nth-child(5) { transform: rotate(180deg) translateX(27px); animation-delay: -0.55s; }
-#pdr-splash-spinner span:nth-child(6) { transform: rotate(225deg) translateX(27px); animation-delay: -0.41s; }
-#pdr-splash-spinner span:nth-child(7) { transform: rotate(270deg) translateX(27px); animation-delay: -0.28s; }
-#pdr-splash-spinner span:nth-child(8) { transform: rotate(315deg) translateX(27px); animation-delay: -0.14s; }
-@keyframes pdrDotFade { 0%, 100% { opacity: 0.15; } 50% { opacity: 1; } }
+@keyframes pdrFloatUp {
+  0%   { transform: translateY(0) scale(1); opacity:0; }
+  10%  { opacity:0.5; } 90% { opacity:0.3; }
+  100% { transform: translateY(-140px) scale(0.4); opacity:0; }
+}
+#pdr-splash-vignette {
+  position:absolute; inset:0; pointer-events:none; z-index:2;
+  background: radial-gradient(circle at 50% 45%, transparent 0%, transparent 40%, rgba(0,0,0,0.55) 100%);
+  animation: pdrVignettePulse 4.6s ease-in-out infinite;
+}
+@keyframes pdrVignettePulse {
+  0%, 44% { opacity:1; } 50% { opacity:0.25; } 58% { opacity:1; } 100% { opacity:1; }
+}
+#pdr-splash-cam { position:relative; width:320px; height:320px; animation: pdrCamShake 4.6s linear infinite; }
+@keyframes pdrCamShake {
+  0%, 49.5%  { transform: translate(0,0); }
+  50%   { transform: translate(3px,-2px); }
+  50.4% { transform: translate(-4px,2px); }
+  50.8% { transform: translate(3px,1px); }
+  51.2% { transform: translate(-2px,-2px); }
+  51.6%, 100% { transform: translate(0,0); }
+}
+#pdr-splash-scene {
+  position:relative; width:100%; height:100%; transform-style:preserve-3d;
+  animation: pdrZoomPunch 4.6s cubic-bezier(0.4,0,0.2,1) infinite;
+}
+@keyframes pdrZoomPunch {
+  0%, 48.5% { transform: scale(1); } 50.5% { transform: scale(1.09); }
+  56% { transform: scale(0.97); } 62%, 100% { transform: scale(1); }
+}
+.pdr-splash-star {
+  position:absolute; top:50%; left:50%; width:44px; height:44px; margin:-22px 0 0 -22px;
+  animation: pdrStarTravel 4.6s cubic-bezier(0.5,0,0.15,1) infinite;
+}
+.pdr-splash-star svg { width:100%; height:100%; }
+.pdr-splash-star.l0 { animation-delay: 0s;     filter: drop-shadow(0 0 6px #cfe0ff) drop-shadow(0 0 18px #16284d); z-index:6; }
+.pdr-splash-star.l1 { animation-delay: -0.045s; opacity:0.55; filter:blur(1.5px); z-index:5; }
+.pdr-splash-star.l2 { animation-delay: -0.09s;  opacity:0.38; filter:blur(3px);   z-index:4; }
+.pdr-splash-star.l3 { animation-delay: -0.135s; opacity:0.24; filter:blur(4.5px); z-index:3; }
+.pdr-splash-star.l4 { animation-delay: -0.18s;  opacity:0.13; filter:blur(6px);   z-index:2; }
+.pdr-splash-star.l5 { animation-delay: -0.225s; opacity:0.06; filter:blur(8px);   z-index:1; }
+@keyframes pdrStarTravel {
+  0%   { transform: translate3d(-170px,-125px,-320px) rotate3d(1,1,0,0deg) scale(0.35); opacity:0; }
+  9%   { opacity:1; }
+  48%  { transform: translate3d(0,0,0) rotate3d(0.6,1,0.2,780deg) scale(1.25); }
+  50.5%{ opacity:1; }
+  54%  { transform: translate3d(0,0,0) scale(0.12); opacity:0; }
+  100% { opacity:0; }
+}
+.pdr-splash-compass {
+  position:absolute; top:50%; left:50%; width:56px; height:56px; margin:-28px 0 0 -28px;
+  animation: pdrCompassTravel 4.6s cubic-bezier(0.5,0,0.15,1) infinite;
+}
+.pdr-splash-compass svg { width:100%; height:100%; }
+.pdr-splash-compass.l0 { animation-delay: 0s;     filter: drop-shadow(0 0 16px rgba(120,180,255,0.7)); z-index:6; }
+.pdr-splash-compass.l1 { animation-delay: -0.02s; opacity:0.3;  filter:blur(0.5px); z-index:5; }
+.pdr-splash-compass.l2 { animation-delay: -0.04s;  opacity:0.16; filter:blur(1px);   z-index:4; }
+.pdr-splash-compass.l3 { animation-delay: -0.06s; opacity:0.08;  filter:blur(1.5px); z-index:3; }
+.pdr-splash-compass.l4 { animation-delay: -0.08s;  opacity:0.04;  filter:blur(2px);   z-index:2; }
+.pdr-splash-compass.l5 { animation-delay: -0.1s; opacity:0.02; filter:blur(2.5px);   z-index:1; }
+@keyframes pdrCompassTravel {
+  0%   { transform: translate3d(175px,135px,-320px) rotate(-380deg) scale(0.35); opacity:0; }
+  9%   { opacity:1; }
+  40%  { transform: translate3d(0,0,0) rotate(-15deg) scale(1.2); }
+  48%  { transform: translate3d(0,0,0) rotate(0deg) scale(1.2); opacity:1; }
+  50.5%{ opacity:1; }
+  54%  { transform: translate3d(0,0,0) scale(0.12); opacity:0; }
+  100% { opacity:0; }
+}
+#pdr-splash-rays {
+  position:absolute; top:50%; left:50%; width:260px; height:260px; margin:-130px 0 0 -130px;
+  background: conic-gradient(from 0deg,
+    transparent 0deg, rgba(251,146,60,0.9) 4deg, transparent 10deg,
+    transparent 30deg, rgba(255,255,255,0.8) 34deg, transparent 40deg,
+    transparent 62deg, rgba(251,146,60,0.7) 66deg, transparent 72deg,
+    transparent 95deg, rgba(255,255,255,0.6) 99deg, transparent 105deg,
+    transparent 130deg, rgba(251,146,60,0.8) 134deg, transparent 140deg,
+    transparent 165deg, rgba(255,255,255,0.7) 169deg, transparent 175deg,
+    transparent 200deg, rgba(251,146,60,0.9) 204deg, transparent 210deg,
+    transparent 235deg, rgba(255,255,255,0.6) 239deg, transparent 245deg,
+    transparent 270deg, rgba(251,146,60,0.7) 274deg, transparent 280deg,
+    transparent 305deg, rgba(255,255,255,0.8) 309deg, transparent 315deg,
+    transparent 340deg, rgba(251,146,60,0.9) 344deg, transparent 350deg);
+  border-radius:50%; opacity:0; z-index:5;
+  animation: pdrRaysBurst 4.6s cubic-bezier(0.1,0.7,0.2,1) infinite;
+}
+@keyframes pdrRaysBurst {
+  0%, 49% { opacity:0; transform:scale(0.2) rotate(0deg); }
+  51%     { opacity:1; transform:scale(0.5) rotate(20deg); }
+  68%     { opacity:0; transform:scale(1.6) rotate(90deg); }
+  100%    { opacity:0; }
+}
+.pdr-splash-shock {
+  position:absolute; top:50%; left:50%; width:18px; height:18px; margin:-9px 0 0 -9px;
+  border-radius:50%; opacity:0; border:2px solid transparent; z-index:5;
+  animation: pdrShockOut 4.6s cubic-bezier(0.1,0.7,0.25,1) infinite;
+}
+.pdr-splash-shock.s1 { border-color:#ffffff; animation-delay:0s; }
+.pdr-splash-shock.s2 { border-color:#2C5282; animation-delay:0.08s; }
+.pdr-splash-shock.s3 { border-color:#74C69D; animation-delay:0.16s; }
+.pdr-splash-shock.s4 { border-color:#2C5282; animation-delay:0.26s; }
+@keyframes pdrShockOut {
+  0%, 47.5% { opacity:0; transform:scale(0.3); }
+  50.5%     { opacity:1; transform:scale(0.6); }
+  72%       { opacity:0; transform:scale(9.5); }
+  100%      { opacity:0; }
+}
+.pdr-splash-chroma {
+  position:absolute; top:50%; left:50%; width:20px; height:20px; margin:-10px 0 0 -10px;
+  border-radius:50%; z-index:6; opacity:0; mix-blend-mode:screen;
+}
+.pdr-splash-chroma.red  { background:radial-gradient(circle, #ff4d4d 0%, transparent 70%); animation: pdrChromaRed 4.6s cubic-bezier(0.2,0.8,0.2,1) infinite; }
+.pdr-splash-chroma.cyan { background:radial-gradient(circle, #4dd9ff 0%, transparent 70%); animation: pdrChromaCyan 4.6s cubic-bezier(0.2,0.8,0.2,1) infinite; }
+@keyframes pdrChromaRed {
+  0%, 49% { opacity:0; transform:translate(0,0) scale(0.5); }
+  51%     { opacity:0.85; transform:translate(-6px,-3px) scale(2.4); }
+  60%     { opacity:0; transform:translate(0,0) scale(0.6); }
+  100%    { opacity:0; }
+}
+@keyframes pdrChromaCyan {
+  0%, 49% { opacity:0; transform:translate(0,0) scale(0.5); }
+  51%     { opacity:0.85; transform:translate(6px,3px) scale(2.4); }
+  60%     { opacity:0; transform:translate(0,0) scale(0.6); }
+  100%    { opacity:0; }
+}
+#pdr-splash-flash {
+  position:absolute; top:50%; left:50%; width:14px; height:14px; margin:-7px 0 0 -7px;
+  border-radius:50%; background:radial-gradient(circle, #fff 0%, #2C5282 45%, transparent 75%);
+  opacity:0; z-index:7; animation: pdrFlashPulse 4.6s ease-in-out infinite;
+}
+@keyframes pdrFlashPulse {
+  0%, 49% { opacity:0; transform:scale(0.4); }
+  51%     { opacity:1; transform:scale(3.2); }
+  60%     { opacity:0; transform:scale(0.6); }
+  100%    { opacity:0; }
+}
 /* Giriş ekranı */
 #pdr-login-overlay {
   position: fixed; inset: 0;
@@ -181,13 +309,71 @@ body {
 <body>
 
 <div id="splash">
-  <div id="pdr-splash-spinner">
-    <span></span><span></span><span></span><span></span>
-    <span></span><span></span><span></span><span></span>
+  <div id="pdr-splash-vignette"></div>
+  <div id="pdr-splash-cam">
+    <div id="pdr-splash-scene">
+      <div class="pdr-splash-star l5"><svg viewBox="0 0 100 100">
+        <defs>
+          <linearGradient id="pdrStarGlass" x1="20%" y1="0%" x2="80%" y2="100%">
+            <stop offset="0%" stop-color="#8fb8ff" stop-opacity="0.9"/>
+            <stop offset="50%" stop-color="#16284d" stop-opacity="0.6"/>
+            <stop offset="100%" stop-color="#080f22" stop-opacity="0.65"/>
+          </linearGradient>
+        </defs>
+        <polygon points="50,4 61,38 97,38 68,59 79,94 50,73 21,94 32,59 3,38 39,38" fill="url(#pdrStarGlass)" stroke="rgba(255,255,255,0.45)" stroke-width="1"/></svg></div>
+      <div class="pdr-splash-star l4"><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,73 21,94 32,59 3,38 39,38" fill="url(#pdrStarGlass)" stroke="rgba(255,255,255,0.45)" stroke-width="1"/></svg></div>
+      <div class="pdr-splash-star l3"><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,73 21,94 32,59 3,38 39,38" fill="url(#pdrStarGlass)" stroke="rgba(255,255,255,0.45)" stroke-width="1"/></svg></div>
+      <div class="pdr-splash-star l2"><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,73 21,94 32,59 3,38 39,38" fill="url(#pdrStarGlass)" stroke="rgba(255,255,255,0.45)" stroke-width="1"/></svg></div>
+      <div class="pdr-splash-star l1"><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,73 21,94 32,59 3,38 39,38" fill="url(#pdrStarGlass)" stroke="rgba(255,255,255,0.45)" stroke-width="1"/></svg></div>
+      <div class="pdr-splash-star l0"><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,73 21,94 32,59 3,38 39,38" fill="url(#pdrStarGlass)" stroke="rgba(255,255,255,0.45)" stroke-width="1"/></svg></div>
+
+      <div class="pdr-splash-compass l5"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="#8d9194"/><polygon points="50,16 58,50 50,58 42,50" fill="#C0392B"/><polygon points="50,84 58,50 50,42 42,50" fill="#ececeb"/></svg></div>
+      <div class="pdr-splash-compass l4"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="#8d9194"/><polygon points="50,16 58,50 50,58 42,50" fill="#C0392B"/><polygon points="50,84 58,50 50,42 42,50" fill="#ececeb"/></svg></div>
+      <div class="pdr-splash-compass l3"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="#8d9194"/><polygon points="50,16 58,50 50,58 42,50" fill="#C0392B"/><polygon points="50,84 58,50 50,42 42,50" fill="#ececeb"/></svg></div>
+      <div class="pdr-splash-compass l2"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="#8d9194"/><polygon points="50,16 58,50 50,58 42,50" fill="#C0392B"/><polygon points="50,84 58,50 50,42 42,50" fill="#ececeb"/></svg></div>
+      <div class="pdr-splash-compass l1"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="#8d9194"/><polygon points="50,16 58,50 50,58 42,50" fill="#C0392B"/><polygon points="50,84 58,50 50,42 42,50" fill="#ececeb"/></svg></div>
+      <div class="pdr-splash-compass l0">
+        <svg viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="47" fill="url(#pdrCompassG)" stroke="#cfd2d4" stroke-width="2"/>
+          <defs><radialGradient id="pdrCompassG" cx="35%" cy="30%" r="75%">
+            <stop offset="0%" stop-color="#f5f5f5"/><stop offset="100%" stop-color="#8d9194"/>
+          </radialGradient></defs>
+          <polygon points="50,16 58,50 50,58 42,50" fill="#C0392B"/>
+          <polygon points="50,84 58,50 50,42 42,50" fill="#ececeb" stroke="#999" stroke-width="0.6"/>
+          <circle cx="50" cy="50" r="5" fill="#3a3d40"/>
+        </svg>
+      </div>
+
+      <div id="pdr-splash-rays"></div>
+      <div class="pdr-splash-shock s1"></div>
+      <div class="pdr-splash-shock s2"></div>
+      <div class="pdr-splash-shock s3"></div>
+      <div class="pdr-splash-shock s4"></div>
+      <div class="pdr-splash-chroma red"></div>
+      <div class="pdr-splash-chroma cyan"></div>
+      <div id="pdr-splash-flash"></div>
+    </div>
   </div>
-  <div>PDR Program</div>
-  <div style="font-size:13px;opacity:0.7;font-weight:400">Yükleniyor...</div>
+  <div style="margin-top:8px;position:relative;z-index:3;">🧭 Rehber Pusula</div>
+  <div style="font-size:13px;opacity:0.7;font-weight:400;position:relative;z-index:3;">Yükleniyor...</div>
 </div>
+<script>
+  (function pdrSplashParticles() {
+    var container = document.getElementById('splash');
+    if (!container) return;
+    for (var i = 0; i < 20; i++) {
+      var p = document.createElement('div');
+      p.className = 'pdr-splash-particle';
+      var size = 1.5 + Math.random() * 2.5;
+      p.style.width = size + 'px'; p.style.height = size + 'px';
+      p.style.left = Math.random() * 100 + '%';
+      p.style.top = (30 + Math.random() * 60) + '%';
+      p.style.animationDuration = (4 + Math.random() * 5) + 's';
+      p.style.animationDelay = (Math.random() * 5) + 's';
+      container.appendChild(p);
+    }
+  })();
+</script>
 
 <div id="pdr-login-overlay">
   <div id="pdr-compass-wrap">
