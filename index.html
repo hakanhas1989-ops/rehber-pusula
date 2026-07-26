@@ -3865,13 +3865,15 @@ function OgrenciYonetim({
   kayitliListesi, mudahalePlan, aktifYil, onYilEkrani,
   hazirlikNotlari, setHazirlikNotlari,
   ilerlemeNotlari, setIlerlemeNotlari,
-  onRaporAc, setAktifOgrenci, setTab
+  onRaporAc, setAktifOgrenci, setTab, onSinifGuncelle
 }) {
 
   const [aramaMetni, setAramaMetni] = useState("");
   const [aramaDebounce, setAramaDebounce] = useState("");
   const [seciliOgrenci, setSeciliOgrenci] = useState(null);
   const [excelPanelAcik, setExcelPanelAcik] = useState(false);
+  const [sinifGuncelleAcik, setSinifGuncelleAcik] = useState(false);
+  const [yeniSinifDegeri, setYeniSinifDegeri] = useState("");
 
   // Arama debounce — 300ms bekle
   useEffect(() => {
@@ -3943,16 +3945,17 @@ function OgrenciYonetim({
     o.numara?.includes(aramaDebounce)
   ), [tumOgrenciler, aramaDebounce]);
 
-  async function handleOgrenciSil(studentName) {
-    const ad = studentName.toLowerCase().trim();
+  async function handleOgrenciSil(studentName, className, numara) {
+    const silinecekMi = (ad, sinif, no) => pdrAyniOgrenci(studentName, className, ad, sinif, numara, no);
     // Hepsini paralel sil
-    const updOgr = ogrenciler.filter(o => o.studentName?.toLowerCase().trim() !== ad);
-    const updRec = records.filter(r => r.studentName?.toLowerCase().trim() !== ad);
-    const updP1 = profiles.filter(p => p.studentName?.toLowerCase().trim() !== ad);
-    const updP2 = profiles2.filter(p => p.studentName?.toLowerCase().trim() !== ad);
+    const updOgr = ogrenciler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
+    const updRec = records.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
+    const updP1 = profiles.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
+    const updP2 = profiles2.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
     const updDen = { ...denemeler };
-    Object.keys(updDen).forEach(k => { if (k.toLowerCase().trim() === ad) delete updDen[k]; });
-    const updRisk = riskListesi.filter(r => r.studentName?.toLowerCase().trim() !== ad);
+    delete updDen[pdrOgrAnahtar(studentName, className)];
+    delete updDen[studentName];
+    const updRisk = riskListesi.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
     // State'leri güncelle
     setOgrenciler(updOgr);
     setRecords(updRec);
@@ -3969,7 +3972,7 @@ function OgrenciYonetim({
       saveDenemeler(updDen),
       saveRiskListesi(updRisk),
     ]);
-    if (aktifOgrenci?.name?.toLowerCase().trim() === ad) setAktifOgrenci({ name: "", className: "" });
+    if (aktifOgrenci?.name === studentName) setAktifOgrenci({ name: "", className: "" });
     setSeciliOgrenci(null);
   }
 
@@ -4179,7 +4182,7 @@ function OgrenciYonetim({
                       <span style={{ color:MUTED, fontSize:16, flexShrink:0 }}>›</span>
                     </div>
                     {/* Sil butonu */}
-                    <SilButonu onSil={() => handleOgrenciSil(o.studentName)} />
+                    <SilButonu onSil={() => handleOgrenciSil(o.studentName, o.className, o.numara)} />
                   </div>
                   {/* Rozetler — kendi satırında, avatar hizasından başlıyor */}
                   <div style={{ display:"flex", gap:4, flexWrap:"wrap", paddingLeft:44 }}>
@@ -4203,10 +4206,14 @@ function OgrenciYonetim({
             <button onClick={() => { setSeciliOgrenci(null); setAktifSekme("ozet"); }} style={{
               background:BG, border:`1px solid ${BORDER}`, borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:700, color:MUTED, cursor:"pointer"
             }}>← Geri</button>
-            <button onClick={() => handleOgrenciSil(seciliOgrenci)} style={{
+            <button onClick={() => handleOgrenciSil(seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara)} style={{
               background:"none", border:"1px solid #F28B82", color:"#C5221F",
               borderRadius:8, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer"
             }}>🗑 Öğrenciyi Sil</button>
+            <button onClick={() => { setYeniSinifDegeri(seciliOgrenciSinif); setSinifGuncelleAcik(true); }} style={{
+              background:"none", border:`1px solid ${ACCENT}`, color:ACCENT,
+              borderRadius:8, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer"
+            }}>🎓 Sınıf Güncelle</button>
             <div style={{ flex:1, minWidth:120 }}>
               <div style={{ fontWeight:800, fontSize:16, color:TEXT }}>{seciliOgrenci}</div>
               {(() => { const o = tumOgrenciler.find(x=>x.studentName===seciliOgrenci); return o ? <div style={{ fontSize:11, color:MUTED }}>{o.className}{o.numara ? ` · No: ${o.numara}` : ""}</div> : null; })()}
@@ -4223,6 +4230,24 @@ function OgrenciYonetim({
               });
             }} style={{ background:ACCENT, color:"#fff", border:"none", borderRadius:8, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer" }}>📄 Rapor</button>
           </div>
+
+          {sinifGuncelleAcik && (
+            <div style={{ background:ACCENT_LIGHT, border:`1px solid ${ACCENT}`, borderRadius:10, padding:12, marginBottom:14 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:ACCENT, marginBottom:8 }}>
+                🎓 Sınıf Güncelle — öğrencinin sınıfı değiştiğinde (örn. 7-A → 8-A) tüm geçmiş verisi (görüşme, risk, profil, deneme) otomatik olarak yeni sınıfa taşınır.
+              </div>
+              <div style={{ display:"flex", gap:8 }}>
+                <input value={yeniSinifDegeri} onChange={e=>setYeniSinifDegeri(e.target.value)} placeholder="Yeni sınıf (örn. 8-A)"
+                  style={{ flex:1, padding:"8px 10px", border:`1px solid ${BORDER}`, borderRadius:8, fontSize:13, boxSizing:"border-box" }} />
+                <button onClick={() => { setSinifGuncelleAcik(false); }} style={{ padding:"8px 12px", background:BG, border:`1px solid ${BORDER}`, borderRadius:8, fontSize:12, fontWeight:700, color:MUTED, cursor:"pointer" }}>İptal</button>
+                <button onClick={async () => {
+                  if (!yeniSinifDegeri.trim() || yeniSinifDegeri.trim() === seciliOgrenciSinif) { setSinifGuncelleAcik(false); return; }
+                  await onSinifGuncelle(seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara, yeniSinifDegeri.trim());
+                  setSinifGuncelleAcik(false);
+                }} disabled={!yeniSinifDegeri.trim()} style={{ padding:"8px 14px", background:yeniSinifDegeri.trim()?ACCENT:BORDER, color:yeniSinifDegeri.trim()?"#fff":MUTED, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>💾 Kaydet</button>
+              </div>
+            </div>
+          )}
 
           {/* Alt sekmeler */}
           <div style={{ display:"flex", gap:4, marginBottom:14, borderBottom:`1px solid ${BORDER}`, paddingBottom:0 }}>
@@ -6581,6 +6606,50 @@ export default function App() {
             ilerlemeNotlari={ilerlemeNotlari}
             setIlerlemeNotlari={setIlerlemeNotlari}
             onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi }))}
+            onSinifGuncelle={async (eskiAd, eskiSinif, eskiNumara, yeniSinif) => {
+              const ayniMi = (ad, sinif, no) => pdrAyniOgrenci(eskiAd, eskiSinif, ad, sinif, eskiNumara, no);
+
+              const yeniOgrenciler = ogrenciler.map(o => ayniMi(o.studentName, o.className, o.numara) ? { ...o, className: yeniSinif } : o);
+              setOgrenciler(yeniOgrenciler); await saveOgrenciler(yeniOgrenciler);
+
+              const yeniRecords = records.map(r => ayniMi(r.studentName, r.className, r.numara) ? { ...r, className: yeniSinif } : r);
+              setRecords(yeniRecords); await saveRecords(yeniRecords);
+
+              const yeniRisk = riskListesi.map(r => ayniMi(r.studentName, r.className, r.numara) ? { ...r, className: yeniSinif } : r);
+              setRiskListesi(yeniRisk); await saveRiskListesi(yeniRisk);
+
+              const yeniProfiles = profiles.map(p => ayniMi(p.studentName, p.className, p.numara) ? { ...p, className: yeniSinif } : p);
+              setProfiles(yeniProfiles); await saveProfiles(yeniProfiles);
+
+              const yeniProfiles2 = profiles2.map(p => ayniMi(p.studentName, p.className, p.numara) ? { ...p, className: yeniSinif } : p);
+              setProfiles2(yeniProfiles2); await saveProfiles2(yeniProfiles2);
+
+              const yeniSevkler = sevkler.map(s => ayniMi(s.studentName, s.className, s.numara) ? { ...s, className: yeniSinif } : s);
+              setSevkler(yeniSevkler); await saveSevkler(yeniSevkler);
+
+              // İsimle anahtarlanan sözlükler: eski anahtardaki veriyi yeni (sınıf güncellenmiş) anahtara taşı
+              function pdrSozlukSinifTasi(sozluk) {
+                const eskiKey = pdrOgrAnahtar(eskiAd, eskiSinif);
+                const veri = sozluk[eskiKey] !== undefined ? sozluk[eskiKey] : sozluk[eskiAd];
+                if (veri === undefined) return sozluk;
+                const yeniKey = pdrOgrAnahtar(eskiAd, yeniSinif);
+                const guncel = { ...sozluk, [yeniKey]: veri };
+                delete guncel[eskiKey];
+                delete guncel[eskiAd];
+                return guncel;
+              }
+              const yeniDenemeler = pdrSozlukSinifTasi(denemeler);
+              setDenemeler(yeniDenemeler); await saveDenemeler(yeniDenemeler);
+
+              const yeniMudahale = pdrSozlukSinifTasi(mudahalePlan);
+              setMudahalePlan(yeniMudahale); await saveMudahalePlan(yeniMudahale);
+
+              const yeniHazirlik = pdrSozlukSinifTasi(hazirlikNotlari);
+              setHazirlikNotlari(yeniHazirlik); await saveHazirlikNotlari(yeniHazirlik);
+
+              const yeniIlerleme = pdrSozlukSinifTasi(ilerlemeNotlari);
+              setIlerlemeNotlari(yeniIlerleme); await saveIlerlemeNotlari(yeniIlerleme);
+            }}
             setAktifOgrenci={setAktifOgrenci}
             setTab={setTab}
           />
