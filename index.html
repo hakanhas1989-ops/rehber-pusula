@@ -4004,11 +4004,48 @@ function ExcelTopluYukle({ ogrenciler, setOgrenciler, denemeler, setDenemeler, a
         const yeniDenemeler = { ...denemeler };
         let eklenen = 0;
 
+        // Sütunları SABİT POZİSYON yerine BAŞLIK METNİNE göre bul — böylece
+        // dosyada fazladan bir "sıra no" sütunu olsa da (veya sütun sırası
+        // farklı olsa da) doğru sütunlar okunur, D1'in yanlışlıkla sınıf
+        // adını ("8-G" -> 8) okuması gibi kaymalar önlenir.
+        function trNormalize(s) {
+          return String(s || "").toUpperCase()
+            .replace(/İ/g,"I").replace(/I/g,"I").replace(/Ş/g,"S").replace(/Ğ/g,"G")
+            .replace(/Ü/g,"U").replace(/Ö/g,"O").replace(/Ç/g,"C")
+            .replace(/\s+/g," ").trim();
+        }
+        let baslikSatiri = -1;
+        for (let i = 0; i < rows.length; i++) {
+          const rowText = trNormalize(rows[i].join("|"));
+          if (rowText.includes("AD SOYAD")) { baslikSatiri = i; break; }
+        }
+
+        let colNo, colAd, colSube, denemeSutunlari;
+        if (baslikSatiri !== -1) {
+          const headers = rows[baslikSatiri].map(trNormalize);
+          colNo = headers.findIndex(h => h.includes("OGRENCI") && !h.includes("AD"));
+          colAd = headers.findIndex(h => h.includes("AD SOYAD"));
+          colSube = headers.findIndex(h => h.includes("SUBE") || h === "SINIF" || h.includes("SINIFI"));
+          denemeSutunlari = [];
+          for (let d = 1; d <= 9; d++) {
+            const idx = headers.findIndex(h => {
+              const m = h.match(/^D(\d+)\b/);
+              return (m && parseInt(m[1]) === d) || h.includes("GELISIM-" + d);
+            });
+            denemeSutunlari.push(idx);
+          }
+        }
+        // Başlık satırından sütunlar bulunamadıysa eski sabit pozisyonlara dön (geriye dönük uyumluluk)
+        if (colNo === undefined || colNo < 0 || colAd === undefined || colAd < 0) {
+          colNo = 0; colAd = 1; colSube = 2;
+          denemeSutunlari = [3,4,5,6,7,8,9,10,11];
+        }
+
         // Başlık satırlarını atla — ilk boş olmayan veri satırından başla
         let baslangic = 0;
         for (let i = 0; i < rows.length; i++) {
           const row = rows[i];
-          const adSoyad = String(row[1] || "").trim();
+          const adSoyad = String(row[colAd] || "").trim();
           if (adSoyad && !adSoyad.includes("AD") && !adSoyad.includes("SOYAD") && !adSoyad.startsWith("*")) {
             baslangic = i;
             break;
@@ -4017,18 +4054,20 @@ function ExcelTopluYukle({ ogrenciler, setOgrenciler, denemeler, setDenemeler, a
 
         for (let i = baslangic; i < rows.length; i++) {
           const row = rows[i];
-          const no = String(row[0] || "").trim();
-          const adSoyad = String(row[1] || "").trim();
-          const sube = String(row[2] || "").trim();
+          const no = String(row[colNo] || "").trim();
+          const adSoyad = String(row[colAd] || "").trim();
+          const sube = String(row[colSube] || "").trim();
 
           if (!adSoyad || adSoyad.startsWith("*") || adSoyad.includes("OKUL") || adSoyad.includes("SINIF")) continue;
 
-          // 7.sınıf 9 deneme netleri (D-L sütunları, index 3-11)
+          // 7.sınıf 9 deneme netleri (başlıktan bulunan sütunlar)
           const deneme7 = {};
           let toplamGirilen = 0;
           let toplamNet = 0;
           for (let d = 0; d < 9; d++) {
-            const net = parseFloat(String(row[3 + d]).replace(",", "."));
+            const sutunIndex = denemeSutunlari[d];
+            if (sutunIndex === undefined || sutunIndex < 0) continue;
+            const net = parseFloat(String(row[sutunIndex]).replace(",", "."));
             if (!isNaN(net) && net > 0) {
               deneme7[d + 1] = { "7sinif": true, toplam_net: net };
               toplamNet += net;
