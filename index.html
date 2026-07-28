@@ -928,6 +928,83 @@ const DIMENSIONS = [
   { key: "akran", label: "Akran İlişkileri", color: "#F4A261" },
 ];
 
+// ── ÖÖG (Özel Öğrenme Güçlüğü) Ön-Tarama Soru Bankası ──────────────────────────
+// Bu bir TARAMA aracıdır, TANI KOYMAZ. Kesin tanı için RAM/uzman değerlendirmesi gerekir.
+const OOG_KATEGORILER = [
+  { key: "okuma", label: "📖 Okuma", sorular: [
+    "Okurken harf/hece atlar veya ekler",
+    "Okuduğu satırı kaybeder, yanlış satıra geçer",
+    "Aynı kelimeyi/cümleyi tekrar tekrar okur",
+    "Yaşıtlarına göre belirgin yavaş ve duraksayarak okur",
+  ]},
+  { key: "yazma", label: "✍️ Yazma", sorular: [
+    "Harfleri ters yazar (b-d, p-q, s-z gibi)",
+    "Yazarken harf/hece atlar veya ekler",
+    "Satır takibi bozuk, yazı satırdan taşar",
+    "El yazısı düzensiz, harf boyutları tutarsız",
+  ]},
+  { key: "yon", label: "🧭 Yön / Mekansal Algı", sorular: [
+    "Sağını solunu karıştırır",
+    "Daire/şekil çizerken yön ya da başlangıç noktası tutarsız",
+    "Yön tarifini anlamakta/vermekte zorlanır",
+    "Saat okumakta zorlanır",
+  ]},
+  { key: "konusma", label: "🗣️ Konuşma / Dil", sorular: [
+    "Konuşurken kekeler veya sık duraksar",
+    "Kelime bulmakta zorlanır (\"şey\" gibi dolgu kelimeler kullanır)",
+    "Cümle kurarken sözcük sırasını karıştırır",
+    "Sözel yönergeyi anlamakta/hatırlamakta zorlanır",
+  ]},
+  { key: "matematik", label: "🔢 Matematik", sorular: [
+    "Rakamları ters yazar (6-9, 2-5 gibi)",
+    "İşlem sırasını (toplama/çıkarma sırası) karıştırır",
+    "Çarpım tablosunu ezberlemekte belirgin zorluk yaşar",
+    "Zaman kavramını (dün/bugün/yarın, saat) kavramakta zorlanır",
+  ]},
+  { key: "motor", label: "✋ Motor Beceri", sorular: [
+    "Makas kullanma, düğme ilikleme gibi ince motor işlerde zorlanır",
+    "Kalem tutuşu düzensiz/güçsüz",
+    "Kaba motor becerilerde (denge, koordinasyon) yaşıtlarına göre geridedir",
+  ]},
+  { key: "dikkat", label: "🧠 Dikkat / Bellek", sorular: [
+    "Verilen yönergeyi kısa sürede unutur",
+    "Sırayı/dizilimi karıştırır (günler, aylar, alfabe gibi)",
+    "Kısa süreli bellek zorluğu belirgin (az önce söyleneni hatırlamakta güçlük)",
+    "Dikkatini uzun süre bir işe veremiyor",
+  ]},
+  { key: "aile_oyku", label: "👪 Aile Öyküsü / Gelişimsel", sorular: [
+    "Ailede benzer okuma-yazma güçlüğü öyküsü var",
+    "Konuşmaya yaşıtlarına göre geç başladı",
+    "Okuma-yazmayı öğrenmede yaşıtlarına göre belirgin gecikme yaşadı",
+  ]},
+];
+const OOG_SECENEKLER = [
+  { val: 0, label: "Hiç" },
+  { val: 1, label: "Nadiren" },
+  { val: 2, label: "Sıklıkla" },
+  { val: 3, label: "Çok Sık" },
+];
+function oogSonucHesapla(cevaplar) {
+  let toplam = 0, maks = 0;
+  const kategoriPuan = {};
+  OOG_KATEGORILER.forEach(k => {
+    let kToplam = 0, kMaks = k.sorular.length * 3;
+    k.sorular.forEach((_, i) => {
+      const v = cevaplar[k.key + "_" + i];
+      kToplam += (typeof v === "number") ? v : 0;
+    });
+    kategoriPuan[k.key] = kMaks > 0 ? Math.round((kToplam / kMaks) * 100) : 0;
+    toplam += kToplam; maks += kMaks;
+  });
+  const yuzde = maks > 0 ? Math.round((toplam / maks) * 100) : 0;
+  const seviye = yuzde >= 66 ? { label: "Yüksek Şüphe", color: "#C0392B", bg: "#FDECEA" }
+    : yuzde >= 41 ? { label: "Orta Şüphe", color: "#B07D1A", bg: "#FDF6E3" }
+    : yuzde >= 21 ? { label: "Düşük-Orta Şüphe", color: "#457B9D", bg: "#EEF2FF" }
+    : { label: "Düşük Şüphe", color: "#1A8C5B", bg: "#E6F5EE" };
+  return { yuzde, seviye, kategoriPuan, tamamlananSoru: Object.keys(cevaplar).length, toplamSoru: OOG_KATEGORILER.reduce((s,k)=>s+k.sorular.length,0) };
+}
+
+
 
 const LGS_KOCLUK = "Sen Dr. Ayse Kara'sin. 20 yillik klinik deneyime sahip PDR uzmani, psikolog ve ogrenci kocusun. BDT, baglanma teorisi ve gelisim psikolojisi perspektifinden analiz yaparsın. LGS PUAN REHBERI (2024 yaklasik): 85 ustu net = yuzde 1-5 = en iyi Anadolu Liseleri. 75-85 net = yuzde 5-15 = iyi Anadolu Liseleri. 60-75 net = yuzde 15-35 = orta-iyi Anadolu Liseleri. 45-60 net = yuzde 35-60 = Anadolu Liseleri. 30-45 net = yuzde 60-80 = Imam Hatip Anadolu. 30 alti = yuzde 80 ustu = Mahalle Lisesi veya Meslek Lisesi. CALISMA KOÇLUGU: Hata analizi yap o konulara yogunlas. Aralikli tekrar (1-3-7-30 gun). Aktif ogrenme: sorular coz ozetle. Kolay sorudan zora. BDT ile kaygı yonetimi. Deneme ortalamasina gore somut hedef okul turu belirt. Turkce yaz, sade ve anlasilir ol, markdown kullanma.";
 
@@ -1277,6 +1354,12 @@ async function loadProfiles2() {
 }
 async function saveProfiles2(p) {
   try { await window.storage.set("pdr-profiles2", JSON.stringify(p)); } catch(e) { console.warn(e); }
+}
+async function loadOogDegerlendirmeler() {
+  try { const r = await window.storage.get("pdr-oog"); return r ? JSON.parse(r.value) : []; } catch { return []; }
+}
+async function saveOogDegerlendirmeler(items) {
+  try { await window.storage.set("pdr-oog", JSON.stringify(items)); } catch(e) { console.warn(e); }
 }
 
 async function loadYillar() {
@@ -3290,9 +3373,11 @@ function YilSecimEkrani({ yillar, setYillar, aktifYil, setAktifYil, ogrenciler, 
 }
 
 // ── Özet Kartı Bileşeni (Seans Öncesi Hazırlık) ─────────────────────────────
-function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denemeGirilen, denemeAvg, mudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, setTab }) {
+function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denemeGirilen, denemeAvg, mudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, setTab, devamsizlik, onDevamsizlikGuncelle }) {
   const [hazirlikAiLoading, setHazirlikAiLoading] = useState(false);
   const [aktifPanel, setAktifPanel] = useState("ozet"); // ozet | hazirlik | ilerleme
+  const [devGuncelleAcik, setDevGuncelleAcik] = useState(false);
+  const [devInput, setDevInput] = useState(devamsizlik || 0);
 
   // Storage'dan yükle
   const hazirlikNotu = pdrSozlukOku(hazirlikNotlari, ogrenci, ogrenciSinif) || "";
@@ -3383,6 +3468,38 @@ Kısa ve pratik yaz, Markdown kullanma.`}]
               </div>
             ))}
           </div>
+
+          {/* Devamsızlık */}
+          {(() => {
+            const gun = parseInt(devamsizlik) || 0;
+            const durum = gun >= 10
+              ? { label: "🚨 Kritik (Resmi Sınır)", color: "#C0392B", bg: "#FDECEA", border: "#F28B82" }
+              : gun >= 7
+              ? { label: "⚠️ Anlamlı — Yakın Takip", color: "#B7791F", bg: "#FEF3E2", border: "#F5C77E" }
+              : gun >= 4
+              ? { label: "👀 Takip Edilmeli", color: "#B07D1A", bg: "#FDF6E3", border: "#E9D18B" }
+              : { label: "✅ Anlamsız", color: "#1A8C5B", bg: "#E6F5EE", border: "#A8D9C3" };
+            return (
+              <div style={{marginBottom:12}}>
+                <div onClick={() => { setDevInput(gun); setDevGuncelleAcik(a => !a); }}
+                  style={{background:durum.bg, border:`1px solid ${durum.border}`, borderRadius:14, padding:"12px 14px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer"}}>
+                  <div>
+                    <div style={{fontSize:10,color:MUTED,fontWeight:700,letterSpacing:0.3}}>DEVAMSIZLIK</div>
+                    <div style={{fontSize:20,fontWeight:900,color:durum.color}}>{gun} gün</div>
+                  </div>
+                  <span style={{background:durum.color,color:"#fff",borderRadius:12,padding:"5px 11px",fontSize:11,fontWeight:700}}>{durum.label}</span>
+                </div>
+                {devGuncelleAcik && (
+                  <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:10,padding:10,marginTop:6,display:"flex",gap:8}}>
+                    <input type="number" min="0" value={devInput} onChange={e=>setDevInput(e.target.value)}
+                      style={{flex:1,padding:"8px 10px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:14,boxSizing:"border-box"}} />
+                    <button onClick={() => { onDevamsizlikGuncelle(parseInt(devInput)||0); setDevGuncelleAcik(false); }}
+                      style={{padding:"8px 16px",background:ACCENT,color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>Kaydet</button>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Son görüşme */}
           {sonGorusme && (
@@ -4051,7 +4168,7 @@ function OgrenciYonetim({
   kayitliListesi, mudahalePlan, aktifYil, onYilEkrani,
   hazirlikNotlari, setHazirlikNotlari,
   ilerlemeNotlari, setIlerlemeNotlari,
-  onRaporAc, setAktifOgrenci, setTab, onSinifGuncelle
+  onRaporAc, setAktifOgrenci, setTab, onSinifGuncelle, onOgrenciSil
 }) {
 
   const [aramaMetni, setAramaMetni] = useState("");
@@ -4132,32 +4249,7 @@ function OgrenciYonetim({
   ), [tumOgrenciler, aramaDebounce]);
 
   async function handleOgrenciSil(studentName, className, numara) {
-    const silinecekMi = (ad, sinif, no) => pdrAyniOgrenci(studentName, className, ad, sinif, numara, no);
-    // Hepsini paralel sil
-    const updOgr = ogrenciler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
-    const updRec = records.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
-    const updP1 = profiles.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
-    const updP2 = profiles2.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
-    const updDen = { ...denemeler };
-    delete updDen[pdrOgrAnahtar(studentName, className)];
-    delete updDen[studentName];
-    const updRisk = riskListesi.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
-    // State'leri güncelle
-    setOgrenciler(updOgr);
-    setRecords(updRec);
-    setProfiles(updP1);
-    setProfiles2(updP2);
-    setDenemeler(updDen);
-    setRiskListesi(updRisk);
-    // Storage'a kaydet
-    await Promise.all([
-      saveOgrenciler(updOgr),
-      saveRecords(updRec),
-      saveProfiles(updP1),
-      saveProfiles2(updP2),
-      saveDenemeler(updDen),
-      saveRiskListesi(updRisk),
-    ]);
+    await onOgrenciSil(studentName, className, numara);
     if (aktifOgrenci?.name === studentName) setAktifOgrenci({ name: "", className: "" });
     setSeciliOgrenci(null);
   }
@@ -4470,6 +4562,12 @@ function OgrenciYonetim({
               ilerlemeNotlari={ilerlemeNotlari}
               setIlerlemeNotlari={setIlerlemeNotlari}
               setTab={setTab}
+              devamsizlik={tumOgrenciler.find(x => x.studentName === seciliOgrenci)?.devamsizlik || 0}
+              onDevamsizlikGuncelle={async (yeniDeger) => {
+                const updated = ogrenciler.map(o => pdrAyniOgrenci(o.studentName, o.className, seciliOgrenci, seciliOgrenciSinif, o.numara, seciliOgrenciNumara) ? { ...o, devamsizlik: yeniDeger } : o);
+                setOgrenciler(updated);
+                await saveOgrenciler(updated);
+              }}
             />
           )}
           {/* GÖRÜŞME */}
@@ -5066,10 +5164,103 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, ha
 
 
 // ── ProfilMerkez Bileşeni ─────────────────────────────────────────────────────
+// ── ÖÖG (Özel Öğrenme Güçlüğü) Ön-Tarama Paneli ───────────────────────────────
+function OOGPaneli({ seciliAd, seciliSinif, seciliNumara, oogDegerlendirmeler, setOogDegerlendirmeler }) {
+  const mevcut = oogDegerlendirmeler.find(o => pdrAyniOgrenci(o.studentName, o.className, seciliAd, seciliSinif, o.numara, seciliNumara));
+  const [cevaplar, setCevaplar] = useState(mevcut?.cevaplar || {});
+  const [kaydedildi, setKaydedildi] = useState(false);
+
+  useEffect(() => {
+    const m = oogDegerlendirmeler.find(o => pdrAyniOgrenci(o.studentName, o.className, seciliAd, seciliSinif, o.numara, seciliNumara));
+    setCevaplar(m?.cevaplar || {});
+    setKaydedildi(false);
+  }, [seciliAd, seciliSinif, seciliNumara]);
+
+  function cevapVer(kategoriKey, soruIndex, val) {
+    setCevaplar(c => ({ ...c, [kategoriKey + "_" + soruIndex]: val }));
+  }
+
+  const sonuc = oogSonucHesapla(cevaplar);
+
+  async function handleKaydet() {
+    if (!seciliAd.trim()) return;
+    const kayit = {
+      id: mevcut?.id || uid(),
+      date: today(),
+      studentName: seciliAd, className: seciliSinif, numara: seciliNumara,
+      cevaplar, yuzde: sonuc.yuzde, kategoriPuan: sonuc.kategoriPuan,
+    };
+    const updated = mevcut
+      ? oogDegerlendirmeler.map(o => o.id === mevcut.id ? kayit : o)
+      : [kayit, ...oogDegerlendirmeler];
+    setOogDegerlendirmeler(updated);
+    await saveOogDegerlendirmeler(updated);
+    setKaydedildi(true);
+    setTimeout(() => setKaydedildi(false), 2500);
+  }
+
+  if (!seciliAd.trim()) {
+    return <div style={{textAlign:"center", color:MUTED, padding:20, fontSize:13}}>Önce bir öğrenci seçin</div>;
+  }
+
+  return (
+    <div>
+      <div style={{background:"#EEF2FF", border:`1px solid #c7ccf5`, borderRadius:10, padding:"10px 12px", marginBottom:14, fontSize:11, color:"#3B4FD8", lineHeight:1.6}}>
+        🧩 Bu bir <b>tarama aracıdır, tanı koymaz</b>. Öğrenciyi gözlemleyerek her maddeyi işaretle. Şüphe düzeyi yüksek çıkarsa RAM/uzman yönlendirmesi önerilir.
+      </div>
+
+      {sonuc.tamamlananSoru > 0 && (
+        <div style={{background:sonuc.seviye.bg, border:`1px solid ${sonuc.seviye.color}33`, borderRadius:12, padding:14, marginBottom:16, textAlign:"center"}}>
+          <div style={{fontSize:32, fontWeight:900, color:sonuc.seviye.color}}>%{sonuc.yuzde}</div>
+          <div style={{fontSize:13, fontWeight:700, color:sonuc.seviye.color, marginBottom:4}}>{sonuc.seviye.label}</div>
+          <div style={{fontSize:11, color:MUTED}}>{sonuc.tamamlananSoru}/{sonuc.toplamSoru} soru yanıtlandı</div>
+          <div style={{display:"flex", flexWrap:"wrap", gap:6, justifyContent:"center", marginTop:10}}>
+            {OOG_KATEGORILER.map(k => (
+              <span key={k.key} style={{fontSize:10, fontWeight:700, padding:"3px 8px", borderRadius:10, background:"#fff", border:`1px solid ${BORDER}`, color:TEXT}}>
+                {k.label.split(" ")[0]} %{sonuc.kategoriPuan[k.key]}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {OOG_KATEGORILER.map(kategori => (
+        <div key={kategori.key} style={{marginBottom:16}}>
+          <div style={{fontSize:12, fontWeight:800, color:ACCENT, marginBottom:8}}>{kategori.label}</div>
+          {kategori.sorular.map((soru, i) => {
+            const key = kategori.key + "_" + i;
+            return (
+              <div key={key} style={{marginBottom:10}}>
+                <div style={{fontSize:12, color:TEXT, marginBottom:5}}>{soru}</div>
+                <div style={{display:"flex", gap:5}}>
+                  {OOG_SECENEKLER.map(sec => (
+                    <button key={sec.val} onClick={() => cevapVer(kategori.key, i, sec.val)} style={{
+                      flex:1, padding:"7px 4px", borderRadius:8, fontSize:10, fontWeight:700, cursor:"pointer",
+                      border:`1.5px solid ${cevaplar[key]===sec.val?ACCENT:BORDER}`,
+                      background:cevaplar[key]===sec.val?ACCENT_LIGHT:CARD,
+                      color:cevaplar[key]===sec.val?ACCENT:MUTED,
+                    }}>{sec.label}</button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+
+      <button onClick={handleKaydet} style={{
+        width:"100%", padding:13, background:ACCENT, color:"#fff", border:"none", borderRadius:12,
+        fontSize:15, fontWeight:800, cursor:"pointer", marginTop:4
+      }}>{kaydedildi ? "✓ Kaydedildi" : "💾 Kaydet"}</button>
+    </div>
+  );
+}
+
 function ProfilMerkez({
   aktifOgrenci, kayitliListesi,
   profiles, setProfiles,
   profiles2, setProfiles2,
+  oogDegerlendirmeler, setOogDegerlendirmeler,
   denemeler, records, kutuphane,
   onRaporAc,
 }) {
@@ -5329,7 +5520,7 @@ function ProfilMerkez({
             <>
               {/* Alt sekmeler */}
               <div style={{display:"flex",gap:0,marginBottom:14,borderBottom:`1px solid ${BORDER}`}}>
-                {[["p1","📊 Profil 1"],["p2","📚 Profil 2 + D2"]].map(([k,l])=>(
+                {[["p1","📊 Profil 1"],["p2","📚 Profil 2 + D2"],["oog","🧩 ÖÖG"]].map(([k,l])=>(
                   <button key={k} onClick={()=>setAltSekme(k)} style={{
                     padding:"9px 16px", border:"none", background:"none",
                     color:altSekme===k?ACCENT:MUTED, fontWeight:altSekme===k?700:500,
@@ -5504,11 +5695,21 @@ function ProfilMerkez({
                 </div>
               )}
 
+              {/* ÖÖG Tarama */}
+              {altSekme === "oog" && (
+                <OOGPaneli
+                  seciliAd={seciliAd} seciliSinif={seciliSinif} seciliNumara={seciliNumara}
+                  oogDegerlendirmeler={oogDegerlendirmeler} setOogDegerlendirmeler={setOogDegerlendirmeler}
+                />
+              )}
+
               {/* Kaydet butonu */}
+              {altSekme !== "oog" && (
               <button onClick={handleKaydet} disabled={!seciliAd} style={{
                 width:"100%",padding:"13px",background:seciliAd?ACCENT:BORDER,
                 color:seciliAd?"#fff":MUTED,border:"none",borderRadius:12,fontSize:15,fontWeight:800,cursor:"pointer",marginTop:8
               }}>{kaydedildi?"✓ Kaydedildi — Önizleme Açıldı":"💾 Kaydet ve Önizle"}</button>
+              )}
             </>
           )}
 
@@ -6208,6 +6409,7 @@ export default function App() {
   const [records, setRecords] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [profiles2, setProfiles2] = useState([]);
+  const [oogDegerlendirmeler, setOogDegerlendirmeler] = useState([]);
   const [tab, setTab] = useState("ogrenci");
   const [form, setForm] = useState({ studentName: "", className: "", numara: "", meetingType: "Öğrenci", topic: "", raw: "", summary: "" });
   const [profForm, setProfForm] = useState({ studentName: "", className: "", numara: "", notes: "", scores: { ...EMPTY_SCORES }, analysis: "" });
@@ -6250,6 +6452,7 @@ export default function App() {
     loadRecords().then(setRecords);
     loadProfiles().then(setProfiles);
     loadProfiles2().then(setProfiles2);
+    loadOogDegerlendirmeler().then(setOogDegerlendirmeler);
     loadKutuphane().then(setKutuphane);
     loadRiskListesi().then(setRiskListesi);
     loadDenemeler().then(setDenemeler);
@@ -6696,6 +6899,8 @@ export default function App() {
             setProfiles={setProfiles}
             profiles2={profiles2}
             setProfiles2={setProfiles2}
+            oogDegerlendirmeler={oogDegerlendirmeler}
+            setOogDegerlendirmeler={setOogDegerlendirmeler}
             denemeler={denemeler}
             records={records}
             kutuphane={kutuphane}
@@ -6743,6 +6948,9 @@ export default function App() {
 
               const kalanSevkler = sevkler.filter(s => !silinecekMi(s.studentName, s.className, s.numara));
               setSevkler(kalanSevkler); await saveSevkler(kalanSevkler);
+
+              const kalanOog = oogDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
+              setOogDegerlendirmeler(kalanOog); await saveOogDegerlendirmeler(kalanOog);
 
               // İsimle anahtarlanan sözlükler (deneme, müdahale planı, hazırlık/ilerleme notları):
               // silinen her öğrencinin hem yeni (isim+sınıf) hem eski (düz isim) anahtarını temizle
@@ -6835,6 +7043,54 @@ export default function App() {
 
               const yeniIlerleme = pdrSozlukSinifTasi(ilerlemeNotlari);
               setIlerlemeNotlari(yeniIlerleme); await saveIlerlemeNotlari(yeniIlerleme);
+
+              const yeniOog = oogDegerlendirmeler.map(o => ayniMi(o.studentName, o.className, o.numara) ? { ...o, className: yeniSinif } : o);
+              setOogDegerlendirmeler(yeniOog); await saveOogDegerlendirmeler(yeniOog);
+            }}
+            onOgrenciSil={async (studentName, className, numara) => {
+              const silinecekMi = (ad, sinif, no) => pdrAyniOgrenci(studentName, className, ad, sinif, numara, no);
+
+              const updOgr = ogrenciler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
+              setOgrenciler(updOgr); await saveOgrenciler(updOgr);
+
+              const updRec = records.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
+              setRecords(updRec); await saveRecords(updRec);
+
+              const updRisk = riskListesi.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
+              setRiskListesi(updRisk); await saveRiskListesi(updRisk);
+
+              const updP1 = profiles.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
+              setProfiles(updP1); await saveProfiles(updP1);
+
+              const updP2 = profiles2.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
+              setProfiles2(updP2); await saveProfiles2(updP2);
+
+              const updSevkler = sevkler.filter(s => !silinecekMi(s.studentName, s.className, s.numara));
+              setSevkler(updSevkler); await saveSevkler(updSevkler);
+
+              const updOog = oogDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
+              setOogDegerlendirmeler(updOog); await saveOogDegerlendirmeler(updOog);
+
+              // İsimle anahtarlanan sözlükler: silinen öğrencinin hem numaralı, hem
+              // isim+sınıf, hem eski düz-isim anahtarını temizle
+              function pdrSozlukOgrenciTemizle(sozluk) {
+                const yeni = { ...sozluk };
+                delete yeni[pdrOgrAnahtar(studentName, className, numara)];
+                delete yeni[pdrOgrAnahtar(studentName, className)];
+                delete yeni[studentName];
+                return yeni;
+              }
+              const updDen = pdrSozlukOgrenciTemizle(denemeler);
+              setDenemeler(updDen); await saveDenemeler(updDen);
+
+              const updMudahale = pdrSozlukOgrenciTemizle(mudahalePlan);
+              setMudahalePlan(updMudahale); await saveMudahalePlan(updMudahale);
+
+              const updHazirlik = pdrSozlukOgrenciTemizle(hazirlikNotlari);
+              setHazirlikNotlari(updHazirlik); await saveHazirlikNotlari(updHazirlik);
+
+              const updIlerleme = pdrSozlukOgrenciTemizle(ilerlemeNotlari);
+              setIlerlemeNotlari(updIlerleme); await saveIlerlemeNotlari(updIlerleme);
             }}
             setAktifOgrenci={setAktifOgrenci}
             setTab={setTab}
