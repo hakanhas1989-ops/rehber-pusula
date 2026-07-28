@@ -3273,9 +3273,11 @@ MEB resmi yazı formatında veli mektubu yaz. T.C. başlığı, tarih, konu, say
 
 
 // ── Yıl Seçim Ekranı ─────────────────────────────────────────────────────────
-function YilSecimEkrani({ yillar, setYillar, aktifYil, setAktifYil, ogrenciler, onYilSec, onYilSil }) {
+function YilSecimEkrani({ yillar, setYillar, aktifYil, setAktifYil, ogrenciler, onYilSec, onYilSil, onYilSifirla }) {
   const [yeniYil, setYeniYil] = useState("");
   const [silOnayYil, setSilOnayYil] = useState(null);
+  const [sifirlaOnayYil, setSifirlaOnayYil] = useState(null);
+  const [sifirlaniyor, setSifirlaniyor] = useState(false);
 
   async function handleYilEkle() {
     const yil = yeniYil.trim();
@@ -3297,6 +3299,13 @@ function YilSecimEkrani({ yillar, setYillar, aktifYil, setAktifYil, ogrenciler, 
     }
     onYilSil(yil);
     setSilOnayYil(null);
+  }
+
+  async function handleYilSifirla(yil) {
+    setSifirlaniyor(true);
+    await onYilSifirla(yil);
+    setSifirlaniyor(false);
+    setSifirlaOnayYil(null);
   }
 
   return (
@@ -3336,20 +3345,33 @@ function YilSecimEkrani({ yillar, setYillar, aktifYil, setAktifYil, ogrenciler, 
                 )}
               </div>
 
-              {/* Sil */}
-              {yillar.length > 1 && (
-                silOnayYil === yil ? (
-                  <div style={{display:"flex",gap:6,flexShrink:0}}>
+              {/* Sil / Sıfırla */}
+              <div style={{display:"flex", flexDirection:"column", gap:6, flexShrink:0}}>
+                {silOnayYil === yil ? (
+                  <div style={{display:"flex",gap:6}}>
                     <div style={{fontSize:11,color:"#C0392B",maxWidth:100,marginRight:4}}>
                       {ogrSayisi} öğrenci silinecek!
                     </div>
                     <button onClick={()=>handleYilSil(yil)} style={{background:"#C0392B",color:"#fff",border:"none",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:800,cursor:"pointer"}}>Sil</button>
                     <button onClick={()=>setSilOnayYil(null)} style={{background:BG,color:MUTED,border:`1px solid ${BORDER}`,borderRadius:8,padding:"6px 8px",fontSize:11,cursor:"pointer"}}>✕</button>
                   </div>
+                ) : sifirlaOnayYil === yil ? (
+                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                    <div style={{fontSize:11,color:"#B07D1A",maxWidth:110,marginRight:4}}>
+                      {ogrSayisi} öğrenci ve ilişkili tüm veri silinecek, yıl kalacak!
+                    </div>
+                    <button onClick={()=>handleYilSifirla(yil)} disabled={sifirlaniyor} style={{background:"#B07D1A",color:"#fff",border:"none",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:800,cursor:"pointer"}}>{sifirlaniyor?"...":"Sıfırla"}</button>
+                    <button onClick={()=>setSifirlaOnayYil(null)} style={{background:BG,color:MUTED,border:`1px solid ${BORDER}`,borderRadius:8,padding:"6px 8px",fontSize:11,cursor:"pointer"}}>✕</button>
+                  </div>
                 ) : (
-                  <button onClick={()=>setSilOnayYil(yil)} style={{background:"none",border:"1px solid #F28B82",color:"#C5221F",borderRadius:8,padding:"6px 10px",fontSize:12,cursor:"pointer",flexShrink:0}}>🗑</button>
-                )
-              )}
+                  <div style={{display:"flex",gap:6}}>
+                    <button onClick={()=>setSifirlaOnayYil(yil)} title="Öğrenci listesini sıfırla, yılı silme" style={{background:"none",border:`1px solid ${BORDER}`,color:MUTED,borderRadius:8,padding:"6px 10px",fontSize:12,cursor:"pointer"}}>🔄</button>
+                    {yillar.length > 1 && (
+                      <button onClick={()=>setSilOnayYil(yil)} style={{background:"none",border:"1px solid #F28B82",color:"#C5221F",borderRadius:8,padding:"6px 10px",fontSize:12,cursor:"pointer"}}>🗑</button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
@@ -4469,12 +4491,13 @@ function OgrenciYonetim({
             </div>
           )}
 
-          {/* Öğrenci listesi */}
+          {/* Öğrenci listesi — sadece arama yapıldığında veya belirli bir sınıf seçildiğinde gösterilir */}
+          {(aramaDebounce.trim() || sinifFiltre !== "Tümü") ? (
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
             {gosterilecek.length === 0 && (
               <div style={{ textAlign:"center", color:MUTED, marginTop:30, fontSize:13 }}>Sonuç bulunamadı</div>
             )}
-            {gosterilecek.map(o => {
+            {gosterilecek.slice(0, 50).map(o => {
               const oRec = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className, r.numara, o.numara));
               const oP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, o.studentName, o.className, p.numara, o.numara));
               const oDen = Object.keys(pdrSozlukOku(denemeler, o.studentName, o.className, o.numara) || {}).length;
@@ -4519,7 +4542,17 @@ function OgrenciYonetim({
                 </div>
               );
             })}
+            {gosterilecek.length > 50 && (
+              <div style={{ textAlign:"center", color:MUTED, fontSize:11, padding:"8px 0" }}>
+                +{gosterilecek.length - 50} öğrenci daha var — aramayı daraltmak için yazmaya devam et
+              </div>
+            )}
           </div>
+          ) : (
+            <div style={{ textAlign:"center", color:MUTED, marginTop:30, marginBottom:16, fontSize:13 }}>
+              🔍 Öğrenciyi bulmak için yukarıdaki kutuya yaz veya bir sınıf seç
+            </div>
+          )}
           </>
           )}
         </div>
@@ -7047,6 +7080,55 @@ export default function App() {
 
               const kalanIlerleme = pdrSozlukTemizle(ilerlemeNotlari);
               setIlerlemeNotlari(kalanIlerleme); await saveIlerlemeNotlari(kalanIlerleme);
+            }}
+            onYilSifirla={async (yil) => {
+              // Yılı yıllar listesinden ÇIKARMADAN, sadece o yıla ait öğrenci ve ilişkili
+              // tüm veriyi temizler — bozuk/yanlış yüklenmiş bir içe aktarımı sıfırlamak için.
+              const silinecekler = ogrenciler.filter(o => o.yil === yil);
+              const kalacaklar = ogrenciler.filter(o => o.yil && o.yil !== yil);
+              setOgrenciler(kalacaklar);
+              await saveOgrenciler(kalacaklar);
+
+              const silinecekMi = (ad, sinif, no) =>
+                silinecekler.some(s => pdrAyniOgrenci(s.studentName, s.className, ad, sinif, s.numara, no));
+
+              const kalanRecords = records.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
+              setRecords(kalanRecords); await saveRecords(kalanRecords);
+
+              const kalanRisk = riskListesi.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
+              setRiskListesi(kalanRisk); await saveRiskListesi(kalanRisk);
+
+              const kalanProfiles = profiles.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
+              setProfiles(kalanProfiles); await saveProfiles(kalanProfiles);
+
+              const kalanProfiles2 = profiles2.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
+              setProfiles2(kalanProfiles2); await saveProfiles2(kalanProfiles2);
+
+              const kalanSevkler = sevkler.filter(s => !silinecekMi(s.studentName, s.className, s.numara));
+              setSevkler(kalanSevkler); await saveSevkler(kalanSevkler);
+
+              const kalanOog = oogDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
+              setOogDegerlendirmeler(kalanOog); await saveOogDegerlendirmeler(kalanOog);
+
+              function pdrSozlukTemizleSifirla(sozluk) {
+                const yeni = { ...sozluk };
+                silinecekler.forEach(o => {
+                  delete yeni[pdrOgrAnahtar(o.studentName, o.className)];
+                  delete yeni[o.studentName];
+                });
+                return yeni;
+              }
+              const kalanDenemeler2 = pdrSozlukTemizleSifirla(denemeler);
+              setDenemeler(kalanDenemeler2); await saveDenemeler(kalanDenemeler2);
+
+              const kalanMudahale2 = pdrSozlukTemizleSifirla(mudahalePlan);
+              setMudahalePlan(kalanMudahale2); await saveMudahalePlan(kalanMudahale2);
+
+              const kalanHazirlik2 = pdrSozlukTemizleSifirla(hazirlikNotlari);
+              setHazirlikNotlari(kalanHazirlik2); await saveHazirlikNotlari(kalanHazirlik2);
+
+              const kalanIlerleme2 = pdrSozlukTemizleSifirla(ilerlemeNotlari);
+              setIlerlemeNotlari(kalanIlerleme2); await saveIlerlemeNotlari(kalanIlerleme2);
             }}
           />
         )}
