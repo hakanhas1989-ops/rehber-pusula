@@ -5050,27 +5050,36 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, ha
         </div>
       ) : (
         <>
-          {/* Öğrenci listesi */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
-            {filtreliListe.map(o => {
-              const ogrNets = pdrSozlukOku(denemeler, o.name, o.className, o.numara) || {};
-              const dCount = Object.keys(ogrNets).length;
-              const s = seciliOgrenci === o.name;
-              return (
-                <button key={o.name} onClick={() => { setSeciliOgrenci(o.name); setAktifDeneme(null); }} style={{
-                  padding: "6px 12px", borderRadius: 20,
-                  border: `2px solid ${s ? ACCENT : BORDER}`,
-                  background: s ? ACCENT_LIGHT : CARD,
-                  color: s ? ACCENT : MUTED,
-                  fontSize: 12, fontWeight: s ? 700 : 500, cursor: "pointer",
-                  display: "flex", alignItems: "center", gap: 5
-                }}>
-                  {o.name}
-                  {dCount > 0 && <span style={{ background: s ? ACCENT : BORDER, color: s ? "#fff" : MUTED, borderRadius: 10, padding: "0 5px", fontSize: 10, fontWeight: 700 }}>{dCount}</span>}
-                </button>
-              );
-            })}
-          </div>
+          {/* Öğrenci listesi — sadece arama yapıldığında gösterilir */}
+          {aramaMetni.trim() ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+              {filtreliListe.length === 0 && (
+                <div style={{ textAlign: "center", color: MUTED, fontSize: 13, width: "100%", padding: "10px 0" }}>Eşleşen öğrenci bulunamadı</div>
+              )}
+              {filtreliListe.map(o => {
+                const ogrNets = pdrSozlukOku(denemeler, o.name, o.className, o.numara) || {};
+                const dCount = Object.keys(ogrNets).length;
+                const s = seciliOgrenci === o.name;
+                return (
+                  <button key={o.name} onClick={() => { setSeciliOgrenci(o.name); setAktifDeneme(null); }} style={{
+                    padding: "6px 12px", borderRadius: 20,
+                    border: `2px solid ${s ? ACCENT : BORDER}`,
+                    background: s ? ACCENT_LIGHT : CARD,
+                    color: s ? ACCENT : MUTED,
+                    fontSize: 12, fontWeight: s ? 700 : 500, cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 5
+                  }}>
+                    {o.name}
+                    {dCount > 0 && <span style={{ background: s ? ACCENT : BORDER, color: s ? "#fff" : MUTED, borderRadius: 10, padding: "0 5px", fontSize: 10, fontWeight: 700 }}>{dCount}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          ) : !seciliOgrenci && (
+            <div style={{ textAlign: "center", color: MUTED, marginTop: 20, marginBottom: 16, fontSize: 13 }}>
+              🔍 Öğrenciyi bulmak için yukarıdaki kutuya isim, sınıf veya numara yaz
+            </div>
+          )}
 
           {seciliOgrenci && (
             <>
