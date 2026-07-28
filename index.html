@@ -984,16 +984,18 @@ const OOG_SECENEKLER = [
   { val: 2, label: "Sıklıkla" },
   { val: 3, label: "Çok Sık" },
 ];
+const OOG_GOZLENEMEDI = "gozlenemedi";
 function oogSonucHesapla(cevaplar) {
-  let toplam = 0, maks = 0;
+  let toplam = 0, maks = 0, gozlenemeyenSayisi = 0;
   const kategoriPuan = {};
   OOG_KATEGORILER.forEach(k => {
-    let kToplam = 0, kMaks = k.sorular.length * 3;
+    let kToplam = 0, kMaks = 0;
     k.sorular.forEach((_, i) => {
       const v = cevaplar[k.key + "_" + i];
-      kToplam += (typeof v === "number") ? v : 0;
+      if (v === OOG_GOZLENEMEDI) { gozlenemeyenSayisi++; return; }
+      if (typeof v === "number") { kToplam += v; kMaks += 3; }
     });
-    kategoriPuan[k.key] = kMaks > 0 ? Math.round((kToplam / kMaks) * 100) : 0;
+    kategoriPuan[k.key] = kMaks > 0 ? Math.round((kToplam / kMaks) * 100) : null;
     toplam += kToplam; maks += kMaks;
   });
   const yuzde = maks > 0 ? Math.round((toplam / maks) * 100) : 0;
@@ -1001,7 +1003,8 @@ function oogSonucHesapla(cevaplar) {
     : yuzde >= 41 ? { label: "Orta Şüphe", color: "#B07D1A", bg: "#FDF6E3" }
     : yuzde >= 21 ? { label: "Düşük-Orta Şüphe", color: "#457B9D", bg: "#EEF2FF" }
     : { label: "Düşük Şüphe", color: "#1A8C5B", bg: "#E6F5EE" };
-  return { yuzde, seviye, kategoriPuan, tamamlananSoru: Object.keys(cevaplar).length, toplamSoru: OOG_KATEGORILER.reduce((s,k)=>s+k.sorular.length,0) };
+  const toplamSoru = OOG_KATEGORILER.reduce((s,k)=>s+k.sorular.length,0);
+  return { yuzde, seviye, kategoriPuan, tamamlananSoru: Object.keys(cevaplar).length, gozlenemeyenSayisi, puanlananSoru: toplamSoru - gozlenemeyenSayisi, toplamSoru };
 }
 
 
@@ -5269,11 +5272,14 @@ function OOGPaneli({ seciliAd, seciliSinif, seciliNumara, oogDegerlendirmeler, s
         <div style={{background:sonuc.seviye.bg, border:`1px solid ${sonuc.seviye.color}33`, borderRadius:12, padding:14, marginBottom:16, textAlign:"center"}}>
           <div style={{fontSize:32, fontWeight:900, color:sonuc.seviye.color}}>%{sonuc.yuzde}</div>
           <div style={{fontSize:13, fontWeight:700, color:sonuc.seviye.color, marginBottom:4}}>{sonuc.seviye.label}</div>
-          <div style={{fontSize:11, color:MUTED}}>{sonuc.tamamlananSoru}/{sonuc.toplamSoru} soru yanıtlandı</div>
+          <div style={{fontSize:11, color:MUTED}}>
+            {sonuc.puanlananSoru}/{sonuc.toplamSoru} soru puanlandı
+            {sonuc.gozlenemeyenSayisi > 0 && ` · ${sonuc.gozlenemeyenSayisi} madde gözlenemedi (hesaba katılmadı)`}
+          </div>
           <div style={{display:"flex", flexWrap:"wrap", gap:6, justifyContent:"center", marginTop:10}}>
             {OOG_KATEGORILER.map(k => (
               <span key={k.key} style={{fontSize:10, fontWeight:700, padding:"3px 8px", borderRadius:10, background:"#fff", border:`1px solid ${BORDER}`, color:TEXT}}>
-                {k.label.split(" ")[0]} %{sonuc.kategoriPuan[k.key]}
+                {k.label.split(" ")[0]} {sonuc.kategoriPuan[k.key] === null ? "—" : `%${sonuc.kategoriPuan[k.key]}`}
               </span>
             ))}
           </div>
@@ -5297,6 +5303,12 @@ function OOGPaneli({ seciliAd, seciliSinif, seciliNumara, oogDegerlendirmeler, s
                       color:cevaplar[key]===sec.val?ACCENT:MUTED,
                     }}>{sec.label}</button>
                   ))}
+                  <button onClick={() => cevapVer(kategori.key, i, OOG_GOZLENEMEDI)} style={{
+                    flex:0.85, padding:"7px 4px", borderRadius:8, fontSize:9, fontWeight:700, cursor:"pointer",
+                    border:`1.5px dashed ${cevaplar[key]===OOG_GOZLENEMEDI?"#457B9D":BORDER}`,
+                    background:cevaplar[key]===OOG_GOZLENEMEDI?"#EEF2FF":CARD,
+                    color:cevaplar[key]===OOG_GOZLENEMEDI?"#457B9D":MUTED,
+                  }}>🔍 Gözlenemedi</button>
                 </div>
               </div>
             );
