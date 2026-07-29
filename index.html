@@ -4597,7 +4597,7 @@ function OgrenciYonetim({
         <div>
           {/* Geri + Başlık */}
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, flexWrap:"wrap", rowGap:8 }}>
-            <button onClick={() => { setSeciliOgrenci(null); setAktifSekme("ozet"); }} style={{
+            <button onClick={() => { setSeciliOgrenci(null); setAktifSekme("ozet"); setAktifOgrenci({ name: "", className: "" }); }} style={{
               background:BG, border:`1px solid ${BORDER}`, borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:700, color:MUTED, cursor:"pointer"
             }}>← Geri</button>
             <button onClick={() => handleOgrenciSil(seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara)} style={{
@@ -4896,7 +4896,7 @@ const LGS_DERSLER = [
 ];
 const DENEME_SAYISI = 10;
 
-function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, handleDenemeAnaliz, denemeAiLoading, denemeAnaliz, ogrenciler, setOgrenciler, aktifYil }) {
+function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, setAktifOgrenci, handleDenemeAnaliz, denemeAiLoading, denemeAnaliz, ogrenciler, setOgrenciler, aktifYil }) {
   const [excelPanelAcik, setExcelPanelAcik] = useState(false);
   const [seciliOgrenci, setSeciliOgrenci] = useState(aktifOgrenci?.name || "");
   // aktifOgrenci değişince güncelle
@@ -5164,7 +5164,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, ha
                   <div style={{ fontWeight:800, fontSize:15, color:TEXT, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{seciliOgrenci}</div>
                   <div style={{ fontSize:11, color:MUTED }}>{seciliOgrenciSinif}{seciliOgrenciNumara ? ` · No: ${seciliOgrenciNumara}` : ""}</div>
                 </div>
-                <button onClick={() => setSeciliOgrenci("")} style={{
+                <button onClick={() => { setSeciliOgrenci(""); if (setAktifOgrenci) setAktifOgrenci({ name: "", className: "" }); }} style={{
                   background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8,
                   padding:"5px 10px", fontSize:11, fontWeight:600, cursor:"pointer", flexShrink:0
                 }}>Değiştir</button>
@@ -5424,6 +5424,8 @@ function ProfilMerkez({
     if (aktifOgrenci?.name) {
       setSeciliAd(aktifOgrenci.name); setSeciliSinif(aktifOgrenci.className || "");
       setSeciliNumara(kayitliListesi.find(o => pdrAyniOgrenci(o.name, o.className, aktifOgrenci.name, aktifOgrenci.className))?.numara || "");
+    } else {
+      setSeciliAd(""); setSeciliSinif(""); setSeciliNumara("");
     }
   }, [aktifOgrenci?.name]);
 
@@ -7358,6 +7360,7 @@ export default function App() {
             setDenemeler={setDenemeler}
             kayitliListesi={kayitliListesi}
             aktifOgrenci={aktifOgrenci}
+            setAktifOgrenci={setAktifOgrenci}
             handleDenemeAnaliz={handleDenemeAnaliz}
             denemeAiLoading={denemeAiLoading}
             denemeAnaliz={denemeAnaliz}
