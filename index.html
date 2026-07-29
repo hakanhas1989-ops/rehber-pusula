@@ -4237,7 +4237,7 @@ function OgrenciYonetim({
   kayitliListesi, mudahalePlan, aktifYil, onYilEkrani,
   hazirlikNotlari, setHazirlikNotlari,
   ilerlemeNotlari, setIlerlemeNotlari,
-  onRaporAc, setAktifOgrenci, setTab, onSinifGuncelle, onOgrenciSil
+  onRaporAc, setAktifOgrenci, setTab, onSinifGuncelle, onOgrenciSil, onSinifSil
 }) {
 
   const [aramaMetni, setAramaMetni] = useState("");
@@ -4256,6 +4256,8 @@ function OgrenciYonetim({
   const [formAcik, setFormAcik] = useState(false);
   const [aktifSekme, setAktifSekme] = useState("ozet"); // ozet | gorusme | deneme | profil
   const [sinifFiltre, setSinifFiltre] = useState("Tümü");
+  const [sinifSilAcik, setSinifSilAcik] = useState(false);
+  const [sinifSiliniyor, setSinifSiliniyor] = useState(false);
   const [gorunumModu, setGorunumModu] = useState("liste"); // liste | aylik
   const [acikAylar, setAcikAylar] = useState({});
   const [duzenlemeId, setDuzenlemeId] = useState(null);
@@ -4350,10 +4352,10 @@ function OgrenciYonetim({
   }));
   const denemeAvg = denemeGirilen.length ? (denemeGirilen.reduce((s,d)=>s+d.toplam,0)/denemeGirilen.length).toFixed(1) : null;
 
-  const siniflar = [...new Set(tumOgrenciler.map(o=>o.className).filter(Boolean))].sort();
+  const siniflar = [...new Set(tumOgrenciler.map(o=>(o.className||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"tr"));
 
   const gosterilecek = filtreliListe.filter(o =>
-    sinifFiltre === "Tümü" || o.className === sinifFiltre
+    sinifFiltre === "Tümü" || (o.className||"").trim() === sinifFiltre
   );
 
   return (
@@ -4480,7 +4482,7 @@ function OgrenciYonetim({
           {siniflar.length > 0 && (
             <div style={{ display:"flex", gap:5, overflowX:"auto", marginBottom:10, paddingBottom:4 }}>
               {["Tümü", ...siniflar].map(s => (
-                <button key={s} onClick={() => setSinifFiltre(s)} style={{
+                <button key={s} onClick={() => { setSinifFiltre(s); setSinifSilAcik(false); }} style={{
                   flexShrink:0, padding:"4px 10px", borderRadius:14,
                   border:`1px solid ${sinifFiltre===s ? ACCENT : BORDER}`,
                   background:sinifFiltre===s ? ACCENT_LIGHT : CARD,
@@ -4488,6 +4490,40 @@ function OgrenciYonetim({
                   fontSize:11, fontWeight:sinifFiltre===s ? 700 : 500, cursor:"pointer"
                 }}>{s}</button>
               ))}
+            </div>
+          )}
+
+          {/* Seçili sınıfı sil — sadece belirli bir sınıf seçiliyken görünür */}
+          {sinifFiltre !== "Tümü" && (
+            <div style={{ marginBottom:10 }}>
+              {!sinifSilAcik ? (
+                <button onClick={() => setSinifSilAcik(true)} style={{
+                  background:"none", border:"1px dashed #F28B82", color:"#C5221F",
+                  borderRadius:8, padding:"5px 10px", fontSize:11, fontWeight:600, cursor:"pointer"
+                }}>🗑 "{sinifFiltre}" sınıfını sil ({gosterilecek.length} öğrenci)</button>
+              ) : (
+                <div style={{background:"#FDECEA", border:"1px solid #F28B82", borderRadius:10, padding:10}}>
+                  <div style={{fontSize:11, color:"#C0392B", marginBottom:8, lineHeight:1.6}}>
+                    <b>"{sinifFiltre}"</b> sınıfındaki <b>{gosterilecek.length} öğrenci</b> ve bunlara ait tüm görüşme/risk/profil/deneme verisi kalıcı olarak silinecek. Diğer sınıflar etkilenmez.
+                  </div>
+                  <div style={{display:"flex", gap:8}}>
+                    <button onClick={() => setSinifSilAcik(false)} style={{
+                      flex:1, padding:"7px", background:CARD, border:`1px solid ${BORDER}`, borderRadius:8,
+                      fontSize:11, fontWeight:700, color:MUTED, cursor:"pointer"
+                    }}>Vazgeç</button>
+                    <button onClick={async () => {
+                      setSinifSiliniyor(true);
+                      await onSinifSil(sinifFiltre);
+                      setSinifSiliniyor(false);
+                      setSinifSilAcik(false);
+                      setSinifFiltre("Tümü");
+                    }} disabled={sinifSiliniyor} style={{
+                      flex:1, padding:"7px", background:"#C5221F", border:"none", borderRadius:8,
+                      fontSize:11, fontWeight:700, color:"#fff", cursor:"pointer", opacity:sinifSiliniyor?0.6:1
+                    }}>{sinifSiliniyor ? "Siliniyor..." : "Evet, Sil"}</button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -7247,6 +7283,54 @@ export default function App() {
 
               const updIlerleme = pdrSozlukOgrenciTemizle(ilerlemeNotlari);
               setIlerlemeNotlari(updIlerleme); await saveIlerlemeNotlari(updIlerleme);
+            }}
+            onSinifSil={async (className) => {
+              const hedefSinif = (className || "").trim();
+              const silinecekler = ogrenciler.filter(o => (o.className||"").trim() === hedefSinif);
+              const silinecekMi = (ad, sinif, no) =>
+                silinecekler.some(s => pdrAyniOgrenci(s.studentName, s.className, ad, sinif, s.numara, no));
+
+              const updOgr = ogrenciler.filter(o => (o.className||"").trim() !== hedefSinif);
+              setOgrenciler(updOgr); await saveOgrenciler(updOgr);
+
+              const updRec = records.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
+              setRecords(updRec); await saveRecords(updRec);
+
+              const updRisk = riskListesi.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
+              setRiskListesi(updRisk); await saveRiskListesi(updRisk);
+
+              const updP1 = profiles.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
+              setProfiles(updP1); await saveProfiles(updP1);
+
+              const updP2 = profiles2.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
+              setProfiles2(updP2); await saveProfiles2(updP2);
+
+              const updSevkler = sevkler.filter(s => !silinecekMi(s.studentName, s.className, s.numara));
+              setSevkler(updSevkler); await saveSevkler(updSevkler);
+
+              const updOog = oogDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
+              setOogDegerlendirmeler(updOog); await saveOogDegerlendirmeler(updOog);
+
+              function pdrSozlukSinifTemizle(sozluk) {
+                const yeni = { ...sozluk };
+                silinecekler.forEach(o => {
+                  delete yeni[pdrOgrAnahtar(o.studentName, o.className, o.numara)];
+                  delete yeni[pdrOgrAnahtar(o.studentName, o.className)];
+                  delete yeni[o.studentName];
+                });
+                return yeni;
+              }
+              const updDen = pdrSozlukSinifTemizle(denemeler);
+              setDenemeler(updDen); await saveDenemeler(updDen);
+
+              const updMudahale = pdrSozlukSinifTemizle(mudahalePlan);
+              setMudahalePlan(updMudahale); await saveMudahalePlan(updMudahale);
+
+              const updHazirlik = pdrSozlukSinifTemizle(hazirlikNotlari);
+              setHazirlikNotlari(updHazirlik); await saveHazirlikNotlari(updHazirlik);
+
+              const updIlerleme2 = pdrSozlukSinifTemizle(ilerlemeNotlari);
+              setIlerlemeNotlari(updIlerleme2); await saveIlerlemeNotlari(updIlerleme2);
             }}
             setAktifOgrenci={setAktifOgrenci}
             setTab={setTab}
