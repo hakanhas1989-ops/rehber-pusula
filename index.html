@@ -4361,8 +4361,9 @@ function OgrenciYonetim({
   const ogrP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliOgrenci, seciliOgrenciSinif, p.numara, seciliOgrenciNumara));
   const ogrP2 = profiles2.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliOgrenci, seciliOgrenciSinif, p.numara, seciliOgrenciNumara));
   const ogrDeneme = pdrSozlukOku(denemeler, seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara) || {};
+  const sinif7Data = ogrDeneme["7sinif"] || null;
   const ogrRisk = riskListesi.filter(r => pdrAyniOgrenci(r.studentName, r.className, seciliOgrenci, seciliOgrenciSinif, r.numara, seciliOgrenciNumara) && !r.kapandi);
-  const denemeGirilen = Object.entries(ogrDeneme).sort((a,b)=>a[0]-b[0]).map(([no,nets])=>({
+  const denemeGirilen = Object.entries(ogrDeneme).filter(([no]) => no !== "7sinif").sort((a,b)=>a[0]-b[0]).map(([no,nets])=>({
     no:parseInt(no), nets,
     toplam: LGS_DERSLER.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
   }));
@@ -4808,6 +4809,37 @@ function OgrenciYonetim({
           {/* DENEME */}
           {aktifSekme === "deneme" && (
             <div>
+              {sinif7Data && (
+                <div style={{background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, padding:12, marginBottom:12}}>
+                  <div style={{fontSize:11, fontWeight:700, color:MUTED, textTransform:"uppercase", marginBottom:8}}>📊 7. Sınıf Deneme Geçmişi</div>
+                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8}}>
+                    <div style={{textAlign:"center"}}>
+                      <div style={{fontSize:22, fontWeight:900, color:
+                        sinif7Data.risk==="yuksek"?"#C0392B":sinif7Data.risk==="orta"?"#B07D1A":"#1A8C5B"
+                      }}>{sinif7Data.ortalama}</div>
+                      <div style={{fontSize:10, color:MUTED}}>Ortalama Net</div>
+                    </div>
+                    <div style={{
+                      background: sinif7Data.risk==="yuksek"?"#FDECEA":sinif7Data.risk==="orta"?"#FDF6E3":"#E6F5EE",
+                      color: sinif7Data.risk==="yuksek"?"#C0392B":sinif7Data.risk==="orta"?"#B07D1A":"#1A8C5B",
+                      borderRadius:20, padding:"6px 14px", fontSize:13, fontWeight:900
+                    }}>
+                      {sinif7Data.risk==="yuksek"?"🔴 Yüksek Risk":sinif7Data.risk==="orta"?"🟡 Orta Risk":"🟢 Düşük Risk"}
+                    </div>
+                  </div>
+                  <div style={{display:"flex", flexWrap:"wrap", gap:4}}>
+                    {Object.entries(sinif7Data.denemeler).map(([no, d]) => {
+                      const net = d.toplam_net;
+                      const c = net>=55?"#1A8C5B":net>=30?"#B07D1A":"#C0392B";
+                      const bg = net>=55?"#E6F5EE":net>=30?"#FDF6E3":"#FDECEA";
+                      return <div key={no} style={{background:bg,borderRadius:8,padding:"4px 10px",textAlign:"center"}}>
+                        <div style={{fontSize:9,color:"#888"}}>D{no}</div>
+                        <div style={{fontSize:13,fontWeight:900,color:c}}>{net.toFixed(1)}</div>
+                      </div>;
+                    })}
+                  </div>
+                </div>
+              )}
               {denemeGirilen.length === 0 ? (
                 <div style={{ textAlign:"center", color:MUTED, marginTop:30, fontSize:13 }}>Deneme verisi yok. 📊 Deneme sekmesinden girin.</div>
               ) : (
