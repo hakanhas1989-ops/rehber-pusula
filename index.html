@@ -4247,6 +4247,16 @@ function OgrenciYonetim({
   const [sinifGuncelleAcik, setSinifGuncelleAcik] = useState(false);
   const [yeniSinifDegeri, setYeniSinifDegeri] = useState("");
 
+  // Bu sekme sadece liste görünümündeyken (belirli bir öğrenci detayına
+  // girilmemişken), genel "aktif öğrenci" bağlantısını da temizle. Böylece
+  // Deneme/Profil gibi başka sekmeler eski/hayalet bir öğrenciyi göstermeye
+  // devam etmez — Öğrenciler sekmesine dönüp liste görününce her yerde sıfırlanır.
+  useEffect(() => {
+    if (seciliOgrenci === null && aktifOgrenci?.name) {
+      setAktifOgrenci({ name: "", className: "" });
+    }
+  }, [seciliOgrenci]);
+
   // Arama debounce — 300ms bekle
   useEffect(() => {
     const t = setTimeout(() => setAramaDebounce(aramaMetni), 300);
