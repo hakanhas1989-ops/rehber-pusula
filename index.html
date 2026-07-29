@@ -4898,7 +4898,7 @@ const DENEME_SAYISI = 10;
 
 function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, handleDenemeAnaliz, denemeAiLoading, denemeAnaliz, ogrenciler, setOgrenciler, aktifYil }) {
   const [excelPanelAcik, setExcelPanelAcik] = useState(false);
-  const [seciliOgrenci, setSeciliOgrenci] = useState(aktifOgrenci?.name || kayitliListesi[0]?.name || "");
+  const [seciliOgrenci, setSeciliOgrenci] = useState(aktifOgrenci?.name || "");
   // aktifOgrenci değişince güncelle
   useEffect(() => { if (aktifOgrenci?.name) setSeciliOgrenci(aktifOgrenci.name); }, [aktifOgrenci?.name]);
   const [aramaMetni, setAramaMetni] = useState("");
@@ -5155,6 +5155,20 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, ha
 
           {seciliOgrenci && (
             <>
+              {/* Seçili öğrenci başlığı */}
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, padding:"10px 14px" }}>
+                <div style={{ width:34, height:34, borderRadius:"50%", background:ACCENT_LIGHT, color:ACCENT, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:14, flexShrink:0 }}>
+                  {seciliOgrenci.charAt(0).toUpperCase()}
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:800, fontSize:15, color:TEXT, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{seciliOgrenci}</div>
+                  <div style={{ fontSize:11, color:MUTED }}>{seciliOgrenciSinif}{seciliOgrenciNumara ? ` · No: ${seciliOgrenciNumara}` : ""}</div>
+                </div>
+                <button onClick={() => setSeciliOgrenci("")} style={{
+                  background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8,
+                  padding:"5px 10px", fontSize:11, fontWeight:600, cursor:"pointer", flexShrink:0
+                }}>Değiştir</button>
+              </div>
               {/* Grafik */}
               {/* 7. Sınıf Özet */}
         {sinif7Data && (
