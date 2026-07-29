@@ -1646,7 +1646,7 @@ function DegerlendirmeEkrani({ onTransfer, onClose, records, profiles, profiles2
             {kayitliListesi.map(o => {
               const s = ogrenci.ad === o.name;
               return (
-                <button key={o.name} onClick={() => setOgrenci({ ad: o.name, sinif: o.className })} style={{
+                <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => setOgrenci({ ad: o.name, sinif: o.className })} style={{
                   padding: "6px 12px", borderRadius: 20,
                   border: `2px solid ${s ? "#3B4FD8" : "#E2E1DC"}`,
                   background: s ? "#EEF0FD" : "#fff",
@@ -2875,7 +2875,7 @@ Sade yaz, Markdown kullanma.`}]
       <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:14}}>
         {kayitliListesi.filter(o=>o.name.toLowerCase().includes(aramaMetni.toLowerCase())).slice(0,15).map(o=>{
           const s=seciliAd===o.name;
-          return <button key={o.name} onClick={()=>setSeciliAd(o.name)} style={{padding:"4px 10px",borderRadius:16,border:`2px solid ${s?ACCENT:BORDER}`,background:s?ACCENT_LIGHT:CARD,color:s?ACCENT:MUTED,fontSize:11,fontWeight:s?700:500,cursor:"pointer"}}>{o.name}</button>;
+          return <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={()=>setSeciliAd(o.name)} style={{padding:"4px 10px",borderRadius:16,border:`2px solid ${s?ACCENT:BORDER}`,background:s?ACCENT_LIGHT:CARD,color:s?ACCENT:MUTED,fontSize:11,fontWeight:s?700:500,cursor:"pointer"}}>{o.name}</button>;
         })}
       </div>
 
@@ -2997,7 +2997,7 @@ function SevkTakipEkrani({ kayitliListesi, aktifOgrenci, sevkler, setSevkler }) 
         <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
           {kayitliListesi.filter(o=>o.name.toLowerCase().includes(aramaMetni.toLowerCase())).slice(0,12).map(o=>{
             const s=form.studentName===o.name;
-            return <button key={o.name} onClick={()=>setForm(f=>({...f,studentName:o.name,className:o.className||""}))} style={{padding:"4px 10px",borderRadius:16,border:`2px solid ${s?ACCENT:BORDER}`,background:s?ACCENT_LIGHT:CARD,color:s?ACCENT:MUTED,fontSize:11,fontWeight:s?700:500,cursor:"pointer"}}>{o.name}</button>;
+            return <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={()=>setForm(f=>({...f,studentName:o.name,className:o.className||""}))} style={{padding:"4px 10px",borderRadius:16,border:`2px solid ${s?ACCENT:BORDER}`,background:s?ACCENT_LIGHT:CARD,color:s?ACCENT:MUTED,fontSize:11,fontWeight:s?700:500,cursor:"pointer"}}>{o.name}</button>;
           })}
         </div>
         <input placeholder="veya ad yaz..." value={form.studentName} onChange={e=>setForm(f=>({...f,studentName:e.target.value}))} style={{...inp,marginBottom:10}} />
@@ -3241,7 +3241,7 @@ MEB resmi yazı formatında veli mektubu yaz. T.C. başlığı, tarih, konu, say
       <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:12}}>
         {kayitliListesi.filter(o=>o.name.toLowerCase().includes(aramaMetni.toLowerCase())).slice(0,12).map(o=>{
           const s=seciliAd===o.name;
-          return <button key={o.name} onClick={()=>setSeciliAd(o.name)} style={{padding:"4px 10px",borderRadius:16,border:`2px solid ${s?ACCENT:BORDER}`,background:s?ACCENT_LIGHT:CARD,color:s?ACCENT:MUTED,fontSize:11,fontWeight:s?700:500,cursor:"pointer"}}>{o.name}</button>;
+          return <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={()=>setSeciliAd(o.name)} style={{padding:"4px 10px",borderRadius:16,border:`2px solid ${s?ACCENT:BORDER}`,background:s?ACCENT_LIGHT:CARD,color:s?ACCENT:MUTED,fontSize:11,fontWeight:s?700:500,cursor:"pointer"}}>{o.name}</button>;
         })}
       </div>
 
@@ -4551,7 +4551,7 @@ function OgrenciYonetim({
                   : { label: "🟢 İyi Gidiyor", bg: "#E6F5EE", color: "#1A8C5B" };
 
               return (
-                <div key={o.studentName} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, padding:"10px 14px", display:"flex", flexDirection:"column", gap:6 }}>
+                <div key={pdrOgrAnahtar(o.studentName, o.className, o.numara)} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, padding:"10px 14px", display:"flex", flexDirection:"column", gap:6 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                     {/* Tıklanabilir alan: avatar + isim/sınıf/no */}
                     <div onClick={() => { setSeciliOgrenci(o.studentName); if(setAktifOgrenci) setAktifOgrenci({ name: o.studentName, className: o.className || "" }); }}
@@ -5133,7 +5133,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, ha
                 const dCount = Object.keys(ogrNets).length;
                 const s = seciliOgrenci === o.name;
                 return (
-                  <button key={o.name} onClick={() => { setSeciliOgrenci(o.name); setAktifDeneme(null); }} style={{
+                  <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => { setSeciliOgrenci(o.name); setAktifDeneme(null); }} style={{
                     padding: "6px 12px", borderRadius: 20,
                     border: `2px solid ${s ? ACCENT : BORDER}`,
                     background: s ? ACCENT_LIGHT : CARD,
@@ -5597,7 +5597,7 @@ function ProfilMerkez({
           {filtreliListe.slice(0,20).map(o=>{
             const s = seciliAd===o.name;
             return (
-              <button key={o.name} onClick={()=>{setSeciliAd(o.name);setSeciliSinif(o.className||"");setSeciliNumara(o.numara||"");setMod("form");}} style={{
+              <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={()=>{setSeciliAd(o.name);setSeciliSinif(o.className||"");setSeciliNumara(o.numara||"");setMod("form");}} style={{
                 padding:"5px 12px", borderRadius:20,
                 border:`2px solid ${s?ACCENT:BORDER}`,
                 background:s?ACCENT_LIGHT:CARD, color:s?ACCENT:MUTED,
@@ -6148,7 +6148,7 @@ function SinifProfili({ ogrenciler, records, riskListesi, aktifYil }) {
             const gSayisi = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className, r.numara, o.numara)).length;
             const oRisk = riskListesi.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className, r.numara, o.numara) && !r.kapandi);
             return (
-              <div key={o.studentName} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${BORDER}`}}>
+              <div key={pdrOgrAnahtar(o.studentName, o.className, o.numara)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${BORDER}`}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <div style={{width:30,height:30,borderRadius:"50%",background:ACCENT_LIGHT,color:ACCENT,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800}}>
                     {o.studentName.charAt(0).toUpperCase()}
@@ -6949,7 +6949,7 @@ export default function App() {
                 <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:8 }}>
                   {kayitliListesi.map(o => {
                     const s = form.studentName === o.name;
-                    return <button key={o.name} onClick={() => setForm(f=>({...f, studentName:o.name, className:o.className||"", numara:o.numara||""}))} style={{ padding:"5px 10px", borderRadius:16, border:`2px solid ${s?ACCENT:BORDER}`, background:s?ACCENT_LIGHT:CARD, color:s?ACCENT:MUTED, fontSize:12, fontWeight:s?700:500, cursor:"pointer" }}>{o.name}</button>;
+                    return <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => setForm(f=>({...f, studentName:o.name, className:o.className||"", numara:o.numara||""}))} style={{ padding:"5px 10px", borderRadius:16, border:`2px solid ${s?ACCENT:BORDER}`, background:s?ACCENT_LIGHT:CARD, color:s?ACCENT:MUTED, fontSize:12, fontWeight:s?700:500, cursor:"pointer" }}>{o.name}</button>;
                   })}
                 </div>
                 <input placeholder="veya ad yaz..." value={form.studentName} onChange={e=>setForm(f=>({...f,studentName:e.target.value}))} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, boxSizing:"border-box" }} />
@@ -7396,7 +7396,7 @@ export default function App() {
                     {kayitliListesi.map(o => {
                       const s = riskForm.studentName === o.name;
                       return (
-                        <button key={o.name} onClick={() => setRiskForm(f => ({ ...f, studentName: o.name, className: o.className, numara: o.numara || "" }))} style={{
+                        <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => setRiskForm(f => ({ ...f, studentName: o.name, className: o.className, numara: o.numara || "" }))} style={{
                           padding: "6px 12px", borderRadius: 18,
                           border: s ? "1.5px solid #FF5A4E" : `1.5px solid ${BORDER}`,
                           background: s ? "linear-gradient(135deg, #FF6B5B 0%, #C0392B 100%)" : CARD,
