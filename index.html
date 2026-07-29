@@ -4245,7 +4245,7 @@ function OgrenciYonetim({
   kayitliListesi, mudahalePlan, aktifYil, onYilEkrani,
   hazirlikNotlari, setHazirlikNotlari,
   ilerlemeNotlari, setIlerlemeNotlari,
-  onRaporAc, setAktifOgrenci, setTab, onSinifGuncelle, onOgrenciSil, onSinifSil
+  onRaporAc, setAktifOgrenci, aktifOgrenci, setTab, onSinifGuncelle, onOgrenciSil, onSinifSil
 }) {
 
   const [aramaMetni, setAramaMetni] = useState("");
@@ -7232,6 +7232,7 @@ export default function App() {
             kayitliListesi={kayitliListesi}
             mudahalePlan={mudahalePlan}
             aktifYil={aktifYil}
+            aktifOgrenci={aktifOgrenci}
             onYilEkrani={() => setYilEkrani(true)}
             hazirlikNotlari={hazirlikNotlari}
             setHazirlikNotlari={setHazirlikNotlari}
