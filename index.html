@@ -3977,10 +3977,11 @@ function KullaniciOnaylari() {
   );
 }
 
-function AyarlarEkrani() {
+function AyarlarEkrani({ ogrenciler, records, profiles, profiles2, oogDegerlendirmeler, riskListesi, denemeler, sevkler, mudahalePlan, hazirlikNotlari, ilerlemeNotlari, profNotlari, kutuphane, yillar, sinifListesi, aktifYil }) {
   const [key, setKey] = useState(() => pdrGetApiKey());
   const [gosterKey, setGosterKey] = useState(false);
   const [kaydedildi, setKaydedildi] = useState(false);
+  const [yedekIndiriliyor, setYedekIndiriliyor] = useState(false);
 
   function handleKaydet() {
     pdrSetApiKey(key);
@@ -3988,9 +3989,44 @@ function AyarlarEkrani() {
     setTimeout(() => setKaydedildi(false), 2500);
   }
 
+  function handleYedekIndir() {
+    setYedekIndiriliyor(true);
+    try {
+      const yedek = {
+        yedekTarihi: new Date().toISOString(),
+        aktifYil, yillar, sinifListesi,
+        ogrenciler, records, profiles, profiles2, oogDegerlendirmeler,
+        riskListesi, denemeler, sevkler, mudahalePlan,
+        hazirlikNotlari, ilerlemeNotlari, profNotlari, kutuphane,
+      };
+      const blob = new Blob([JSON.stringify(yedek, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `pdr-yedek-${today().replace(/\./g,"-")}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) { alert("Yedek oluşturulamadı: " + e.message); }
+    setYedekIndiriliyor(false);
+  }
+
   return (
     <div style={{ maxWidth: 520 }}>
       <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 6 }}>⚙️ Ayarlar</div>
+
+      <div style={{ background: "#EEF2FF", borderRadius: 12, padding: 14, marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 14, color: BLUE }}>📥 Tüm Veriyi Yedekle</div>
+        <div style={{ fontSize: 13, color: MUTED, marginBottom: 10, lineHeight: 1.5 }}>
+          Öğrenciler, görüşmeler, risk kayıtları, deneme sonuçları, müdahale planları, sevkler ve kütüphane — sistemdeki her şeyi tek bir dosyaya indirir. Önemli bir işlem yapmadan önce (örn. sınıf/yıl silme) veya ayda bir yedek almanı öneririz.
+        </div>
+        <button onClick={handleYedekIndir} disabled={yedekIndiriliyor} style={{
+          width: "100%", padding: 12, background: BLUE, color: "#fff",
+          border: "none", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: "pointer", opacity: yedekIndiriliyor?0.6:1
+        }}>{yedekIndiriliyor ? "Hazırlanıyor…" : "📥 Yedeği İndir (.json)"}</button>
+      </div>
+
       <div style={{ fontSize: 14, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
         Yapay zeka özelliklerini (özet çıkarma, risk değerlendirmesi, müdahale planı vb.)
         kullanabilmek için kendi Anthropic API anahtarınızı girmeniz gerekir. Anahtarınız
@@ -7886,7 +7922,13 @@ export default function App() {
             }}>⬇ Excel'e Aktar</button>
           </div>
         )}
-        {tab === "ayarlar" && <AyarlarEkrani />}
+        {tab === "ayarlar" && <AyarlarEkrani
+          ogrenciler={ogrenciler} records={records} profiles={profiles} profiles2={profiles2}
+          oogDegerlendirmeler={oogDegerlendirmeler} riskListesi={riskListesi} denemeler={denemeler}
+          sevkler={sevkler} mudahalePlan={mudahalePlan} hazirlikNotlari={hazirlikNotlari}
+          ilerlemeNotlari={ilerlemeNotlari} profNotlari={profNotlari} kutuphane={kutuphane}
+          yillar={yillar} sinifListesi={sinifListesi} aktifYil={aktifYil}
+        />}
         {tab === "onaylar" && pdrIsAdmin && <KullaniciOnaylari />}
       </div>
     </div>
