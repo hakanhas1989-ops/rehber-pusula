@@ -1015,20 +1015,30 @@ const EMPTY_SCORES = { akademik: 3, sosyal: 3, duygusal: 3, aile: 3, ozguven: 3,
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
-async function getRiskAnalizi(riskForm, gorusmeler, profil1) {
+// Kütüphaneye yüklenen kaynakların (klinik makale ya da yönetmelik) özetlerini
+// AI'a bağlam olarak eklemek için ortak yardımcı — Profil, Risk, Deneme ve
+// Müdahale planı AI önerilerinin hepsi bunu kullanır.
+function pdrKutuphaneBaglam(kutuphaneOzetleri = []) {
+  return kutuphaneOzetleri.length > 0
+    ? "\n\nKÜTÜPHANE REFERANSLARI:\n" + kutuphaneOzetleri.map((k, i) => `[${i+1}] ${k.baslik}${k.tur === "yonetmelik" ? " (Yönetmelik/Mevzuat)" : ""}:\n${k.ozet}`).join("\n\n")
+    : "";
+}
+
+async function getRiskAnalizi(riskForm, gorusmeler, profil1, kutuphaneOzetleri = []) {
   const gorusmeBolum = gorusmeler.length > 0
     ? "GÖRÜŞME NOTLARI:\n" + gorusmeler.map((r,i)=>`Görüşme ${i+1} (${r.date}): ${r.summary}`).join("\n\n")
     : "Görüşme kaydı yok.";
   const profilBolum = profil1
     ? "PDR PROFİL PUANLARI:\n" + Object.entries(profil1.scores||{}).map(([k,v])=>`${k}: ${v}/5`).join(", ")
     : "";
+  const kutuphaneBaglam = pdrKutuphaneBaglam(kutuphaneOzetleri);
   const prompt = `Öğrenci: ${riskForm.studentName} (${riskForm.className})
 Risk Türü: ${riskForm.riskTuru}
 Öncelik: ${riskForm.oncelik}
 Açıklama: ${riskForm.aciklama}
 
 ${gorusmeBolum}
-${profilBolum}
+${profilBolum}${kutuphaneBaglam}
 
 Bu öğrencinin risk durumunu değerlendir:
 
@@ -1042,7 +1052,7 @@ ACİL MÜDAHALE GEREKTİRİR Mİ: (Evet/Hayır — gerekçesiyle)
 2.
 3.
 
-Sade, PDR diline uygun yaz. Markdown kullanma.`;
+${kutuphaneOzetleri.length > 0 ? "Kütüphane referanslarından (özellikle varsa yönetmelik/mevzuat maddelerinden) yararlan. " : ""}Sade, PDR diline uygun yaz. Markdown kullanma.`;
 
   const res = await pdrCallClaude({
       model: "claude-sonnet-4-6", max_tokens: 2000,
@@ -1053,7 +1063,7 @@ Sade, PDR diline uygun yaz. Markdown kullanma.`;
   return data.content?.[0]?.text || "";
 }
 
-async function getDenemeAnalizi(studentName, gorusmeler, denemeGirilen) {
+async function getDenemeAnalizi(studentName, gorusmeler, denemeGirilen, kutuphaneOzetleri = []) {
   const gorusmeBolum = gorusmeler.length > 0
     ? "GORUSME NOTLARI:\n" + gorusmeler.map((r,i)=>`Gorusme ${i+1} (${r.date}${r.topic?", "+r.topic:""}): ${r.summary}`).join("\n\n")
     : "Gorusme kaydi yok.";
@@ -1079,6 +1089,7 @@ async function getDenemeAnalizi(studentName, gorusmeler, denemeGirilen) {
     });
   }
   const dersSirali = Object.entries(dersOrtalamalari).sort((a,b)=>parseFloat(b[1])-parseFloat(a[1]));
+  const kutuphaneBaglam = pdrKutuphaneBaglam(kutuphaneOzetleri);
 
   const prompt = `Ogrenci: ${studentName}
 ${avg ? `Deneme Ortalamasi: ${avg}/90` : ""}
@@ -1087,7 +1098,7 @@ ${dersSirali.length > 0 ? `Ders Ortalamalari: ${dersSirali.map(([k,v])=>`${k}: $
 
 ${denemeBolum}
 
-${gorusmeBolum}
+${gorusmeBolum}${kutuphaneBaglam}
 
 LGS hazirlik surecini kapsamli analiz et:
 
@@ -1207,9 +1218,7 @@ GOREV - GORUSME NOTU OZETI: Danismanin anlattigi gorusme notunu kisa ve net ozet
 
 async function getProfileAnalysis(studentName, className, scores, notes, kutuphaneOzetleri = []) {
   const boyutlar = DIMENSIONS.map(d => `${d.label}: ${scores[d.key] || 0}/5`).join(", ");
-  const kutuphaneBaglam = kutuphaneOzetleri.length > 0
-    ? "\n\nKÜTÜPHANE REFERANSLARI:\n" + kutuphaneOzetleri.map((k, i) => `[${i+1}] ${k.baslik}:\n${k.ozet}`).join("\n\n")
-    : "";
+  const kutuphaneBaglam = pdrKutuphaneBaglam(kutuphaneOzetleri);
   const onerilerNot = kutuphaneOzetleri.length > 0 ? ", kütüphane referanslarından yararlan" : "";
   const prompt = `Öğrenci: ${studentName}, Sınıf: ${className}
 Rehberlik Profil Puanları (1-5): ${boyutlar}
@@ -1370,6 +1379,12 @@ async function loadYillar() {
 }
 async function saveYillar(items) {
   try { await window.storage.set("pdr-yillar", JSON.stringify(items)); } catch(e) { console.warn(e); }
+}
+async function loadSinifListesi() {
+  try { const r = await window.storage.get("pdr-sinif-listesi"); return r ? JSON.parse(r.value) : null; } catch { return null; }
+}
+async function saveSinifListesi(items) {
+  try { await window.storage.set("pdr-sinif-listesi", JSON.stringify(items)); } catch(e) { console.warn(e); }
 }
 async function loadAktifYil() {
   try { const r = await window.storage.get("pdr-aktif-yil"); return r ? r.value : "2026-2027"; } catch { return "2026-2027"; }
@@ -2791,7 +2806,7 @@ function Profile2Card({ p, onDelete }) {
 // ── Öğrenci Yönetim Bileşeni ─────────────────────────────────────────────────
 
 // ── Müdahale Planı Bileşeni ───────────────────────────────────────────────────
-function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mudahalePlan, setMudahalePlan, records }) {
+function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mudahalePlan, setMudahalePlan, records, kutuphane }) {
   const [seciliAd, setSeciliAd] = useState(aktifOgrenci?.name || "");
   const [aramaMetni, setAramaMetni] = useState("");
   const [form, setForm] = useState({ hedef:"", adimlar:"", sorumlu:"pdr", sure:"", oncelik:"Orta", durum:"Devam Ediyor" });
@@ -2808,13 +2823,14 @@ function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mud
     if (!seciliAd) return;
     setAiLoading(true);
     const notlar = ogrRec.map((r,i) => `Görüşme ${i+1} (${r.date}): ${r.summary}`).join("\n\n");
+    const kutuphaneBaglam = pdrKutuphaneBaglam(kutuphane);
     const res = await pdrCallClaude({
         model:"claude-sonnet-4-6", max_tokens:1500,
         system:"Sen Dr. Ayse Kara'sin — 20 yillik klinik PDR uzmanisin. BDT ve varoluşçu perspektiften somut müdahale plani olusturursun.",
         messages:[{role:"user", content:`Öğrenci: ${seciliAd}
 
 Görüşme Notları:
-${notlar||"Henüz görüşme notu yok."}
+${notlar||"Henüz görüşme notu yok."}${kutuphaneBaglam}
 
 Bu öğrenci için somut bir PDR müdahale planı oluştur:
 
@@ -2826,7 +2842,7 @@ MÜDAHALE ADIMLARI:
 SÜRE: (kaç hafta/ay)
 KONTROL KRİTERİ: (nasıl değerlendireceğiz)
 
-Sade yaz, Markdown kullanma.`}]
+${kutuphane?.length > 0 ? "Kütüphane referanslarından (varsa ilgili yönetmelik/mevzuat maddeleri dahil) yararlan. " : ""}Sade yaz, Markdown kullanma.`}]
       });
     const data = await res.json();
     const analiz = data.content?.[0]?.text || "";
@@ -4245,7 +4261,7 @@ function OgrenciYonetim({
   kayitliListesi, mudahalePlan, aktifYil, onYilEkrani,
   hazirlikNotlari, setHazirlikNotlari,
   ilerlemeNotlari, setIlerlemeNotlari,
-  onRaporAc, setAktifOgrenci, aktifOgrenci, setTab, onSinifGuncelle, onOgrenciSil, onSinifSil
+  onRaporAc, setAktifOgrenci, aktifOgrenci, setTab, onSinifGuncelle, onOgrenciSil, onSinifSil, sinifListesi
 }) {
 
   const [aramaMetni, setAramaMetni] = useState("");
@@ -4369,7 +4385,7 @@ function OgrenciYonetim({
   }));
   const denemeAvg = denemeGirilen.length ? (denemeGirilen.reduce((s,d)=>s+d.toplam,0)/denemeGirilen.length).toFixed(1) : null;
 
-  const siniflar = [...new Set(tumOgrenciler.map(o=>(o.className||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"tr"));
+  const siniflar = [...new Set([...(sinifListesi||[]), ...tumOgrenciler.map(o=>(o.className||"").trim())].filter(Boolean))].sort((a,b)=>a.localeCompare(b,"tr"));
 
   const gosterilecek = filtreliListe.filter(o =>
     sinifFiltre === "Tümü" || (o.className||"").trim() === sinifFiltre
@@ -6112,13 +6128,14 @@ function ProfilMerkez({
 }
 
 // ── Sınıf Profili Bileşeni ────────────────────────────────────────────────────
-function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYil }) {
+function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYil, sinifListesi, setSinifListesi }) {
   const [seciliSinif, setSeciliSinif] = useState(null);
   const [listeYukleAcik, setListeYukleAcik] = useState(false);
   const [listeMetni, setListeMetni] = useState("");
   const [listeSonuc, setListeSonuc] = useState(null);
+  const [yeniSinifAdi, setYeniSinifAdi] = useState("");
+  const [sinifSilOnay, setSinifSilOnay] = useState(null);
 
-  const SUBELER = ["8-A","8-B","8-C","8-D","8-E","8-F","8-G","8-H","8-I","8-J","8-K","8-L","8-M","8-N"];
   const RISK_TURLERI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygusal","Devamsızlık","Öz Zarar","Sağlık","Madde Kullanımı","Ekonomik Güçlük","Yas / Kayıp","Travma","Özel Öğrenme Güçlüğü","Diğer"];
 
   // Yıl filtreli öğrenciler
@@ -6138,12 +6155,26 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
     return { ogr, gorusmeler, riskler, riskDagilim };
   }
 
-  // Aktif şubeler — öğrencisi olan ya da herhangi biri
-  const aktifSubeler = SUBELER.filter(s => {
-    const st = subeIstatistik(s);
-    return st.ogr.length > 0;
-  });
-  const gosterilecekSubeler = aktifSubeler.length > 0 ? aktifSubeler : SUBELER;
+  // Gösterilecek sınıflar: elle eklenen sınıflar + öğrencisi olan tüm sınıflar (birleşim)
+  const ogrenciSiniflari = [...new Set(yilOgrencileri.map(o => (o.className||"").trim()).filter(Boolean))];
+  const gosterilecekSubeler = [...new Set([...(sinifListesi||[]), ...ogrenciSiniflari])].sort((a,b)=>a.localeCompare(b,"tr"));
+
+  async function handleSinifEkle() {
+    const ad = yeniSinifAdi.trim();
+    if (!ad || (sinifListesi||[]).includes(ad)) { setYeniSinifAdi(""); return; }
+    const guncel = [...(sinifListesi||[]), ad];
+    setSinifListesi(guncel);
+    await saveSinifListesi(guncel);
+    setYeniSinifAdi("");
+  }
+
+  async function handleSinifSil(sube) {
+    const guncel = (sinifListesi||[]).filter(s => s !== sube);
+    setSinifListesi(guncel);
+    await saveSinifListesi(guncel);
+    setSinifSilOnay(null);
+  }
+
 
   if (seciliSinif) {
     const st = subeIstatistik(seciliSinif);
@@ -6300,18 +6331,40 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
         🏫 {aktifYil} — Sınıf & Şube Haritası
       </div>
 
+      {/* Sınıf ekle */}
+      <div style={{display:"flex", gap:8, marginBottom:14}}>
+        <input value={yeniSinifAdi} onChange={e=>setYeniSinifAdi(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSinifEkle()}
+          placeholder="Yeni sınıf adı (örn. 8-P)"
+          style={{ flex:1, padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, boxSizing:"border-box" }} />
+        <button onClick={handleSinifEkle} disabled={!yeniSinifAdi.trim()} style={{
+          padding:"9px 16px", background:yeniSinifAdi.trim()?ACCENT:BORDER, color:yeniSinifAdi.trim()?"#fff":MUTED,
+          border:"none", borderRadius:9, fontSize:13, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap"
+        }}>+ Sınıf Ekle</button>
+      </div>
+
       {/* Şube kartları grid */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        {SUBELER.map(sube => {
+        {gosterilecekSubeler.map(sube => {
           const st = subeIstatistik(sube);
           const riskVar = st.riskler.length > 0;
           const gorusmeli = st.gorusmeler.length > 0;
           return (
-            <div key={sube} onClick={()=>setSeciliSinif(sube)} style={{
+            <div key={sube} style={{
               background:CARD, border:`2px solid ${riskVar?"#F28B82":gorusmeli?ACCENT_LIGHT:BORDER}`,
-              borderRadius:14, padding:"14px 12px", cursor:"pointer",
-              transition:"all 0.15s"
+              borderRadius:14, padding:"14px 12px",
+              transition:"all 0.15s", position:"relative"
             }}>
+              {sinifSilOnay === sube ? (
+                <div style={{position:"absolute", top:6, right:6, display:"flex", gap:4, zIndex:2}}>
+                  <button onClick={(e)=>{e.stopPropagation(); handleSinifSil(sube);}} style={{background:"#C0392B",color:"#fff",border:"none",borderRadius:6,padding:"3px 7px",fontSize:10,fontWeight:800,cursor:"pointer"}}>Sil</button>
+                  <button onClick={(e)=>{e.stopPropagation(); setSinifSilOnay(null);}} style={{background:BG,color:MUTED,border:`1px solid ${BORDER}`,borderRadius:6,padding:"3px 6px",fontSize:10,cursor:"pointer"}}>✕</button>
+                </div>
+              ) : (
+                <button onClick={(e)=>{e.stopPropagation(); setSinifSilOnay(sube);}} title="Sınıfı sil (sadece boş sınıflar için önerilir)" style={{
+                  position:"absolute", top:6, right:6, background:"none", border:"none", color:MUTED, fontSize:13, cursor:"pointer", padding:2, zIndex:2
+                }}>🗑</button>
+              )}
+              <div onClick={()=>setSeciliSinif(sube)} style={{cursor:"pointer"}}>
               {/* Şube adı */}
               <div style={{fontSize:22,fontWeight:900,color:riskVar?"#C0392B":gorusmeli?ACCENT:MUTED,marginBottom:6}}>{sube}</div>
 
@@ -6346,6 +6399,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
               {!gorusmeli && st.ogr.length === 0 && (
                 <div style={{fontSize:10,color:MUTED}}>Kayıt yok</div>
               )}
+              </div>
             </div>
           );
         })}
@@ -6358,6 +6412,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
 // ── Kütüphane Ekle Bileşeni ───────────────────────────────────────────────────
 function KutuphaneEkle({ kutuphane, setKutuphane }) {
   const [mod, setMod] = useState("dosya");
+  const [kaynakTuru, setKaynakTuru] = useState("klinik"); // klinik | yonetmelik
   const [yeniBaslik, setYeniBaslik] = useState("");
   const [yeniMetin, setYeniMetin] = useState("");
   const [yeniLink, setYeniLink] = useState("");
@@ -6366,10 +6421,20 @@ function KutuphaneEkle({ kutuphane, setKutuphane }) {
   const stl = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, background:CARD, color:TEXT, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
   const lbl = { fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4, textTransform:"uppercase" };
 
+  // İki farklı özetleme yönelimi: klinik/psikolojik kaynaklar (makale, kitap, araştırma)
+  // için PDR/klinik perspektifinden tema özeti; yönetmelik/mevzuat için ise yorum
+  // katmadan somut kural, süre, sayısal eşik ve prosedür çıkarımı.
+  function ozetSistemPrompt() {
+    if (kaynakTuru === "yonetmelik") {
+      return "Sen bir egitim mevzuati uzmanisin. Sana verilen belge bir MEB yonetmeligi, genelgesi veya mevzuat metnidir. Bunu okul PDR (rehberlik) uzmani icin, hicbir klinik/psikolojik yorum katmadan, SADECE somut ve uygulanabilir bilgiyi cikararak ozetle. Su yapida yaz: 1. KAPSAM (bu belge ne hakkinda, kimleri ilgilendiriyor) 2. SOMUT KURALLAR VE SAYISAL ESIKLER (sure, gun sayisi, oran, madde numaralari - varsa aynen koru, yuvarlama) 3. PROSEDUR / KIMIN NE YAPMASI GEREKTIGI (adim adim, sorumluluklar, hangi durumda hangi islem yapilir) 4. ISTISNALAR VE OZEL DURUMLAR. Sadece belgede yazani duzenli sekilde aktar, yorum veya oneri ekleme. Sayisal degerleri MUTLAKA aynen koru. Max 500 kelime. Sade yaz. Markdown kullanma.";
+    }
+    return "Sen Dr. Ayse Kara'sin - 20 yillik klinik deneyime sahip PDR uzmani ve psikologsun. BDT (otomatik dusunceler, sema teorisi, maruz birakma), baglanma teorisi (Bowlby), aile sistemleri (Minuchin), gelisim psikolojisi (Erikson, Vygotsky), Bourdieu sosyolojisi, Frankl anlam terapisi ve Stoa felsefesi perspektifinden degerlendirir; somut, uygulanabilir PDR onerileri sunarsın. Yargilamayan, guclu yonlere odaklanan, Turkce yazan bir klinisyensin. Verilen metni su yapida ozet: 1. ANA TEMALAR 2. PDR/KLINIK ACISINDAN ONEMLI NOKTALAR (BDT, baglanma, sosyoloji, felsefe) 3. ANAHTAR KAVRAMLAR. Max 350 kelime. Sade yaz. Markdown kullanma.";
+  }
+
   async function aiOzetle(metin, baslik) {
     const res = await pdrCallClaude({
         model:"claude-sonnet-4-6", max_tokens:800,
-        system:"Sen Dr. Ayse Kara'sin - 20 yillik klinik deneyime sahip PDR uzmani ve psikologsun. BDT (otomatik dusunceler, sema teorisi, maruz birakma), baglanma teorisi (Bowlby), aile sistemleri (Minuchin), gelisim psikolojisi (Erikson, Vygotsky), Bourdieu sosyolojisi, Frankl anlam terapisi ve Stoa felsefesi perspektifinden degerlendirir; somut, uygulanabilir PDR onerileri sunarsın. Yargilamayan, guclu yonlere odaklanan, Turkce yazan bir klinisyensin. Verilen metni su yapida ozet: 1. ANA TEMALAR 2. PDR/KLINIK ACISINDAN ONEMLI NOKTALAR (BDT, baglanma, sosyoloji, felsefe) 3. ANAHTAR KAVRAMLAR. Max 350 kelime. Sade yaz. Markdown kullanma.",
+        system: ozetSistemPrompt(),
         messages:[{role:"user", content:`Başlık: ${baslik||"Belirtilmemiş"}\n\nMetin:\n${metin.substring(0,8000)}`}]
       });
     const data = await res.json();
@@ -6377,7 +6442,7 @@ function KutuphaneEkle({ kutuphane, setKutuphane }) {
   }
 
   async function kaydet(ozet, baslik, kaynak) {
-    const yeni = {id:uid(), baslik:baslik||"İsimsiz Kaynak", dosyaAdi:kaynak, ozet, tarih:today()};
+    const yeni = {id:uid(), baslik:baslik||"İsimsiz Kaynak", dosyaAdi:kaynak, ozet, tur:kaynakTuru, tarih:today()};
     const updated = [yeni, ...kutuphane];
     setKutuphane(updated);
     await saveKutuphane(updated);
@@ -6398,10 +6463,12 @@ function KutuphaneEkle({ kutuphane, setKutuphane }) {
         });
         const resp = await pdrCallClaude({
             model:"claude-sonnet-4-6", max_tokens:800,
-            system:"Sen Dr. Ayse Kara'sin - 20 yillik klinik deneyime sahip, okul psikolojik danismanligi alaninda uzmanlasmis bir psikolog ve PDR uzmanisin. Bilissel Davranisci Terapi (BDT) temel yonelimindir: otomatik dusunceler, bilissel carpitmalar, sema teorisi, davranissal aktivasyon ve maruz birakma tekniklerini klinik pratikte ustaca kullanirsin. Baglanma teorisi (Bowlby, Ainsworth), aile sistemleri terapisi (Minuchin, Bowen) ve gelisim psikolojisi (Piaget, Vygotsky, Erikson) perspektifinden bireyi cevresiyle birlikte degerlendirirsin. Sosyolojide Bourdieu'nun habitus ve kulturel sermaye kavramlari, Giddens'in yapilasmasi ve sosyal tabakalasmanin psikolojik etkilerini Turkiye baglaminda okursun: aile baskisi, toplumsal cinsiyet rolleri, sinav odakli egitimin cocuk uzerindeki yukunu sosyolojik zemine oturtursun. Felsefi temetin: Frankl anlam terapisi, Sartre sorumluluk etigi, Stoa kontrol alani, fenomenolojinin oznel deneyim odagi. Uslubun: yargilamayan, merak eden, guclu yonlere odaklanan, somut ve uygulanabilir oneriler sunan, Turkce yazan, PDR diline hakim bir klinisyen. Verilen icerigi su yapida ozet: 1. ANA TEMALAR 2. PDR/KLINIK ACISINDAN ONEMLI NOKTALAR (BDT, baglanma, sosyoloji, felsefe perspektifinden) 3. ANAHTAR KAVRAMLAR. Max 350 kelime. Sade yaz. Markdown kullanma.",
+            system: ozetSistemPrompt(),
             messages:[{role:"user", content:[
               {type:"document", source:{type:"base64", media_type:"application/pdf", data:b64}},
-              {type:"text", text:`Bu belgeyi PDR perspektifinden özetle. Başlık: ${baslik}`}
+              {type:"text", text: kaynakTuru === "yonetmelik"
+                ? `Bu yönetmelik/mevzuat belgesini yukarıdaki talimata göre özetle. Başlık: ${baslik}`
+                : `Bu belgeyi PDR perspektifinden özetle. Başlık: ${baslik}`}
             ]}]
           });
         const data = await resp.json();
@@ -6436,12 +6503,16 @@ function KutuphaneEkle({ kutuphane, setKutuphane }) {
       } catch { sayfaIcerigi = ""; }
 
       const mesaj = sayfaIcerigi
-        ? "Bu web sayfası içeriğini PDR perspektifinden özetle.\nURL: " + yeniLink + "\n\nİÇERİK:\n" + sayfaIcerigi
-        : "Bu web sayfasının içeriğini PDR perspektifinden özetle: " + yeniLink;
+        ? (kaynakTuru === "yonetmelik"
+          ? "Bu web sayfasındaki yönetmelik/mevzuat içeriğini yukarıdaki talimata göre özetle.\nURL: " + yeniLink + "\n\nİÇERİK:\n" + sayfaIcerigi
+          : "Bu web sayfası içeriğini PDR perspektifinden özetle.\nURL: " + yeniLink + "\n\nİÇERİK:\n" + sayfaIcerigi)
+        : (kaynakTuru === "yonetmelik"
+          ? "Bu web sayfasındaki yönetmelik/mevzuat içeriğini yukarıdaki talimata göre özetle: " + yeniLink
+          : "Bu web sayfasının içeriğini PDR perspektifinden özetle: " + yeniLink);
 
       const bodyObj = {
         model: "claude-sonnet-4-6", max_tokens: 800,
-        system: "Sen Dr. Ayse Kara'sin - 20 yillik klinik deneyime sahip PDR uzmani ve psikologsun. BDT, baglanma teorisi, gelisim psikolojisi, Bourdieu sosyolojisi ve Frankl felsefesi perspektifinden kaynaklari analiz edersin. Verilen icerigi su yapida ozet: 1. ANA TEMALAR 2. PDR/KLINIK ACISINDAN ONEMLI NOKTALAR 3. ANAHTAR KAVRAMLAR. Max 350 kelime. Sade yaz. Markdown kullanma.",
+        system: ozetSistemPrompt(),
         messages: [{ role: "user", content: mesaj }]
       };
       if (!sayfaIcerigi) bodyObj.tools = [{ type: "web_search_20250305", name: "web_search" }];
@@ -6477,6 +6548,23 @@ function KutuphaneEkle({ kutuphane, setKutuphane }) {
           }}>{l}</button>
         ))}
       </div>
+      <label style={lbl}>KAYNAK TÜRÜ</label>
+      <div style={{display:"flex", gap:6, marginBottom:14}}>
+        {[["klinik","🧠 Klinik/Psikolojik Kaynak"],["yonetmelik","📜 Yönetmelik/Mevzuat"]].map(([k,l]) => (
+          <button key={k} onClick={() => setKaynakTuru(k)} style={{
+            flex:1, padding:"8px 6px", borderRadius:8,
+            border:`2px solid ${kaynakTuru===k ? ACCENT : BORDER}`,
+            background:kaynakTuru===k ? ACCENT_LIGHT : CARD,
+            color:kaynakTuru===k ? ACCENT : MUTED,
+            fontSize:11, fontWeight:700, cursor:"pointer"
+          }}>{l}</button>
+        ))}
+      </div>
+      {kaynakTuru === "yonetmelik" && (
+        <div style={{fontSize:11, color:MUTED, marginBottom:10, lineHeight:1.5, background:BG, borderRadius:8, padding:"8px 10px"}}>
+          Bu modda AI, belgeden klinik yorum değil; somut kurallar, süreler, sayısal eşikler ve prosedürleri çıkarır — MEB yönetmelik/genelge PDF'leri için uygundur.
+        </div>
+      )}
       <label style={lbl}>BAŞLIK (isteğe bağlı)</label>
       <input placeholder="örn. Bağlanma Teorisi — Bowlby" value={yeniBaslik}
         onChange={e => setYeniBaslik(e.target.value)} style={{...stl, marginBottom:12}} />
@@ -6705,6 +6793,7 @@ export default function App() {
   const [denemeAiLoading, setDenemeAiLoading] = useState(false);
   const [denemeAnaliz, setDenemeAnaliz] = useState({});
   const [yillar, setYillar] = useState(["2026-2027"]);
+  const [sinifListesi, setSinifListesi] = useState([]);
   const [aktifYil, setAktifYil] = useState("2026-2027");
   const [yilEkranı, setYilEkrani] = useState(false); // true = yıl seçim ekranı
   const [mudahalePlan, setMudahalePlan] = useState({});
@@ -6727,6 +6816,7 @@ export default function App() {
     loadDenemeler().then(setDenemeler);
     loadOgrenciler().then(setOgrenciler);
     loadYillar().then(setYillar);
+    loadSinifListesi().then(v => { if (v) setSinifListesi(v); });
     loadAktifYil().then(setAktifYil);
     loadMudahalePlan().then(setMudahalePlan);
     loadHazirlikNotlari().then(setHazirlikNotlari);
@@ -6831,7 +6921,7 @@ export default function App() {
     const ad = riskForm.studentName.toLowerCase().trim();
     const ogrGorusmeler = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, riskForm.studentName, riskForm.className, r.numara, riskForm.numara));
     const ogrP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, riskForm.studentName, riskForm.className, p.numara, riskForm.numara));
-    const aiAnaliz = await getRiskAnalizi(riskForm, ogrGorusmeler, ogrP1);
+    const aiAnaliz = await getRiskAnalizi(riskForm, ogrGorusmeler, ogrP1, kutuphane);
     // Risk düzeyini AI cevabından çek
     // Risk düzeyi
     let aiOncelik = riskForm.oncelik;
@@ -6873,7 +6963,7 @@ export default function App() {
       no:parseInt(no), nets, toplam: LGS_DERSLER.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
     }));
     setDenemeAiLoading(true);
-    const analiz = await getDenemeAnalizi(studentName, gorusmeler, girilen);
+    const analiz = await getDenemeAnalizi(studentName, gorusmeler, girilen, kutuphane);
     setDenemeAnaliz(prev => pdrSozlukYaz(prev, studentName, className, analiz, numara));
     setDenemeAiLoading(false);
   }
@@ -7128,6 +7218,7 @@ export default function App() {
             mudahalePlan={mudahalePlan}
             setMudahalePlan={setMudahalePlan}
             records={records}
+            kutuphane={kutuphane}
           />
         )}
 
@@ -7322,6 +7413,7 @@ export default function App() {
             mudahalePlan={mudahalePlan}
             aktifYil={aktifYil}
             aktifOgrenci={aktifOgrenci}
+            sinifListesi={sinifListesi}
             onYilEkrani={() => setYilEkrani(true)}
             hazirlikNotlari={hazirlikNotlari}
             setHazirlikNotlari={setHazirlikNotlari}
@@ -7498,6 +7590,8 @@ export default function App() {
             records={records}
             riskListesi={riskListesi}
             aktifYil={aktifYil}
+            sinifListesi={sinifListesi}
+            setSinifListesi={setSinifListesi}
           />
         )}
 
@@ -7722,7 +7816,10 @@ export default function App() {
                 <div style={{ padding: "12px 16px", borderBottom: `1px solid ${BORDER}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14, color: TEXT, marginBottom: 2 }}>📄 {k.baslik}</div>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: TEXT, marginBottom: 2 }}>
+                        {k.tur === "yonetmelik" ? "📜" : "📄"} {k.baslik}
+                        {k.tur === "yonetmelik" && <span style={{ marginLeft:6, background:"#EEF2FF", color:BLUE, borderRadius:8, padding:"1px 6px", fontSize:9, fontWeight:800 }}>YÖNETMELİK</span>}
+                      </div>
                       <div style={{ fontSize: 11, color: MUTED }}>{k.tarih} · {k.dosyaAdi}</div>
                     </div>
                     <button onClick={() => handleKutuphaneDelete(k.id)} style={{
