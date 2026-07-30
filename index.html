@@ -6796,6 +6796,13 @@ export default function App() {
   const [oogDegerlendirmeler, setOogDegerlendirmeler] = useState([]);
   const [tab, setTab] = useState("ogrenci");
   const [form, setForm] = useState({ studentName: "", className: "", numara: "", meetingType: "Öğrenci", topic: "", raw: "", summary: "" });
+  const [notOgrenciArama, setNotOgrenciArama] = useState("");
+  useEffect(() => {
+    if (aktifOgrenci?.name) {
+      const bulunan = kayitliListesi.find(o => pdrAyniOgrenci(o.name, o.className, aktifOgrenci.name, aktifOgrenci.className));
+      setForm(f => ({ ...f, studentName: aktifOgrenci.name, className: aktifOgrenci.className || "", numara: bulunan?.numara || "" }));
+    }
+  }, [aktifOgrenci?.name]);
   const [profForm, setProfForm] = useState({ studentName: "", className: "", numara: "", notes: "", scores: { ...EMPTY_SCORES }, analysis: "" });
   const [prof2Form, setProf2Form] = useState({ ...EMPTY_PROF2 });
   const [scoresSet, setScoresSet] = useState(false);
@@ -7194,22 +7201,36 @@ export default function App() {
         {/* ── YENİ GÖRÜŞME NOTU ───────────────────────────────────── */}
         {tab === "yeni" && (
           <div>
-            {aktifOgrenci?.name && (
-              <div style={{ background:ACCENT_LIGHT, borderRadius:10, padding:"10px 14px", marginBottom:12, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                <span style={{ fontSize:13, color:ACCENT, fontWeight:700 }}>👤 {aktifOgrenci.name}</span>
-                <button onClick={() => setForm(f => ({ ...f, studentName: aktifOgrenci.name, className: aktifOgrenci.className }))} style={{ background:ACCENT, color:"#fff", border:"none", borderRadius:8, padding:"5px 12px", fontSize:12, fontWeight:700, cursor:"pointer" }}>Seç</button>
-              </div>
-            )}
             <div>
               {/* Öğrenci seç */}
               <div style={{ marginBottom:12 }}>
                 <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>ÖĞRENCİ</label>
-                <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:8 }}>
-                  {kayitliListesi.map(o => {
-                    const s = form.studentName === o.name;
-                    return <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => setForm(f=>({...f, studentName:o.name, className:o.className||"", numara:o.numara||""}))} style={{ padding:"5px 10px", borderRadius:16, border:`2px solid ${s?ACCENT:BORDER}`, background:s?ACCENT_LIGHT:CARD, color:s?ACCENT:MUTED, fontSize:12, fontWeight:s?700:500, cursor:"pointer" }}>{o.name}</button>;
-                  })}
-                </div>
+                {form.studentName ? (
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:ACCENT_LIGHT, border:`1px solid ${ACCENT}`, borderRadius:10, padding:"8px 12px", marginBottom:8 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:ACCENT }}>👤 {form.studentName}{form.className ? ` — ${form.className}` : ""}{form.numara ? ` · No: ${form.numara}` : ""}</div>
+                    <button onClick={() => { setForm(f => ({ ...f, studentName:"", className:"", numara:"" })); setAktifOgrenci({ name:"", className:"" }); setNotOgrenciArama(""); }} style={{
+                      background:"none", border:`1px solid ${ACCENT}`, color:ACCENT, borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
+                    }}>✕ Değiştir</button>
+                  </div>
+                ) : (
+                  <>
+                    <input value={notOgrenciArama} onChange={e=>setNotOgrenciArama(e.target.value)} placeholder="Kayıtlı öğrenci ara… (en az 2 karakter)"
+                      style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, boxSizing:"border-box", marginBottom:8 }} />
+                    {notOgrenciArama.trim().length >= 2 ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom:8 }}>
+                        {kayitliListesi.filter(o =>
+                          o.name.toLowerCase().includes(notOgrenciArama.toLowerCase()) ||
+                          o.className?.toLowerCase().includes(notOgrenciArama.toLowerCase()) ||
+                          o.numara?.includes(notOgrenciArama)
+                        ).slice(0, 20).map(o => (
+                          <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => { setForm(f=>({...f, studentName:o.name, className:o.className||"", numara:o.numara||""})); setAktifOgrenci({ name:o.name, className:o.className||"" }); setNotOgrenciArama(""); }} style={{ padding:"5px 10px", borderRadius:16, border:`2px solid ${BORDER}`, background:CARD, color:MUTED, fontSize:12, fontWeight:500, cursor:"pointer" }}>{o.name}</button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize:11, color:MUTED, marginBottom:8 }}>Öğrenciyi bulmak için yaz, ya da aşağıya doğrudan isim gir</div>
+                    )}
+                  </>
+                )}
                 <input placeholder="veya ad yaz..." value={form.studentName} onChange={e=>setForm(f=>({...f,studentName:e.target.value}))} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, boxSizing:"border-box" }} />
               </div>
               {/* Görüşme türü */}
