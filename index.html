@@ -754,6 +754,7 @@ if (pdrLogoutBtn) {
 }
 
 let pdrFirstReady = true;
+let pdrBasvuruUnsub = null; // admin onay durumunu canlı izleyen dinleyici — oturum boyunca aktif
 pdrAuth.onAuthStateChanged(async (user) => {
   const splashEl = document.getElementById("splash");
   if (user) {
@@ -774,6 +775,27 @@ pdrAuth.onAuthStateChanged(async (user) => {
         pdrOdemeEkraniGoster();
         return;
       }
+
+      // Erişim onaylandı — ama admin oturum SIRASINDA onayı geri alabilir (örn. birini
+      // reddetmek/beklemeye almak). Bunu anlık yakalamak için başvuru kaydını canlı izle:
+      // admin durumu değiştirir değiştirmez (birkaç saniye içinde), kullanıcı otomatik
+      // olarak ilgili engel ekranına düşer — sayfayı yenilemesi ya da yeniden giriş
+      // yapması gerekmez. Aynı şekilde tekrar onaylanırsa engel ekranı da otomatik kapanır.
+      if (pdrBasvuruUnsub) { pdrBasvuruUnsub(); pdrBasvuruUnsub = null; }
+      pdrBasvuruUnsub = pdrDb.collection("basvurular").doc(user.uid).onSnapshot(snap => {
+        const b = snap.data();
+        if (!b) return;
+        if (b.durum !== "onayli") {
+          pdrOdemeEkraniGizle();
+          pdrOnayEkraniGoster(b.durum);
+        } else if (!b.ucretsiz && !b.odemeAlindi) {
+          pdrOnayEkraniGizle();
+          pdrOdemeEkraniGoster();
+        } else {
+          pdrOnayEkraniGizle();
+          pdrOdemeEkraniGizle();
+        }
+      });
     }
     pdrOnayEkraniGizle();
     pdrOdemeEkraniGizle();
@@ -781,6 +803,7 @@ pdrAuth.onAuthStateChanged(async (user) => {
     await pdrSyncDown(user.uid);
     if (pdrFirstReady) { pdrFirstReady = false; pdrResolveReady(user); }
   } else {
+    if (pdrBasvuruUnsub) { pdrBasvuruUnsub(); pdrBasvuruUnsub = null; }
     if (splashEl) splashEl.className = "hide";
     if (pdrLoginOverlay) pdrLoginOverlay.style.display = "flex";
     if (pdrLogoutBtn) pdrLogoutBtn.style.display = "none";
