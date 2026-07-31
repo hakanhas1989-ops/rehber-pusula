@@ -1884,20 +1884,28 @@ function uid() { return Date.now().toString(36) + Math.random().toString(36).sli
 // olduğunda isim + sınıf birlikte eşleştirilir. Sınıf bilgisi taraflardan
 // birinde yoksa (eski kayıtlar), geriye dönük uyumluluk için sadece isimle
 // eşleştirmeye devam edilir.
-// Üçüncü katman: öğrenci numarası. Aynı isim VE aynı sınıfta olan (örn. ikizler)
-// nadir durumlarda bile ayırt edebilmek için, her iki tarafta da numara varsa
-// numara da eşleşmek zorunda. Numara taraflardan birinde yoksa (eski kayıtlar
-// veya numara girilmemiş), bu katman atlanır — isim+sınıf eşleşmesi yeterli sayılır.
+// ÖNCELİK SIRASI: Öğrenci numarası isimden daha güvenilir bir kimliktir —
+// veliler/öğretmenler ismi elle girerken bir harf farkı, boşluk, Türkçe
+// karakter farkı (İ/I, Ş/S vb.) yapabilir, ama numara genelde e-okul'dan
+// kopyalanır ve daha az hata payı taşır. Bu yüzden: aynı sınıfta VE aynı
+// numarada olan iki kayıt, isimleri birebir aynı yazılmasa bile AYNI öğrenci
+// sayılır. Numara taraflardan birinde yoksa ya da sınıf bilgisi tutmuyorsa,
+// eski isim+sınıf(+numara) eşleştirmesine geri dönülür.
 function pdrAyniOgrenci(ad1, sinif1, ad2, sinif2, no1, no2) {
+  const s1 = (sinif1 || "").toLowerCase().trim();
+  const s2 = (sinif2 || "").toLowerCase().trim();
+  const n1 = (no1 || "").toString().trim();
+  const n2 = (no2 || "").toString().trim();
+
+  // Öncelik 1: Sınıf + numara ikisi de dolu ve eşleşiyorsa, isim yazımı farklı
+  // olsa bile aynı öğrencidir.
+  if (s1 && s2 && s1 === s2 && n1 && n2 && n1 === n2) return true;
+
   const a1 = (ad1 || "").toLowerCase().trim();
   const a2 = (ad2 || "").toLowerCase().trim();
   if (!a1 || a1 !== a2) return false;
-  const s1 = (sinif1 || "").toLowerCase().trim();
-  const s2 = (sinif2 || "").toLowerCase().trim();
   if (!s1 || !s2) return true; // sınıf bilgisi eksikse eski davranış korunur
   if (s1 !== s2) return false;
-  const n1 = (no1 || "").toString().trim();
-  const n2 = (no2 || "").toString().trim();
   if (!n1 || !n2) return true; // numara eksikse isim+sınıf eşleşmesi yeterli
   return n1 === n2;
 }
