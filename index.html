@@ -526,6 +526,8 @@ function pdrOnayEkraniGoster(durum) {
     </div>`;
   el.style.display = "flex";
   document.getElementById("pdr-onay-cikis").onclick = async () => {
+    const cikanUid = pdrAuth.currentUser?.uid;
+    if (cikanUid) { try { await pdrDb.collection("basvurular").doc(cikanUid).update({ sonAktif: 0 }); } catch(e) {} }
     await pdrAuth.signOut();
     pdrClearLocalCache();
     localStorage.removeItem("pdr_last_uid");
@@ -554,6 +556,8 @@ function pdrOdemeEkraniGoster() {
     </div>`;
   el.style.display = "flex";
   document.getElementById("pdr-odeme-cikis").onclick = async () => {
+    const cikanUid = pdrAuth.currentUser?.uid;
+    if (cikanUid) { try { await pdrDb.collection("basvurular").doc(cikanUid).update({ sonAktif: 0 }); } catch(e) {} }
     await pdrAuth.signOut();
     pdrClearLocalCache();
     localStorage.removeItem("pdr_last_uid");
@@ -746,6 +750,8 @@ if (pdrToggleMode) {
 
 if (pdrLogoutBtn) {
   pdrLogoutBtn.addEventListener("click", async () => {
+    const cikanUid = pdrAuth.currentUser?.uid;
+    if (cikanUid) { try { await pdrDb.collection("basvurular").doc(cikanUid).update({ sonAktif: 0 }); } catch(e) {} }
     await pdrAuth.signOut();
     pdrClearLocalCache();
     localStorage.removeItem("pdr_last_uid");
@@ -788,7 +794,7 @@ pdrAuth.onAuthStateChanged(async (user) => {
       if (pdrHeartbeatInterval) { clearInterval(pdrHeartbeatInterval); pdrHeartbeatInterval = null; }
       const pdrGonderHeartbeat = () => pdrDb.collection("basvurular").doc(user.uid).update({ sonAktif: Date.now() }).catch(()=>{});
       pdrGonderHeartbeat();
-      pdrHeartbeatInterval = setInterval(pdrGonderHeartbeat, 25000);
+      pdrHeartbeatInterval = setInterval(pdrGonderHeartbeat, 15000);
 
       if (pdrBasvuruUnsub) { pdrBasvuruUnsub(); pdrBasvuruUnsub = null; }
       pdrBasvuruUnsub = pdrDb.collection("basvurular").doc(user.uid).onSnapshot(snap => {
@@ -4010,7 +4016,7 @@ function KullaniciOnaylari() {
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {basvurular.map(b => {
             const durumStil = renkler[b.durum] || renkler.bekliyor;
-            const aktifMi = b.sonAktif && (Date.now() - b.sonAktif < 40000); // son 40 sn içinde sinyal geldiyse aktif
+            const aktifMi = b.sonAktif && (Date.now() - b.sonAktif < 25000); // son 25 sn içinde sinyal geldiyse aktif
             return (
               <div key={b.uid} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "12px 14px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
