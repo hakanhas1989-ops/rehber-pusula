@@ -4689,19 +4689,46 @@ function OgrenciYonetim({
             {gosterilecek.slice(0, 50).map(o => {
               const oRec = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className, r.numara, o.numara));
               const oP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, o.studentName, o.className, p.numara, o.numara));
-              const oDen = Object.keys(pdrSozlukOku(denemeler, o.studentName, o.className, o.numara) || {}).length;
+              const oDenSozluk = pdrSozlukOku(denemeler, o.studentName, o.className, o.numara) || {};
+              const o7sinif = oDenSozluk["7sinif"] || null;
+              const oDen = Object.keys(oDenSozluk).filter(k => k !== "7sinif").length;
               const oRsk = riskListesi.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className, r.numara, o.numara) && !r.kapandi).length;
-              const oDenAvg = oDen > 0 ? (Object.values(pdrSozlukOku(denemeler, o.studentName, o.className, o.numara)||{}).reduce((s,nets)=>s+LGS_DERSLER.reduce((ss,d)=>ss+(parseFloat(nets[d.key])||0),0),0)/oDen).toFixed(1) : null;
+              // Manuel girilen (8. sınıf, Deneme 1-10) ortalaması varsa onu, yoksa 7. sınıf
+              // deneme ortalamasını göster — "7sinif" anahtarı manuel deneme sanılıp
+              // yanlışlıkla ortalamaya karışmaz (o zaman hep 0.0 çıkardı).
+              const oDenAvgSayi = oDen > 0
+                ? Object.entries(oDenSozluk).filter(([k])=>k!=="7sinif").reduce((s,[,nets])=>s+LGS_DERSLER.reduce((ss,d)=>ss+(parseFloat(nets[d.key])||0),0),0)/oDen
+                : null;
+              const oDenAvg = oDenAvgSayi !== null ? oDenAvgSayi.toFixed(1) : (o7sinif ? o7sinif.ortalama : null);
+              // Deneme riski: 8. sınıfta manuel giriş varsa (daha güncel olduğu için) ondan
+              // hesaplanır; hiç manuel giriş yoksa 7. sınıfın (Excel'den gelen) risk
+              // etiketine geri dönülür. İkisi çakışırsa 8. sınıf esas alınır.
+              const oDenRisk = oDenAvgSayi !== null
+                ? (oDenAvgSayi >= 55 ? "dusuk" : oDenAvgSayi >= 30 ? "orta" : "yuksek")
+                : (o7sinif?.risk || null);
+              const oDenRiskKaynak = oDenAvgSayi !== null ? "8. sınıf denemeleri" : "7. sınıf denemeleri";
 
-              // Basit 3'lü kategori: Riskli / Takip Gerekli / İyi Gidiyor
+              // Kategori: Riskli / Takip Gerekli / İyi Gidiyor — öncelik sırası:
+              // 1) Açık risk kaydı  2) Görüşme (yakın zamanda yapılmışsa yeterli sayılır)
+              // 3) Görüşme yoksa/eskiyse deneme riskine bakılır (8. sınıf varsa öncelikli,
+              // yoksa 7. sınıf). Etikette (kaynak) olarak hangi veriye dayandığı belirtilir.
               const oPdrParse = d => { const [g,ay,y] = (d||"").split("."); return new Date(`${y}-${ay}-${g}`); };
               const oSonGorusmeTarihi = oRec.length > 0 ? oRec.reduce((en, r) => (!en || oPdrParse(r.date) > oPdrParse(en)) ? r.date : en, null) : null;
               const oGunFarki = oSonGorusmeTarihi ? Math.round((new Date() - oPdrParse(oSonGorusmeTarihi)) / (1000*60*60*24)) : null;
-              const oKategori = oRsk > 0
-                ? { label: "🔴 Riskli", bg: "#FDECEA", color: "#C0392B" }
-                : (oRec.length === 0 || oGunFarki === null || oGunFarki > 60)
-                  ? { label: "🟡 Takip Gerekli", bg: "#FDF6E3", color: "#B07D1A" }
-                  : { label: "🟢 İyi Gidiyor", bg: "#E6F5EE", color: "#1A8C5B" };
+              const oGorusmeYakinMi = oGunFarki !== null && oGunFarki <= 60;
+              let oKategori, oKaynak;
+              if (oRsk > 0) {
+                oKategori = { label: "🔴 Riskli", bg: "#FDECEA", color: "#C0392B" }; oKaynak = "Risk kaydı";
+              } else if (oRec.length > 0 && oGorusmeYakinMi) {
+                oKategori = { label: "🟢 İyi Gidiyor", bg: "#E6F5EE", color: "#1A8C5B" }; oKaynak = "Görüşme";
+              } else if (oDenRisk === "yuksek") {
+                oKategori = { label: "🔴 Riskli", bg: "#FDECEA", color: "#C0392B" }; oKaynak = oDenRiskKaynak;
+              } else if (oDenRisk === "dusuk") {
+                oKategori = { label: "🟢 İyi Gidiyor", bg: "#E6F5EE", color: "#1A8C5B" }; oKaynak = oDenRiskKaynak;
+              } else {
+                oKategori = { label: "🟡 Takip Gerekli", bg: "#FDF6E3", color: "#B07D1A" };
+                oKaynak = oRec.length > 0 ? "Görüşme" : (oDenRisk ? oDenRiskKaynak : "");
+              }
 
               return (
                 <div key={pdrOgrAnahtar(o.studentName, o.className, o.numara)} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, padding:"10px 14px", display:"flex", flexDirection:"column", gap:6 }}>
@@ -4723,7 +4750,7 @@ function OgrenciYonetim({
                   </div>
                   {/* Rozetler — kendi satırında, avatar hizasından başlıyor */}
                   <div style={{ display:"flex", gap:4, flexWrap:"wrap", paddingLeft:44 }}>
-                    <span style={{ background:oKategori.bg, color:oKategori.color, borderRadius:12, padding:"2px 7px", fontSize:10, fontWeight:800, whiteSpace:"nowrap" }}>{oKategori.label}</span>
+                    <span style={{ background:oKategori.bg, color:oKategori.color, borderRadius:12, padding:"2px 7px", fontSize:10, fontWeight:800, whiteSpace:"nowrap" }}>{oKategori.label}{oKaynak ? ` · ${oKaynak}` : ""}</span>
                     {oRec.length > 0 && <span style={{ background:ACCENT_LIGHT, color:ACCENT, borderRadius:12, padding:"2px 6px", fontSize:10, fontWeight:700 }}>{oRec.length} görüşme</span>}
                     {oDenAvg && <span style={{ background:"#EEF2FF", color:BLUE, borderRadius:12, padding:"2px 6px", fontSize:10, fontWeight:700 }}>Ort:{oDenAvg}</span>}
                     {oP1 && <span style={{ background:ACCENT_LIGHT, color:ACCENT, borderRadius:12, padding:"2px 6px", fontSize:10, fontWeight:700 }}>P1</span>}
