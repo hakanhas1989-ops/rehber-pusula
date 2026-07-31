@@ -755,6 +755,7 @@ if (pdrLogoutBtn) {
 
 let pdrFirstReady = true;
 let pdrBasvuruUnsub = null; // admin onay durumunu canlı izleyen dinleyici — oturum boyunca aktif
+let pdrHeartbeatInterval = null; // "hâlâ aktif" sinyalini düzenli gönderen zamanlayıcı
 pdrAuth.onAuthStateChanged(async (user) => {
   const splashEl = document.getElementById("splash");
   if (user) {
@@ -781,6 +782,14 @@ pdrAuth.onAuthStateChanged(async (user) => {
       // admin durumu değiştirir değiştirmez (birkaç saniye içinde), kullanıcı otomatik
       // olarak ilgili engel ekranına düşer — sayfayı yenilemesi ya da yeniden giriş
       // yapması gerekmez. Aynı şekilde tekrar onaylanırsa engel ekranı da otomatik kapanır.
+      // Canlı "hâlâ aktif" sinyali: kullanıcı uygulamayı açık tuttuğu sürece
+      // düzenli aralıklarla son aktiflik zamanını yazar. Admin panelinde bu
+      // zaman damgası yakınsa (son ~40 saniye) kullanıcı "🟢 aktif" sayılır.
+      if (pdrHeartbeatInterval) { clearInterval(pdrHeartbeatInterval); pdrHeartbeatInterval = null; }
+      const pdrGonderHeartbeat = () => pdrDb.collection("basvurular").doc(user.uid).update({ sonAktif: Date.now() }).catch(()=>{});
+      pdrGonderHeartbeat();
+      pdrHeartbeatInterval = setInterval(pdrGonderHeartbeat, 25000);
+
       if (pdrBasvuruUnsub) { pdrBasvuruUnsub(); pdrBasvuruUnsub = null; }
       pdrBasvuruUnsub = pdrDb.collection("basvurular").doc(user.uid).onSnapshot(snap => {
         const b = snap.data();
@@ -804,6 +813,7 @@ pdrAuth.onAuthStateChanged(async (user) => {
     if (pdrFirstReady) { pdrFirstReady = false; pdrResolveReady(user); }
   } else {
     if (pdrBasvuruUnsub) { pdrBasvuruUnsub(); pdrBasvuruUnsub = null; }
+    if (pdrHeartbeatInterval) { clearInterval(pdrHeartbeatInterval); pdrHeartbeatInterval = null; }
     if (splashEl) splashEl.className = "hide";
     if (pdrLoginOverlay) pdrLoginOverlay.style.display = "flex";
     if (pdrLogoutBtn) pdrLogoutBtn.style.display = "none";
@@ -3933,20 +3943,27 @@ function PdrToggle({ checked, onChange, color, label }) {
 function KullaniciOnaylari() {
   const [basvurular, setBasvurular] = useState([]);
   const [yukleniyor, setYukleniyor] = useState(true);
+  const [tick, setTick] = useState(0); // "aktif mi" hesabını tazelemek için periyodik zorlayıcı
 
-  async function yenile() {
-    setYukleniyor(true);
-    try {
-      const snap = await window.pdrDb.collection("basvurular").get();
+  // Liste artık tek seferlik değil, canlı — bir kullanıcının onay durumu ya da
+  // son aktiflik zamanı değiştiğinde ekran otomatik güncellenir.
+  useEffect(() => {
+    const unsub = window.pdrDb.collection("basvurular").onSnapshot(snap => {
       const liste = [];
       snap.forEach(doc => liste.push({ uid: doc.id, ...doc.data() }));
       liste.sort((a, b) => (b.tarih || 0) - (a.tarih || 0));
       setBasvurular(liste);
-    } catch (e) { console.log("Onay listesi yüklenemedi:", e); }
-    setYukleniyor(false);
-  }
+      setYukleniyor(false);
+    }, e => { console.log("Onay listesi yüklenemedi:", e); setYukleniyor(false); });
+    return () => unsub();
+  }, []);
 
-  useEffect(() => { yenile(); }, []);
+  // sonAktif zaman damgası eskiyip "aktif" eşiğinin dışına çıktığında (yeni veri
+  // gelmese bile) göstergenin kırmızıya dönmesi için her 10 saniyede bir tazele.
+  useEffect(() => {
+    const t = setInterval(() => setTick(x => x + 1), 10000);
+    return () => clearInterval(t);
+  }, []);
 
   async function guncelle(uid, fields) {
     await window.pdrDb.collection("basvurular").doc(uid).update(fields);
@@ -3963,7 +3980,9 @@ function KullaniciOnaylari() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontSize: 15, fontWeight: 800, color: TEXT }}>🛠 Kullanıcı Onayları</div>
-        <button onClick={yenile} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "5px 12px", fontSize: 12, fontWeight: 700, color: MUTED, cursor: "pointer" }}>↻ Yenile</button>
+        <span style={{ fontSize: 11, fontWeight: 700, color: "#1A8C5B", display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#2ECC71" }} /> Canlı
+        </span>
       </div>
 
       {yukleniyor ? (
@@ -3974,12 +3993,23 @@ function KullaniciOnaylari() {
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {basvurular.map(b => {
             const durumStil = renkler[b.durum] || renkler.bekliyor;
+            const aktifMi = b.sonAktif && (Date.now() - b.sonAktif < 40000); // son 40 sn içinde sinyal geldiyse aktif
             return (
               <div key={b.uid} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "12px 14px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: TEXT }}>{b.email}</div>
-                    <div style={{ fontSize: 11, color: MUTED }}>{b.tarih ? new Date(b.tarih).toLocaleDateString("tr-TR") : ""}</div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: TEXT, display: "flex", alignItems: "center", gap: 6 }}>
+                      <span title={aktifMi ? "Şu an aktif" : "Aktif değil"} style={{
+                        width: 9, height: 9, borderRadius: "50%", flexShrink: 0,
+                        background: aktifMi ? "#2ECC71" : "#C0392B",
+                        boxShadow: aktifMi ? "0 0 6px rgba(46,204,113,0.7)" : "none"
+                      }} />
+                      {b.email}
+                    </div>
+                    <div style={{ fontSize: 11, color: MUTED }}>
+                      {b.tarih ? new Date(b.tarih).toLocaleDateString("tr-TR") : ""}
+                      {b.sonAktif && !aktifMi && ` · Son aktif: ${new Date(b.sonAktif).toLocaleString("tr-TR")}`}
+                    </div>
                   </div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     <span style={{ background: durumStil.bg, color: durumStil.color, borderRadius: 12, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>{durumStil.label}</span>
