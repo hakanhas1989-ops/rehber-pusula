@@ -1479,6 +1479,12 @@ async function loadRehberGorunduMu() {
 async function saveRehberGorunduMu() {
   try { await window.storage.set("pdr-rehber-gorundu", "1"); } catch(e) { console.warn(e); }
 }
+async function loadKvkkBildirimGorunduMu() {
+  try { const r = await window.storage.get("pdr-kvkk-bildirim-gorundu"); return r ? r.value === "1" : false; } catch { return false; }
+}
+async function saveKvkkBildirimGorunduMu() {
+  try { await window.storage.set("pdr-kvkk-bildirim-gorundu", "1"); } catch(e) { console.warn(e); }
+}
 async function loadAktifYil() {
   try { const r = await window.storage.get("pdr-aktif-yil"); return r ? r.value : "2026-2027"; } catch { return "2026-2027"; }
 }
@@ -7146,6 +7152,7 @@ export default function App() {
     await saveKademe(k);
   }
   const [rehberGoster, setRehberGoster] = useState(false);
+  const [kvkkBildirimGoster, setKvkkBildirimGoster] = useState(false);
   const [aktifYil, setAktifYil] = useState("2026-2027");
   const [yilEkranı, setYilEkrani] = useState(false); // true = yıl seçim ekranı
   const [mudahalePlan, setMudahalePlan] = useState({});
@@ -7172,6 +7179,7 @@ export default function App() {
     loadSinavTuru().then(v => { if (v) setSinavTuruState(v); });
     loadKademe().then(v => { if (v) setKademeState(v); });
     loadRehberGorunduMu().then(v => { if (!v) setRehberGoster(true); });
+    loadKvkkBildirimGorunduMu().then(v => { if (!v) setKvkkBildirimGoster(true); });
     loadAktifYil().then(setAktifYil);
     loadMudahalePlan().then(setMudahalePlan);
     loadHazirlikNotlari().then(setHazirlikNotlari);
@@ -7487,6 +7495,18 @@ export default function App() {
           {totalRecs} görüşme · {uniqueStudents} öğrenci · {uniqueParents} veli · {profiles.length} profil
         </div>
       </div>
+
+      {/* KVKK gizlilik bildirimi — girişten sonra bir kez gösterilir */}
+      {kvkkBildirimGoster && (
+        <div style={{ background: "#EEF2FF", borderBottom: "1px solid #C7D2FE", padding: "10px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ fontSize: 12, color: "#3B4FD8", lineHeight: 1.5, flex: 1 }}>
+            🔒 Verileriniz güvende, kimse erişemez. Gizlilik için öğrenci soyadlarını kısaltabilirsiniz (örn. "Ahmet Y."). Veri gizliliği (KVKK) sorumluluğu kullanıcıya aittir.
+          </div>
+          <button onClick={async () => { setKvkkBildirimGoster(false); await saveKvkkBildirimGorunduMu(); }} style={{
+            background: "none", border: "none", color: "#3B4FD8", fontSize: 18, fontWeight: 800, cursor: "pointer", flexShrink: 0, lineHeight: 1, padding: 4
+          }}>✕</button>
+        </div>
+      )}
 
       {/* Canlı bilgi şeridi (ticker) */}
       <div style={{ background: "#0F3D2E", overflow: "hidden", position: "sticky", top: 0, zIndex: 9, borderBottom: `1px solid ${BORDER}` }}>
