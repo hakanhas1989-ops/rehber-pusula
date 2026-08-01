@@ -1102,15 +1102,18 @@ ${kutuphaneOzetleri.length > 0 ? "Kütüphane referanslarından (özellikle vars
   return data.content?.[0]?.text || "";
 }
 
-async function getDenemeAnalizi(studentName, gorusmeler, denemeGirilen, kutuphaneOzetleri = []) {
+async function getDenemeAnalizi(studentName, gorusmeler, denemeGirilen, kutuphaneOzetleri = [], sinavTuru = "lgs") {
+  const dersListesi = aktifDersler(sinavTuru);
+  const toplamSoru = dersListesi.reduce((s,d)=>s+d.maks, 0);
+  const sinavAdi = (SINAV_TURLERI[sinavTuru] || SINAV_TURLERI.lgs).ad;
   const gorusmeBolum = gorusmeler.length > 0
     ? "GORUSME NOTLARI:\n" + gorusmeler.map((r,i)=>`Gorusme ${i+1} (${r.date}${r.topic?", "+r.topic:""}): ${r.summary}`).join("\n\n")
     : "Gorusme kaydi yok.";
 
   const denemeBolum = denemeGirilen.length > 0
     ? "DENEME SONUCLARI:\n" + denemeGirilen.map(d=>{
-        const dersler = LGS_DERSLER.map(ld=>`${ld.label.substring(0,3)}: ${parseFloat(d.nets?.[ld.key]||0).toFixed(1)}/${ld.maks}`).join(", ");
-        return `D${d.no}: Toplam ${d.toplam.toFixed(1)}/90 — ${dersler}`;
+        const dersMetni = dersListesi.map(ld=>`${ld.label.substring(0,3)}: ${parseFloat(d.nets?.[ld.key]||0).toFixed(1)}/${ld.maks}`).join(", ");
+        return `D${d.no}: Toplam ${d.toplam.toFixed(1)}/${toplamSoru} — ${dersMetni}`;
       }).join("\n")
     : "Deneme verisi yok.";
 
@@ -1122,16 +1125,19 @@ async function getDenemeAnalizi(studentName, gorusmeler, denemeGirilen, kutuphan
   // En zayif ve guclu dersler
   let dersOrtalamalari = {};
   if (denemeGirilen.length > 0) {
-    LGS_DERSLER.forEach(ld => {
+    dersListesi.forEach(ld => {
       const vals = denemeGirilen.map(d => parseFloat(d.nets?.[ld.key]||0));
       dersOrtalamalari[ld.label] = (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1);
     });
   }
   const dersSirali = Object.entries(dersOrtalamalari).sort((a,b)=>parseFloat(b[1])-parseFloat(a[1]));
   const kutuphaneBaglam = pdrKutuphaneBaglam(kutuphaneOzetleri);
+  const hedefSatiri = sinavTuru === "lgs"
+    ? `HEDEF OKUL ARALIĞI: (Mevcut ${avg||"?"}/${toplamSoru} ortalamaya gore hangi liselere gidebilir — somut okul turu belirt)`
+    : `HEDEF ÜNİVERSİTE/BÖLÜM ARALIĞI: (Mevcut ${avg||"?"}/${toplamSoru} ortalamaya gore hangi bölüm/üniversite düzeyine yönelebilir — somut belirt)`;
 
   const prompt = `Ogrenci: ${studentName}
-${avg ? `Deneme Ortalamasi: ${avg}/90` : ""}
+${avg ? `Deneme Ortalamasi: ${avg}/${toplamSoru}` : ""}
 ${trend ? `Trend: ${parseFloat(trend)>=0?"+":""}${trend} net (ilk denemeden son denemeye)` : ""}
 ${dersSirali.length > 0 ? `Ders Ortalamalari: ${dersSirali.map(([k,v])=>`${k}: ${v}`).join(", ")}` : ""}
 
@@ -1139,10 +1145,10 @@ ${denemeBolum}
 
 ${gorusmeBolum}${kutuphaneBaglam}
 
-LGS hazirlik surecini kapsamli analiz et:
+${sinavAdi} hazirlik surecini kapsamli analiz et:
 
 AKADEMIK DURUM: (Genel net performansi ve yuzdelik dilim tahmini)
-HEDEF OKUL ARALIG: (Mevcut ${avg||"?"}/90 ortalamaya gore hangi liselere gidebilir — somut okul turu belirt)
+${hedefSatiri}
 TREND ANALIZI: (Gelisim mi, gerileme mi, neden — psikolojik ve akademik acikla)
 DERS BAZLI ANALIZ: (En guclu ve en zayif dersler, zayif derslerde calisma onerisi)
 PSIKOLOJIK BAGLAY: (Gorusme notlarina gore akademik performansi etkileyen psikolojik faktorler)
@@ -1183,7 +1189,9 @@ async function getScoresFromNotes(studentName, notlar) {
   } catch { return { ...EMPTY_SCORES }; }
 }
 
-async function getP2Analiz({ studentName, className, sinavlar, d2, ilgiler, kariyer_hedef, aile_notu, gorusmeler, denemeGirilen }) {
+async function getP2Analiz({ studentName, className, sinavlar, d2, ilgiler, kariyer_hedef, aile_notu, gorusmeler, denemeGirilen, sinavTuru = "lgs" }) {
+  const dersListesi = aktifDersler(sinavTuru);
+  const toplamSoru = dersListesi.reduce((s,d)=>s+d.maks, 0);
   const dersMetni = DERSLER.map(d => {
     const v1 = parseFloat(sinavlar?.[d.key+"1"]);
     const v2 = parseFloat(sinavlar?.[d.key+"2"]);
@@ -1199,8 +1207,8 @@ async function getP2Analiz({ studentName, className, sinavlar, d2, ilgiler, kari
 
   const denemeBolum = denemeGirilen && denemeGirilen.length > 0
     ? "DENEME SONUCLARI:\n" + denemeGirilen.map(d => {
-        const dersler = LGS_DERSLER.map(ld => `${ld.label.substring(0,3)}: ${parseFloat(d.nets?.[ld.key]||0).toFixed(1)}`).join(", ");
-        return `D${d.no}: ${d.toplam.toFixed(1)}/90 (${dersler})`;
+        const dersMetni2 = dersListesi.map(ld => `${ld.label.substring(0,3)}: ${parseFloat(d.nets?.[ld.key]||0).toFixed(1)}`).join(", ");
+        return `D${d.no}: ${d.toplam.toFixed(1)}/${toplamSoru} (${dersMetni2})`;
       }).join("\n")
     : "";
 
@@ -1424,6 +1432,12 @@ async function loadSinifListesi() {
 }
 async function saveSinifListesi(items) {
   try { await window.storage.set("pdr-sinif-listesi", JSON.stringify(items)); } catch(e) { console.warn(e); }
+}
+async function loadSinavTuru() {
+  try { const r = await window.storage.get("pdr-sinav-turu"); return r ? r.value : null; } catch { return null; }
+}
+async function saveSinavTuru(tur) {
+  try { await window.storage.set("pdr-sinav-turu", tur); } catch(e) { console.warn(e); }
 }
 async function loadAktifYil() {
   try { const r = await window.storage.get("pdr-aktif-yil"); return r ? r.value : "2026-2027"; } catch { return "2026-2027"; }
@@ -2092,14 +2106,15 @@ async function raporIndir(elementId, dosyaAdi) {
 
 
 // ── PDF Rapor Verisi ─────────────────────────────────────────────────────────
-function raporVerisiOlustur({ ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler, mudahalePlan, riskListesi }) {
-  return { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: denemeler || {}, mudahalePlan: mudahalePlan || {}, riskListesi: riskListesi || [], tarih: new Date().toLocaleDateString("tr-TR") };
+function raporVerisiOlustur({ ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler, mudahalePlan, riskListesi, sinavTuru }) {
+  return { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: denemeler || {}, mudahalePlan: mudahalePlan || {}, riskListesi: riskListesi || [], sinavTuru, tarih: new Date().toLocaleDateString("tr-TR") };
 }
 
 // ── PDF Rapor Bileşeni ────────────────────────────────────────────────────────
 function RaporModal({ rapor, onKapat }) {
   if (!rapor) return null;
-  const { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: raporDenemeler, mudahalePlan: raporMudahale, riskListesi: raporRisk, tarih } = rapor;
+  const { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: raporDenemeler, mudahalePlan: raporMudahale, riskListesi: raporRisk, tarih, sinavTuru } = rapor;
+  const dersler = aktifDersler(sinavTuru);
 
   const dersOrtalama = () => {
     if (!profil2?.sinavlar) return null;
@@ -2364,7 +2379,7 @@ function RaporModal({ rapor, onKapat }) {
               const girilen = Object.entries(raporDenemeler)
                 .sort((a,b) => a[0]-b[0])
                 .map(([no, nets]) => {
-                  const toplam = LGS_DERSLER.reduce((s,d) => s+(parseFloat(nets[d.key])||0), 0);
+                  const toplam = dersler.reduce((s,d) => s+(parseFloat(nets[d.key])||0), 0);
                   return { no: parseInt(no), nets, toplam };
                 });
               const avg = girilen.reduce((s,d)=>s+d.toplam,0)/girilen.length;
@@ -2401,7 +2416,7 @@ function RaporModal({ rapor, onKapat }) {
                     {girilen.length > 0 && (
                       <div>
                         <div style={{fontSize:9,fontWeight:700,color:"#888",marginBottom:4}}>SON DENEME DERS DAĞILIMI (D{girilen[girilen.length-1].no})</div>
-                        {LGS_DERSLER.map(d => {
+                        {dersler.map(d => {
                           const val = parseFloat(girilen[girilen.length-1].nets?.[d.key])||0;
                           return (
                             <div key={d.key} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
@@ -4152,7 +4167,8 @@ function AyarlarEkrani({ ogrenciler, records, profiles, profiles2, oogDegerlendi
 
 
 // ── Excel Toplu Yükleme (7. Sınıf) ─────────────────────────────────────────
-function ExcelTopluYukle({ ogrenciler, setOgrenciler, denemeler, setDenemeler, aktifYil, onKapat }) {
+function ExcelTopluYukle({ ogrenciler, setOgrenciler, denemeler, setDenemeler, aktifYil, onKapat, sinavTuru }) {
+  const dersler = aktifDersler(sinavTuru);
   const [yukleniyor, setYukleniyor] = useState(false);
   const [sonuc, setSonuc] = useState(null);
 
@@ -4247,7 +4263,7 @@ function ExcelTopluYukle({ ogrenciler, setOgrenciler, denemeler, setDenemeler, a
           const ort = toplamGirilen > 0 ? toplamNet / toplamGirilen : 0;
 
           // Risk seviyesi
-          const risk7 = ort >= 55 ? "dusuk" : ort >= 30 ? "orta" : "yuksek";
+          const risk7 = denemeRiskHesapla(ort, dersler);
 
           // Mevcut öğrenci var mı?
           const mevcut = ogrenciler.find(o => pdrAyniOgrenci(o.studentName, o.className, adSoyad, sube, o.numara, no));
@@ -4302,7 +4318,7 @@ function ExcelTopluYukle({ ogrenciler, setOgrenciler, denemeler, setDenemeler, a
   return (
     <div style={{background:CARD, border:`2px solid #1A8C5B`, borderRadius:14, padding:16, marginBottom:16}}>
       <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
-        <div style={{fontSize:14, fontWeight:800, color:TEXT}}>📊 7. Sınıf Excel Yükle</div>
+        <div style={{fontSize:14, fontWeight:800, color:TEXT}}>📊 Geçmiş Dönem Excel Yükle</div>
         <button onClick={onKapat} style={{background:"none", border:"none", color:MUTED, fontSize:18, cursor:"pointer"}}>✕</button>
       </div>
 
@@ -4381,8 +4397,9 @@ function OgrenciYonetim({
   kayitliListesi, mudahalePlan, aktifYil, onYilEkrani,
   hazirlikNotlari, setHazirlikNotlari,
   ilerlemeNotlari, setIlerlemeNotlari,
-  onRaporAc, setAktifOgrenci, aktifOgrenci, setTab, onSinifGuncelle, onOgrenciSil, onSinifSil, sinifListesi
+  onRaporAc, setAktifOgrenci, aktifOgrenci, setTab, onSinifGuncelle, onOgrenciSil, onSinifSil, sinifListesi, sinavTuru
 }) {
+  const dersler = aktifDersler(sinavTuru);
 
   const [aramaMetni, setAramaMetni] = useState("");
   const [aramaDebounce, setAramaDebounce] = useState("");
@@ -4501,7 +4518,7 @@ function OgrenciYonetim({
   const ogrRisk = riskListesi.filter(r => pdrAyniOgrenci(r.studentName, r.className, seciliOgrenci, seciliOgrenciSinif, r.numara, seciliOgrenciNumara) && !r.kapandi);
   const denemeGirilen = Object.entries(ogrDeneme).filter(([no]) => no !== "7sinif").sort((a,b)=>a[0]-b[0]).map(([no,nets])=>({
     no:parseInt(no), nets,
-    toplam: LGS_DERSLER.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
+    toplam: dersler.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
   }));
   const denemeAvg = denemeGirilen.length ? (denemeGirilen.reduce((s,d)=>s+d.toplam,0)/denemeGirilen.length).toFixed(1) : null;
 
@@ -4697,16 +4714,16 @@ function OgrenciYonetim({
               // deneme ortalamasını göster — "7sinif" anahtarı manuel deneme sanılıp
               // yanlışlıkla ortalamaya karışmaz (o zaman hep 0.0 çıkardı).
               const oDenAvgSayi = oDen > 0
-                ? Object.entries(oDenSozluk).filter(([k])=>k!=="7sinif").reduce((s,[,nets])=>s+LGS_DERSLER.reduce((ss,d)=>ss+(parseFloat(nets[d.key])||0),0),0)/oDen
+                ? Object.entries(oDenSozluk).filter(([k])=>k!=="7sinif").reduce((s,[,nets])=>s+dersler.reduce((ss,d)=>ss+(parseFloat(nets[d.key])||0),0),0)/oDen
                 : null;
               const oDenAvg = oDenAvgSayi !== null ? oDenAvgSayi.toFixed(1) : (o7sinif ? o7sinif.ortalama : null);
               // Deneme riski: 8. sınıfta manuel giriş varsa (daha güncel olduğu için) ondan
               // hesaplanır; hiç manuel giriş yoksa 7. sınıfın (Excel'den gelen) risk
               // etiketine geri dönülür. İkisi çakışırsa 8. sınıf esas alınır.
               const oDenRisk = oDenAvgSayi !== null
-                ? (oDenAvgSayi >= 55 ? "dusuk" : oDenAvgSayi >= 30 ? "orta" : "yuksek")
+                ? denemeRiskHesapla(oDenAvgSayi, dersler)
                 : (o7sinif?.risk || null);
-              const oDenRiskKaynak = oDenAvgSayi !== null ? "8. sınıf denemeleri" : "7. sınıf denemeleri";
+              const oDenRiskKaynak = oDenAvgSayi !== null ? "Bu dönem denemeleri" : "Geçmiş dönem denemeleri";
 
               // Kategori: Riskli / Takip Gerekli / İyi Gidiyor — öncelik sırası:
               // 1) Açık risk kaydı  2) Görüşme (yakın zamanda yapılmışsa yeterli sayılır)
@@ -4974,7 +4991,7 @@ function OgrenciYonetim({
             <div>
               {sinif7Data && (
                 <div style={{background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, padding:12, marginBottom:12}}>
-                  <div style={{fontSize:11, fontWeight:700, color:MUTED, textTransform:"uppercase", marginBottom:8}}>📊 7. Sınıf Deneme Geçmişi</div>
+                  <div style={{fontSize:11, fontWeight:700, color:MUTED, textTransform:"uppercase", marginBottom:8}}>📊 Geçmiş Dönem Deneme Geçmişi</div>
                   <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8}}>
                     <div style={{textAlign:"center"}}>
                       <div style={{fontSize:22, fontWeight:900, color:
@@ -5029,7 +5046,7 @@ function OgrenciYonetim({
                           <span style={{ fontSize:20, fontWeight:900, color:c }}>{d.toplam.toFixed(1)}</span>
                         </div>
                         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:4 }}>
-                          {LGS_DERSLER.map(ld => {
+                          {dersler.map(ld => {
                             const val = parseFloat(d.nets?.[ld.key])||0;
                             return (
                               <div key={ld.key} style={{ background:BG, borderRadius:6, padding:"4px 6px" }}>
@@ -5096,7 +5113,7 @@ function OgrenciYonetim({
   );
 }
 
-// ── LGS Deneme Takip Bileşeni ────────────────────────────────────────────────
+// ── Deneme Takip Bileşeni — Sınav Türleri ──────────────────────────────────────
 const LGS_DERSLER = [
   { key: "turkce",   label: "Türkçe",    maks: 20, color: "#E63946" },
   { key: "mat",      label: "Matematik", maks: 20, color: "#457B9D" },
@@ -5105,9 +5122,54 @@ const LGS_DERSLER = [
   { key: "ingilizce",label: "İngilizce", maks: 10, color: "#7B5EA7" },
   { key: "din",      label: "Din",       maks: 10, color: "#E9C46A" },
 ];
+// Okul kademesine göre farklı sınavlar farklı ders/soru dağılımına sahiptir.
+// Ortaokulda LGS, lisede ise alana göre değişen TYT + AYT uygulanır. Danışman
+// hangi sınav türünü seçerse, Deneme sekmesindeki dersler, Excel/manuel giriş
+// ve risk hesaplaması otomatik olarak ona göre ayarlanır.
+const SINAV_TURLERI = {
+  lgs: { ad: "LGS (Ortaokul)", dersler: LGS_DERSLER },
+  tyt: { ad: "TYT (Lise — Ortak)", dersler: [
+    { key: "turkce",  label: "Türkçe",          maks: 40, color: "#E63946" },
+    { key: "sosyal",  label: "Sosyal Bilimler", maks: 20, color: "#E76F51" },
+    { key: "mat",     label: "Temel Matematik", maks: 40, color: "#457B9D" },
+    { key: "fen",     label: "Fen Bilimleri",   maks: 20, color: "#2D6A4F" },
+  ]},
+  ayt_sayisal: { ad: "AYT — Sayısal", dersler: [
+    { key: "mat",      label: "Matematik", maks: 40, color: "#457B9D" },
+    { key: "fizik",    label: "Fizik",     maks: 14, color: "#2D6A4F" },
+    { key: "kimya",    label: "Kimya",     maks: 13, color: "#E9C46A" },
+    { key: "biyoloji", label: "Biyoloji",  maks: 13, color: "#7B5EA7" },
+  ]},
+  ayt_ea: { ad: "AYT — Eşit Ağırlık", dersler: [
+    { key: "mat",       label: "Matematik",        maks: 40, color: "#457B9D" },
+    { key: "edebiyat",  label: "Edebiyat-Sosyal",  maks: 24, color: "#E63946" },
+    { key: "tarih",     label: "Tarih-1",          maks: 10, color: "#E76F51" },
+    { key: "cografya",  label: "Coğrafya-1",       maks: 6,  color: "#2D6A4F" },
+  ]},
+  ayt_sozel: { ad: "AYT — Sözel", dersler: [
+    { key: "edebiyat",  label: "Edebiyat-Sosyal", maks: 24, color: "#E63946" },
+    { key: "tarih",     label: "Tarih",           maks: 21, color: "#E76F51" },
+    { key: "cografya",  label: "Coğrafya",        maks: 17, color: "#2D6A4F" },
+    { key: "felsefe",   label: "Felsefe Grubu",   maks: 12, color: "#7B5EA7" },
+    { key: "din",       label: "Din Kültürü",     maks: 6,  color: "#E9C46A" },
+  ]},
+  ayt_dil: { ad: "AYT — Yabancı Dil (YDT)", dersler: [
+    { key: "yabanci_dil", label: "Yabancı Dil", maks: 80, color: "#7B5EA7" },
+  ]},
+};
+function aktifDersler(sinavTuru) { return (SINAV_TURLERI[sinavTuru] || SINAV_TURLERI.lgs).dersler; }
+// Risk eşiği artık sabit net (55/30) değil, sınavın toplam soru sayısına göre
+// YÜZDE olarak hesaplanır — böylece 90 soruluk LGS'de de, 120 soruluk TYT'de
+// de, 80 soruluk AYT'de de doğru orantılı çalışır.
+function denemeRiskHesapla(net, dersler) {
+  const maksToplam = dersler.reduce((s, d) => s + d.maks, 0) || 90;
+  const yuzde = (net / maksToplam) * 100;
+  return yuzde >= 61 ? "dusuk" : yuzde >= 33 ? "orta" : "yuksek";
+}
 const DENEME_SAYISI = 10;
 
-function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, setAktifOgrenci, handleDenemeAnaliz, denemeAiLoading, denemeAnaliz, ogrenciler, setOgrenciler, aktifYil }) {
+function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, setAktifOgrenci, handleDenemeAnaliz, denemeAiLoading, denemeAnaliz, ogrenciler, setOgrenciler, aktifYil, sinavTuru, setSinavTuru }) {
+  const dersler = aktifDersler(sinavTuru);
   const [excelPanelAcik, setExcelPanelAcik] = useState(false);
   const [seciliOgrenci, setSeciliOgrenci] = useState(aktifOgrenci?.name || "");
   // aktifOgrenci değişince güncelle
@@ -5130,7 +5192,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
 
   // Toplam net hesapla
   function toplamNet(nets) {
-    return LGS_DERSLER.reduce((sum, d) => sum + (parseFloat(nets?.[d.key]) || 0), 0);
+    return dersler.reduce((sum, d) => sum + (parseFloat(nets?.[d.key]) || 0), 0);
   }
 
   // Grafik için veri
@@ -5213,7 +5275,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
           <div style={{ marginTop: 10 }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.75)", marginBottom: 6 }}>Son Deneme Ders Dağılımı</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4 }}>
-              {LGS_DERSLER.map(d => {
+              {dersler.map(d => {
                 const sonDeneme = girilenDenemeler[girilenDenemeler.length - 1];
                 const val = parseFloat(sonDeneme?.nets?.[d.key]) || 0;
                 const pct = (val / d.maks) * 100;
@@ -5247,7 +5309,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
       <div style={{ background: CARD, border: `2px solid ${ACCENT}`, borderRadius: 12, padding: 14, marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontWeight: 800, color: ACCENT, marginBottom: 12 }}>Deneme {no} — Net Girişi</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
-          {LGS_DERSLER.map(d => (
+          {dersler.map(d => (
             <div key={d.key}>
               <label style={{ fontSize: 10, fontWeight: 700, color: d.color, display: "block", marginBottom: 3 }}>
                 {d.label} (/{d.maks})
@@ -5292,10 +5354,20 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
     await saveDenemeler(updated);
   }
 
+  const dersToplami = dersler.reduce((s,d)=>s+d.maks,0);
+
   return (
     <div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
+        <label style={{ fontSize: 11, fontWeight: 700, color: MUTED }}>SINAV TÜRÜ</label>
+        <select value={sinavTuru || "lgs"} onChange={e => setSinavTuru(e.target.value)} style={{
+          padding: "6px 10px", borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 12, fontWeight: 700, color: TEXT, background: CARD, cursor: "pointer"
+        }}>
+          {Object.entries(SINAV_TURLERI).map(([k, v]) => <option key={k} value={k}>{v.ad}</option>)}
+        </select>
+      </div>
       <div style={{ background: "#EEF2FF", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: BLUE, fontWeight: 600 }}>
-        📊 LGS Deneme Takibi — 10 deneme, 90 soru, toplam net
+        📊 {SINAV_TURLERI[sinavTuru || "lgs"].ad} Deneme Takibi — {DENEME_SAYISI} deneme, {dersler.length} ders, {dersToplami} soru
       </div>
 
       {!excelPanelAcik && (
@@ -5304,7 +5376,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
           background: "#1A8C5B", color: "#fff", border: "none", borderRadius: 10,
           fontSize: 13, fontWeight: 800, cursor: "pointer"
         }}>
-          📂 7. Sınıf Excel Toplu Yükle
+          📂 Geçmiş Dönem Excel Toplu Yükle
         </button>
       )}
 
@@ -5315,6 +5387,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
           denemeler={denemeler}
           setDenemeler={setDenemeler}
           aktifYil={aktifYil}
+          sinavTuru={sinavTuru}
           onKapat={() => setExcelPanelAcik(false)}
         />
       )}
@@ -5384,7 +5457,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
               {/* 7. Sınıf Özet */}
         {sinif7Data && (
           <div style={{background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, padding:12, marginBottom:12}}>
-            <div style={{fontSize:11, fontWeight:700, color:MUTED, textTransform:"uppercase", marginBottom:8}}>📊 7. Sınıf Deneme Geçmişi</div>
+            <div style={{fontSize:11, fontWeight:700, color:MUTED, textTransform:"uppercase", marginBottom:8}}>📊 Geçmiş Dönem Deneme Geçmişi</div>
             <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8}}>
               <div style={{textAlign:"center"}}>
                 <div style={{fontSize:22, fontWeight:900, color:
@@ -5456,7 +5529,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
                         <>
                           <div style={{ fontSize: 24, fontWeight: 900, color: renkSinif, marginBottom: 4 }}>{toplam.toFixed(2)}</div>
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginBottom: 8 }}>
-                            {LGS_DERSLER.map(d => (
+                            {dersler.map(d => (
                               <span key={d.key} style={{ fontSize: 9, background: "#fff", color: d.color, borderRadius: 4, padding: "1px 4px", fontWeight: 700 }}>
                                 {d.label[0]}: {parseFloat(nets[d.key] || 0).toFixed(2) === (parseFloat(nets[d.key] || 0)).toString() ? parseFloat(nets[d.key] || 0) : parseFloat(nets[d.key] || 0).toFixed(2)}
                               </span>
@@ -5624,8 +5697,9 @@ function ProfilMerkez({
   profiles2, setProfiles2,
   oogDegerlendirmeler, setOogDegerlendirmeler,
   denemeler, records, kutuphane,
-  onRaporAc,
+  onRaporAc, sinavTuru,
 }) {
+  const dersler = aktifDersler(sinavTuru);
   // Seçili öğrenci
   const [seciliAd, setSeciliAd] = useState(aktifOgrenci?.name || "");
   const [seciliSinif, setSeciliSinif] = useState(aktifOgrenci?.className || "");
@@ -5661,7 +5735,7 @@ function ProfilMerkez({
   const ogrRec2 = ogrRec; // alias for P2 context
   const ogrDeneme = pdrSozlukOku(denemeler, seciliAd, seciliSinif, seciliNumara) || {};
   const denemeGirilen = Object.entries(ogrDeneme).sort((a,b)=>a[0]-b[0]).map(([no,nets])=>({
-    no:parseInt(no), nets, toplam: LGS_DERSLER.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
+    no:parseInt(no), nets, toplam: dersler.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
   }));
 
   useEffect(() => {
@@ -6948,6 +7022,12 @@ export default function App() {
   const [denemeAnaliz, setDenemeAnaliz] = useState({});
   const [yillar, setYillar] = useState(["2026-2027"]);
   const [sinifListesi, setSinifListesi] = useState([]);
+  const [sinavTuru, setSinavTuruState] = useState("lgs");
+  const aktifDenemeDersleri = aktifDersler(sinavTuru);
+  async function setSinavTuru(tur) {
+    setSinavTuruState(tur);
+    await saveSinavTuru(tur);
+  }
   const [aktifYil, setAktifYil] = useState("2026-2027");
   const [yilEkranı, setYilEkrani] = useState(false); // true = yıl seçim ekranı
   const [mudahalePlan, setMudahalePlan] = useState({});
@@ -6971,6 +7051,7 @@ export default function App() {
     loadOgrenciler().then(setOgrenciler);
     loadYillar().then(setYillar);
     loadSinifListesi().then(v => { if (v) setSinifListesi(v); });
+    loadSinavTuru().then(v => { if (v) setSinavTuruState(v); });
     loadAktifYil().then(setAktifYil);
     loadMudahalePlan().then(setMudahalePlan);
     loadHazirlikNotlari().then(setHazirlikNotlari);
@@ -7033,7 +7114,7 @@ export default function App() {
       ? "DENEME SONUÇLARI: " + Object.entries(ogrenciDenemeler)
           .sort((a,b) => a[0]-b[0])
           .map(([no, nets]) => {
-            const toplam = LGS_DERSLER.reduce((s,d) => s+(parseFloat(nets[d.key])||0), 0);
+            const toplam = aktifDenemeDersleri.reduce((s,d) => s+(parseFloat(nets[d.key])||0), 0);
             return `D${no}: ${toplam.toFixed(1)} net`;
           }).join(", ")
       : "";
@@ -7114,10 +7195,10 @@ export default function App() {
     const gorusmeler = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, studentName, className, r.numara, numara));
     const ogrDeneme = pdrSozlukOku(denemeler, studentName, className, numara) || {};
     const girilen = Object.entries(ogrDeneme).sort((a,b)=>a[0]-b[0]).map(([no,nets])=>({
-      no:parseInt(no), nets, toplam: LGS_DERSLER.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
+      no:parseInt(no), nets, toplam: aktifDenemeDersleri.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
     }));
     setDenemeAiLoading(true);
-    const analiz = await getDenemeAnalizi(studentName, gorusmeler, girilen, kutuphane);
+    const analiz = await getDenemeAnalizi(studentName, gorusmeler, girilen, kutuphane, sinavTuru);
     setDenemeAnaliz(prev => pdrSozlukYaz(prev, studentName, className, analiz, numara));
     setDenemeAiLoading(false);
   }
@@ -7137,7 +7218,7 @@ export default function App() {
         const parse = d => { const [g, ay, y] = (d||"").split("."); return new Date(`${y}-${ay}-${g}`); };
         return parse(a.date) - parse(b.date);
       });
-    setRaporVerisi(raporVerisiOlustur({ ogrenci: ogrenciAdi, ogrenciSinif: profil1.className, profil1, profil2, gorusmeler, denemeler: pdrSozlukOku(denemeler, ogrenciAdi, profil1.className, profil1.numara) || {}, mudahalePlan, riskListesi }));
+    setRaporVerisi(raporVerisiOlustur({ ogrenci: ogrenciAdi, ogrenciSinif: profil1.className, profil1, profil2, gorusmeler, denemeler: pdrSozlukOku(denemeler, ogrenciAdi, profil1.className, profil1.numara) || {}, mudahalePlan, riskListesi, sinavTuru }));
   }
 
   async function handleProf2Analiz() {
@@ -7147,9 +7228,9 @@ export default function App() {
       : "";
     const ogrDen2 = pdrSozlukOku(denemeler, seciliAd, seciliSinif, seciliNumara) || {};
     const girilen2 = Object.entries(ogrDen2).sort((a,b)=>a[0]-b[0]).map(([no,nets])=>({
-      no:parseInt(no), nets, toplam: LGS_DERSLER.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
+      no:parseInt(no), nets, toplam: aktifDenemeDersleri.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
     }));
-    const analiz = await getP2Analiz({ ...prof2Form, studentName: seciliAd, className: seciliSinif, gorusmeler: gorusmeBolum2, denemeGirilen: girilen2 });
+    const analiz = await getP2Analiz({ ...prof2Form, studentName: seciliAd, className: seciliSinif, gorusmeler: gorusmeBolum2, denemeGirilen: girilen2, sinavTuru });
     setProf2Analiz(analiz);
     setProf2AiLoading(false);
   }
@@ -7442,7 +7523,8 @@ export default function App() {
             denemeler={denemeler}
             records={records}
             kutuphane={kutuphane}
-            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi }))}
+            sinavTuru={sinavTuru}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru }))}
           />
         )}
 
@@ -7583,12 +7665,13 @@ export default function App() {
             aktifYil={aktifYil}
             aktifOgrenci={aktifOgrenci}
             sinifListesi={sinifListesi}
+            sinavTuru={sinavTuru}
             onYilEkrani={() => setYilEkrani(true)}
             hazirlikNotlari={hazirlikNotlari}
             setHazirlikNotlari={setHazirlikNotlari}
             ilerlemeNotlari={ilerlemeNotlari}
             setIlerlemeNotlari={setIlerlemeNotlari}
-            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi }))}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru }))}
             onSinifGuncelle={async (eskiAd, eskiSinif, eskiNumara, yeniSinif) => {
               const ayniMi = (ad, sinif, no) => pdrAyniOgrenci(eskiAd, eskiSinif, ad, sinif, eskiNumara, no);
 
@@ -7748,6 +7831,8 @@ export default function App() {
             ogrenciler={ogrenciler}
             setOgrenciler={setOgrenciler}
             aktifYil={aktifYil}
+            sinavTuru={sinavTuru}
+            setSinavTuru={setSinavTuru}
           />
         )}
 
