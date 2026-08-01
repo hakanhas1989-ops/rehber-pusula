@@ -4109,7 +4109,7 @@ function KullaniciOnaylari() {
   );
 }
 
-function AyarlarEkrani({ ogrenciler, records, profiles, profiles2, oogDegerlendirmeler, riskListesi, denemeler, sevkler, mudahalePlan, hazirlikNotlari, ilerlemeNotlari, profNotlari, kutuphane, yillar, sinifListesi, aktifYil, kademe, setKademe }) {
+function AyarlarEkrani({ ogrenciler, records, profiles, profiles2, oogDegerlendirmeler, riskListesi, denemeler, sevkler, mudahalePlan, hazirlikNotlari, ilerlemeNotlari, profNotlari, kutuphane, yillar, sinifListesi, aktifYil, kademe, setKademe, sinavTuru, setSinavTuru }) {
   const [key, setKey] = useState(() => pdrGetApiKey());
   const [gosterKey, setGosterKey] = useState(false);
   const [kaydedildi, setKaydedildi] = useState(false);
@@ -4155,7 +4155,16 @@ function AyarlarEkrani({ ogrenciler, records, profiles, profiles2, oogDegerlendi
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {[["", "Belirtme"], ["ilkokul", "İlkokul"], ["ortaokul", "Ortaokul"], ["lise", "Lise"]].map(([k, l]) => (
-            <button key={k} onClick={() => setKademe(k)} style={{
+            <button key={k} onClick={() => {
+              setKademe(k);
+              // Kademe ile Deneme sekmesindeki sınav türü genelde birebir örtüşür — kolaylık
+              // olsun diye burada bir öneri olarak otomatik ayarlanır (Ortaokul→LGS,
+              // Lise→TYT). Bu sadece kademe DEĞİŞTİĞİNDE bir kerelik önerme; Deneme
+              // sekmesinden istediğin zaman elle farklı bir sınav türüne geçebilirsin
+              // (örn. lisede AYT-Sayısal, AYT-Sözel gibi) — üzerine yazmaya devam etmez.
+              if (k === "ortaokul" && setSinavTuru) setSinavTuru("lgs");
+              else if (k === "lise" && setSinavTuru) setSinavTuru("tyt");
+            }} style={{
               flex: "1 1 100px", padding: "8px 6px", borderRadius: 8,
               border: `2px solid ${(kademe||"")===k ? "#1A8C5B" : BORDER}`,
               background: (kademe||"")===k ? "#F0FDF4" : CARD,
@@ -4164,6 +4173,11 @@ function AyarlarEkrani({ ogrenciler, records, profiles, profiles2, oogDegerlendi
             }}>{l}</button>
           ))}
         </div>
+        {(kademe === "ortaokul" || kademe === "lise") && (
+          <div style={{ fontSize: 11, color: "#1A8C5B", marginTop: 8 }}>
+            ✓ Deneme sekmesindeki sınav türü otomatik "{SINAV_TURLERI[sinavTuru]?.ad}" olarak ayarlandı — istersen Deneme sekmesinden değiştirebilirsin.
+          </div>
+        )}
       </div>
 
       <div style={{ background: "#EEF2FF", borderRadius: 12, padding: 14, marginBottom: 16 }}>
@@ -8205,6 +8219,7 @@ export default function App() {
           ilerlemeNotlari={ilerlemeNotlari} profNotlari={profNotlari} kutuphane={kutuphane}
           yillar={yillar} sinifListesi={sinifListesi} aktifYil={aktifYil}
           kademe={kademe} setKademe={setKademe}
+          sinavTuru={sinavTuru} setSinavTuru={setSinavTuru}
         />}
         {tab === "onaylar" && pdrIsAdmin && <KullaniciOnaylari />}
       </div>
