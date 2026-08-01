@@ -1063,7 +1063,30 @@ function pdrKutuphaneBaglam(kutuphaneOzetleri = []) {
     : "";
 }
 
-async function getRiskAnalizi(riskForm, gorusmeler, profil1, kutuphaneOzetleri = []) {
+// Risk/müdahale AI önerileri, öğrencinin okul kademesine göre farklı gelişimsel
+// bağlamda değerlendirilmeli — aynı davranış (örn. akran çatışması) ilkokulda,
+// ortaokulda ve lisede çok farklı klinik anlam taşır. Erikson'un psikososyal
+// gelişim evreleri ve o yaşa özgü tipik konular, AI'a arka plan olarak verilir.
+const KADEME_BILGISI = {
+  ilkokul: {
+    ad: "İlkokul (1-4. Sınıf)",
+    baglam: "Öğrenci ilkokul çağında (yaklaşık 6-10 yaş). Erikson'un psikososyal gelişim kuramına göre bu dönem 'Başarılı Olma - Yetersizlik Duygusu' evresidir; çocuk yeterlilik ve beceri kazanma üzerinden özgüven geliştirir. Bu yaşta sık görülen konular: ayrılık kaygısı, aile içi değişikliklere (boşanma, kardeş doğumu) uyum, akranlarla paylaşma/işbirliği güçlükleri, okula uyum, dikkat ve öğrenme güçlüklerinin ilk belirtileri, temel duygu düzenleme becerilerinin gelişimi. Değerlendirmede gelişimsel normlar göz önünde bulundurulmalı, yetişkin bakış açısıyla erken/aşırı yorum yapılmamalıdır."
+  },
+  ortaokul: {
+    ad: "Ortaokul (5-8. Sınıf)",
+    baglam: "Öğrenci ortaokul çağında (yaklaşık 10-14 yaş), ergenliğe geçiş dönemindedir. Erikson'a göre bu dönem 'Kimlik - Rol Karmaşası' evresinin başlangıcıdır; ergen kim olduğunu sorgulamaya, akran grubuna aidiyet aramaya başlar. Bu yaşta sık görülen konular: bedensel değişimlere uyum, akran zorbalığı/dışlanma, sosyal medya kullanımının başlaması, sınav kaygısı (LGS), aile ile çatışmaların artması, özerklik arayışı, benlik saygısı dalgalanmaları. Değerlendirmede ergenliğin normal bir gelişim süreci olduğu unutulmamalı, aşırı patolojikleştirmeden yaklaşılmalıdır."
+  },
+  lise: {
+    ad: "Lise (9-12. Sınıf)",
+    baglam: "Öğrenci lise çağında (yaklaşık 14-18 yaş), ergenliğin ileri döneminde ve kimlik oluşumunun yoğunlaştığı bir dönemdedir. Erikson'a göre 'Kimlik - Rol Karmaşası' evresi bu yaşta belirginleşir; kariyer, değerler ve özerklik konuları öne çıkar. Bu yaşta sık görülen konular: üniversite sınavı kaygısı ve gelecek belirsizliği, romantik ilişkiler, madde kullanımı riski, sosyal medya/dijital bağımlılık, öz zarar ve intihar riskinin artabileceği bir dönem olması, yeme bozuklukları, kimlik süreçleri, ekonomik sorumluluk (part-time iş). Özerklik ihtiyacına saygı gösterilirken güvenlik risklerine karşı da dikkatli olunmalıdır."
+  }
+};
+function kademeBaglamMetni(kademe) {
+  const k = KADEME_BILGISI[kademe];
+  return k ? `\n\nGELİŞİMSEL BAĞLAM (${k.ad}): ${k.baglam}` : "";
+}
+
+async function getRiskAnalizi(riskForm, gorusmeler, profil1, kutuphaneOzetleri = [], kademe = "") {
   const gorusmeBolum = gorusmeler.length > 0
     ? "GÖRÜŞME NOTLARI:\n" + gorusmeler.map((r,i)=>`Görüşme ${i+1} (${r.date}): ${r.summary}`).join("\n\n")
     : "Görüşme kaydı yok.";
@@ -1071,10 +1094,12 @@ async function getRiskAnalizi(riskForm, gorusmeler, profil1, kutuphaneOzetleri =
     ? "PDR PROFİL PUANLARI:\n" + Object.entries(profil1.scores||{}).map(([k,v])=>`${k}: ${v}/5`).join(", ")
     : "";
   const kutuphaneBaglam = pdrKutuphaneBaglam(kutuphaneOzetleri);
+  const kademeMetni = kademeBaglamMetni(kademe);
   const prompt = `Öğrenci: ${riskForm.studentName} (${riskForm.className})
 Risk Türü: ${riskForm.riskTuru}
 Öncelik: ${riskForm.oncelik}
 Açıklama: ${riskForm.aciklama}
+${kademeMetni}
 
 ${gorusmeBolum}
 ${profilBolum}${kutuphaneBaglam}
@@ -1091,7 +1116,7 @@ ACİL MÜDAHALE GEREKTİRİR Mİ: (Evet/Hayır — gerekçesiyle)
 2.
 3.
 
-${kutuphaneOzetleri.length > 0 ? "Kütüphane referanslarından (özellikle varsa yönetmelik/mevzuat maddelerinden) yararlan. " : ""}Sade, PDR diline uygun yaz. Markdown kullanma.`;
+${kademe ? "Değerlendirmeyi öğrencinin yaş/gelişim dönemine uygun şekilde yap. " : ""}${kutuphaneOzetleri.length > 0 ? "Kütüphane referanslarından (özellikle varsa yönetmelik/mevzuat maddelerinden) yararlan. " : ""}Sade, PDR diline uygun yaz. Markdown kullanma.`;
 
   const res = await pdrCallClaude({
       model: "claude-sonnet-4-6", max_tokens: 2000,
@@ -1438,6 +1463,12 @@ async function loadSinavTuru() {
 }
 async function saveSinavTuru(tur) {
   try { await window.storage.set("pdr-sinav-turu", tur); } catch(e) { console.warn(e); }
+}
+async function loadKademe() {
+  try { const r = await window.storage.get("pdr-kademe"); return r ? r.value : null; } catch { return null; }
+}
+async function saveKademe(k) {
+  try { await window.storage.set("pdr-kademe", k); } catch(e) { console.warn(e); }
 }
 async function loadAktifYil() {
   try { const r = await window.storage.get("pdr-aktif-yil"); return r ? r.value : "2026-2027"; } catch { return "2026-2027"; }
@@ -2885,7 +2916,7 @@ function Profile2Card({ p, onDelete }) {
 // ── Öğrenci Yönetim Bileşeni ─────────────────────────────────────────────────
 
 // ── Müdahale Planı Bileşeni ───────────────────────────────────────────────────
-function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mudahalePlan, setMudahalePlan, records, kutuphane }) {
+function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mudahalePlan, setMudahalePlan, records, kutuphane, kademe }) {
   const [seciliAd, setSeciliAd] = useState(aktifOgrenci?.name || "");
   const [aramaMetni, setAramaMetni] = useState("");
   const [form, setForm] = useState({ hedef:"", adimlar:"", sorumlu:"pdr", sure:"", oncelik:"Orta", durum:"Devam Ediyor" });
@@ -2903,10 +2934,12 @@ function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mud
     setAiLoading(true);
     const notlar = ogrRec.map((r,i) => `Görüşme ${i+1} (${r.date}): ${r.summary}`).join("\n\n");
     const kutuphaneBaglam = pdrKutuphaneBaglam(kutuphane);
+    const kademeMetni = kademeBaglamMetni(kademe);
     const res = await pdrCallClaude({
         model:"claude-sonnet-4-6", max_tokens:1500,
         system:"Sen Dr. Ayse Kara'sin — 20 yillik klinik PDR uzmanisin. BDT ve varoluşçu perspektiften somut müdahale plani olusturursun.",
         messages:[{role:"user", content:`Öğrenci: ${seciliAd}
+${kademeMetni}
 
 Görüşme Notları:
 ${notlar||"Henüz görüşme notu yok."}${kutuphaneBaglam}
@@ -2921,7 +2954,7 @@ MÜDAHALE ADIMLARI:
 SÜRE: (kaç hafta/ay)
 KONTROL KRİTERİ: (nasıl değerlendireceğiz)
 
-${kutuphane?.length > 0 ? "Kütüphane referanslarından (varsa ilgili yönetmelik/mevzuat maddeleri dahil) yararlan. " : ""}Sade yaz, Markdown kullanma.`}]
+${kademe ? "Planı öğrencinin yaş/gelişim dönemine uygun şekilde oluştur. " : ""}${kutuphane?.length > 0 ? "Kütüphane referanslarından (varsa ilgili yönetmelik/mevzuat maddeleri dahil) yararlan. " : ""}Sade yaz, Markdown kullanma.`}]
       });
     const data = await res.json();
     const analiz = data.content?.[0]?.text || "";
@@ -4076,7 +4109,7 @@ function KullaniciOnaylari() {
   );
 }
 
-function AyarlarEkrani({ ogrenciler, records, profiles, profiles2, oogDegerlendirmeler, riskListesi, denemeler, sevkler, mudahalePlan, hazirlikNotlari, ilerlemeNotlari, profNotlari, kutuphane, yillar, sinifListesi, aktifYil }) {
+function AyarlarEkrani({ ogrenciler, records, profiles, profiles2, oogDegerlendirmeler, riskListesi, denemeler, sevkler, mudahalePlan, hazirlikNotlari, ilerlemeNotlari, profNotlari, kutuphane, yillar, sinifListesi, aktifYil, kademe, setKademe }) {
   const [key, setKey] = useState(() => pdrGetApiKey());
   const [gosterKey, setGosterKey] = useState(false);
   const [kaydedildi, setKaydedildi] = useState(false);
@@ -4114,6 +4147,24 @@ function AyarlarEkrani({ ogrenciler, records, profiles, profiles2, oogDegerlendi
   return (
     <div style={{ maxWidth: 520 }}>
       <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 6 }}>⚙️ Ayarlar</div>
+
+      <div style={{ background: "#F0FDF4", borderRadius: 12, padding: 14, marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 14, color: "#1A8C5B" }}>🎓 Okul Kademesi</div>
+        <div style={{ fontSize: 13, color: MUTED, marginBottom: 10, lineHeight: 1.5 }}>
+          Risk değerlendirmesi ve müdahale planı önerilerinde AI, öğrencinin yaş/gelişim dönemine uygun bağlamı (Erikson'un gelişim evreleri ve o yaşa özgü tipik konular) dikkate alır. Seçmezsen genel bir değerlendirme yapılır.
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {[["", "Belirtme"], ["ilkokul", "İlkokul"], ["ortaokul", "Ortaokul"], ["lise", "Lise"]].map(([k, l]) => (
+            <button key={k} onClick={() => setKademe(k)} style={{
+              flex: "1 1 100px", padding: "8px 6px", borderRadius: 8,
+              border: `2px solid ${(kademe||"")===k ? "#1A8C5B" : BORDER}`,
+              background: (kademe||"")===k ? "#F0FDF4" : CARD,
+              color: (kademe||"")===k ? "#1A8C5B" : MUTED,
+              fontSize: 12, fontWeight: 700, cursor: "pointer"
+            }}>{l}</button>
+          ))}
+        </div>
+      </div>
 
       <div style={{ background: "#EEF2FF", borderRadius: 12, padding: 14, marginBottom: 16 }}>
         <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 14, color: BLUE }}>📥 Tüm Veriyi Yedekle</div>
@@ -7028,6 +7079,11 @@ export default function App() {
     setSinavTuruState(tur);
     await saveSinavTuru(tur);
   }
+  const [kademe, setKademeState] = useState("");
+  async function setKademe(k) {
+    setKademeState(k);
+    await saveKademe(k);
+  }
   const [aktifYil, setAktifYil] = useState("2026-2027");
   const [yilEkranı, setYilEkrani] = useState(false); // true = yıl seçim ekranı
   const [mudahalePlan, setMudahalePlan] = useState({});
@@ -7052,6 +7108,7 @@ export default function App() {
     loadYillar().then(setYillar);
     loadSinifListesi().then(v => { if (v) setSinifListesi(v); });
     loadSinavTuru().then(v => { if (v) setSinavTuruState(v); });
+    loadKademe().then(v => { if (v) setKademeState(v); });
     loadAktifYil().then(setAktifYil);
     loadMudahalePlan().then(setMudahalePlan);
     loadHazirlikNotlari().then(setHazirlikNotlari);
@@ -7156,7 +7213,7 @@ export default function App() {
     const ad = riskForm.studentName.toLowerCase().trim();
     const ogrGorusmeler = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, riskForm.studentName, riskForm.className, r.numara, riskForm.numara));
     const ogrP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, riskForm.studentName, riskForm.className, p.numara, riskForm.numara));
-    const aiAnaliz = await getRiskAnalizi(riskForm, ogrGorusmeler, ogrP1, kutuphane);
+    const aiAnaliz = await getRiskAnalizi(riskForm, ogrGorusmeler, ogrP1, kutuphane, kademe);
     // Risk düzeyini AI cevabından çek
     // Risk düzeyi
     let aiOncelik = riskForm.oncelik;
@@ -7468,6 +7525,7 @@ export default function App() {
             setMudahalePlan={setMudahalePlan}
             records={records}
             kutuphane={kutuphane}
+            kademe={kademe}
           />
         )}
 
@@ -8146,6 +8204,7 @@ export default function App() {
           sevkler={sevkler} mudahalePlan={mudahalePlan} hazirlikNotlari={hazirlikNotlari}
           ilerlemeNotlari={ilerlemeNotlari} profNotlari={profNotlari} kutuphane={kutuphane}
           yillar={yillar} sinifListesi={sinifListesi} aktifYil={aktifYil}
+          kademe={kademe} setKademe={setKademe}
         />}
         {tab === "onaylar" && pdrIsAdmin && <KullaniciOnaylari />}
       </div>
