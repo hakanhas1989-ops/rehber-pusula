@@ -1470,6 +1470,12 @@ async function loadKademe() {
 async function saveKademe(k) {
   try { await window.storage.set("pdr-kademe", k); } catch(e) { console.warn(e); }
 }
+async function loadRehberGorunduMu() {
+  try { const r = await window.storage.get("pdr-rehber-gorundu"); return r ? r.value === "1" : false; } catch { return false; }
+}
+async function saveRehberGorunduMu() {
+  try { await window.storage.set("pdr-rehber-gorundu", "1"); } catch(e) { console.warn(e); }
+}
 async function loadAktifYil() {
   try { const r = await window.storage.get("pdr-aktif-yil"); return r ? r.value : "2026-2027"; } catch { return "2026-2027"; }
 }
@@ -7038,6 +7044,41 @@ function RecordCard({ rec, onDelete, onUpdate }) {
   );
 }
 
+// ── Başlarken Rehberi ────────────────────────────────────────────────────────
+const REHBER_ADIMLARI = [
+  { ikon: "⚙️", baslik: "Ayarlar'dan başla", metin: "Okul kademeni (İlkokul/Ortaokul/Lise) ve varsa sınav türünü seç. Bu, AI önerilerinin öğrencinin yaşına uygun olmasını sağlar." },
+  { ikon: "🏫", baslik: "Sınıflarını oluştur", metin: "Sınıf sekmesinden sınıf ekle, ya da doğrudan deneme Excel'ini / sınıf listesini yükleyerek öğrencilerini otomatik oluştur." },
+  { ikon: "👤", baslik: "Öğrenci görüşmesi kaydet", metin: "\"+ Not\" ile ilk görüşmeni kaydet — AI otomatik özetlesin, öğrenci profiline işlensin." },
+  { ikon: "⚠️", baslik: "Risk ve Müdahale takibi", metin: "Riskli gördüğün öğrencileri Risk sekmesinden işaretle, AI destekli müdahale planı oluştur." },
+  { ikon: "📚", baslik: "Kütüphaneyi besle", metin: "İlgili yönetmelik ya da makaleleri yükle — AI önerilerinde otomatik referans olarak kullanılsın." },
+  { ikon: "📥", baslik: "Düzenli yedek al", metin: "Ayarlar'dan \"Tüm Veriyi Yedekle\"ye basıp önemli işlemlerden önce ya da ayda bir dosyanı indir." },
+];
+function BaslarkenRehberi({ onKapat }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div style={{ background: "#fff", borderRadius: 18, maxWidth: 480, width: "100%", maxHeight: "88vh", overflowY: "auto", padding: 22 }}>
+        <div style={{ fontSize: 22, fontWeight: 900, color: TEXT, marginBottom: 4 }}>👋 Hoş Geldiniz</div>
+        <div style={{ fontSize: 13, color: MUTED, marginBottom: 18, lineHeight: 1.5 }}>
+          Rehber Pusula'yı ilk kez kullanıyorsan, aşağıdaki adımlar seni doğru yere yönlendirir. Bu rehbere istediğin zaman üstteki "?" simgesinden tekrar ulaşabilirsin.
+        </div>
+        {REHBER_ADIMLARI.map((a, i) => (
+          <div key={i} style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+            <div style={{ fontSize: 22, flexShrink: 0, width: 34, textAlign: "center" }}>{a.ikon}</div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: TEXT, marginBottom: 2 }}>{i+1}. {a.baslik}</div>
+              <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.5 }}>{a.metin}</div>
+            </div>
+          </div>
+        ))}
+        <button onClick={onKapat} style={{
+          width: "100%", padding: 13, background: ACCENT, color: "#fff", border: "none",
+          borderRadius: 12, fontSize: 14, fontWeight: 800, cursor: "pointer", marginTop: 6
+        }}>Anladım, Başlayalım</button>
+      </div>
+    </div>
+  );
+}
+
 // ── MAIN ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [records, setRecords] = useState([]);
@@ -7098,6 +7139,7 @@ export default function App() {
     setKademeState(k);
     await saveKademe(k);
   }
+  const [rehberGoster, setRehberGoster] = useState(false);
   const [aktifYil, setAktifYil] = useState("2026-2027");
   const [yilEkranı, setYilEkrani] = useState(false); // true = yıl seçim ekranı
   const [mudahalePlan, setMudahalePlan] = useState({});
@@ -7123,6 +7165,7 @@ export default function App() {
     loadSinifListesi().then(v => { if (v) setSinifListesi(v); });
     loadSinavTuru().then(v => { if (v) setSinavTuruState(v); });
     loadKademe().then(v => { if (v) setKademeState(v); });
+    loadRehberGorunduMu().then(v => { if (!v) setRehberGoster(true); });
     loadAktifYil().then(setAktifYil);
     loadMudahalePlan().then(setMudahalePlan);
     loadHazirlikNotlari().then(setHazirlikNotlari);
@@ -7411,14 +7454,21 @@ export default function App() {
     <div style={{ minHeight: "100vh", background: BG, fontFamily: "'Segoe UI', system-ui, sans-serif", color: TEXT }}>
 
       <RaporModal rapor={raporVerisi} onKapat={() => setRaporVerisi(null)} />
+      {rehberGoster && <BaslarkenRehberi onKapat={async () => { setRehberGoster(false); await saveRehberGorunduMu(); }} />}
       {/* Header */}
       <div style={{ background: `linear-gradient(135deg, ${ACCENT} 0%, #164A35 100%)`, color: "#fff", padding: "16px 20px 12px", position: "sticky", top: 0, zIndex: 10, boxShadow: "0 4px 16px rgba(15,61,46,0.35)" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1, opacity: 0.7, textTransform: "uppercase" }}>PDR Servisi</div>
-          <button onClick={() => { setTab("ogrenciler"); setYilEkrani(true); }} style={{
-            background:"rgba(255,255,255,0.25)", color:"#fff", border:"1px solid rgba(255,255,255,0.5)",
-            borderRadius:20, padding:"3px 12px", fontSize:12, fontWeight:800, cursor:"pointer"
-          }}>📅 {aktifYil}</button>
+          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+            <button onClick={() => setRehberGoster(true)} title="Başlarken Rehberi" style={{
+              background:"rgba(255,255,255,0.25)", color:"#fff", border:"1px solid rgba(255,255,255,0.5)",
+              borderRadius:"50%", width:26, height:26, fontSize:13, fontWeight:800, cursor:"pointer", lineHeight:1
+            }}>?</button>
+            <button onClick={() => { setTab("ogrenciler"); setYilEkrani(true); }} style={{
+              background:"rgba(255,255,255,0.25)", color:"#fff", border:"1px solid rgba(255,255,255,0.5)",
+              borderRadius:20, padding:"3px 12px", fontSize:12, fontWeight:800, cursor:"pointer"
+            }}>📅 {aktifYil}</button>
+          </div>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
           <div style={{ fontSize: 20, fontWeight: 800 }}>Görüşme & Profil</div>
