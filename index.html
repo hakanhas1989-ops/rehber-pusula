@@ -2520,7 +2520,7 @@ function RaporModal({ rapor, onKapat }) {
                         <div style={{ fontSize:10, fontWeight:700, color:"#333" }}>
                           {k.kategori === "objektif" ? "🔵" : "🟣"} {k.testAdi} <span style={{ fontWeight:400, color:"#888" }}>({k.tarih})</span>
                         </div>
-                        <div style={{ fontSize:10, color:"#555", marginTop:2 }}>Sonuç: {k.sonuc}</div>
+                        <div style={{ fontSize:10, color:"#555", marginTop:2 }}>{testSonucOzeti(k)}</div>
                         {k.not && <div style={{ fontSize:9, color:"#777", marginTop:2, lineHeight:1.5 }}>{k.not}</div>}
                       </div>
                     ))}
@@ -2976,31 +2976,112 @@ function Profile2Card({ p, onDelete }) {
 
 // ── Öğrenci Yönetim Bileşeni ─────────────────────────────────────────────────
 
-// ── Testler Bileşeni ──────────────────────────────────────────────────────────
 // Program hiçbir testi UYGULAMAZ — sadece danışmanın başka bir ortamda uyguladığı
-// standart test/envanterlerin kaydını tutar (test adı, tarih, sonuç, not). Bazı
-// testler (özellikle zeka testleri) yalnızca lisanslı psikolog tarafından
-// uygulanabilir; bu liste sadece "hangi testin sonucunu kaydediyorum" seçimi
-// içindir, uygulama yetkisiyle ilgili bir onay/izin anlamı taşımaz.
+// standart test/envanterlerin kaydını tutar. Bazı testler (özellikle zeka
+// testleri) yalnızca lisanslı psikolog tarafından uygulanabilir; bu liste sadece
+// "hangi testin sonucunu kaydediyorum" seçimi içindir, uygulama yetkisiyle
+// ilgili bir onay/izin anlamı taşımaz.
+//
+// Her testin "tip" alanı, hangi giriş formunun kullanılacağını belirler —
+// çünkü testler çok farklı puanlama yapılarına sahip (tek toplam puan, alt test
+// bataryası, zeka yaşı/IQ eşdeğeri, hata puanı, dikkat testi formatı vb.).
+// Sadece Beck Depresyon Envanteri için düzey eşiği otomatik hesaplanır (yaygın
+// kabul gören, çok kaynakla doğrulanmış eşik: 0-9 Normal, 10-18 Hafif, 19-29
+// Orta, 30-63 Şiddetli). Diğer "toplam puan" tipi testlerde kesin klinik eşik
+// değerleri güvenilir şekilde doğrulanamadığı için otomatik hesaplama YAPILMAZ —
+// danışman toplam puanı girer, düzeyi kendi bildiği referansa göre kendisi yazar.
 const TEST_LISTESI = {
   objektif: [
-    "D2 Dikkat Testi", "Frostig Gelişimsel Görsel Algı Testi", "Bender Gestalt Görsel Motor Algı Testi",
-    "R.B Catell 2A-3A Zeka Testi", "Metropolitan Okul Öncesi Olgunluk Testi", "Ankara Gelişim Tarama Envanteri (AGTE)",
-    "Porteus Labirentleri Testi", "Frankfurter Dikkat Testi", "Beck Depresyon Envanteri",
-    "Çocuklar İçin Depresyon Ölçeği (CDI)", "Durumluk-Sürekli Kaygı Envanteri", "Rosenberg Benlik Saygısı Ölçeği",
-    "Conners Derecelendirme Ölçeği", "16PF KİM (Kişilik ve Mesleki Yönlendirme)", "Kuder Mesleki İlgi Envanteri",
+    { ad: "D2 Dikkat Testi", tip: "d2" },
+    { ad: "Frostig Gelişimsel Görsel Algı Testi", tip: "alt_test",
+      altTestler: ["Göz-Motor Koordinasyonu","Şekil-Zemin Ayrımı","Şekil Sabitliği","Mekanda Konum","Mekansal İlişkiler"],
+      genelEtiket: "Algısal Bölüm (PQ)" },
+    { ad: "Bender Gestalt Görsel Motor Algı Testi", tip: "gelisimsel_hata" },
+    { ad: "R.B Catell 2A-3A Zeka Testi", tip: "iq_esdeger" },
+    { ad: "Metropolitan Okul Öncesi Olgunluk Testi", tip: "alt_test",
+      altTestler: ["Kelime Anlama","Cümleler","Genel Bilgi","Eşleştirme","Sayılar","Kopya Etme"],
+      genelEtiket: "Olgunluk Düzeyi" },
+    { ad: "Ankara Gelişim Tarama Envanteri (AGTE)", tip: "alt_test",
+      altTestler: ["Dil-Bilişsel","İnce Motor","Kaba Motor","Sosyal Beceri-Özbakım"],
+      genelEtiket: "Genel Gelişim Düzeyi" },
+    { ad: "Porteus Labirentleri Testi", tip: "iq_esdeger" },
+    { ad: "Frankfurter Dikkat Testi", tip: "d2" },
+    { ad: "Beck Depresyon Envanteri", tip: "toplam_duzey", maxPuan: 63,
+      duzeyler: [{max:9,ad:"Normal"},{max:18,ad:"Hafif"},{max:29,ad:"Orta"},{max:63,ad:"Şiddetli"}] },
+    { ad: "Çocuklar İçin Depresyon Ölçeği (CDI)", tip: "toplam_duzey_serbest" },
+    { ad: "Durumluk-Sürekli Kaygı Envanteri", tip: "toplam_duzey_serbest" },
+    { ad: "Rosenberg Benlik Saygısı Ölçeği", tip: "toplam_duzey_serbest" },
+    { ad: "Conners Derecelendirme Ölçeği", tip: "alt_test",
+      altTestler: ["Dikkat Eksikliği","Hiperaktivite","Davranış Sorunları","Kaygı"],
+      genelEtiket: "Genel Değerlendirme" },
+    { ad: "16PF KİM (Kişilik ve Mesleki Yönlendirme)", tip: "kariyer" },
+    { ad: "Kuder Mesleki İlgi Envanteri", tip: "kariyer" },
   ],
   projektif: [
-    "BEİER Cümle Tamamlama Testi", "Goodenough–Harris Bir İnsan Çiz Testi", "Louisa Düss Psikanalitik Hikayeler",
+    { ad: "BEİER Cümle Tamamlama Testi", tip: "nitel" },
+    { ad: "Goodenough–Harris Bir İnsan Çiz Testi", tip: "iq_esdeger" },
+    { ad: "Louisa Düss Psikanalitik Hikayeler", tip: "nitel" },
   ],
 };
+
+// Bir test kaydının kısa özet metnini üretir — liste ve rapor görünümünde
+// kullanılır, testin tipine göre farklı alanlardan oluşturulur.
+function testSonucOzeti(k) {
+  const v = k.veri || {};
+  switch (k.tip) {
+    case "d2": return `Doğru: ${v.dogru||"—"} · Yanlış/Atlanan: ${v.yanlisAtlanan||"—"} · Dikkat Puanı: ${v.dikkatPuani||"—"}${v.pr?` · PR: ${v.pr}`:""}`;
+    case "alt_test": {
+      const altlar = Object.entries(v.altPuanlar||{}).map(([k2,val])=>`${k2}: ${val}`).join(", ");
+      return `${altlar}${v.genelSonuc?` · Sonuç: ${v.genelSonuc}`:""}`;
+    }
+    case "iq_esdeger": return `Ham Puan: ${v.hamPuan||"—"} · Zeka Yaşı: ${v.zekaYasi||"—"} · Zeka Bölümü: ${v.zekaBolumu||"—"}`;
+    case "gelisimsel_hata": return `Hata Puanı: ${v.hataPuani||"—"} · Gelişimsel Yaş: ${v.gelisimselYas||"—"}`;
+    case "toplam_duzey": return `Toplam Puan: ${v.toplamPuan||"—"}${v.duzey?` · Düzey: ${v.duzey}`:""}`;
+    case "toplam_duzey_serbest": return `Toplam Puan: ${v.toplamPuan||"—"}${v.duzeyYorum?` · ${v.duzeyYorum}`:""}`;
+    case "kariyer": return `${v.oneCikanAlanlar||"—"}`;
+    case "nitel": return k.not ? "Nitel değerlendirme (nota bakınız)" : "—";
+    default: return v.sonuc || "—";
+  }
+}
+function testDuzeyHesapla(testTanim, puan) {
+  const p = parseFloat(puan);
+  if (isNaN(p) || !testTanim.duzeyler) return "";
+  const bulunan = testTanim.duzeyler.find(d => p <= d.max);
+  return bulunan ? bulunan.ad : testTanim.duzeyler[testTanim.duzeyler.length-1].ad;
+}
+
+const TEST_FORM_BOS = { tarih: today(), not: "", dogru:"", yanlisAtlanan:"", dikkatPuani:"", pr:"", altPuanlar:{}, genelSonuc:"", hamPuan:"", zekaYasi:"", zekaBolumu:"", hataPuani:"", gelisimselYas:"", toplamPuan:"", duzeyYorum:"", oneCikanAlanlar:"", genelYorum:"" };
+function testVeriOlustur(tip, testTanim, form) {
+  switch (tip) {
+    case "d2": return { dogru: form.dogru, yanlisAtlanan: form.yanlisAtlanan, dikkatPuani: form.dikkatPuani, pr: form.pr };
+    case "alt_test": return { altPuanlar: form.altPuanlar, genelSonuc: form.genelSonuc };
+    case "iq_esdeger": return { hamPuan: form.hamPuan, zekaYasi: form.zekaYasi, zekaBolumu: form.zekaBolumu };
+    case "gelisimsel_hata": return { hataPuani: form.hataPuani, gelisimselYas: form.gelisimselYas };
+    case "toplam_duzey": return { toplamPuan: form.toplamPuan, duzey: testDuzeyHesapla(testTanim, form.toplamPuan) };
+    case "toplam_duzey_serbest": return { toplamPuan: form.toplamPuan, duzeyYorum: form.duzeyYorum };
+    case "kariyer": return { oneCikanAlanlar: form.oneCikanAlanlar, genelYorum: form.genelYorum };
+    default: return {};
+  }
+}
+function testFormGecerliMi(tip, form) {
+  switch (tip) {
+    case "d2": return !!form.dogru;
+    case "alt_test": return Object.values(form.altPuanlar||{}).some(v=>v);
+    case "iq_esdeger": return !!form.hamPuan || !!form.zekaBolumu;
+    case "gelisimsel_hata": return !!form.hataPuani;
+    case "toplam_duzey": case "toplam_duzey_serbest": return !!form.toplamPuan;
+    case "kariyer": return !!form.oneCikanAlanlar.trim();
+    case "nitel": return !!form.not.trim();
+    default: return false;
+  }
+}
 
 function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayitlari, setTestKayitlari }) {
   const [seciliAd, setSeciliAd] = useState(aktifOgrenci?.name || "");
   const [ogrenciArama, setOgrenciArama] = useState("");
   const [kategori, setKategori] = useState(null); // "objektif" | "projektif" | null
-  const [seciliTest, setSeciliTest] = useState(null);
-  const [form, setForm] = useState({ tarih: today(), sonuc: "", not: "" });
+  const [seciliTest, setSeciliTest] = useState(null); // TEST_LISTESI'nden bir test tanımı objesi
+  const [form, setForm] = useState({ ...TEST_FORM_BOS });
   const [kaydedildi, setKaydedildi] = useState(false);
 
   useEffect(() => {
@@ -3014,12 +3095,12 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
   const kayitlar = (pdrSozlukOku(testKayitlari, seciliAd, seciliSinif, seciliNumara) || []).sort((a,b) => new Date(b.tarih) - new Date(a.tarih));
 
   async function handleKaydet() {
-    if (!seciliAd || !seciliTest || !form.sonuc.trim()) return;
-    const yeni = { id: uid(), kategori, testAdi: seciliTest, tarih: form.tarih, sonuc: form.sonuc.trim(), not: form.not.trim() };
+    if (!seciliAd || !seciliTest || !testFormGecerliMi(seciliTest.tip, form)) return;
+    const yeni = { id: uid(), kategori, testAdi: seciliTest.ad, tip: seciliTest.tip, tarih: form.tarih, not: form.not.trim(), veri: testVeriOlustur(seciliTest.tip, seciliTest, form) };
     const guncel = pdrSozlukYaz(testKayitlari, seciliAd, seciliSinif, [yeni, ...kayitlar], seciliNumara);
     setTestKayitlari(guncel);
     await saveTestKayitlari(guncel);
-    setForm({ tarih: today(), sonuc: "", not: "" });
+    setForm({ ...TEST_FORM_BOS });
     setSeciliTest(null);
     setKategori(null);
     setKaydedildi(true);
@@ -3033,6 +3114,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
   }
 
   const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, boxSizing:"border-box" };
+  const lbl = { fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:3 };
 
   return (
     <div style={{ padding: 16, maxWidth: 560 }}>
@@ -3043,7 +3125,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
 
       {/* Öğrenci seç */}
       <div style={{ marginBottom: 16 }}>
-        <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>ÖĞRENCİ</label>
+        <label style={lbl}>ÖĞRENCİ</label>
         {seciliAd ? (
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:ACCENT_LIGHT, border:`1px solid ${ACCENT}`, borderRadius:10, padding:"8px 12px" }}>
             <div style={{ fontSize:13, fontWeight:700, color:ACCENT }}>👤 {seciliAd}{seciliSinif?` — ${seciliSinif}`:""}</div>
@@ -3078,7 +3160,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
           {/* Kategori / test seçimi */}
           {!seciliTest && (
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:6 }}>YENİ TEST SONUCU EKLE</label>
+              <label style={{ ...lbl, marginBottom:6 }}>YENİ TEST SONUCU EKLE</label>
               {!kategori ? (
                 <div style={{ display:"flex", gap:8 }}>
                   <button onClick={()=>setKategori("objektif")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #3B4FD8`, background:"#EEF2FF", color:"#3B4FD8", fontSize:13, fontWeight:800, cursor:"pointer" }}>🔵 Objektif Testler</button>
@@ -3089,9 +3171,9 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                   <button onClick={()=>setKategori(null)} style={{ background:"none", border:"none", color:MUTED, fontSize:12, cursor:"pointer", marginBottom:8, padding:0 }}>← Kategoriyi değiştir</button>
                   <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                     {TEST_LISTESI[kategori].map(t => (
-                      <button key={t} onClick={()=>setSeciliTest(t)} style={{
+                      <button key={t.ad} onClick={()=>{ setSeciliTest(t); setForm({ ...TEST_FORM_BOS }); }} style={{
                         textAlign:"left", padding:"10px 12px", borderRadius:10, border:`1px solid ${BORDER}`, background:CARD, color:TEXT, fontSize:13, fontWeight:600, cursor:"pointer"
-                      }}>{t}</button>
+                      }}>{t.ad}</button>
                     ))}
                   </div>
                 </div>
@@ -3099,29 +3181,89 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
             </div>
           )}
 
-          {/* Sonuç giriş formu */}
+          {/* Sonuç giriş formu — teste özel alanlar */}
           {seciliTest && (
             <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, padding:14, marginBottom:16 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-                <div style={{ fontSize:14, fontWeight:800, color:TEXT }}>{seciliTest}</div>
+                <div style={{ fontSize:14, fontWeight:800, color:TEXT }}>{seciliTest.ad}</div>
                 <button onClick={()=>setSeciliTest(null)} style={{ background:"none", border:"none", color:MUTED, fontSize:16, cursor:"pointer" }}>✕</button>
               </div>
-              <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:3 }}>UYGULAMA TARİHİ</label>
+              <label style={lbl}>UYGULAMA TARİHİ</label>
               <input type="text" placeholder="GG.AA.YYYY" value={form.tarih} onChange={e=>setForm(f=>({...f,tarih:e.target.value}))} style={{...inp, marginBottom:10}} />
-              <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:3 }}>SONUÇ / PUAN</label>
-              <input placeholder="Örn. PR: 65, Ortalama üstü" value={form.sonuc} onChange={e=>setForm(f=>({...f,sonuc:e.target.value}))} style={{...inp, marginBottom:10}} />
-              <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:3 }}>NOT (opsiyonel)</label>
+
+              {seciliTest.tip === "d2" && (<>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
+                  <div><label style={lbl}>DOĞRU İŞARETLENEN</label><input value={form.dogru} onChange={e=>setForm(f=>({...f,dogru:e.target.value}))} style={inp} /></div>
+                  <div><label style={lbl}>YANLIŞ / ATLANAN</label><input value={form.yanlisAtlanan} onChange={e=>setForm(f=>({...f,yanlisAtlanan:e.target.value}))} style={inp} /></div>
+                  <div><label style={lbl}>DİKKAT PUANI</label><input value={form.dikkatPuani} onChange={e=>setForm(f=>({...f,dikkatPuani:e.target.value}))} style={inp} /></div>
+                  <div><label style={lbl}>YÜZDELİK DİLİM (PR)</label><input value={form.pr} onChange={e=>setForm(f=>({...f,pr:e.target.value}))} style={inp} /></div>
+                </div>
+              </>)}
+
+              {seciliTest.tip === "alt_test" && (<>
+                {seciliTest.altTestler.map(alt => (
+                  <div key={alt} style={{ marginBottom:8 }}>
+                    <label style={lbl}>{alt.toUpperCase()}</label>
+                    <input value={form.altPuanlar[alt]||""} onChange={e=>setForm(f=>({...f, altPuanlar:{...f.altPuanlar, [alt]:e.target.value}}))} style={inp} />
+                  </div>
+                ))}
+                <label style={lbl}>{(seciliTest.genelEtiket||"GENEL SONUÇ").toUpperCase()}</label>
+                <input value={form.genelSonuc} onChange={e=>setForm(f=>({...f,genelSonuc:e.target.value}))} style={{...inp, marginBottom:10}} />
+              </>)}
+
+              {seciliTest.tip === "iq_esdeger" && (<>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
+                  <div><label style={lbl}>HAM PUAN</label><input value={form.hamPuan} onChange={e=>setForm(f=>({...f,hamPuan:e.target.value}))} style={inp} /></div>
+                  <div><label style={lbl}>ZEKA YAŞI</label><input value={form.zekaYasi} onChange={e=>setForm(f=>({...f,zekaYasi:e.target.value}))} style={inp} /></div>
+                </div>
+                <label style={lbl}>ZEKA BÖLÜMÜ (IQ)</label>
+                <input value={form.zekaBolumu} onChange={e=>setForm(f=>({...f,zekaBolumu:e.target.value}))} style={{...inp, marginBottom:10}} />
+              </>)}
+
+              {seciliTest.tip === "gelisimsel_hata" && (<>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
+                  <div><label style={lbl}>HATA PUANI</label><input value={form.hataPuani} onChange={e=>setForm(f=>({...f,hataPuani:e.target.value}))} style={inp} /></div>
+                  <div><label style={lbl}>GELİŞİMSEL YAŞ EŞDEĞERİ</label><input value={form.gelisimselYas} onChange={e=>setForm(f=>({...f,gelisimselYas:e.target.value}))} style={inp} /></div>
+                </div>
+              </>)}
+
+              {seciliTest.tip === "toplam_duzey" && (<>
+                <label style={lbl}>TOPLAM PUAN {seciliTest.maxPuan?`(0-${seciliTest.maxPuan})`:""}</label>
+                <input type="number" value={form.toplamPuan} onChange={e=>setForm(f=>({...f,toplamPuan:e.target.value}))} style={{...inp, marginBottom:8}} />
+                {form.toplamPuan && (
+                  <div style={{ fontSize:12, fontWeight:700, color:ACCENT, marginBottom:10 }}>
+                    Düzey: {testDuzeyHesapla(seciliTest, form.toplamPuan) || "—"} <span style={{fontWeight:400, color:MUTED}}>(yaygın kabul gören eşiklere göre otomatik hesaplandı, kesin klinik değerlendirme yerine geçmez)</span>
+                  </div>
+                )}
+              </>)}
+
+              {seciliTest.tip === "toplam_duzey_serbest" && (<>
+                <label style={lbl}>TOPLAM PUAN</label>
+                <input value={form.toplamPuan} onChange={e=>setForm(f=>({...f,toplamPuan:e.target.value}))} style={{...inp, marginBottom:10}} />
+                <label style={lbl}>DÜZEY / YORUM</label>
+                <input placeholder="Örn. Orta düzey kaygı" value={form.duzeyYorum} onChange={e=>setForm(f=>({...f,duzeyYorum:e.target.value}))} style={{...inp, marginBottom:10}} />
+              </>)}
+
+              {seciliTest.tip === "kariyer" && (<>
+                <label style={lbl}>ÖNE ÇIKAN ALAN/BOYUTLAR</label>
+                <input placeholder="Örn. Sözel-Dilsel, Sosyal Bilimler" value={form.oneCikanAlanlar} onChange={e=>setForm(f=>({...f,oneCikanAlanlar:e.target.value}))} style={{...inp, marginBottom:10}} />
+                <label style={lbl}>GENEL YORUM</label>
+                <input value={form.genelYorum} onChange={e=>setForm(f=>({...f,genelYorum:e.target.value}))} style={{...inp, marginBottom:10}} />
+              </>)}
+
+              <label style={lbl}>NOT {seciliTest.tip==="nitel" ? "" : "(opsiyonel)"}</label>
               <textarea rows={3} placeholder="Yorum, gözlem, öneri..." value={form.not} onChange={e=>setForm(f=>({...f,not:e.target.value}))} style={{...inp, marginBottom:10, resize:"vertical"}} />
-              <button onClick={handleKaydet} disabled={!form.sonuc.trim()} style={{
-                width:"100%", padding:"10px", background: form.sonuc.trim() ? ACCENT : BORDER, color: form.sonuc.trim() ? "#fff" : MUTED,
-                border:"none", borderRadius:10, fontSize:13, fontWeight:800, cursor: form.sonuc.trim() ? "pointer" : "default"
+
+              <button onClick={handleKaydet} disabled={!testFormGecerliMi(seciliTest.tip, form)} style={{
+                width:"100%", padding:"10px", background: testFormGecerliMi(seciliTest.tip, form) ? ACCENT : BORDER, color: testFormGecerliMi(seciliTest.tip, form) ? "#fff" : MUTED,
+                border:"none", borderRadius:10, fontSize:13, fontWeight:800, cursor: testFormGecerliMi(seciliTest.tip, form) ? "pointer" : "default"
               }}>{kaydedildi ? "✓ Kaydedildi" : "Kaydet"}</button>
             </div>
           )}
 
           {/* Geçmiş kayıtlar */}
           <div>
-            <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:8 }}>GEÇMİŞ TEST KAYITLARI ({kayitlar.length})</label>
+            <label style={{ ...lbl, marginBottom:8 }}>GEÇMİŞ TEST KAYITLARI ({kayitlar.length})</label>
             {kayitlar.length === 0 ? (
               <div style={{ fontSize:12, color:MUTED }}>Henüz test kaydı yok.</div>
             ) : (
@@ -3133,7 +3275,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                         <div style={{ fontSize:13, fontWeight:700, color:TEXT }}>
                           {k.kategori === "objektif" ? "🔵" : "🟣"} {k.testAdi}
                         </div>
-                        <div style={{ fontSize:11, color:MUTED, marginTop:2 }}>{k.tarih} · {k.sonuc}</div>
+                        <div style={{ fontSize:11, color:MUTED, marginTop:2 }}>{k.tarih} · {testSonucOzeti(k)}</div>
                         {k.not && <div style={{ fontSize:12, color:TEXT, marginTop:4, lineHeight:1.4 }}>{k.not}</div>}
                       </div>
                       <button onClick={()=>handleSil(k.id)} style={{ background:"none", border:"none", color:"#C0392B", fontSize:14, cursor:"pointer", flexShrink:0 }}>🗑</button>
