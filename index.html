@@ -760,22 +760,33 @@ if (pdrLogoutBtn) {
 // (fare, klavye, dokunma, kaydırma) bulunmazsa, güvenlik için oturum otomatik
 // kapatılır. Amaç: öğrenci verisi ekranda açık kalmış bir cihazın başından
 // kalkıp gidilmesi durumunda verinin başkasına açık kalmasını önlemek.
+//
+// NOT: Basit bir setTimeout yeterli değil — mobil tarayıcılar, sekme arka
+// plana atıldığında ya da ekran kilitlendiğinde JS zamanlayıcılarını
+// duraklatabiliyor/yavaşlatabiliyor (pil tasarrufu). Bu yüzden zamanlayıcı
+// yerine "son etkileşim zamanı" kaydedilir ve periyodik olarak + sekme tekrar
+// öne geldiğinde kontrol edilir — arka planda geçen süre de doğru sayılır.
 const PDR_INAKTIVITE_SURESI = 10 * 60 * 1000; // 10 dakika
-let pdrInaktiviteTimer = null;
+let pdrSonEtkilesimZamani = Date.now();
 function pdrInaktiviteSifirla() {
-  if (pdrInaktiviteTimer) clearTimeout(pdrInaktiviteTimer);
+  pdrSonEtkilesimZamani = Date.now();
+}
+function pdrInaktiviteKontrolEt() {
   if (!pdrAuth.currentUser) return;
-  pdrInaktiviteTimer = setTimeout(async () => {
-    if (pdrAuth.currentUser) {
-      await pdrAuth.signOut();
+  if (Date.now() - pdrSonEtkilesimZamani >= PDR_INAKTIVITE_SURESI) {
+    pdrAuth.signOut().then(() => {
       pdrClearLocalCache();
       localStorage.removeItem("pdr_last_uid");
       location.reload();
-    }
-  }, PDR_INAKTIVITE_SURESI);
+    });
+  }
 }
 ["mousedown", "mousemove", "keydown", "touchstart", "scroll"].forEach(evt => {
   document.addEventListener(evt, pdrInaktiviteSifirla, { passive: true });
+});
+setInterval(pdrInaktiviteKontrolEt, 30000); // ön plandayken her 30 saniyede bir kontrol
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) pdrInaktiviteKontrolEt(); // sekme tekrar öne gelince hemen kontrol et
 });
 
 let pdrFirstReady = true;
@@ -830,7 +841,6 @@ pdrAuth.onAuthStateChanged(async (user) => {
     if (pdrFirstReady) { pdrFirstReady = false; pdrResolveReady(user); }
   } else {
     if (pdrBasvuruUnsub) { pdrBasvuruUnsub(); pdrBasvuruUnsub = null; }
-    if (pdrInaktiviteTimer) { clearTimeout(pdrInaktiviteTimer); pdrInaktiviteTimer = null; }
     if (splashEl) splashEl.className = "hide";
     if (pdrLoginOverlay) pdrLoginOverlay.style.display = "flex";
     if (pdrLogoutBtn) pdrLogoutBtn.style.display = "none";
