@@ -6482,11 +6482,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
 
   if (seciliSinif) {
     const st = subeIstatistik(seciliSinif);
-    const enCokGorusulen = [...st.ogr].sort((a,b) => {
-      const aG = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, a.studentName, a.className)).length;
-      const bG = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, b.studentName, b.className)).length;
-      return bG - aG;
-    });
+    const alfabetikOgrenciler = [...st.ogr].sort((a,b) => a.studentName.localeCompare(b.studentName, "tr"));
 
     async function handleListeEkle() {
       const satirlar = listeMetni.split("\n").map(s => s.trim()).filter(Boolean);
@@ -6599,10 +6595,10 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
         {/* Öğrenci Listesi */}
         <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,padding:14}}>
           <div style={{fontSize:12,fontWeight:700,color:TEXT,textTransform:"uppercase",marginBottom:10}}>Öğrenci Listesi</div>
-          {enCokGorusulen.length === 0 && (
+          {alfabetikOgrenciler.length === 0 && (
             <div style={{textAlign:"center",color:MUTED,fontSize:12}}>Bu sınıfta kayıtlı öğrenci yok</div>
           )}
-          {enCokGorusulen.map(o => {
+          {alfabetikOgrenciler.map(o => {
             const gSayisi = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className, r.numara, o.numara)).length;
             const oRisk = riskListesi.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className, r.numara, o.numara) && !r.kapandi);
             return (
