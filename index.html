@@ -1516,6 +1516,12 @@ async function loadMudahalePlan() {
 async function saveMudahalePlan(data) {
   try { await window.storage.set("pdr-mudahale", JSON.stringify(data)); } catch(e) { console.warn(e); }
 }
+async function loadTestKayitlari() {
+  try { const r = await window.storage.get("pdr-test-kayitlari"); return r ? JSON.parse(r.value) : {}; } catch { return {}; }
+}
+async function saveTestKayitlari(data) {
+  try { await window.storage.set("pdr-test-kayitlari", JSON.stringify(data)); } catch(e) { console.warn(e); }
+}
 
 async function loadSevkler() {
   try { const r = await window.storage.get("pdr-sevkler"); return r ? JSON.parse(r.value) : []; } catch { return []; }
@@ -2170,14 +2176,14 @@ async function raporIndir(elementId, dosyaAdi) {
 
 
 // ── PDF Rapor Verisi ─────────────────────────────────────────────────────────
-function raporVerisiOlustur({ ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler, mudahalePlan, riskListesi, sinavTuru }) {
-  return { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: denemeler || {}, mudahalePlan: mudahalePlan || {}, riskListesi: riskListesi || [], sinavTuru, tarih: new Date().toLocaleDateString("tr-TR") };
+function raporVerisiOlustur({ ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler, mudahalePlan, riskListesi, sinavTuru, testKayitlari }) {
+  return { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: denemeler || {}, mudahalePlan: mudahalePlan || {}, riskListesi: riskListesi || [], sinavTuru, testKayitlari: testKayitlari || [], tarih: new Date().toLocaleDateString("tr-TR") };
 }
 
 // ── PDF Rapor Bileşeni ────────────────────────────────────────────────────────
 function RaporModal({ rapor, onKapat }) {
   if (!rapor) return null;
-  const { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: raporDenemeler, mudahalePlan: raporMudahale, riskListesi: raporRisk, tarih, sinavTuru } = rapor;
+  const { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: raporDenemeler, mudahalePlan: raporMudahale, riskListesi: raporRisk, tarih, sinavTuru, testKayitlari: raporTestler } = rapor;
   const dersler = aktifDersler(sinavTuru);
 
   const dersOrtalama = () => {
@@ -2496,6 +2502,28 @@ function RaporModal({ rapor, onKapat }) {
                         })}
                       </div>
                     )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Uygulanan Testler */}
+            {(() => {
+              const ogrTestleri = pdrSozlukOku(raporTestler, ogrenci, ogrenciSinif, profil1?.numara) || [];
+              if (ogrTestleri.length === 0) return null;
+              return (
+                <div style={{ marginTop:16, pageBreakInside:"avoid" }}>
+                  <div style={{ ...S.bolumBaslik2 }}>Uygulanan Testler</div>
+                  <div style={{ ...S.bolumIcerik2 }}>
+                    {ogrTestleri.map(k => (
+                      <div key={k.id} style={{ marginBottom:8, paddingBottom:8, borderBottom:"1px solid #eee" }}>
+                        <div style={{ fontSize:10, fontWeight:700, color:"#333" }}>
+                          {k.kategori === "objektif" ? "🔵" : "🟣"} {k.testAdi} <span style={{ fontWeight:400, color:"#888" }}>({k.tarih})</span>
+                        </div>
+                        <div style={{ fontSize:10, color:"#555", marginTop:2 }}>Sonuç: {k.sonuc}</div>
+                        {k.not && <div style={{ fontSize:9, color:"#777", marginTop:2, lineHeight:1.5 }}>{k.not}</div>}
+                      </div>
+                    ))}
                   </div>
                 </div>
               );
@@ -2947,6 +2975,179 @@ function Profile2Card({ p, onDelete }) {
 
 
 // ── Öğrenci Yönetim Bileşeni ─────────────────────────────────────────────────
+
+// ── Testler Bileşeni ──────────────────────────────────────────────────────────
+// Program hiçbir testi UYGULAMAZ — sadece danışmanın başka bir ortamda uyguladığı
+// standart test/envanterlerin kaydını tutar (test adı, tarih, sonuç, not). Bazı
+// testler (özellikle zeka testleri) yalnızca lisanslı psikolog tarafından
+// uygulanabilir; bu liste sadece "hangi testin sonucunu kaydediyorum" seçimi
+// içindir, uygulama yetkisiyle ilgili bir onay/izin anlamı taşımaz.
+const TEST_LISTESI = {
+  objektif: [
+    "D2 Dikkat Testi", "Frostig Gelişimsel Görsel Algı Testi", "Bender Gestalt Görsel Motor Algı Testi",
+    "R.B Catell 2A-3A Zeka Testi", "Metropolitan Okul Öncesi Olgunluk Testi", "Ankara Gelişim Tarama Envanteri (AGTE)",
+    "Porteus Labirentleri Testi", "Frankfurter Dikkat Testi", "Beck Depresyon Envanteri",
+    "Çocuklar İçin Depresyon Ölçeği (CDI)", "Durumluk-Sürekli Kaygı Envanteri", "Rosenberg Benlik Saygısı Ölçeği",
+    "Conners Derecelendirme Ölçeği", "16PF KİM (Kişilik ve Mesleki Yönlendirme)", "Kuder Mesleki İlgi Envanteri",
+  ],
+  projektif: [
+    "BEİER Cümle Tamamlama Testi", "Goodenough–Harris Bir İnsan Çiz Testi", "Louisa Düss Psikanalitik Hikayeler",
+  ],
+};
+
+function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayitlari, setTestKayitlari }) {
+  const [seciliAd, setSeciliAd] = useState(aktifOgrenci?.name || "");
+  const [ogrenciArama, setOgrenciArama] = useState("");
+  const [kategori, setKategori] = useState(null); // "objektif" | "projektif" | null
+  const [seciliTest, setSeciliTest] = useState(null);
+  const [form, setForm] = useState({ tarih: today(), sonuc: "", not: "" });
+  const [kaydedildi, setKaydedildi] = useState(false);
+
+  useEffect(() => {
+    if (aktifOgrenci?.name) setSeciliAd(aktifOgrenci.name);
+    else setSeciliAd("");
+  }, [aktifOgrenci?.name]);
+
+  const seciliOgr = kayitliListesi.find(o => o.name === seciliAd);
+  const seciliSinif = seciliOgr?.className || aktifOgrenci?.className || "";
+  const seciliNumara = seciliOgr?.numara || aktifOgrenci?.numara || "";
+  const kayitlar = (pdrSozlukOku(testKayitlari, seciliAd, seciliSinif, seciliNumara) || []).sort((a,b) => new Date(b.tarih) - new Date(a.tarih));
+
+  async function handleKaydet() {
+    if (!seciliAd || !seciliTest || !form.sonuc.trim()) return;
+    const yeni = { id: uid(), kategori, testAdi: seciliTest, tarih: form.tarih, sonuc: form.sonuc.trim(), not: form.not.trim() };
+    const guncel = pdrSozlukYaz(testKayitlari, seciliAd, seciliSinif, [yeni, ...kayitlar], seciliNumara);
+    setTestKayitlari(guncel);
+    await saveTestKayitlari(guncel);
+    setForm({ tarih: today(), sonuc: "", not: "" });
+    setSeciliTest(null);
+    setKategori(null);
+    setKaydedildi(true);
+    setTimeout(() => setKaydedildi(false), 2000);
+  }
+
+  async function handleSil(id) {
+    const guncel = pdrSozlukYaz(testKayitlari, seciliAd, seciliSinif, kayitlar.filter(k => k.id !== id), seciliNumara);
+    setTestKayitlari(guncel);
+    await saveTestKayitlari(guncel);
+  }
+
+  const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, boxSizing:"border-box" };
+
+  return (
+    <div style={{ padding: 16, maxWidth: 560 }}>
+      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4 }}>🧪 Testler</div>
+      <div style={{ fontSize: 12, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
+        Program hiçbir testi uygulamaz — burada sadece başka bir ortamda uyguladığın standart test/envanterlerin sonucunu kaydedersin. Kayıtlar öğrenci raporuna otomatik eklenir.
+      </div>
+
+      {/* Öğrenci seç */}
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>ÖĞRENCİ</label>
+        {seciliAd ? (
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:ACCENT_LIGHT, border:`1px solid ${ACCENT}`, borderRadius:10, padding:"8px 12px" }}>
+            <div style={{ fontSize:13, fontWeight:700, color:ACCENT }}>👤 {seciliAd}{seciliSinif?` — ${seciliSinif}`:""}</div>
+            <button onClick={() => { setSeciliAd(""); setAktifOgrenci({ name:"", className:"" }); setOgrenciArama(""); setKategori(null); setSeciliTest(null); }} style={{
+              background:"none", border:`1px solid ${ACCENT}`, color:ACCENT, borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
+            }}>✕ Değiştir</button>
+          </div>
+        ) : (
+          <>
+            <input value={ogrenciArama} onChange={e=>setOgrenciArama(e.target.value)} placeholder="Öğrenci ara… (en az 2 karakter)" style={{...inp, marginBottom:8}} />
+            {ogrenciArama.trim().length >= 2 ? (
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                {kayitliListesi.filter(o =>
+                  o.name.toLowerCase().includes(ogrenciArama.toLowerCase()) ||
+                  o.className?.toLowerCase().includes(ogrenciArama.toLowerCase()) ||
+                  o.numara?.includes(ogrenciArama)
+                ).slice(0,20).map(o => (
+                  <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => { setSeciliAd(o.name); setAktifOgrenci({ name:o.name, className:o.className||"" }); setOgrenciArama(""); }} style={{
+                    padding:"5px 12px", borderRadius:20, border:`2px solid ${BORDER}`, background:CARD, color:MUTED, fontSize:12, fontWeight:500, cursor:"pointer"
+                  }}>{o.name}{o.className?` · ${o.className}`:""}</button>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize:11, color:MUTED }}>Öğrenciyi bulmak için en az 2 karakter yaz</div>
+            )}
+          </>
+        )}
+      </div>
+
+      {seciliAd && (
+        <>
+          {/* Kategori / test seçimi */}
+          {!seciliTest && (
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:6 }}>YENİ TEST SONUCU EKLE</label>
+              {!kategori ? (
+                <div style={{ display:"flex", gap:8 }}>
+                  <button onClick={()=>setKategori("objektif")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #3B4FD8`, background:"#EEF2FF", color:"#3B4FD8", fontSize:13, fontWeight:800, cursor:"pointer" }}>🔵 Objektif Testler</button>
+                  <button onClick={()=>setKategori("projektif")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #7B5EA7`, background:"#F3EEFB", color:"#7B5EA7", fontSize:13, fontWeight:800, cursor:"pointer" }}>🟣 Projektif Testler</button>
+                </div>
+              ) : (
+                <div>
+                  <button onClick={()=>setKategori(null)} style={{ background:"none", border:"none", color:MUTED, fontSize:12, cursor:"pointer", marginBottom:8, padding:0 }}>← Kategoriyi değiştir</button>
+                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {TEST_LISTESI[kategori].map(t => (
+                      <button key={t} onClick={()=>setSeciliTest(t)} style={{
+                        textAlign:"left", padding:"10px 12px", borderRadius:10, border:`1px solid ${BORDER}`, background:CARD, color:TEXT, fontSize:13, fontWeight:600, cursor:"pointer"
+                      }}>{t}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Sonuç giriş formu */}
+          {seciliTest && (
+            <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, padding:14, marginBottom:16 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                <div style={{ fontSize:14, fontWeight:800, color:TEXT }}>{seciliTest}</div>
+                <button onClick={()=>setSeciliTest(null)} style={{ background:"none", border:"none", color:MUTED, fontSize:16, cursor:"pointer" }}>✕</button>
+              </div>
+              <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:3 }}>UYGULAMA TARİHİ</label>
+              <input type="text" placeholder="GG.AA.YYYY" value={form.tarih} onChange={e=>setForm(f=>({...f,tarih:e.target.value}))} style={{...inp, marginBottom:10}} />
+              <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:3 }}>SONUÇ / PUAN</label>
+              <input placeholder="Örn. PR: 65, Ortalama üstü" value={form.sonuc} onChange={e=>setForm(f=>({...f,sonuc:e.target.value}))} style={{...inp, marginBottom:10}} />
+              <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:3 }}>NOT (opsiyonel)</label>
+              <textarea rows={3} placeholder="Yorum, gözlem, öneri..." value={form.not} onChange={e=>setForm(f=>({...f,not:e.target.value}))} style={{...inp, marginBottom:10, resize:"vertical"}} />
+              <button onClick={handleKaydet} disabled={!form.sonuc.trim()} style={{
+                width:"100%", padding:"10px", background: form.sonuc.trim() ? ACCENT : BORDER, color: form.sonuc.trim() ? "#fff" : MUTED,
+                border:"none", borderRadius:10, fontSize:13, fontWeight:800, cursor: form.sonuc.trim() ? "pointer" : "default"
+              }}>{kaydedildi ? "✓ Kaydedildi" : "Kaydet"}</button>
+            </div>
+          )}
+
+          {/* Geçmiş kayıtlar */}
+          <div>
+            <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:8 }}>GEÇMİŞ TEST KAYITLARI ({kayitlar.length})</label>
+            {kayitlar.length === 0 ? (
+              <div style={{ fontSize:12, color:MUTED }}>Henüz test kaydı yok.</div>
+            ) : (
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {kayitlar.map(k => (
+                  <div key={k.id} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:10, padding:"10px 12px" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
+                      <div>
+                        <div style={{ fontSize:13, fontWeight:700, color:TEXT }}>
+                          {k.kategori === "objektif" ? "🔵" : "🟣"} {k.testAdi}
+                        </div>
+                        <div style={{ fontSize:11, color:MUTED, marginTop:2 }}>{k.tarih} · {k.sonuc}</div>
+                        {k.not && <div style={{ fontSize:12, color:TEXT, marginTop:4, lineHeight:1.4 }}>{k.not}</div>}
+                      </div>
+                      <button onClick={()=>handleSil(k.id)} style={{ background:"none", border:"none", color:"#C0392B", fontSize:14, cursor:"pointer", flexShrink:0 }}>🗑</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 // ── Müdahale Planı Bileşeni ───────────────────────────────────────────────────
 function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mudahalePlan, setMudahalePlan, records, kutuphane, kademe }) {
@@ -7156,6 +7357,7 @@ export default function App() {
   const [aktifYil, setAktifYil] = useState("2026-2027");
   const [yilEkranı, setYilEkrani] = useState(false); // true = yıl seçim ekranı
   const [mudahalePlan, setMudahalePlan] = useState({});
+  const [testKayitlari, setTestKayitlari] = useState({});
   const [hazirlikNotlari, setHazirlikNotlari] = useState({});
   const [profNotlari, setProfNotlari] = useState({});
   const [ilerlemeNotlari, setIlerlemeNotlari] = useState({});
@@ -7182,6 +7384,7 @@ export default function App() {
     loadKvkkBildirimGorunduMu().then(v => { if (!v) setKvkkBildirimGoster(true); });
     loadAktifYil().then(setAktifYil);
     loadMudahalePlan().then(setMudahalePlan);
+    loadTestKayitlari().then(setTestKayitlari);
     loadHazirlikNotlari().then(setHazirlikNotlari);
     loadProfNotlari().then(setProfNotlari);
     loadIlerlemeNotlari().then(setIlerlemeNotlari);
@@ -7346,7 +7549,7 @@ export default function App() {
         const parse = d => { const [g, ay, y] = (d||"").split("."); return new Date(`${y}-${ay}-${g}`); };
         return parse(a.date) - parse(b.date);
       });
-    setRaporVerisi(raporVerisiOlustur({ ogrenci: ogrenciAdi, ogrenciSinif: profil1.className, profil1, profil2, gorusmeler, denemeler: pdrSozlukOku(denemeler, ogrenciAdi, profil1.className, profil1.numara) || {}, mudahalePlan, riskListesi, sinavTuru }));
+    setRaporVerisi(raporVerisiOlustur({ ogrenci: ogrenciAdi, ogrenciSinif: profil1.className, profil1, profil2, gorusmeler, denemeler: pdrSozlukOku(denemeler, ogrenciAdi, profil1.className, profil1.numara) || {}, mudahalePlan, riskListesi, sinavTuru, testKayitlari }));
   }
 
   async function handleProf2Analiz() {
@@ -7452,6 +7655,7 @@ export default function App() {
     { key: "sinif_profili", label: "🏫 Sınıf" },
     { key: "risk", label: "⚠ Risk" },
     { key: "deneme", label: "📊 Deneme" },
+    { key: "testler", label: "🧪 Testler" },
     { key: "mudahale", label: "🎯 Müdahale" },
     { key: "sevk", label: "📤 Sevk" },
     { key: "meb_rapor", label: "📑 MEB Rapor" },
@@ -7605,6 +7809,17 @@ export default function App() {
           </div>
         )}
 
+        {/* ── TESTLER ──────────────────────────────────────────────── */}
+        {tab === "testler" && (
+          <TestlerEkrani
+            kayitliListesi={kayitliListesi}
+            aktifOgrenci={aktifOgrenci}
+            setAktifOgrenci={setAktifOgrenci}
+            testKayitlari={testKayitlari}
+            setTestKayitlari={setTestKayitlari}
+          />
+        )}
+
         {/* ── MÜDAHALE PLANI ───────────────────────────────────────── */}
         {tab === "mudahale" && (
           <MudahalePlanEkrani
@@ -7672,7 +7887,7 @@ export default function App() {
             records={records}
             kutuphane={kutuphane}
             sinavTuru={sinavTuru}
-            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru }))}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari }))}
           />
         )}
 
@@ -7819,7 +8034,7 @@ export default function App() {
             setHazirlikNotlari={setHazirlikNotlari}
             ilerlemeNotlari={ilerlemeNotlari}
             setIlerlemeNotlari={setIlerlemeNotlari}
-            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru }))}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari }))}
             onSinifGuncelle={async (eskiAd, eskiSinif, eskiNumara, yeniSinif) => {
               const ayniMi = (ad, sinif, no) => pdrAyniOgrenci(eskiAd, eskiSinif, ad, sinif, eskiNumara, no);
 
