@@ -756,6 +756,28 @@ if (pdrLogoutBtn) {
   });
 }
 
+// Otomatik çıkış: kullanıcı belirli bir süre (10 dakika) hiçbir etkileşimde
+// (fare, klavye, dokunma, kaydırma) bulunmazsa, güvenlik için oturum otomatik
+// kapatılır. Amaç: öğrenci verisi ekranda açık kalmış bir cihazın başından
+// kalkıp gidilmesi durumunda verinin başkasına açık kalmasını önlemek.
+const PDR_INAKTIVITE_SURESI = 10 * 60 * 1000; // 10 dakika
+let pdrInaktiviteTimer = null;
+function pdrInaktiviteSifirla() {
+  if (pdrInaktiviteTimer) clearTimeout(pdrInaktiviteTimer);
+  if (!pdrAuth.currentUser) return;
+  pdrInaktiviteTimer = setTimeout(async () => {
+    if (pdrAuth.currentUser) {
+      await pdrAuth.signOut();
+      pdrClearLocalCache();
+      localStorage.removeItem("pdr_last_uid");
+      location.reload();
+    }
+  }, PDR_INAKTIVITE_SURESI);
+}
+["mousedown", "mousemove", "keydown", "touchstart", "scroll"].forEach(evt => {
+  document.addEventListener(evt, pdrInaktiviteSifirla, { passive: true });
+});
+
 let pdrFirstReady = true;
 let pdrBasvuruUnsub = null; // admin onay durumunu canlı izleyen dinleyici — oturum boyunca aktif
 pdrAuth.onAuthStateChanged(async (user) => {
@@ -802,11 +824,13 @@ pdrAuth.onAuthStateChanged(async (user) => {
     }
     pdrOnayEkraniGizle();
     pdrOdemeEkraniGizle();
+    pdrInaktiviteSifirla();
 
     await pdrSyncDown(user.uid);
     if (pdrFirstReady) { pdrFirstReady = false; pdrResolveReady(user); }
   } else {
     if (pdrBasvuruUnsub) { pdrBasvuruUnsub(); pdrBasvuruUnsub = null; }
+    if (pdrInaktiviteTimer) { clearTimeout(pdrInaktiviteTimer); pdrInaktiviteTimer = null; }
     if (splashEl) splashEl.className = "hide";
     if (pdrLoginOverlay) pdrLoginOverlay.style.display = "flex";
     if (pdrLogoutBtn) pdrLogoutBtn.style.display = "none";
@@ -5939,22 +5963,28 @@ function ProfilMerkez({
     <div>
       {/* Öğrenci seç */}
       <div style={{marginBottom:14}}>
-        <input placeholder="Öğrenci ara…" value={aramaMetni} onChange={e=>setAramaMetni(e.target.value)}
+        <input placeholder="Öğrenci ara… (en az 2 karakter)" value={aramaMetni} onChange={e=>setAramaMetni(e.target.value)}
           style={{...inp, marginBottom:8}} />
-        <div style={{display:"flex", flexWrap:"wrap", gap:6}}>
-          {filtreliListe.slice(0,20).map(o=>{
-            const s = seciliAd===o.name;
-            return (
-              <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={()=>{setSeciliAd(o.name);setSeciliSinif(o.className||"");setSeciliNumara(o.numara||"");setMod("form");}} style={{
-                padding:"5px 12px", borderRadius:20,
-                border:`2px solid ${s?ACCENT:BORDER}`,
-                background:s?ACCENT_LIGHT:CARD, color:s?ACCENT:MUTED,
-                fontSize:12, fontWeight:s?700:500, cursor:"pointer"
-              }}>{o.name}{o.className?` · ${o.className}`:""}</button>
-            );
-          })}
-        </div>
-        {filtreliListe.length > 20 && <div style={{fontSize:11,color:MUTED,marginTop:4}}>{filtreliListe.length-20} daha — aramayı daralt</div>}
+        {aramaMetni.trim().length >= 2 ? (
+          <>
+            <div style={{display:"flex", flexWrap:"wrap", gap:6}}>
+              {filtreliListe.slice(0,20).map(o=>{
+                const s = seciliAd===o.name;
+                return (
+                  <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={()=>{setSeciliAd(o.name);setSeciliSinif(o.className||"");setSeciliNumara(o.numara||"");setMod("form");}} style={{
+                    padding:"5px 12px", borderRadius:20,
+                    border:`2px solid ${s?ACCENT:BORDER}`,
+                    background:s?ACCENT_LIGHT:CARD, color:s?ACCENT:MUTED,
+                    fontSize:12, fontWeight:s?700:500, cursor:"pointer"
+                  }}>{o.name}{o.className?` · ${o.className}`:""}</button>
+                );
+              })}
+            </div>
+            {filtreliListe.length > 20 && <div style={{fontSize:11,color:MUTED,marginTop:4}}>{filtreliListe.length-20} daha — aramayı daralt</div>}
+          </>
+        ) : (
+          <div style={{fontSize:11, color:MUTED}}>Öğrenciyi bulmak için en az 2 karakter yaz</div>
+        )}
       </div>
 
       {!seciliAd ? (
