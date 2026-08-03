@@ -1152,7 +1152,7 @@ ${profilBolum}${kutuphaneBaglam}
 
 Bu öğrencinin risk durumunu değerlendir:
 
-RİSK TÜRÜ: (Şu türlerden EN UYGUN birini seç — sadece türün adını yaz: Davranış / Akademik / Aile / Akran-Zorbalık / Duygusal / Devamsızlık / Öz Zarar / Sağlık / Madde Kullanımı / Ekonomik Güçlük / Yas-Kayıp / Travma / Özel Öğrenme Güçlüğü / Diğer)
+RİSK TÜRÜ: (Şu türlerden EN UYGUN birini seç — sadece türün adını yaz: Davranış / Akademik / Aile / Akran-Zorbalık / Duygusal / Devamsızlık / Öz Zarar / Sağlık / Madde Kullanımı / Teknoloji-Ekran Bağımlılığı / Ekonomik Güçlük / Yas-Kayıp / Travma / Özel Öğrenme Güçlüğü / Diğer)
 RİSK DÜZEYİ: (HAFİF / ORTA / YÜKSEK — net belirt)
 RİSK DEĞERLENDİRMESİ: (Bu risk neden önemli, nasıl yorumlanmalı — 2-3 cümle)
 KORUYUCU FAKTÖRLER: (Öğrencinin güçlü yönleri ve koruyucu faktörler)
@@ -1161,6 +1161,10 @@ ACİL MÜDAHALE GEREKTİRİR Mİ: (Evet/Hayır — gerekçesiyle)
 1.
 2.
 3.
+
+TEKNOLOJİ/EKRAN BAĞIMLILIĞI TARAMASI: (Ana risk türünden bağımsız, HER ZAMAN yap — görüşme notlarında ekran/telefon/oyun kullanımına dair ipucu olsun ya da olmasın.) Önce şu klinik ölçütleri gözden geçir: (1) uyku düzeninde bozulma / geç saatlere kadar ekran başında kalma, (2) sosyal etkinliklerden veya yüz yüze arkadaşlıklardan çekilme, (3) akademik performansta gözle görülür düşüş, (4) ekran süresini azaltma girişimlerinde başarısızlık veya bu konuda huzursuzluk/öfke, (5) aile içi çatışmaların ekran kullanımı etrafında yoğunlaşması. Bu ölçütlere göre SADECE görüşme notlarında somut dayanak varsa değerlendirme yap; not yoksa ya da yetersizse "Yetersiz Veri" de, tahmin yürütme. Şu formatta yaz:
+BELİRTİ: (Var / Yok / Yetersiz Veri)
+GEREKÇE: (hangi ölçütlere ve görüşme notlarındaki hangi ifadelere dayandığını 1-2 cümlede belirt; "Yetersiz Veri" ise nedenini belirt)
 
 ${kademe ? "Değerlendirmeyi öğrencinin yaş/gelişim dönemine uygun şekilde yap. " : ""}${kutuphaneOzetleri.length > 0 ? "Kütüphane referanslarından (özellikle varsa yönetmelik/mevzuat maddelerinden) yararlan. " : ""}Sade, PDR diline uygun yaz. Markdown kullanma.`;
 
@@ -7018,6 +7022,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
           {alfabetikOgrenciler.map(o => {
             const gSayisi = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className, r.numara, o.numara)).length;
             const oRisk = riskListesi.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className, r.numara, o.numara) && !r.kapandi);
+            const oTeknoloji = oRisk.some(r => r.teknolojiBagimliligi);
             return (
               <div key={pdrOgrAnahtar(o.studentName, o.className, o.numara)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${BORDER}`}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -7031,6 +7036,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
                 </div>
                 <div style={{display:"flex",gap:5,alignItems:"center"}}>
                   {oRisk.length > 0 && <span style={{background:"#FDECEA",color:"#C0392B",borderRadius:10,padding:"2px 7px",fontSize:10,fontWeight:700}}>⚠ Risk</span>}
+                  {oTeknoloji && <span title={oRisk.find(r=>r.teknolojiBagimliligi)?.teknolojiGerekce || ""} style={{background:"#EEF2FF",color:"#3B4FD8",borderRadius:10,padding:"2px 7px",fontSize:10,fontWeight:700}}>📱 Teknoloji Bağımlılığı</span>}
                   <span style={{background:ACCENT_LIGHT,color:ACCENT,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:700}}>{gSayisi} görüşme</span>
                 </div>
               </div>
@@ -7720,7 +7726,19 @@ export default function App() {
       else aiRiskTuru = bulunan.split("\n")[0].trim();
     }
 
-    const item = { id: uid(), tarih: today(), ...riskForm, riskTuru: aiRiskTuru, oncelik: aiOncelik, aiAnaliz, kapandi: false };
+    // Teknoloji/Ekran Bağımlılığı taraması — ana risk türünden bağımsız, AI'ın
+    // her analizde görüşme notlarına dayanarak yaptığı ayrı bir tarama. Sadece
+    // "Var" ise Sınıf görünümünde rozet olarak gösterilir.
+    let teknolojiBagimliligi = false;
+    let teknolojiGerekce = "";
+    const teknoMatch = aiAnaliz.match(/BELİRTİ:\s*(Var|Yok|Yetersiz Veri)/i);
+    if (teknoMatch && teknoMatch[1].toLowerCase() === "var") {
+      teknolojiBagimliligi = true;
+      const gerekceMatch = aiAnaliz.match(/GEREKÇE:\s*(.+)/);
+      if (gerekceMatch) teknolojiGerekce = gerekceMatch[1].split("\n")[0].trim();
+    }
+
+    const item = { id: uid(), tarih: today(), ...riskForm, riskTuru: aiRiskTuru, oncelik: aiOncelik, aiAnaliz, kapandi: false, teknolojiBagimliligi, teknolojiGerekce };
     const updated = [item, ...riskListesi];
     setRiskListesi(updated); await saveRiskListesi(updated);
     setRiskForm({ studentName: "", className: "", numara: "", riskTuru: "", aciklama: "", oncelik: "Orta" });
