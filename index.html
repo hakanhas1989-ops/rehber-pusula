@@ -450,6 +450,10 @@ body {
 </div>
 
 <button id="pdr-logout-btn" style="display:none;position:fixed;bottom:14px;right:14px;z-index:9999;background:#f5f5f5;border:1px solid #ccc;border-radius:20px;padding:8px 16px;font-size:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.15);">Çıkış Yap</button>
+<div id="pdr-guncelleme-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:10000;background:#0F3D2E;color:#fff;padding:10px 16px;font-size:13px;font-weight:700;align-items:center;justify-content:center;gap:14px;box-shadow:0 2px 10px rgba(0,0,0,0.25);">
+  <span>🔄 Yeni bir sürüm hazır</span>
+  <button onclick="window.location.reload()" style="background:#C9A344;color:#0F3D2E;border:none;border-radius:20px;padding:6px 16px;font-size:12px;font-weight:800;cursor:pointer;">Şimdi Yenile</button>
+</div>
 
 <div id="root"></div>
 
@@ -907,6 +911,23 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js")
       .then(reg => console.log("SW registered"))
       .catch(err => console.log("SW error:", err));
+
+    // Sayfa uzun süre açık kalırsa bile yeni sürüm kontrolü yapılabilsin diye
+    // periyodik olarak (15 dakikada bir) güncelleme kontrolü tetiklenir.
+    setInterval(() => {
+      navigator.serviceWorker.getRegistration().then(reg => reg && reg.update());
+    }, 15 * 60 * 1000);
+  });
+
+  // Yeni bir sürüm kurulup devreye girdiğinde (skipWaiting + clients.claim sayesinde
+  // neredeyse anında olur) tarayıcı "controllerchange" olayını tetikler. Sayfa ilk kez
+  // yüklenirken de bu olay bir kez tetiklenebildiği için, ilk tetiklemeyi görmezden gelip
+  // sadece SONRAKİ (gerçek güncelleme anlamına gelen) tetiklemelerde bildirim gösteriyoruz.
+  let pdrIlkYukleme = true;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (pdrIlkYukleme) { pdrIlkYukleme = false; return; }
+    const banner = document.getElementById("pdr-guncelleme-banner");
+    if (banner) banner.style.display = "flex";
   });
 }
 
