@@ -6185,7 +6185,7 @@ function ProfilMerkez({
   profiles2, setProfiles2,
   oogDegerlendirmeler, setOogDegerlendirmeler,
   denemeler, records, kutuphane,
-  onRaporAc, sinavTuru,
+  onRaporAc, sinavTuru, onDegerlendirmeAc,
 }) {
   const dersler = aktifDersler(sinavTuru);
   // Seçili öğrenci
@@ -6489,6 +6489,12 @@ function ProfilMerkez({
                     <RadarChart scores={profForm.scores} size={240} glass />
                   </div>
                   <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,padding:14,marginBottom:12}}>
+                    {onDegerlendirmeAc && (
+                      <button onClick={onDegerlendirmeAc} style={{
+                        width:"100%", padding:"10px", marginBottom:12, background:"#EEF2FF", border:"1px solid #3B4FD8",
+                        borderRadius:10, color:"#3B4FD8", fontSize:13, fontWeight:800, cursor:"pointer"
+                      }}>🧭 Gözlem Sorularıyla AI Destekli Değerlendir</button>
+                    )}
                     {DIMENSIONS.map(dim=>(
                       <ScoreSlider key={dim.key} dim={dim} value={profForm.scores[dim.key]||3}
                         onChange={v=>setProfForm(f=>({...f,scores:{...f.scores,[dim.key]:v}}))} />
@@ -7559,6 +7565,8 @@ export default function App() {
     await saveKademe(k);
   }
   const [rehberGoster, setRehberGoster] = useState(false);
+  const [belgelerAltSekme, setBelgelerAltSekme] = useState("sevk"); // "sevk" | "meb_rapor" | "veli_mektubu"
+  const [degerlendirmeAcik, setDegerlendirmeAcik] = useState(false);
   const [kvkkBildirimGoster, setKvkkBildirimGoster] = useState(false);
   const [aktifYil, setAktifYil] = useState("2026-2027");
   const [yilEkranı, setYilEkrani] = useState(false); // true = yıl seçim ekranı
@@ -7864,10 +7872,7 @@ export default function App() {
     { key: "deneme", label: "📊 Deneme" },
     { key: "testler", label: "🧪 Testler" },
     { key: "mudahale", label: "🎯 Müdahale" },
-    { key: "sevk", label: "📤 Sevk" },
-    { key: "meb_rapor", label: "📑 MEB Rapor" },
-    { key: "veli_mektubu", label: "✉ Veli" },
-    { key: "degerlendirme", label: "🧭 Değerlendir" },
+    { key: "belgeler", label: "📑 Belgeler" },
     { key: "kutuphane", label: "📚 Kütüphane" },
     { key: "istatistik", label: "İstatistik" },
     { key: "ayarlar", label: "⚙️ Ayarlar" },
@@ -8040,40 +8045,67 @@ export default function App() {
           />
         )}
 
-        {/* ── SEVK TAKİP ───────────────────────────────────────────── */}
-        {tab === "sevk" && (
-          <SevkTakipEkrani
-            kayitliListesi={kayitliListesi}
-            aktifOgrenci={aktifOgrenci}
-            setAktifOgrenci={setAktifOgrenci}
-            sevkler={sevkler}
-            setSevkler={setSevkler}
-          />
+        {/* ── BELGELER (Sevk / MEB Rapor / Veli) ──────────────────── */}
+        {tab === "belgeler" && (
+          <div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 16, borderBottom: `1px solid ${BORDER}`, paddingBottom: 10 }}>
+              {[
+                { key: "sevk", label: "📤 Sevk" },
+                { key: "meb_rapor", label: "📑 MEB Rapor" },
+                { key: "veli_mektubu", label: "✉ Veli" },
+              ].map(alt => (
+                <button key={alt.key} onClick={() => setBelgelerAltSekme(alt.key)} style={{
+                  padding: "7px 14px", borderRadius: 20,
+                  border: `2px solid ${belgelerAltSekme === alt.key ? ACCENT : BORDER}`,
+                  background: belgelerAltSekme === alt.key ? ACCENT_LIGHT : CARD,
+                  color: belgelerAltSekme === alt.key ? ACCENT : MUTED,
+                  fontSize: 12, fontWeight: belgelerAltSekme === alt.key ? 800 : 600, cursor: "pointer"
+                }}>{alt.label}</button>
+              ))}
+            </div>
+
+            {belgelerAltSekme === "sevk" && (
+              <SevkTakipEkrani
+                kayitliListesi={kayitliListesi}
+                aktifOgrenci={aktifOgrenci}
+                setAktifOgrenci={setAktifOgrenci}
+                sevkler={sevkler}
+                setSevkler={setSevkler}
+              />
+            )}
+            {belgelerAltSekme === "meb_rapor" && (
+              <MEBRaporEkrani
+                records={records}
+                profiles={profiles}
+                riskListesi={riskListesi}
+                sevkler={sevkler}
+                kayitliListesi={kayitliListesi}
+              />
+            )}
+            {belgelerAltSekme === "veli_mektubu" && (
+              <VeliMektubu
+                kayitliListesi={kayitliListesi}
+                aktifOgrenci={aktifOgrenci}
+                records={records}
+              />
+            )}
+          </div>
         )}
 
-        {/* ── MEB RAPOR ────────────────────────────────────────────── */}
-        {tab === "meb_rapor" && (
-          <MEBRaporEkrani
-            records={records}
-            profiles={profiles}
-            riskListesi={riskListesi}
-            sevkler={sevkler}
-            kayitliListesi={kayitliListesi}
-          />
-        )}
-
-        {/* ── DEĞERLENDİRME ────────────────────────────────────────── */}
-        {tab === "degerlendirme" && (
-          <DegerlendirmeEkrani
-            onTransfer={(data) => handleDegerlendirmeTransfer(data)}
-            onClose={() => setTab("profil_merkez")}
-            records={records}
-            profiles={profiles}
-            profiles2={profiles2}
-            kayitliListesi={kayitliListesi}
-            aktifOgrenci={aktifOgrenci}
-            setAktifOgrenci={setAktifOgrenci}
-          />
+        {/* ── DEĞERLENDİRME (artık Profil'den açılan bir modal) ───── */}
+        {degerlendirmeAcik && (
+          <div style={{ position: "fixed", inset: 0, background: BG, zIndex: 9998, overflowY: "auto" }}>
+            <DegerlendirmeEkrani
+              onTransfer={(data) => { handleDegerlendirmeTransfer(data); setDegerlendirmeAcik(false); }}
+              onClose={() => setDegerlendirmeAcik(false)}
+              records={records}
+              profiles={profiles}
+              profiles2={profiles2}
+              kayitliListesi={kayitliListesi}
+              aktifOgrenci={aktifOgrenci}
+              setAktifOgrenci={setAktifOgrenci}
+            />
+          </div>
         )}
 
 
@@ -8094,6 +8126,7 @@ export default function App() {
             kutuphane={kutuphane}
             sinavTuru={sinavTuru}
             onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari }))}
+            onDegerlendirmeAc={() => setDegerlendirmeAcik(true)}
           />
         )}
 
@@ -8666,14 +8699,6 @@ export default function App() {
         )}
 
         {/* ── İSTATİSTİK ───────────────────────────────────────────── */}
-        {tab === "veli_mektubu" && (
-          <VeliMektubu
-            kayitliListesi={kayitliListesi}
-            aktifOgrenci={aktifOgrenci}
-            records={records}
-          />
-        )}
-
         {tab === "istatistik" && (
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
