@@ -2141,6 +2141,10 @@ function aniDegisimHesapla(ogr, records, riskListesi, sevkler, denemeler, testKa
     });
   }
 
+  // 9) Olay/Tutanak kaydında artış — son 60 günde 2+ yeni kayıt
+  const sonOlaylar = (ogr.olayKayitlari||[]).filter(o => (simdi - pdrTarihMs(o.tarih)) <= 60*GUN);
+  if (sonOlaylar.length >= 2) sinyaller.push({ tur: "Olay/Tutanak", detay: `Son 60 günde ${sonOlaylar.length} olay kaydı` });
+
   // 8) Profil (P1) puanlarında ani düşüş — profiller zaten geçmişli tutuluyor
   // (her kayıt yeni bir kayıt olarak eklenir, üzerine yazılmaz), o yüzden ek
   // bir veri modeli değişikliği gerekmedi, doğrudan son iki kayıt karşılaştırıldı.
@@ -4076,13 +4080,16 @@ function YilSecimEkrani({ yillar, setYillar, aktifYil, setAktifYil, ogrenciler, 
 }
 
 // ── Özet Kartı Bileşeni (Seans Öncesi Hazırlık) ─────────────────────────────
-function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denemeGirilen, denemeAvg, mudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, setTab, devamsizlikGecmisi, onDevamsizlikGuncelle }) {
+function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denemeGirilen, denemeAvg, mudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, setTab, devamsizlikGecmisi, onDevamsizlikGuncelle, kademe, olayKayitlari, onOlayEkle }) {
   const [hazirlikAiLoading, setHazirlikAiLoading] = useState(false);
   const [aktifPanel, setAktifPanel] = useState("ozet"); // ozet | hazirlik | ilerleme
   const [devGuncelleAcik, setDevGuncelleAcik] = useState(false);
   const devSirali = [...(devamsizlikGecmisi||[])].sort((a,b) => new Date(a.tarih.split(".").reverse().join("-")) - new Date(b.tarih.split(".").reverse().join("-")));
   const devSonKayit = devSirali[devSirali.length - 1];
   const [devInput, setDevInput] = useState(devSonKayit?.gun || 0);
+  const [olayFormAcik, setOlayFormAcik] = useState(false);
+  const [olayForm, setOlayForm] = useState({ tur: "Kavga", islem: "Tutanak Tutuldu", not: "" });
+  const olaySirali = [...(olayKayitlari||[])].sort((a,b) => pdrTarihMs(a.tarih) - pdrTarihMs(b.tarih));
 
   // Storage'dan yükle
   const hazirlikNotu = pdrSozlukOku(hazirlikNotlari, ogrenci, ogrenciSinif) || "";
@@ -4218,6 +4225,52 @@ Kısa ve pratik yaz, Markdown kullanma.`}]
               </div>
             );
           })()}
+
+          {/* Olay / Tutanak Kaydı — sadece Ortaokul/Lise'de anlamlı, ilkokulda bu süreç yok */}
+          {kademe !== "ilkokul" && (
+            <div style={{marginBottom:12}}>
+              <div onClick={() => setOlayFormAcik(a => !a)}
+                style={{background:"#F3EEFB", border:"1px solid #D6C6EE", borderRadius:14, padding:"12px 14px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer"}}>
+                <div>
+                  <div style={{fontSize:10,color:MUTED,fontWeight:700,letterSpacing:0.3}}>OLAY / TUTANAK KAYDI</div>
+                  <div style={{fontSize:20,fontWeight:900,color:"#7B5EA7"}}>{olaySirali.length} kayıt</div>
+                </div>
+                <span style={{background:"#7B5EA7",color:"#fff",borderRadius:12,padding:"5px 11px",fontSize:11,fontWeight:700}}>+ Yeni Ekle</span>
+              </div>
+              {olayFormAcik && (
+                <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:10,padding:10,marginTop:6}}>
+                  <div style={{fontSize:11,color:MUTED,marginBottom:8,lineHeight:1.5}}>Disiplin cezası uygulanmasa bile, olayın kendisini kaydeder — amaç ceza takibi değil, tekrarlayan olayları fark edebilmek.</div>
+                  <label style={{fontSize:11,fontWeight:600,color:MUTED,display:"block",marginBottom:3}}>OLAY TÜRÜ</label>
+                  <select value={olayForm.tur} onChange={e=>setOlayForm(f=>({...f,tur:e.target.value}))}
+                    style={{width:"100%",padding:"8px 10px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:13,boxSizing:"border-box",marginBottom:8}}>
+                    {["Kavga","Zorbalık / Akran Zorbalığı","Sözel Saldırganlık","Fiziksel Saldırganlık","Kurallara Uymama","Diğer"].map(t=><option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <label style={{fontSize:11,fontWeight:600,color:MUTED,display:"block",marginBottom:3}}>İŞLEM (opsiyonel)</label>
+                  <select value={olayForm.islem} onChange={e=>setOlayForm(f=>({...f,islem:e.target.value}))}
+                    style={{width:"100%",padding:"8px 10px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:13,boxSizing:"border-box",marginBottom:8}}>
+                    {["Tutanak Tutuldu","Veli Görüşmesi Yapıldı","Rehberliğe Yönlendirildi","Disiplin Kuruluna Sevk Edildi","İşlem Yapılmadı"].map(t=><option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <label style={{fontSize:11,fontWeight:600,color:MUTED,display:"block",marginBottom:3}}>NOT (opsiyonel)</label>
+                  <textarea rows={2} value={olayForm.not} onChange={e=>setOlayForm(f=>({...f,not:e.target.value}))}
+                    style={{width:"100%",padding:"8px 10px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:13,boxSizing:"border-box",marginBottom:8,resize:"vertical"}} />
+                  <button onClick={() => { onOlayEkle(olayForm); setOlayForm({ tur:"Kavga", islem:"Tutanak Tutuldu", not:"" }); setOlayFormAcik(false); }}
+                    style={{width:"100%",padding:"8px 16px",background:"#7B5EA7",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",marginBottom: olaySirali.length>0?10:0}}>Kaydet</button>
+                  {olaySirali.length > 0 && (
+                    <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:8}}>
+                      <div style={{fontSize:10,fontWeight:700,color:MUTED,marginBottom:4}}>GEÇMİŞ</div>
+                      {olaySirali.slice(-5).reverse().map((o,i) => (
+                        <div key={i} style={{fontSize:12,color:TEXT,padding:"4px 0",borderBottom: i<Math.min(5,olaySirali.length)-1?`1px solid ${BORDER}`:"none"}}>
+                          <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontWeight:700}}>{o.tur}</span><span style={{color:MUTED}}>{o.tarih}</span></div>
+                          {o.islem && <div style={{fontSize:11,color:MUTED}}>{o.islem}</div>}
+                          {o.not && <div style={{fontSize:11,color:TEXT,marginTop:2}}>{o.not}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Son görüşme */}
           {sonGorusme && (
@@ -5015,7 +5068,7 @@ function OgrenciYonetim({
   kayitliListesi, mudahalePlan, aktifYil, onYilEkrani,
   hazirlikNotlari, setHazirlikNotlari,
   ilerlemeNotlari, setIlerlemeNotlari,
-  onRaporAc, setAktifOgrenci, aktifOgrenci, setTab, onSinifGuncelle, onOgrenciSil, onSinifSil, sinifListesi, sinavTuru, sevkler, testKayitlari
+  onRaporAc, setAktifOgrenci, aktifOgrenci, setTab, onSinifGuncelle, onOgrenciSil, onSinifSil, sinifListesi, sinavTuru, sevkler, testKayitlari, kademe
 }) {
   const dersler = aktifDersler(sinavTuru);
 
@@ -5506,6 +5559,16 @@ function OgrenciYonetim({
                 const eskiGecmis = hedefOgr?.devamsizlikGecmisi || [];
                 const yeniGecmis = [...eskiGecmis, { tarih: today(), gun: yeniDeger }];
                 const updated = ogrenciler.map(o => pdrAyniOgrenci(o.studentName, o.className, seciliOgrenci, seciliOgrenciSinif, o.numara, seciliOgrenciNumara) ? { ...o, devamsizlik: yeniDeger, devamsizlikGecmisi: yeniGecmis } : o);
+                setOgrenciler(updated);
+                await saveOgrenciler(updated);
+              }}
+              kademe={kademe}
+              olayKayitlari={tumOgrenciler.find(x => x.studentName === seciliOgrenci)?.olayKayitlari || []}
+              onOlayEkle={async (yeniOlay) => {
+                const hedefOgr = tumOgrenciler.find(x => x.studentName === seciliOgrenci);
+                const eskiOlaylar = hedefOgr?.olayKayitlari || [];
+                const yeniOlaylar = [...eskiOlaylar, { ...yeniOlay, tarih: today() }];
+                const updated = ogrenciler.map(o => pdrAyniOgrenci(o.studentName, o.className, seciliOgrenci, seciliOgrenciSinif, o.numara, seciliOgrenciNumara) ? { ...o, olayKayitlari: yeniOlaylar } : o);
                 setOgrenciler(updated);
                 await saveOgrenciler(updated);
               }}
@@ -8438,6 +8501,7 @@ export default function App() {
             sinavTuru={sinavTuru}
             sevkler={sevkler}
             testKayitlari={testKayitlari}
+            kademe={kademe}
             onYilEkrani={() => setYilEkrani(true)}
             hazirlikNotlari={hazirlikNotlari}
             setHazirlikNotlari={setHazirlikNotlari}
