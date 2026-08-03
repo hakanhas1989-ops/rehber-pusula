@@ -1132,12 +1132,22 @@ function kademeBaglamMetni(kademe) {
   return k ? `\n\nGELİŞİMSEL BAĞLAM (${k.ad}): ${k.baglam}` : "";
 }
 
-async function getRiskAnalizi(riskForm, gorusmeler, profil1, kutuphaneOzetleri = [], kademe = "") {
+async function getRiskAnalizi(riskForm, gorusmeler, profil1, kutuphaneOzetleri = [], kademe = "", denemeOzet = null) {
   const gorusmeBolum = gorusmeler.length > 0
     ? "GÖRÜŞME NOTLARI:\n" + gorusmeler.map((r,i)=>`Görüşme ${i+1} (${r.date}): ${r.summary}`).join("\n\n")
     : "Görüşme kaydı yok.";
   const profilBolum = profil1
     ? "PDR PROFİL PUANLARI:\n" + Object.entries(profil1.scores||{}).map(([k,v])=>`${k}: ${v}/5`).join(", ")
+    : "";
+  // Deneme özeti — öğrenci listesindeki otomatik risk rozetiyle AYNI veriye
+  // dayanır (deneme ortalaması + risk düzeyi). Amaç: özellikle "Akademik" risk
+  // türünde değerlendirmenin sadece görüşme notlarına değil, gerçek akademik
+  // performansa da dayanmasını sağlamak; ayrıca iki farklı sinyal (deneme vs.
+  // görüşme) birbirinden çok farklı bir tablo çiziyorsa bunu AI'ın fark edip
+  // açıkça belirtmesini sağlamak — danışman ekranda "Riskli" rozeti görüp,
+  // AI analizinde "Hafif" okuyunca kafası karışmasın.
+  const denemeBolum = denemeOzet
+    ? `DENEME/AKADEMİK DURUM:\nOrtalama: ${denemeOzet.ortalama}${denemeOzet.toplam?`/${denemeOzet.toplam}`:""}\nDeneme bazlı risk düzeyi: ${denemeOzet.risk || "belirsiz"} (kaynak: ${denemeOzet.kaynak})\n`
     : "";
   const kutuphaneBaglam = pdrKutuphaneBaglam(kutuphaneOzetleri);
   const kademeMetni = kademeBaglamMetni(kademe);
@@ -1148,13 +1158,14 @@ Açıklama: ${riskForm.aciklama}
 ${kademeMetni}
 
 ${gorusmeBolum}
-${profilBolum}${kutuphaneBaglam}
+${profilBolum}
+${denemeBolum}${kutuphaneBaglam}
 
 Bu öğrencinin risk durumunu değerlendir:
 
 RİSK TÜRÜ: (Şu türlerden EN UYGUN birini seç — sadece türün adını yaz: Davranış / Akademik / Aile / Akran-Zorbalık / Duygusal / Devamsızlık / Öz Zarar / Sağlık / Madde Kullanımı / Teknoloji-Ekran Bağımlılığı / Ekonomik Güçlük / Yas-Kayıp / Travma / Özel Öğrenme Güçlüğü / Diğer)
-RİSK DÜZEYİ: (HAFİF / ORTA / YÜKSEK — net belirt)
-RİSK DEĞERLENDİRMESİ: (Bu risk neden önemli, nasıl yorumlanmalı — 2-3 cümle)
+RİSK DÜZEYİ: (HAFİF / ORTA / YÜKSEK — net belirt. Deneme/akademik veri varsa bunu da hesaba kat, sadece görüşme notlarına dayanma.)
+RİSK DEĞERLENDİRMESİ: (Bu risk neden önemli, nasıl yorumlanmalı — 2-3 cümle. Deneme sonucu ile görüşme notlarının işaret ettiği tablo BİRBİRİNDEN BELİRGİN ŞEKİLDE FARKLIYSA — örn. deneme riski yüksek ama görüşme notu yoksa/hafifse, ya da tam tersi — bunu açıkça "Not: Deneme sonuçları ile görüşme notları farklı bir tablo çiziyor" diyerek belirt.)
 KORUYUCU FAKTÖRLER: (Öğrencinin güçlü yönleri ve koruyucu faktörler)
 ACİL MÜDAHALE GEREKTİRİR Mİ: (Evet/Hayır — gerekçesiyle)
 ÖNERİLEN ADIMLAR:
@@ -7707,7 +7718,21 @@ export default function App() {
     const ad = riskForm.studentName.toLowerCase().trim();
     const ogrGorusmeler = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, riskForm.studentName, riskForm.className, r.numara, riskForm.numara));
     const ogrP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, riskForm.studentName, riskForm.className, p.numara, riskForm.numara));
-    const aiAnaliz = await getRiskAnalizi(riskForm, ogrGorusmeler, ogrP1, kutuphane, kademe);
+    // Deneme özeti — öğrenci listesi rozetiyle aynı hesaplama mantığı (8. sınıf
+    // varsa öncelikli, yoksa 7. sınıf); AI'a akademik/deneme bağlamı olarak verilir.
+    const ogrDenemeSozluk = pdrSozlukOku(denemeler, riskForm.studentName, riskForm.className, riskForm.numara) || {};
+    const ogr7sinif = ogrDenemeSozluk["7sinif"] || null;
+    const ogrDenemeSayisi = Object.keys(ogrDenemeSozluk).filter(k => k !== "7sinif").length;
+    const ogrDenemeOrtSayi = ogrDenemeSayisi > 0
+      ? Object.entries(ogrDenemeSozluk).filter(([k])=>k!=="7sinif").reduce((s,[,nets])=>s+aktifDenemeDersleri.reduce((ss,d)=>ss+(parseFloat(nets[d.key])||0),0),0)/ogrDenemeSayisi
+      : null;
+    let denemeOzet = null;
+    if (ogrDenemeOrtSayi !== null) {
+      denemeOzet = { ortalama: ogrDenemeOrtSayi.toFixed(1), toplam: aktifDenemeDersleri.reduce((s,d)=>s+d.maks,0), risk: denemeRiskHesapla(ogrDenemeOrtSayi, aktifDenemeDersleri), kaynak: "Bu dönem denemeleri" };
+    } else if (ogr7sinif) {
+      denemeOzet = { ortalama: ogr7sinif.ortalama, toplam: null, risk: ogr7sinif.risk, kaynak: "Geçmiş dönem denemeleri" };
+    }
+    const aiAnaliz = await getRiskAnalizi(riskForm, ogrGorusmeler, ogrP1, kutuphane, kademe, denemeOzet);
     // Risk düzeyini AI cevabından çek
     // Risk düzeyi
     let aiOncelik = riskForm.oncelik;
