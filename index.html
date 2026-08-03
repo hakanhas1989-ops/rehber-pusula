@@ -1177,6 +1177,10 @@ TEKNOLOJİ/EKRAN BAĞIMLILIĞI TARAMASI: (Ana risk türünden bağımsız, HER Z
 BELİRTİ: (Var / Yok / Yetersiz Veri)
 GEREKÇE: (hangi ölçütlere ve görüşme notlarındaki hangi ifadelere dayandığını 1-2 cümlede belirt; "Yetersiz Veri" ise nedenini belirt)
 
+GÖRÜŞME NOTLARINDA TON/İÇERİK DEĞİŞİMİ: (En az 3 görüşme kaydı varsa yap; azsa "Yetersiz Veri — en az 3 görüşme gerekir" de.) İlk görüşmeler ile son görüşmeleri karşılaştır: dil, duygu durumu, konu içeriği belirgin şekilde kötüleşmiş mi (örn. önceden nötr/olumlu notlar sonradan sürekli olumsuz/içine kapanık/öfkeli bir tona dönüşmüş mü)? Şu formatta yaz:
+DEĞİŞİM: (Var / Yok / Yetersiz Veri)
+GEREKÇE: (somut hangi ifadelerin değiştiğini 1-2 cümlede belirt)
+
 ${kademe ? "Değerlendirmeyi öğrencinin yaş/gelişim dönemine uygun şekilde yap. " : ""}${kutuphaneOzetleri.length > 0 ? "Kütüphane referanslarından (özellikle varsa yönetmelik/mevzuat maddelerinden) yararlan. " : ""}Sade, PDR diline uygun yaz. Markdown kullanma.`;
 
   const res = await pdrCallClaude({
@@ -2056,6 +2060,90 @@ const EMPTY_D2 = { TN: "", E1: "", E2: "", CP: "", FR: "", E_yuzde: "", TN_E: ""
 const EMPTY_PROF2 = { studentName:"", className:"", sinavlar:{...EMPTY_SINAV}, d2: {...EMPTY_D2}, ilgiler:[], ilgiNot:"", kariyer_hedef:"", aile_notu:"" };
 
 function today() { return new Date().toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" }); }
+function pdrTarihMs(tarihStr) {
+  if (!tarihStr) return 0;
+  const [g, ay, y] = tarihStr.split(".");
+  const t = new Date(`${y}-${ay}-${g}`).getTime();
+  return isNaN(t) ? 0 : t;
+}
+
+// ── Ani Değişim Algılayıcısı ────────────────────────────────────────────────
+// AMAÇ: "Bu öğrenciye şiddet potansiyeli var" gibi hiçbir etiket koymaz —
+// sadece objektif verilerde (devamsızlık, deneme, risk kaydı sıklığı, görüşme
+// sıklığı, sevk sıklığı, veli görüşme sıklığı, tekrar test sonuçları) ani bir
+// kötüleşme olup olmadığını hesaplar ve varsa danışmana "buraya yakından bak"
+// der. Karar her zaman danışmana bırakılır, program hiçbir çıkarım/tahmin
+// yapmaz — sadece "birden fazla gösterge aynı anda değişti" der.
+function aniDegisimHesapla(ogr, records, riskListesi, sevkler, denemeler, testKayitlari, dersler) {
+  const sinyaller = [];
+  const ad = ogr.studentName || ogr.name, sinif = ogr.className, no = ogr.numara;
+  const eslesir = (r) => pdrAyniOgrenci(r.studentName, r.className, ad, sinif, r.numara, no);
+  const simdi = Date.now();
+  const GUN = 86400000;
+
+  // 1) Devamsızlık artış hızı
+  const devGecmis = [...(ogr.devamsizlikGecmisi||[])].sort((a,b) => pdrTarihMs(a.tarih) - pdrTarihMs(b.tarih));
+  if (devGecmis.length >= 2) {
+    const son = devGecmis[devGecmis.length-1], onceki = devGecmis[devGecmis.length-2];
+    const gunFarki = son.gun - onceki.gun;
+    const gecenGun = Math.max(1, (pdrTarihMs(son.tarih) - pdrTarihMs(onceki.tarih)) / GUN);
+    if (gunFarki >= 3 && gecenGun <= 30) sinyaller.push({ tur: "Devamsızlık", detay: `${onceki.gun} → ${son.gun} gün (${Math.round(gecenGun)} günde)` });
+  }
+
+  // 2) Deneme sonucundaki ani düşüş
+  if (denemeler && dersler) {
+    const denemeSozluk = pdrSozlukOku(denemeler, ad, sinif, no) || {};
+    const girisler = Object.entries(denemeSozluk).filter(([k])=>k!=="7sinif").sort((a,b)=>Number(a[0])-Number(b[0]));
+    if (girisler.length >= 2) {
+      const hesap = ([,nets]) => dersler.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0);
+      const sonNet = hesap(girisler[girisler.length-1]);
+      const oncekiNet = hesap(girisler[girisler.length-2]);
+      const toplam = dersler.reduce((s,d)=>s+d.maks,0) || 90;
+      if (oncekiNet - sonNet >= toplam * 0.15) sinyaller.push({ tur: "Deneme", detay: `${oncekiNet.toFixed(1)} → ${sonNet.toFixed(1)} net (düşüş)` });
+    }
+  }
+
+  // 3) Risk kayıtlarındaki artış — son 30 günde 2+ yeni kayıt
+  const sonRiskler = (riskListesi||[]).filter(r => eslesir(r) && (simdi - pdrTarihMs(r.tarih)) <= 30*GUN);
+  if (sonRiskler.length >= 2) sinyaller.push({ tur: "Risk Kaydı", detay: `Son 30 günde ${sonRiskler.length} yeni risk kaydı` });
+
+  // 4) Görüşme sıklığındaki ani artış (öğrenci görüşmeleri)
+  const ogrGorusmeler = (records||[]).filter(eslesir).filter(r=>r.meetingType!=="Veli").sort((a,b)=>pdrTarihMs(a.date)-pdrTarihMs(b.date));
+  if (ogrGorusmeler.length >= 3) {
+    const son30 = ogrGorusmeler.filter(r => (simdi - pdrTarihMs(r.date)) <= 30*GUN).length;
+    const toplamAraliqGun = Math.max(30, (simdi - pdrTarihMs(ogrGorusmeler[0].date)) / GUN);
+    const aylikOrtalama = ogrGorusmeler.length / (toplamAraliqGun / 30);
+    if (son30 >= 3 && son30 > aylikOrtalama * 2) sinyaller.push({ tur: "Görüşme Sıklığı", detay: `Son 30 günde ${son30} görüşme (normalin üstünde)` });
+  }
+
+  // 5) Sevk sıklığındaki artış
+  const sonSevkler = (sevkler||[]).filter(eslesir).filter(s => (simdi - pdrTarihMs(s.tarih)) <= 60*GUN);
+  if (sonSevkler.length >= 2) sinyaller.push({ tur: "Sevk", detay: `Son 60 günde ${sonSevkler.length} sevk` });
+
+  // 6) Veli görüşme sıklığındaki artış
+  const veliGorusmeler = (records||[]).filter(eslesir).filter(r=>r.meetingType==="Veli");
+  const son60Veli = veliGorusmeler.filter(r => (simdi - pdrTarihMs(r.date)) <= 60*GUN).length;
+  if (veliGorusmeler.length >= 2 && son60Veli >= 3) sinyaller.push({ tur: "Veli Görüşmesi", detay: `Son 60 günde ${son60Veli} veli görüşmesi` });
+
+  // 7) Tekrar uygulanan testlerde kötüleşme (aynı test 2+ kez uygulanmış, toplam puanı belirgin artmış)
+  if (testKayitlari) {
+    const testGecmis = pdrSozlukOku(testKayitlari, ad, sinif, no) || [];
+    const gruplar = {};
+    testGecmis.forEach(t => { (gruplar[t.testAdi] = gruplar[t.testAdi]||[]).push(t); });
+    Object.entries(gruplar).forEach(([testAdi, kayitlar]) => {
+      if (kayitlar.length < 2) return;
+      const sirali = [...kayitlar].sort((a,b)=>pdrTarihMs(a.tarih)-pdrTarihMs(b.tarih));
+      const ilk = sirali[0], son = sirali[sirali.length-1];
+      const ilkPuan = parseFloat(ilk.veri?.toplamPuan), sonPuan = parseFloat(son.veri?.toplamPuan);
+      if (!isNaN(ilkPuan) && !isNaN(sonPuan) && ilkPuan > 0 && sonPuan - ilkPuan >= ilkPuan * 0.3) {
+        sinyaller.push({ tur: "Test Sonucu", detay: `${testAdi}: ${ilkPuan} → ${sonPuan}` });
+      }
+    });
+  }
+
+  return { sinyalSayisi: sinyaller.length, sinyaller };
+}
+
 
 // Eğitim yılı Eylül'de başlar, 30 Haziran'da biter — kim ne zaman katılırsa
 // katılsın erişimi hep aynı tarihte (o eğitim yılının 30 Haziran'ında) sona
@@ -3973,11 +4061,13 @@ function YilSecimEkrani({ yillar, setYillar, aktifYil, setAktifYil, ogrenciler, 
 }
 
 // ── Özet Kartı Bileşeni (Seans Öncesi Hazırlık) ─────────────────────────────
-function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denemeGirilen, denemeAvg, mudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, setTab, devamsizlik, onDevamsizlikGuncelle }) {
+function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denemeGirilen, denemeAvg, mudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, setTab, devamsizlikGecmisi, onDevamsizlikGuncelle }) {
   const [hazirlikAiLoading, setHazirlikAiLoading] = useState(false);
   const [aktifPanel, setAktifPanel] = useState("ozet"); // ozet | hazirlik | ilerleme
   const [devGuncelleAcik, setDevGuncelleAcik] = useState(false);
-  const [devInput, setDevInput] = useState(devamsizlik || 0);
+  const devSirali = [...(devamsizlikGecmisi||[])].sort((a,b) => new Date(a.tarih.split(".").reverse().join("-")) - new Date(b.tarih.split(".").reverse().join("-")));
+  const devSonKayit = devSirali[devSirali.length - 1];
+  const [devInput, setDevInput] = useState(devSonKayit?.gun || 0);
 
   // Storage'dan yükle
   const hazirlikNotu = pdrSozlukOku(hazirlikNotlari, ogrenci, ogrenciSinif) || "";
@@ -4071,7 +4161,7 @@ Kısa ve pratik yaz, Markdown kullanma.`}]
 
           {/* Devamsızlık */}
           {(() => {
-            const gun = parseInt(devamsizlik) || 0;
+            const gun = devSonKayit?.gun || 0;
             const durum = gun >= 10
               ? { label: "🚨 Kritik (Resmi Sınır)", color: "#C0392B", bg: "#FDECEA", border: "#F28B82" }
               : gun >= 7
@@ -4084,17 +4174,30 @@ Kısa ve pratik yaz, Markdown kullanma.`}]
                 <div onClick={() => { setDevInput(gun); setDevGuncelleAcik(a => !a); }}
                   style={{background:durum.bg, border:`1px solid ${durum.border}`, borderRadius:14, padding:"12px 14px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer"}}>
                   <div>
-                    <div style={{fontSize:10,color:MUTED,fontWeight:700,letterSpacing:0.3}}>DEVAMSIZLIK</div>
+                    <div style={{fontSize:10,color:MUTED,fontWeight:700,letterSpacing:0.3}}>DEVAMSIZLIK{devSonKayit?` · ${devSonKayit.tarih}`:""}</div>
                     <div style={{fontSize:20,fontWeight:900,color:durum.color}}>{gun} gün</div>
                   </div>
                   <span style={{background:durum.color,color:"#fff",borderRadius:12,padding:"5px 11px",fontSize:11,fontWeight:700}}>{durum.label}</span>
                 </div>
                 {devGuncelleAcik && (
-                  <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:10,padding:10,marginTop:6,display:"flex",gap:8}}>
-                    <input type="number" min="0" value={devInput} onChange={e=>setDevInput(e.target.value)}
-                      style={{flex:1,padding:"8px 10px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:14,boxSizing:"border-box"}} />
-                    <button onClick={() => { onDevamsizlikGuncelle(parseInt(devInput)||0); setDevGuncelleAcik(false); }}
-                      style={{padding:"8px 16px",background:ACCENT,color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>Kaydet</button>
+                  <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:10,padding:10,marginTop:6}}>
+                    <div style={{fontSize:11,color:MUTED,marginBottom:8,lineHeight:1.5}}>E-okul'dan kontrol ettiğin güncel devamsızlık gününü gir — üzerine yazmaz, tarihli yeni bir kayıt olarak eklenir, böylece artış hızı takip edilebilir.</div>
+                    <div style={{display:"flex",gap:8,marginBottom:devSirali.length>0?10:0}}>
+                      <input type="number" min="0" value={devInput} onChange={e=>setDevInput(e.target.value)}
+                        style={{flex:1,padding:"8px 10px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:14,boxSizing:"border-box"}} />
+                      <button onClick={() => { onDevamsizlikGuncelle(parseInt(devInput)||0); setDevGuncelleAcik(false); }}
+                        style={{padding:"8px 16px",background:ACCENT,color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>Kaydet</button>
+                    </div>
+                    {devSirali.length > 0 && (
+                      <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:8}}>
+                        <div style={{fontSize:10,fontWeight:700,color:MUTED,marginBottom:4}}>GEÇMİŞ</div>
+                        {devSirali.slice(-5).reverse().map((d,i) => (
+                          <div key={i} style={{fontSize:12,color:TEXT,display:"flex",justifyContent:"space-between",padding:"2px 0"}}>
+                            <span>{d.tarih}</span><span style={{fontWeight:700}}>{d.gun} gün</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -4897,7 +5000,7 @@ function OgrenciYonetim({
   kayitliListesi, mudahalePlan, aktifYil, onYilEkrani,
   hazirlikNotlari, setHazirlikNotlari,
   ilerlemeNotlari, setIlerlemeNotlari,
-  onRaporAc, setAktifOgrenci, aktifOgrenci, setTab, onSinifGuncelle, onOgrenciSil, onSinifSil, sinifListesi, sinavTuru
+  onRaporAc, setAktifOgrenci, aktifOgrenci, setTab, onSinifGuncelle, onOgrenciSil, onSinifSil, sinifListesi, sinavTuru, sevkler, testKayitlari
 }) {
   const dersler = aktifDersler(sinavTuru);
 
@@ -5249,6 +5352,7 @@ function OgrenciYonetim({
                 oKategori = { label: "🟡 Takip Gerekli", bg: "#FDF6E3", color: "#B07D1A" };
                 oKaynak = oRec.length > 0 ? "Görüşme" : (oDenRisk ? oDenRiskKaynak : "");
               }
+              const oAniDegisim = aniDegisimHesapla(o, records, riskListesi, sevkler, denemeler, testKayitlari, dersler);
 
               return (
                 <div key={pdrOgrAnahtar(o.studentName, o.className, o.numara)} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, padding:"10px 14px", display:"flex", flexDirection:"column", gap:6 }}>
@@ -5271,6 +5375,9 @@ function OgrenciYonetim({
                   {/* Rozetler — kendi satırında, avatar hizasından başlıyor */}
                   <div style={{ display:"flex", gap:4, flexWrap:"wrap", paddingLeft:44 }}>
                     <span style={{ background:oKategori.bg, color:oKategori.color, borderRadius:12, padding:"2px 7px", fontSize:10, fontWeight:800, whiteSpace:"nowrap" }}>{oKategori.label}{oKaynak ? ` · ${oKaynak}` : ""}</span>
+                    {oAniDegisim.sinyalSayisi >= 2 && (
+                      <span title={oAniDegisim.sinyaller.map(s=>`${s.tur}: ${s.detay}`).join(" · ")} style={{ background:"#FFF4E5", color:"#B7791F", borderRadius:12, padding:"2px 7px", fontSize:10, fontWeight:800, whiteSpace:"nowrap" }}>🔶 Ani Değişim ({oAniDegisim.sinyalSayisi})</span>
+                    )}
                     {oRec.length > 0 && <span style={{ background:ACCENT_LIGHT, color:ACCENT, borderRadius:12, padding:"2px 6px", fontSize:10, fontWeight:700 }}>{oRec.length} görüşme</span>}
                     {oDenAvg && <span style={{ background:"#EEF2FF", color:BLUE, borderRadius:12, padding:"2px 6px", fontSize:10, fontWeight:700 }}>Ort:{oDenAvg}</span>}
                     {oP1 && <span style={{ background:ACCENT_LIGHT, color:ACCENT, borderRadius:12, padding:"2px 6px", fontSize:10, fontWeight:700 }}>P1</span>}
@@ -5378,9 +5485,12 @@ function OgrenciYonetim({
               ilerlemeNotlari={ilerlemeNotlari}
               setIlerlemeNotlari={setIlerlemeNotlari}
               setTab={setTab}
-              devamsizlik={tumOgrenciler.find(x => x.studentName === seciliOgrenci)?.devamsizlik || 0}
+              devamsizlikGecmisi={tumOgrenciler.find(x => x.studentName === seciliOgrenci)?.devamsizlikGecmisi || []}
               onDevamsizlikGuncelle={async (yeniDeger) => {
-                const updated = ogrenciler.map(o => pdrAyniOgrenci(o.studentName, o.className, seciliOgrenci, seciliOgrenciSinif, o.numara, seciliOgrenciNumara) ? { ...o, devamsizlik: yeniDeger } : o);
+                const hedefOgr = tumOgrenciler.find(x => x.studentName === seciliOgrenci);
+                const eskiGecmis = hedefOgr?.devamsizlikGecmisi || [];
+                const yeniGecmis = [...eskiGecmis, { tarih: today(), gun: yeniDeger }];
+                const updated = ogrenciler.map(o => pdrAyniOgrenci(o.studentName, o.className, seciliOgrenci, seciliOgrenciSinif, o.numara, seciliOgrenciNumara) ? { ...o, devamsizlik: yeniDeger, devamsizlikGecmisi: yeniGecmis } : o);
                 setOgrenciler(updated);
                 await saveOgrenciler(updated);
               }}
@@ -8311,6 +8421,8 @@ export default function App() {
             aktifOgrenci={aktifOgrenci}
             sinifListesi={sinifListesi}
             sinavTuru={sinavTuru}
+            sevkler={sevkler}
+            testKayitlari={testKayitlari}
             onYilEkrani={() => setYilEkrani(true)}
             hazirlikNotlari={hazirlikNotlari}
             setHazirlikNotlari={setHazirlikNotlari}
