@@ -6872,7 +6872,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
   const [yeniSinifAdi, setYeniSinifAdi] = useState("");
   const [sinifSilOnay, setSinifSilOnay] = useState(null);
 
-  const RISK_TURLERI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygusal","Devamsızlık","Öz Zarar","Sağlık","Madde Kullanımı","Ekonomik Güçlük","Yas / Kayıp","Travma","Özel Öğrenme Güçlüğü","Diğer"];
+  const RISK_TURLERI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygusal","Devamsızlık","Öz Zarar","Sağlık","Madde Kullanımı","Teknoloji / Ekran Bağımlılığı","Ekonomik Güçlük","Yas / Kayıp","Travma","Özel Öğrenme Güçlüğü","Diğer"];
 
   // Yıl filtreli öğrenciler
   const yilOgrencileri = ogrenciler.filter(o => !o.yil || o.yil === aktifYil);
@@ -7741,7 +7741,7 @@ export default function App() {
     else if (aiAnaliz.includes("HAFİF") || aiAnaliz.includes("HAFIF")) aiOncelik = "Düşük";
 
     // Risk türü — AI'dan otomatik çek
-    const riskTurleriListesi = ["Davranış","Akademik","Aile","Akran / Zorbalık","Akran-Zorbalık","Duygusal","Devamsızlık","Öz Zarar","Sağlık","Madde Kullanımı","Ekonomik Güçlük","Yas / Kayıp","Yas-Kayıp","Travma","Özel Öğrenme Güçlüğü","Diğer"];
+    const riskTurleriListesi = ["Davranış","Akademik","Aile","Akran / Zorbalık","Akran-Zorbalık","Duygusal","Devamsızlık","Öz Zarar","Sağlık","Madde Kullanımı","Teknoloji / Ekran Bağımlılığı","Teknoloji-Ekran Bağımlılığı","Ekonomik Güçlük","Yas / Kayıp","Yas-Kayıp","Travma","Özel Öğrenme Güçlüğü","Diğer"];
     let aiRiskTuru = riskForm.riskTuru;
     const turMatch = aiAnaliz.match(/RİSK TÜRÜ:\s*(.+)/);
     if (turMatch) {
