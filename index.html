@@ -2164,17 +2164,16 @@ function aniDegisimHesapla(ogr, records, riskListesi, sevkler, denemeler, testKa
 }
 
 
-// Eğitim yılı Eylül'de başlar, 30 Haziran'da biter — kim ne zaman katılırsa
-// katılsın erişimi hep aynı tarihte (o eğitim yılının 30 Haziran'ında) sona
-// erer, ödeme ise sadece kalan aya göre orantılı alınır. Temmuz-Ağustos
-// (yaz tatili) katılımları bir sonraki eğitim yılına sayılır.
+// Eğitim yılı Eylül'de başlar — erişim kesin bitiş tarihi 31 Ağustos (yaz
+// boyunca kullanım kesilmez, yenileme sadece bir sonraki eğitim yılı
+// başlarken/Eylül'de gerekir). Kim ne zaman katılırsa katılsın erişimi aynı
+// tarihte biter, ödeme ise sadece kalan aya göre orantılı alınır.
 function pdrEgitimYiliBitisi(tarihMs = Date.now()) {
   const d = new Date(tarihMs);
   const ay = d.getMonth(); // 0=Ocak ... 8=Eylül ... 11=Aralık
   const yil = d.getFullYear();
-  if (ay >= 8) return new Date(yil + 1, 5, 30, 23, 59, 59).getTime(); // Eylül-Aralık → gelecek yıl Haziran
-  if (ay <= 5) return new Date(yil, 5, 30, 23, 59, 59).getTime(); // Ocak-Haziran → bu yıl Haziran
-  return new Date(yil + 1, 5, 30, 23, 59, 59).getTime(); // Temmuz-Ağustos (yaz) → gelecek yıla sayılır
+  if (ay >= 8) return new Date(yil + 1, 7, 31, 23, 59, 59).getTime(); // Eylül-Aralık → gelecek yıl 31 Ağustos
+  return new Date(yil, 7, 31, 23, 59, 59).getTime(); // Ocak-Ağustos → bu takvim yılının 31 Ağustos'u
 }
 function pdrKalanAySayisi(tarihMs = Date.now()) {
   const bitis = pdrEgitimYiliBitisi(tarihMs);
@@ -7676,10 +7675,11 @@ function RecordCard({ rec, onDelete, onUpdate }) {
 
 // ── Başlarken Rehberi ────────────────────────────────────────────────────────
 const REHBER_ADIMLARI = [
-  { ikon: "⚙️", baslik: "Ayarlar'dan başla", metin: "Okul kademeni (İlkokul/Ortaokul/Lise) ve varsa sınav türünü seç. Bu, AI önerilerinin öğrencinin yaşına uygun olmasını sağlar." },
+  { ikon: "⚙️", baslik: "Ayarlar'dan başla", metin: "Okul kademeni (İlkokul/Ortaokul/Lise) ve varsa sınav türünü seç. Bu, AI önerilerinin öğrencinin yaşına uygun olmasını ve doğru deneme türünün kullanılmasını sağlar." },
   { ikon: "🏫", baslik: "Sınıflarını oluştur", metin: "Sınıf sekmesinden sınıf ekle, ya da doğrudan deneme Excel'ini / sınıf listesini yükleyerek öğrencilerini otomatik oluştur." },
-  { ikon: "👤", baslik: "Öğrenci görüşmesi kaydet", metin: "\"+ Not\" ile ilk görüşmeni kaydet — AI otomatik özetlesin, öğrenci profiline işlensin." },
-  { ikon: "⚠️", baslik: "Risk ve Müdahale takibi", metin: "Riskli gördüğün öğrencileri Risk sekmesinden işaretle, AI destekli müdahale planı oluştur." },
+  { ikon: "📝", baslik: "Görüşme notu kaydet", metin: "\"Görüşme Notu\" sekmesinden ilk kaydını gir — AI otomatik özetlesin, öğrenci profiline işlensin." },
+  { ikon: "⚠️", baslik: "Risk, Müdahale ve Ani Değişim", metin: "Riskli gördüğün öğrencileri Risk sekmesinden işaretle, AI destekli müdahale planı oluştur. Program ayrıca devamsızlık, deneme, görüşme sıklığı gibi verilerde ani değişim olursa öğrenci listesinde seni otomatik uyarır." },
+  { ikon: "🧪", baslik: "Test sonuçlarını kaydet", metin: "Uyguladığın standart testlerin (D2, Beck, Frostig, Conners ve daha fazlası) sonucunu Testler sekmesinden gir — rapora otomatik eklenir." },
   { ikon: "📚", baslik: "Kütüphaneyi besle", metin: "İlgili yönetmelik ya da makaleleri yükle — AI önerilerinde otomatik referans olarak kullanılsın." },
   { ikon: "📥", baslik: "Düzenli yedek al", metin: "Ayarlar'dan \"Tüm Veriyi Yedekle\"ye basıp önemli işlemlerden önce ya da ayda bir dosyanı indir." },
 ];
