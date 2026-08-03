@@ -8570,8 +8570,8 @@ export default function App() {
                 <label style={labelStyle}>RİSK TÜRÜ</label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
                   {(() => {
-                    const TUR_PALET = ["#E63946","#457B9D","#2A9D8F","#E76F51","#7B5EA7","#E9C46A","#C0392B","#1A8C5B","#8E5B3C","#3B4FD8","#D45D9C","#B07D1A","#00A8A8","#6C757D"];
-                    const turler = ["Davranış", "Akademik", "Aile", "Akran / Zorbalık", "Duygusal", "Devamsızlık", "Öz Zarar", "Sağlık", "Madde Kullanımı", "Ekonomik Güçlük", "Yas / Kayıp", "Travma", "Özel Öğrenme Güçlüğü", "Diğer"];
+                    const TUR_PALET = ["#E63946","#457B9D","#2A9D8F","#E76F51","#7B5EA7","#E9C46A","#C0392B","#1A8C5B","#8E5B3C","#3B4FD8","#D45D9C","#B07D1A","#00A8A8","#6C757D","#264653"];
+                    const turler = ["Davranış", "Akademik", "Aile", "Akran / Zorbalık", "Duygusal", "Devamsızlık", "Öz Zarar", "Sağlık", "Madde Kullanımı", "Teknoloji / Ekran Bağımlılığı", "Ekonomik Güçlük", "Yas / Kayıp", "Travma", "Özel Öğrenme Güçlüğü", "Diğer"];
                     return turler.map((t, ti) => {
                       const s = riskForm.riskTuru === t;
                       const rc = TUR_PALET[ti % TUR_PALET.length];
