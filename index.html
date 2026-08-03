@@ -2074,7 +2074,7 @@ function pdrTarihMs(tarihStr) {
 // kötüleşme olup olmadığını hesaplar ve varsa danışmana "buraya yakından bak"
 // der. Karar her zaman danışmana bırakılır, program hiçbir çıkarım/tahmin
 // yapmaz — sadece "birden fazla gösterge aynı anda değişti" der.
-function aniDegisimHesapla(ogr, records, riskListesi, sevkler, denemeler, testKayitlari, dersler) {
+function aniDegisimHesapla(ogr, records, riskListesi, sevkler, denemeler, testKayitlari, dersler, profiles) {
   const sinyaller = [];
   const ad = ogr.studentName || ogr.name, sinif = ogr.className, no = ogr.numara;
   const eslesir = (r) => pdrAyniOgrenci(r.studentName, r.className, ad, sinif, r.numara, no);
@@ -2139,6 +2139,21 @@ function aniDegisimHesapla(ogr, records, riskListesi, sevkler, denemeler, testKa
         sinyaller.push({ tur: "Test Sonucu", detay: `${testAdi}: ${ilkPuan} → ${sonPuan}` });
       }
     });
+  }
+
+  // 8) Profil (P1) puanlarında ani düşüş — profiller zaten geçmişli tutuluyor
+  // (her kayıt yeni bir kayıt olarak eklenir, üzerine yazılmaz), o yüzden ek
+  // bir veri modeli değişikliği gerekmedi, doğrudan son iki kayıt karşılaştırıldı.
+  if (profiles && DIMENSIONS) {
+    const ogrP1ler = profiles.filter(eslesir).sort((a,b)=>pdrTarihMs(a.date)-pdrTarihMs(b.date));
+    if (ogrP1ler.length >= 2) {
+      const son = ogrP1ler[ogrP1ler.length-1], onceki = ogrP1ler[ogrP1ler.length-2];
+      const dusenBoyutlar = DIMENSIONS.filter(d => {
+        const s1 = parseFloat(onceki.scores?.[d.key]), s2 = parseFloat(son.scores?.[d.key]);
+        return !isNaN(s1) && !isNaN(s2) && (s1 - s2) >= 2;
+      });
+      if (dusenBoyutlar.length > 0) sinyaller.push({ tur: "Profil Puanı", detay: dusenBoyutlar.map(d=>`${d.label}: ${onceki.scores[d.key]}→${son.scores[d.key]}`).join(", ") });
+    }
   }
 
   return { sinyalSayisi: sinyaller.length, sinyaller };
@@ -5352,7 +5367,7 @@ function OgrenciYonetim({
                 oKategori = { label: "🟡 Takip Gerekli", bg: "#FDF6E3", color: "#B07D1A" };
                 oKaynak = oRec.length > 0 ? "Görüşme" : (oDenRisk ? oDenRiskKaynak : "");
               }
-              const oAniDegisim = aniDegisimHesapla(o, records, riskListesi, sevkler, denemeler, testKayitlari, dersler);
+              const oAniDegisim = aniDegisimHesapla(o, records, riskListesi, sevkler, denemeler, testKayitlari, dersler, profiles);
 
               return (
                 <div key={pdrOgrAnahtar(o.studentName, o.className, o.numara)} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, padding:"10px 14px", display:"flex", flexDirection:"column", gap:6 }}>
