@@ -805,8 +805,11 @@ pdrAuth.onAuthStateChanged(async (user) => {
         pdrOnayEkraniGoster(basvuru.durum);
         return;
       }
-      // Onaylı ama ne ücretsiz ne de ödemesi alınmış — erişimi ödeme bekleme ekranında durdur
-      if (!basvuru.ucretsiz && !basvuru.odemeAlindi) {
+      // Onaylı ama ne ücretsiz ne de ödemesi alınmış, YA DA geçen yılın erişim
+      // süresi dolmuş (eğitim yılı sonu geçmiş, yeni yıl için ödeme gerekiyor) —
+      // erişimi ödeme bekleme ekranında durdur.
+      const pdrSuresiDolmus = !basvuru.ucretsiz && basvuru.erisimBitis && Date.now() > basvuru.erisimBitis;
+      if ((!basvuru.ucretsiz && !basvuru.odemeAlindi) || pdrSuresiDolmus) {
         if (splashEl) splashEl.className = "hide";
         pdrOdemeEkraniGoster();
         return;
@@ -821,10 +824,11 @@ pdrAuth.onAuthStateChanged(async (user) => {
       pdrBasvuruUnsub = pdrDb.collection("basvurular").doc(user.uid).onSnapshot(snap => {
         const b = snap.data();
         if (!b) return;
+        const suresiDolmus = !b.ucretsiz && b.erisimBitis && Date.now() > b.erisimBitis;
         if (b.durum !== "onayli") {
           pdrOdemeEkraniGizle();
           pdrOnayEkraniGoster(b.durum);
-        } else if (!b.ucretsiz && !b.odemeAlindi) {
+        } else if ((!b.ucretsiz && !b.odemeAlindi) || suresiDolmus) {
           pdrOnayEkraniGizle();
           pdrOdemeEkraniGoster();
         } else {
@@ -2016,6 +2020,24 @@ const EMPTY_D2 = { TN: "", E1: "", E2: "", CP: "", FR: "", E_yuzde: "", TN_E: ""
 const EMPTY_PROF2 = { studentName:"", className:"", sinavlar:{...EMPTY_SINAV}, d2: {...EMPTY_D2}, ilgiler:[], ilgiNot:"", kariyer_hedef:"", aile_notu:"" };
 
 function today() { return new Date().toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" }); }
+
+// Eğitim yılı Eylül'de başlar, 30 Haziran'da biter — kim ne zaman katılırsa
+// katılsın erişimi hep aynı tarihte (o eğitim yılının 30 Haziran'ında) sona
+// erer, ödeme ise sadece kalan aya göre orantılı alınır. Temmuz-Ağustos
+// (yaz tatili) katılımları bir sonraki eğitim yılına sayılır.
+function pdrEgitimYiliBitisi(tarihMs = Date.now()) {
+  const d = new Date(tarihMs);
+  const ay = d.getMonth(); // 0=Ocak ... 8=Eylül ... 11=Aralık
+  const yil = d.getFullYear();
+  if (ay >= 8) return new Date(yil + 1, 5, 30, 23, 59, 59).getTime(); // Eylül-Aralık → gelecek yıl Haziran
+  if (ay <= 5) return new Date(yil, 5, 30, 23, 59, 59).getTime(); // Ocak-Haziran → bu yıl Haziran
+  return new Date(yil + 1, 5, 30, 23, 59, 59).getTime(); // Temmuz-Ağustos (yaz) → gelecek yıla sayılır
+}
+function pdrKalanAySayisi(tarihMs = Date.now()) {
+  const bitis = pdrEgitimYiliBitisi(tarihMs);
+  const gun = Math.max(0, Math.ceil((bitis - tarihMs) / (1000*60*60*24)));
+  return Math.max(0, Math.ceil(gun / 30));
+}
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 
 // 150+ öğrencilik bir okulda aynı isimde birden fazla öğrenci olması olası
@@ -4437,6 +4459,12 @@ function KullaniciOnaylari() {
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 13, color: TEXT }}>{b.email}</div>
                     <div style={{ fontSize: 11, color: MUTED }}>{b.tarih ? new Date(b.tarih).toLocaleDateString("tr-TR") : ""}</div>
+                    {b.durum === "onayli" && b.erisimBitis && (
+                      <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
+                        📅 Erişim bitişi: {new Date(b.erisimBitis).toLocaleDateString("tr-TR")}
+                        {!b.ucretsiz && ` · Kalan: ${pdrKalanAySayisi(Date.now())} ay`}
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     <span style={{ background: durumStil.bg, color: durumStil.color, borderRadius: 12, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>{durumStil.label}</span>
@@ -4447,14 +4475,29 @@ function KullaniciOnaylari() {
                     )}
                   </div>
                 </div>
+                {b.durum !== "onayli" && pdrKalanAySayisi(Date.now()) <= 1 && (
+                  <div style={{ fontSize: 11, color: "#B07D1A", background: "#FDF6E3", borderRadius: 8, padding: "5px 9px", marginBottom: 8 }}>
+                    ℹ️ Eğitim yılının son ayındayız — onaylarsan otomatik ücretsiz işaretlenir, ücret bir sonraki yıldan itibaren alınır.
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                  <button onClick={() => guncelle(b.uid, { durum: "onayli" })} disabled={b.durum === "onayli"} style={{ padding: "6px 12px", background: b.durum === "onayli" ? BORDER : ACCENT, color: b.durum === "onayli" ? MUTED : "#fff", border: "none", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: b.durum === "onayli" ? "default" : "pointer" }}>✓ Onayla</button>
+                  <button onClick={() => {
+                    const kalanAy = pdrKalanAySayisi(Date.now());
+                    const alanlar = { durum: "onayli", onayTarihi: Date.now(), erisimBitis: pdrEgitimYiliBitisi(Date.now()) };
+                    if (kalanAy <= 1) alanlar.ucretsiz = true; // son ay — ücret alınmaz, otomatik ücretsiz
+                    guncelle(b.uid, alanlar);
+                  }} disabled={b.durum === "onayli"} style={{ padding: "6px 12px", background: b.durum === "onayli" ? BORDER : ACCENT, color: b.durum === "onayli" ? MUTED : "#fff", border: "none", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: b.durum === "onayli" ? "default" : "pointer" }}>✓ Onayla</button>
                   <button onClick={() => guncelle(b.uid, { durum: "reddedildi" })} disabled={b.durum === "reddedildi"} style={{ padding: "6px 12px", background: "none", border: "1px solid #F28B82", color: "#C5221F", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: b.durum === "reddedildi" ? "default" : "pointer" }}>🚫 Reddet</button>
                   <button onClick={() => guncelle(b.uid, { durum: "bekliyor" })} disabled={b.durum === "bekliyor"} style={{ padding: "6px 12px", background: "none", border: `1px solid ${BORDER}`, color: MUTED, borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: b.durum === "bekliyor" ? "default" : "pointer" }}>↺ Beklemeye Al</button>
                 </div>
                 <div style={{ display: "flex", gap: 18, flexWrap: "wrap", alignItems: "center", marginTop: 8, paddingTop: 8, borderTop: `1px solid ${BORDER}` }}>
                   <PdrToggle checked={!!b.odemeAlindi} onChange={v => guncelle(b.uid, { odemeAlindi: v })} color="#1A8C5B" label="💳 Ödeme Alındı" />
                   <PdrToggle checked={!!b.ucretsiz} onChange={v => guncelle(b.uid, { ucretsiz: v })} color={ACCENT} label="🎁 Ücretsiz kullanıcı" />
+                  {b.durum === "onayli" && (
+                    <button onClick={() => guncelle(b.uid, { onayTarihi: Date.now(), erisimBitis: pdrEgitimYiliBitisi(Date.now()), odemeAlindi: false, ucretsiz: false })} style={{
+                      padding: "5px 10px", background: "none", border: `1px solid ${BORDER}`, color: MUTED, borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer"
+                    }}>🔄 Yeni Yıl İçin Yenile</button>
+                  )}
                 </div>
               </div>
             );
