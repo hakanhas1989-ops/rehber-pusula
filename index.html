@@ -2181,6 +2181,20 @@ function pdrKalanAySayisi(tarihMs = Date.now()) {
   const gun = Math.max(0, Math.ceil((bitis - tarihMs) / (1000*60*60*24)));
   return Math.max(0, Math.ceil(gun / 30));
 }
+// Aylık lisans ücreti — tam yıl fiyatının (600 TL) 10 ay (Eylül-Haziran) üzerinden
+// eşdeğeri. Bu değişirse tek yerden güncellenir.
+const PDR_AYLIK_UCRET = 60;
+// Ücretlendirilen ay sayısı — pdrKalanAySayisi'nden FARKLI: erişim Ağustos sonuna
+// kadar uzatılmış olsa da (yaz bonus/ücretsiz), ÜCRET sadece Eylül-Haziran'ın 10 ayı
+// üzerinden hesaplanır. Temmuz-Ağustos'ta katılan biri hâlihazırda gelecek eğitim
+// yılının tam 10 ayını (+ bu yazı bonus olarak) ödüyor sayılır.
+function pdrUcretlendirmeAySayisi(tarihMs = Date.now()) {
+  const d = new Date(tarihMs);
+  const ay = d.getMonth(); // 0=Ocak ... 8=Eylül ... 11=Aralık
+  if (ay >= 8) return 10 - (ay - 8); // Eylül→10, Ekim→9 ... Aralık→7
+  if (ay <= 5) return 6 - ay; // Ocak→6, Şubat→5 ... Haziran→1
+  return 10; // Temmuz-Ağustos (yaz) → gelecek eğitim yılının tam ücreti
+}
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 
 // 150+ öğrencilik bir okulda aynı isimde birden fazla öğrenci olması olası
@@ -4676,7 +4690,12 @@ function KullaniciOnaylari() {
                     {b.durum === "onayli" && b.erisimBitis && (
                       <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
                         📅 Erişim bitişi: {new Date(b.erisimBitis).toLocaleDateString("tr-TR")}
-                        {!b.ucretsiz && ` · Kalan: ${pdrKalanAySayisi(Date.now())} ay`}
+                        {!b.ucretsiz && ` · Erişim kalan: ${pdrKalanAySayisi(Date.now())} ay`}
+                      </div>
+                    )}
+                    {!b.ucretsiz && !b.odemeAlindi && (
+                      <div style={{ fontSize: 11, color: "#3B4FD8", marginTop: 2, fontWeight: 700 }}>
+                        💰 Önerilen tutar: {pdrUcretlendirmeAySayisi(Date.now()) * PDR_AYLIK_UCRET} TL ({pdrUcretlendirmeAySayisi(Date.now())} ay × {PDR_AYLIK_UCRET} TL)
                       </div>
                     )}
                   </div>
@@ -4689,16 +4708,16 @@ function KullaniciOnaylari() {
                     )}
                   </div>
                 </div>
-                {b.durum !== "onayli" && pdrKalanAySayisi(Date.now()) <= 1 && (
+                {b.durum !== "onayli" && pdrUcretlendirmeAySayisi(Date.now()) <= 1 && (
                   <div style={{ fontSize: 11, color: "#B07D1A", background: "#FDF6E3", borderRadius: 8, padding: "5px 9px", marginBottom: 8 }}>
                     ℹ️ Eğitim yılının son ayındayız — onaylarsan otomatik ücretsiz işaretlenir, ücret bir sonraki yıldan itibaren alınır.
                   </div>
                 )}
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                   <button onClick={() => {
-                    const kalanAy = pdrKalanAySayisi(Date.now());
+                    const ucretliAy = pdrUcretlendirmeAySayisi(Date.now());
                     const alanlar = { durum: "onayli", onayTarihi: Date.now(), erisimBitis: pdrEgitimYiliBitisi(Date.now()) };
-                    if (kalanAy <= 1) alanlar.ucretsiz = true; // son ay — ücret alınmaz, otomatik ücretsiz
+                    if (ucretliAy <= 1) alanlar.ucretsiz = true; // son ay — ücret alınmaz, otomatik ücretsiz
                     guncelle(b.uid, alanlar);
                   }} disabled={b.durum === "onayli"} style={{ padding: "6px 12px", background: b.durum === "onayli" ? BORDER : ACCENT, color: b.durum === "onayli" ? MUTED : "#fff", border: "none", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: b.durum === "onayli" ? "default" : "pointer" }}>✓ Onayla</button>
                   <button onClick={() => guncelle(b.uid, { durum: "reddedildi" })} disabled={b.durum === "reddedildi"} style={{ padding: "6px 12px", background: "none", border: "1px solid #F28B82", color: "#C5221F", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: b.durum === "reddedildi" ? "default" : "pointer" }}>🚫 Reddet</button>
@@ -7788,6 +7807,7 @@ function RecordCard({ rec, onDelete, onUpdate }) {
 
 // ── Başlarken Rehberi ────────────────────────────────────────────────────────
 const REHBER_ADIMLARI = [
+  { ikon: "🔑", baslik: "AI için API anahtarı al", metin: "Yapay zekâ özelliklerini (özet, risk analizi, müdahale planı) kullanabilmek için kendi Anthropic API anahtarını almalısın: console.anthropic.com adresinden ücretsiz hesap aç, küçük bir bakiye yükle (kullandıkça düşer, genelde aylık birkaç dolar civarında kalır), \"API Keys\" bölümünden yeni bir anahtar oluştur ve kopyala. Ayarlar sekmesindeki \"Anthropic API Anahtarı\" kutusuna yapıştırıp kaydet. Anahtar olmadan da programı kullanabilirsin, sadece AI destekli özellikler çalışmaz." },
   { ikon: "⚙️", baslik: "Ayarlar'dan başla", metin: "Okul kademeni (İlkokul/Ortaokul/Lise) ve varsa sınav türünü seç. Bu, AI önerilerinin öğrencinin yaşına uygun olmasını ve doğru deneme türünün kullanılmasını sağlar." },
   { ikon: "🏫", baslik: "Sınıflarını oluştur", metin: "Sınıf sekmesinden sınıf ekle, ya da doğrudan deneme Excel'ini / sınıf listesini yükleyerek öğrencilerini otomatik oluştur." },
   { ikon: "📝", baslik: "Görüşme notu kaydet", metin: "\"Görüşme Notu\" sekmesinden ilk kaydını gir — AI otomatik özetlesin, öğrenci profiline işlensin." },
