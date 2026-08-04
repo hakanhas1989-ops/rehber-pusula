@@ -572,6 +572,63 @@ function pdrOdemeEkraniGizle() {
   if (el) el.style.display = "none";
 }
 
+// Bu kullanıcı hesabı, Kullanım Şartları onay kaydı eklenmeden ÖNCE oluşturulmuş
+// (eski kayıt) — girişte bir kereye mahsus onay istenir, onayladığında kayıt
+// altına alınır ve bu ekran bir daha çıkmaz.
+function pdrOnayEksikGoster(uid) {
+  let el = document.getElementById("pdr-onay-eksik-overlay");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "pdr-onay-eksik-overlay";
+    el.style.cssText = "position:fixed;inset:0;z-index:9995;background:rgba(10,30,20,0.75);display:flex;align-items:center;justify-content:center;padding:20px;";
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `
+    <div style="max-width:480px;width:100%;max-height:85vh;overflow-y:auto;background:#fff;color:#1A1A1A;border-radius:16px;padding:24px 22px;box-shadow:0 20px 50px rgba(0,0,0,0.4);">
+      <div style="font-weight:800;font-size:17px;margin-bottom:6px;color:#1A4D3B;">🧭 Rehber Pusula — Kullanım Şartları</div>
+      <div style="font-size:12px;color:#666;margin-bottom:14px;">Devam edebilmek için güncel Kullanım Şartları'nı onaylaman gerekiyor.</div>
+      <div style="font-size:12.5px;line-height:1.8;color:#333;max-height:220px;overflow-y:auto;border:1px solid #eee;border-radius:10px;padding:12px;margin-bottom:14px;">
+        <p><b>1. Hizmetin Kapsamı</b><br/>Rehber Pusula, rehber öğretmenler/PDR uzmanları için öğrenci görüşme, profil ve takip kayıtlarının yönetimini kolaylaştıran bir yazılım hizmetidir.</p>
+        <p><b>2. Hesap ve Erişim</b><br/>Hesabınız kişiseldir. Kullanıcı adı ve şifrenizi başkalarıyla paylaşamaz, hesabınızı başka bir kişi veya kuruma devredemez ya da kiralayamazsınız.</p>
+        <p><b>3. Kopyalama ve Yeniden Satış Yasağı</b><br/>Yazılımın kaynak kodunu, tasarımını veya işlevselliğini kopyalayamaz, çoğaltamaz, tersine mühendislik yapamaz, başka bir ürün olarak yeniden paketleyip satamaz veya üçüncü kişilere devredemezsiniz.</p>
+        <p><b>4. Öğrenci Verilerinin Sorumluluğu</b><br/>Sisteme girdiğiniz öğrenci/veli verilerinin doğruluğundan ve ilgili mevzuata (KVKK dahil) uygun şekilde işlenmesinden siz sorumlusunuz.</p>
+        <p><b>5. Ücretlendirme</b><br/>Hesabınızın aktif kalabilmesi için belirlenen ücretin ödenmesi veya tarafımızca ücretsiz kullanıcı olarak tanımlanmış olmanız gerekir. Ödeme yapılmayan hesaplar erişime kapatılabilir.</p>
+        <p><b>6. Hizmetin Sona Ermesi</b><br/>Bu şartların ihlali durumunda hesabınız önceden bildirim yapılmaksızın askıya alınabilir veya kapatılabilir.</p>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:14px;">
+        <input type="checkbox" id="pdr-onay-eksik-checkbox" style="width:16px;min-width:16px;height:16px;margin:3px 0 0 0;flex-shrink:0" />
+        <label for="pdr-onay-eksik-checkbox" style="font-size:12px;color:#555;line-height:1.5;">Yukarıdaki Kullanım Şartları'nı okudum ve kabul ediyorum.</label>
+      </div>
+      <div id="pdr-onay-eksik-hata" style="color:#C0392B;font-size:12px;margin-bottom:10px;min-height:14px;"></div>
+      <button id="pdr-onay-eksik-kabul" style="width:100%;padding:12px;background:#2D6A4F;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;margin-bottom:8px;">Kabul Ediyorum, Devam Et</button>
+      <button id="pdr-onay-eksik-cikis" style="width:100%;padding:10px;background:none;color:#666;border:1px solid #ddd;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;">Çıkış Yap</button>
+    </div>`;
+  el.style.display = "flex";
+  document.getElementById("pdr-onay-eksik-kabul").onclick = async () => {
+    const cb = document.getElementById("pdr-onay-eksik-checkbox");
+    const hata = document.getElementById("pdr-onay-eksik-hata");
+    if (!cb.checked) { hata.textContent = "Devam etmek için kutucuğu işaretlemeniz gerekiyor."; return; }
+    try {
+      await pdrDb.collection("basvurular").doc(uid).update({
+        kosulOnay: { onaylandi: true, tarih: Date.now(), versiyon: "v1" }
+      });
+      pdrOnayEksikGizle();
+    } catch (e) {
+      hata.textContent = "Bir hata oluştu, tekrar deneyin.";
+    }
+  };
+  document.getElementById("pdr-onay-eksik-cikis").onclick = async () => {
+    await pdrAuth.signOut();
+    pdrClearLocalCache();
+    localStorage.removeItem("pdr_last_uid");
+    location.reload();
+  };
+}
+function pdrOnayEksikGizle() {
+  const el = document.getElementById("pdr-onay-eksik-overlay");
+  if (el) el.style.display = "none";
+}
+
 let pdrResolveReady;
 window.__pdrAuthReady = new Promise((res) => { pdrResolveReady = res; });
 
@@ -818,6 +875,14 @@ pdrAuth.onAuthStateChanged(async (user) => {
         pdrOdemeEkraniGoster();
         return;
       }
+      // Erişim ve ödeme sorunsuz — ama bu hesap, Kullanım Şartları onay kaydı
+      // eklenmeden önce oluşturulmuş olabilir (eski kayıt). Böyle bir durumda
+      // devam etmeden önce bir kereye mahsus onay istenir.
+      if (!basvuru.kosulOnay?.onaylandi) {
+        if (splashEl) splashEl.className = "hide";
+        pdrOnayEksikGoster(user.uid);
+        return;
+      }
 
       // Erişim onaylandı — ama admin oturum SIRASINDA onayı geri alabilir (örn. birini
       // reddetmek/beklemeye almak). Bunu anlık yakalamak için başvuru kaydını canlı izle:
@@ -831,13 +896,20 @@ pdrAuth.onAuthStateChanged(async (user) => {
         const suresiDolmus = !b.ucretsiz && b.erisimBitis && Date.now() > b.erisimBitis;
         if (b.durum !== "onayli") {
           pdrOdemeEkraniGizle();
+          pdrOnayEksikGizle();
           pdrOnayEkraniGoster(b.durum);
         } else if ((!b.ucretsiz && !b.odemeAlindi) || suresiDolmus) {
           pdrOnayEkraniGizle();
+          pdrOnayEksikGizle();
           pdrOdemeEkraniGoster();
+        } else if (!b.kosulOnay?.onaylandi) {
+          pdrOnayEkraniGizle();
+          pdrOdemeEkraniGizle();
+          pdrOnayEksikGoster(user.uid);
         } else {
           pdrOnayEkraniGizle();
           pdrOdemeEkraniGizle();
+          pdrOnayEksikGizle();
         }
       });
     }
