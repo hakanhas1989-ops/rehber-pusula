@@ -614,7 +614,10 @@ function pdrOnayEksikGoster(uid) {
       });
       pdrOnayEksikGizle();
     } catch (e) {
-      hata.textContent = "Bir hata oluştu, tekrar deneyin.";
+      console.log("Onay kaydı yazılamadı:", e.code, e.message);
+      hata.textContent = e && e.code === "permission-denied"
+        ? "Yetki hatası — bu sorun teknik ekipte, hemen düzeltilecek."
+        : "Bir hata oluştu, tekrar deneyin.";
     }
   };
   document.getElementById("pdr-onay-eksik-cikis").onclick = async () => {
