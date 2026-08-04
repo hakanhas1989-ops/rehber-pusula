@@ -887,7 +887,8 @@ if (pdrLoginForm) {
         const cred = await pdrAuth.createUserWithEmailAndPassword(email, pass);
         if (cred && cred.user) {
           await pdrDb.collection("basvurular").doc(cred.user.uid).set({
-            email: email, tarih: Date.now(), durum: "bekliyor", ucretsiz: false, odemeAlindi: false
+            email: email, tarih: Date.now(), durum: "bekliyor", ucretsiz: false, odemeAlindi: false,
+            kosulOnay: { onaylandi: true, tarih: Date.now(), versiyon: "v1" }
           });
         }
       } else {
@@ -4665,6 +4666,13 @@ function KullaniciOnaylari() {
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 13, color: TEXT }}>{b.email}</div>
                     <div style={{ fontSize: 11, color: MUTED }}>{b.tarih ? new Date(b.tarih).toLocaleDateString("tr-TR") : ""}</div>
+                    {b.kosulOnay?.onaylandi ? (
+                      <div style={{ fontSize: 10, color: "#1A8C5B", marginTop: 2 }}>
+                        ✓ Kullanım Şartları onaylandı — {new Date(b.kosulOnay.tarih).toLocaleDateString("tr-TR")}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 10, color: "#B07D1A", marginTop: 2 }}>⚠ Onay kaydı yok (eski kayıt)</div>
+                    )}
                     {b.durum === "onayli" && b.erisimBitis && (
                       <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
                         📅 Erişim bitişi: {new Date(b.erisimBitis).toLocaleDateString("tr-TR")}
