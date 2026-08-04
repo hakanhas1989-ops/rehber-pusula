@@ -4714,16 +4714,84 @@ function KullaniciOnaylari() {
   );
 }
 
-function AyarlarEkrani({ ogrenciler, records, profiles, profiles2, oogDegerlendirmeler, riskListesi, denemeler, sevkler, mudahalePlan, hazirlikNotlari, ilerlemeNotlari, profNotlari, kutuphane, yillar, sinifListesi, aktifYil, kademe, setKademe, sinavTuru, setSinavTuru }) {
+function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profiles, setProfiles, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, riskListesi, setRiskListesi, denemeler, setDenemeler, sevkler, setSevkler, mudahalePlan, setMudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, profNotlari, setProfNotlari, kutuphane, setKutuphane, yillar, setYillar, sinifListesi, setSinifListesi, aktifYil, setAktifYil, kademe, setKademe, sinavTuru, setSinavTuru }) {
   const [key, setKey] = useState(() => pdrGetApiKey());
   const [gosterKey, setGosterKey] = useState(false);
   const [kaydedildi, setKaydedildi] = useState(false);
   const [yedekIndiriliyor, setYedekIndiriliyor] = useState(false);
+  const [geriYuklemeOnay, setGeriYuklemeOnay] = useState(null); // dosyadan okunan veri, onay bekliyor
+  const [geriYukleniyor, setGeriYukleniyor] = useState(false);
+  const [geriYuklemeSonuc, setGeriYuklemeSonuc] = useState("");
 
   function handleKaydet() {
     pdrSetApiKey(key);
     setKaydedildi(true);
     setTimeout(() => setKaydedildi(false), 2500);
+  }
+
+  function handleYedekDosyaSec(e) {
+    const dosya = e.target.files?.[0];
+    if (!dosya) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const veri = JSON.parse(ev.target.result);
+        // Basit bir doğrulama — en azından tanıdık bir alan içermeli, rastgele bir
+        // JSON dosyasının yanlışlıkla yüklenmesini önler.
+        if (!veri || typeof veri !== "object" || (!veri.ogrenciler && !veri.records && !veri.yedekTarihi)) {
+          alert("Bu dosya geçerli bir Rehber Pusula yedeği gibi görünmüyor.");
+          return;
+        }
+        setGeriYuklemeOnay(veri);
+      } catch (err) {
+        alert("Dosya okunamadı: " + err.message);
+      }
+    };
+    reader.readAsText(dosya);
+    e.target.value = ""; // aynı dosyayı tekrar seçebilmek için
+  }
+
+  async function handleGeriYuklemeOnayla() {
+    const veri = geriYuklemeOnay;
+    if (!veri) return;
+    setGeriYukleniyor(true);
+    try {
+      const alanlar = [
+        ["ogrenciler", setOgrenciler, saveOgrenciler],
+        ["records", setRecords, saveRecords],
+        ["profiles", setProfiles, saveProfiles],
+        ["profiles2", setProfiles2, saveProfiles2],
+        ["oogDegerlendirmeler", setOogDegerlendirmeler, saveOogDegerlendirmeler],
+        ["riskListesi", setRiskListesi, saveRiskListesi],
+        ["denemeler", setDenemeler, saveDenemeler],
+        ["sevkler", setSevkler, saveSevkler],
+        ["mudahalePlan", setMudahalePlan, saveMudahalePlan],
+        ["hazirlikNotlari", setHazirlikNotlari, saveHazirlikNotlari],
+        ["ilerlemeNotlari", setIlerlemeNotlari, saveIlerlemeNotlari],
+        ["profNotlari", setProfNotlari, saveProfNotlari],
+        ["kutuphane", setKutuphane, saveKutuphane],
+        ["yillar", setYillar, saveYillar],
+        ["sinifListesi", setSinifListesi, saveSinifListesi],
+      ];
+      let guncellenenSayisi = 0;
+      for (const [alan, setter, saver] of alanlar) {
+        if (veri[alan] !== undefined && setter && saver) {
+          setter(veri[alan]);
+          await saver(veri[alan]);
+          guncellenenSayisi++;
+        }
+      }
+      if (veri.aktifYil && setAktifYil) {
+        setAktifYil(veri.aktifYil);
+        await saveAktifYil(veri.aktifYil);
+      }
+      setGeriYuklemeSonuc(`✓ ${guncellenenSayisi} veri alanı başarıyla geri yüklendi.`);
+      setGeriYuklemeOnay(null);
+      setTimeout(() => setGeriYuklemeSonuc(""), 6000);
+    } catch (e) {
+      alert("Geri yükleme sırasında hata oluştu: " + e.message);
+    }
+    setGeriYukleniyor(false);
   }
 
   function handleYedekIndir() {
@@ -4795,6 +4863,43 @@ function AyarlarEkrani({ ogrenciler, records, profiles, profiles2, oogDegerlendi
           border: "none", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: "pointer", opacity: yedekIndiriliyor?0.6:1
         }}>{yedekIndiriliyor ? "Hazırlanıyor…" : "📥 Yedeği İndir (.json)"}</button>
       </div>
+
+      <div style={{ background: "#FDF6E3", borderRadius: 12, padding: 14, marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 14, color: "#B07D1A" }}>📤 Yedekten Geri Yükle</div>
+        <div style={{ fontSize: 13, color: MUTED, marginBottom: 10, lineHeight: 1.5 }}>
+          Daha önce indirdiğin bir yedek dosyasını (.json) seçerek mevcut verini geri yükle. <b>Dikkat:</b> bu işlem, dosyada bulunan veri türlerini (örn. öğrenciler, görüşmeler) şu andaki verinin üzerine yazar — geri alınamaz.
+        </div>
+        <label style={{
+          display: "block", width: "100%", padding: 12, background: "#fff", color: "#B07D1A",
+          border: `2px dashed #E9D18B`, borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: "pointer", textAlign: "center", boxSizing: "border-box"
+        }}>
+          📤 Yedek Dosyası Seç (.json)
+          <input type="file" accept=".json,application/json" onChange={handleYedekDosyaSec} style={{ display: "none" }} />
+        </label>
+        {geriYuklemeSonuc && <div style={{ fontSize: 13, color: "#1A8C5B", fontWeight: 700, marginTop: 8 }}>{geriYuklemeSonuc}</div>}
+      </div>
+
+      {geriYuklemeOnay && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "#fff", borderRadius: 16, maxWidth: 420, width: "100%", padding: 22 }}>
+            <div style={{ fontSize: 17, fontWeight: 900, color: "#C0392B", marginBottom: 10 }}>⚠️ Emin misin?</div>
+            <div style={{ fontSize: 13, color: TEXT, lineHeight: 1.6, marginBottom: 8 }}>
+              Bu yedek {geriYuklemeOnay.yedekTarihi ? new Date(geriYuklemeOnay.yedekTarihi).toLocaleDateString("tr-TR") : "bilinmeyen bir tarihte"} alınmış. İçindeki veri türleri, <b>şu andaki verinin üzerine yazılacak</b> — bu işlem geri alınamaz.
+            </div>
+            <div style={{ fontSize: 12, color: MUTED, marginBottom: 16 }}>
+              Emin değilsen önce "Yedeği İndir" ile şu anki verini yedekle, sonra geri yüklemeye devam et.
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setGeriYuklemeOnay(null)} style={{
+                flex: 1, padding: 12, background: "none", border: `1px solid ${BORDER}`, color: MUTED, borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer"
+              }}>Vazgeç</button>
+              <button onClick={handleGeriYuklemeOnayla} disabled={geriYukleniyor} style={{
+                flex: 1, padding: 12, background: "#C0392B", color: "#fff", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: "pointer", opacity: geriYukleniyor?0.6:1
+              }}>{geriYukleniyor ? "Yükleniyor…" : "Evet, Geri Yükle"}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ fontSize: 14, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
         Yapay zeka özelliklerini (özet çıkarma, risk değerlendirmesi, müdahale planı vb.)
@@ -8969,11 +9074,22 @@ export default function App() {
           </div>
         )}
         {tab === "ayarlar" && <AyarlarEkrani
-          ogrenciler={ogrenciler} records={records} profiles={profiles} profiles2={profiles2}
-          oogDegerlendirmeler={oogDegerlendirmeler} riskListesi={riskListesi} denemeler={denemeler}
-          sevkler={sevkler} mudahalePlan={mudahalePlan} hazirlikNotlari={hazirlikNotlari}
-          ilerlemeNotlari={ilerlemeNotlari} profNotlari={profNotlari} kutuphane={kutuphane}
-          yillar={yillar} sinifListesi={sinifListesi} aktifYil={aktifYil}
+          ogrenciler={ogrenciler} setOgrenciler={setOgrenciler}
+          records={records} setRecords={setRecords}
+          profiles={profiles} setProfiles={setProfiles}
+          profiles2={profiles2} setProfiles2={setProfiles2}
+          oogDegerlendirmeler={oogDegerlendirmeler} setOogDegerlendirmeler={setOogDegerlendirmeler}
+          riskListesi={riskListesi} setRiskListesi={setRiskListesi}
+          denemeler={denemeler} setDenemeler={setDenemeler}
+          sevkler={sevkler} setSevkler={setSevkler}
+          mudahalePlan={mudahalePlan} setMudahalePlan={setMudahalePlan}
+          hazirlikNotlari={hazirlikNotlari} setHazirlikNotlari={setHazirlikNotlari}
+          ilerlemeNotlari={ilerlemeNotlari} setIlerlemeNotlari={setIlerlemeNotlari}
+          profNotlari={profNotlari} setProfNotlari={setProfNotlari}
+          kutuphane={kutuphane} setKutuphane={setKutuphane}
+          yillar={yillar} setYillar={setYillar}
+          sinifListesi={sinifListesi} setSinifListesi={setSinifListesi}
+          aktifYil={aktifYil} setAktifYil={setAktifYil}
           kademe={kademe} setKademe={setKademe}
           sinavTuru={sinavTuru} setSinavTuru={setSinavTuru}
         />}
