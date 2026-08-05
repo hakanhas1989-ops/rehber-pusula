@@ -7844,7 +7844,11 @@ export default function App() {
     const rec = { id: uid(), date: today(), ...form, summary: form.summary.trim() || form.raw.trim() };
     const updated = [rec, ...records];
     setRecords(updated); await saveRecords(updated);
-    setForm({ studentName: "", className: "", numara: "", meetingType: "Öğrenci", topic: "", raw: "", summary: "" });
+    // Öğrenci bilgisini SİLMİYORUZ — aynı öğrenciye art arda birden fazla
+    // görüşme notu eklenebilsin diye (sadece not içeriği temizleniyor).
+    // Not: aktifOgrenci değişmediği için yukarıdaki useEffect burada tekrar
+    // tetiklenmez, bu yüzden öğrenci bilgisini elle korumak gerekiyor.
+    setForm(f => ({ ...f, topic: "", raw: "", summary: "" }));
     setSaved(true); setTimeout(() => setSaved(false), 2000); setTab("ogrenciler");
   }
 
