@@ -31,29 +31,8 @@
         .catch(err => console.log("API anahtarı buluta kaydedilemedi:", err));
     }
   }
-  // Tüm AI çağrılarının geçtiği tek nokta. Eski Cloudflare Worker çağrılarının
-  // yerini alır — { model, max_tokens, system, messages } aynı formatı kabul eder.
-  async function pdrCallClaude(payload) {
-    const apiKey = pdrGetApiKey();
-    if (!apiKey) {
-      throw new Error("API_KEY_MISSING");
-    }
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true"
-      },
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error("API_ERROR: " + errText);
-    }
-    return res;
-  }
+  // Tüm AI çağrıları artık doğrudan Cloudflare Worker'a (PDR_AI_WORKER_URL)
+  // gönderiliyor — bkz. her AI fonksiyonunun kendi içindeki fetch() çağrısı.
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -1676,26 +1655,13 @@ async function pdfMetinCikar(file) {
     reader.onload = async (e) => {
       const base64 = e.target.result.split(",")[1];
       try {
-        const res = await pdrCallClaude({
-            model: "claude-sonnet-4-6",
-            max_tokens: 1000,
-            system: `Sen Dr. Ayse Kara'sin - 20 yillik klinik deneyime sahip PDR uzmani ve psikologsun. BDT (otomatik dusunceler, sema teorisi, maruz birakma), baglanma teorisi (Bowlby), aile sistemleri (Minuchin), gelisim psikolojisi (Erikson, Vygotsky), Bourdieu sosyolojisi, Frankl anlam terapisi ve Stoa felsefesi perspektifinden degerlendirir; somut, uygulanabilir PDR onerileri sunarsın. Yargilamayan, guclu yonlere odaklanan, Turkce yazan bir klinisyensin.
-
-GOREV - PDF ANALIZI: Yuklenen belgeden cikar:
-1. KAYNAK BİLGİSİ: Yazar, başlık, yıl (varsa)
-2. ANA TEMALAR: Belgede işlenen başlıca konular (madde madde)
-3. PDR AÇISINDAN ÖNEMLİ NOKTALAR: Okul psikolojik danışmanlığı için kullanılabilecek teori, model veya yaklaşımlar
-4. ANAHTAR KAVRAMLAR: Önemli terimler ve kısa açıklamaları
-
-Maksimum 400 kelime. Sade ve yapılandırılmış yaz. JSON veya markdown kullanma.`,
-            messages: [{
-              role: "user",
-              content: [
-                { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } },
-                { type: "text", text: "Bu belgeyi PDR perspektifinden analiz et ve özetle." }
-              ]
-            }]
-          });
+        const apiKey = pdrGetApiKey();
+        if (!apiKey) throw new Error("API_KEY_MISSING");
+        const res = await fetch(PDR_AI_WORKER_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "pdf_analiz", apiKey, data: { pdfBase64: base64 } }),
+        });
         const data = await res.json();
         resolve(data.content?.[0]?.text || "Metin çıkarılamadı.");
       } catch(err) { reject(err); }
@@ -3738,20 +3704,13 @@ Başlıca Görüşme Konuları: ${topKonular.map(([k,v])=>k+": "+v).join(", ")}
 Risk Türleri: ${Object.entries(riskTurleri).map(([k,v])=>k+": "+v).join(", ")}
     `.trim();
 
-    const res = await pdrCallClaude({
-        model:"claude-sonnet-4-6", max_tokens:2000,
-        system:"Sen okul PDR danismanisın. MEB formatinda, resmi ve özlü dönem sonu raporu yazarsın.",
-        messages:[{role:"user", content:`${istatistik}
-
-Bu istatistiklere dayalı MEB formatında dönem sonu PDR faaliyet raporu yaz. Şu bölümleri içersin:
-1. GENEL DEĞERLENDİRME
-2. BİREYSEL GÖRÜŞMELER
-3. RİSK DEĞERLENDİRMESİ
-4. SEVK VE YÖNLENDİRME
-5. ÖNERİLER
-
-Resmi dil kullan, Markdown kullanma.`}]
-      });
+    const apiKey = pdrGetApiKey();
+    if (!apiKey) { setAiLoading(false); return; }
+    const res = await fetch(PDR_AI_WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "meb_donem_raporu", apiKey, data: { istatistik } }),
+    });
     const data = await res.json();
     setAiRapor(data.content?.[0]?.text || "");
     setAiLoading(false);
@@ -3850,16 +3809,17 @@ function VeliMektubu({ kayitliListesi, aktifOgrenci, records }) {
       bildirim:"Öğrenci hakkında acil durum/risk bildirimi mektubu",
       tesekkur:"Veli iş birliği için teşekkür mektubu"
     };
-    const res = await pdrCallClaude({
-        model:"claude-sonnet-4-6", max_tokens:1500,
-        system:"Sen okul PDR danismanisın. MEB resmi yazı formatında, sade ve profesyonel veli mektupları yazarsın.",
-        messages:[{role:"user", content:`Öğrenci: ${seciliAd}
-Mektup Tipi: ${tipler[mektupTipi]}
-Görüşme Özeti:
-${ozet||"Henüz görüşme yok."}
-
-MEB resmi yazı formatında veli mektubu yaz. T.C. başlığı, tarih, konu, sayın velimiz hitabı, içerik ve imza bölümü olsun. Markdown kullanma.`}]
-      });
+    const apiKey = pdrGetApiKey();
+    if (!apiKey) { setAiLoading(false); return; }
+    const res = await fetch(PDR_AI_WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "veli_mektubu",
+        apiKey,
+        data: { studentName: seciliAd, mektupTipiAciklama: tipler[mektupTipi], ozet },
+      }),
+    });
     const data = await res.json();
     setMektup(data.content?.[0]?.text || "");
     setAiLoading(false);
@@ -4082,25 +4042,17 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
       : "";
     const deneme = denemeAvg ? `Deneme Ortalaması: ${denemeAvg}/90` : "";
 
-    const res = await pdrCallClaude({
-        model:"claude-sonnet-4-6", max_tokens:1000,
-        system:"Sen Dr. Ayse Kara'sin — 20 yillik klinik PDR uzmanisin. Danismana bir sonraki seans icin pratik hazirlik notu yazarsın.",
-        messages:[{role:"user", content:`Öğrenci: ${ogrenci}
-${gorusmeler}
-${mudahaleBolum}
-${risk}
-${deneme}
-
-Bu öğrenciyle bir sonraki görüşme için seans hazırlık notu yaz:
-
-ÖNCEKİ SEANSLARDAN ÖZET: (en önemli 2-3 nokta)
-TAKİP EDİLMESİ GEREKENLER: (son görüşmede kalan konular)
-BU SEANSTA ODAKLANILACAKLAR: (somut 2-3 madde)
-SORULACAK SORULAR: (açıcı, terapötik sorular)
-DİKKAT EDİLECEKLER: (öğrenciye özel hassas noktalar)
-
-Kısa ve pratik yaz, Markdown kullanma.`}]
-      });
+    const apiKey = pdrGetApiKey();
+    if (!apiKey) { setHazirlikAiLoading(false); return; }
+    const res = await fetch(PDR_AI_WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "seans_hazirlik",
+        apiKey,
+        data: { ogrenci, gorusmeler, mudahaleBolum, risk, deneme },
+      }),
+    });
     const data = await res.json();
     setHazirlikNotu(data.content?.[0]?.text || "");
     setHazirlikAiLoading(false);
@@ -4475,39 +4427,17 @@ function IlerlemeYazisi({ ogrenci, ogrenciSinif, ogrRec, ogrP1, denemeGirilen, i
       ? "DENEME NETLERI: " + denemeGirilen.map(d => `D${d.no}: ${d.toplam.toFixed(1)}`).join(", ")
       : "";
 
-    const res = await pdrCallClaude({
-        model:"claude-sonnet-4-6", max_tokens:2000,
-        system:"Sen Dr. Ayse Kara'sin — 20 yillik klinik PDR uzmanisin. BDT, baglanma teorisi ve varoluşçu perspektiften seans süreci değerlendirmesi yazarsın. Gelişmeleri somut ve destekleyici dille aktarırsın.",
-        messages:[{role:"user", content:`Öğrenci: ${ogrenci}
-
-SEANS GEÇMİŞİ (kronolojik):
-${seanslar}
-
-${profilBolum}
-${denemeBolum}
-
-Bu öğrencinin seans süreci boyunca gösterdiği ilerlemeyi kapsamlı değerlendir:
-
-GENEL İLERLEME DEĞERLENDİRMESİ:
-(Süreç boyunca gözlemlenen genel değişim ve gelişme)
-
-OLUMLU GELİŞMELER:
-(Seanslar arasında öne çıkan somut iyileşmeler, güçlenen alanlar, kazanılan beceriler)
-
-SEANS ARASI FARK:
-(İlk seanstan bu yana ne değişti, hangi konularda dönüşüm yaşandı)
-
-DEVAM EDEN ÇALIŞMA ALANLARI:
-(Hâlâ gelişim gerektiren, üzerinde çalışılmaya devam edilecek konular)
-
-GÜÇLÜ YÖNLERİ:
-(Öğrencinin terapötik süreçteki güç kaynakları, koruyucu faktörler)
-
-GENEL GÖRÜŞ:
-(Süreç hakkında kısa ve destekleyici genel değerlendirme)
-
-Sade, klinik ama sıcak bir dil kullan. Markdown kullanma.`}]
-      });
+    const apiKey = pdrGetApiKey();
+    if (!apiKey) { setLoading(false); return; }
+    const res = await fetch(PDR_AI_WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "seans_degerlendirme",
+        apiKey,
+        data: { ogrenci, seanslar, profilBolum, denemeBolum },
+      }),
+    });
     const data = await res.json();
     setYazi(data.content?.[0]?.text || "");
     setLoading(false);
