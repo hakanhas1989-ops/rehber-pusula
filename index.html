@@ -1208,63 +1208,24 @@ function kademeBaglamMetni(kademe) {
   return k ? `\n\nGELİŞİMSEL BAĞLAM (${k.ad}): ${k.baglam}` : "";
 }
 
+// AI'a gönderilen asıl talimatlar (prompt) artık tarayıcıda değil, Cloudflare
+// Worker'da — kod kopyalansa bile risk analizinin gerçek mantığı görünmez.
+// Client sadece ham veriyi Worker'a gönderir, kendi API anahtarını kullanarak.
+const PDR_AI_WORKER_URL = "https://rehber-pusula-ai.hakanhas1989.workers.dev";
 async function getRiskAnalizi(riskForm, gorusmeler, profil1, kutuphaneOzetleri = [], kademe = "", denemeOzet = null) {
-  const gorusmeBolum = gorusmeler.length > 0
-    ? "GÖRÜŞME NOTLARI:\n" + gorusmeler.map((r,i)=>`Görüşme ${i+1} (${r.date}): ${r.summary}`).join("\n\n")
-    : "Görüşme kaydı yok.";
-  const profilBolum = profil1
-    ? "PDR PROFİL PUANLARI:\n" + Object.entries(profil1.scores||{}).map(([k,v])=>`${k}: ${v}/5`).join(", ")
-    : "";
-  // Deneme özeti — öğrenci listesindeki otomatik risk rozetiyle AYNI veriye
-  // dayanır (deneme ortalaması + risk düzeyi). Amaç: özellikle "Akademik" risk
-  // türünde değerlendirmenin sadece görüşme notlarına değil, gerçek akademik
-  // performansa da dayanmasını sağlamak; ayrıca iki farklı sinyal (deneme vs.
-  // görüşme) birbirinden çok farklı bir tablo çiziyorsa bunu AI'ın fark edip
-  // açıkça belirtmesini sağlamak — danışman ekranda "Riskli" rozeti görüp,
-  // AI analizinde "Hafif" okuyunca kafası karışmasın.
-  const denemeBolum = denemeOzet
-    ? `DENEME/AKADEMİK DURUM:\nOrtalama: ${denemeOzet.ortalama}${denemeOzet.toplam?`/${denemeOzet.toplam}`:""}\nDeneme bazlı risk düzeyi: ${denemeOzet.risk || "belirsiz"} (kaynak: ${denemeOzet.kaynak})\n`
-    : "";
-  const kutuphaneBaglam = pdrKutuphaneBaglam(kutuphaneOzetleri);
-  const kademeMetni = kademeBaglamMetni(kademe);
-  const prompt = `Öğrenci: ${riskForm.studentName} (${riskForm.className})
-Risk Türü: ${riskForm.riskTuru}
-Öncelik: ${riskForm.oncelik}
-Açıklama: ${riskForm.aciklama}
-${kademeMetni}
-
-${gorusmeBolum}
-${profilBolum}
-${denemeBolum}${kutuphaneBaglam}
-
-Bu öğrencinin risk durumunu değerlendir:
-
-RİSK TÜRÜ: (Şu türlerden EN UYGUN birini seç — sadece türün adını yaz: Davranış / Akademik / Aile / Akran-Zorbalık / Duygusal / Devamsızlık / Öz Zarar / Sağlık / Madde Kullanımı / Teknoloji-Ekran Bağımlılığı / Ekonomik Güçlük / Yas-Kayıp / Travma / Özel Öğrenme Güçlüğü / Diğer)
-RİSK DÜZEYİ: (HAFİF / ORTA / YÜKSEK — net belirt. Deneme/akademik veri varsa bunu da hesaba kat, sadece görüşme notlarına dayanma.)
-RİSK DEĞERLENDİRMESİ: (Bu risk neden önemli, nasıl yorumlanmalı — 2-3 cümle. Deneme sonucu ile görüşme notlarının işaret ettiği tablo BİRBİRİNDEN BELİRGİN ŞEKİLDE FARKLIYSA — örn. deneme riski yüksek ama görüşme notu yoksa/hafifse, ya da tam tersi — bunu açıkça "Not: Deneme sonuçları ile görüşme notları farklı bir tablo çiziyor" diyerek belirt.)
-KORUYUCU FAKTÖRLER: (Öğrencinin güçlü yönleri ve koruyucu faktörler)
-ACİL MÜDAHALE GEREKTİRİR Mİ: (Evet/Hayır — gerekçesiyle)
-ÖNERİLEN ADIMLAR:
-1.
-2.
-3.
-
-TEKNOLOJİ/EKRAN BAĞIMLILIĞI TARAMASI: (Ana risk türünden bağımsız, HER ZAMAN yap — görüşme notlarında ekran/telefon/oyun kullanımına dair ipucu olsun ya da olmasın.) Önce şu klinik ölçütleri gözden geçir: (1) uyku düzeninde bozulma / geç saatlere kadar ekran başında kalma, (2) sosyal etkinliklerden veya yüz yüze arkadaşlıklardan çekilme, (3) akademik performansta gözle görülür düşüş, (4) ekran süresini azaltma girişimlerinde başarısızlık veya bu konuda huzursuzluk/öfke, (5) aile içi çatışmaların ekran kullanımı etrafında yoğunlaşması. Bu ölçütlere göre SADECE görüşme notlarında somut dayanak varsa değerlendirme yap; not yoksa ya da yetersizse "Yetersiz Veri" de, tahmin yürütme. Şu formatta yaz:
-BELİRTİ: (Var / Yok / Yetersiz Veri)
-GEREKÇE: (hangi ölçütlere ve görüşme notlarındaki hangi ifadelere dayandığını 1-2 cümlede belirt; "Yetersiz Veri" ise nedenini belirt)
-
-GÖRÜŞME NOTLARINDA TON/İÇERİK DEĞİŞİMİ: (En az 3 görüşme kaydı varsa yap; azsa "Yetersiz Veri — en az 3 görüşme gerekir" de.) İlk görüşmeler ile son görüşmeleri karşılaştır: dil, duygu durumu, konu içeriği belirgin şekilde kötüleşmiş mi (örn. önceden nötr/olumlu notlar sonradan sürekli olumsuz/içine kapanık/öfkeli bir tona dönüşmüş mü)? Şu formatta yaz:
-DEĞİŞİM: (Var / Yok / Yetersiz Veri)
-GEREKÇE: (somut hangi ifadelerin değiştiğini 1-2 cümlede belirt)
-
-${kademe ? "Değerlendirmeyi öğrencinin yaş/gelişim dönemine uygun şekilde yap. " : ""}${kutuphaneOzetleri.length > 0 ? "Kütüphane referanslarından (özellikle varsa yönetmelik/mevzuat maddelerinden) yararlan. " : ""}Sade, PDR diline uygun yaz. Markdown kullanma.`;
-
-  const res = await pdrCallClaude({
-      model: "claude-sonnet-4-6", max_tokens: 2000,
-      system: "Sen Dr. Ayse Kara'sin — 20 yillik klinik deneyime sahip PDR uzmani ve psikologsun. BDT, baglanma teorisi, gelisim psikolojisi ve aile sistemleri perspektifinden risk degerlendirmesi yaparsın. Risk duzeyini net belirt: HAFIF (gunluk isleyisi minimal etkiliyor), ORTA (mudahale gerekiyor, takip sart), YUKSEK (acil mudahale, uzman yonlendirme gerekebilir).",
-      messages: [{ role: "user", content: prompt }]
-    });
+  const apiKey = pdrGetApiKey();
+  if (!apiKey) throw new Error("API_KEY_MISSING");
+  const res = await fetch(PDR_AI_WORKER_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "risk_analizi",
+      apiKey,
+      data: { riskForm, gorusmeler, profil1, kutuphaneOzetleri, kademe, denemeOzet },
+    }),
+  });
   const data = await res.json();
+  if (data.error) throw new Error(data.error);
   return data.content?.[0]?.text || "";
 }
 
