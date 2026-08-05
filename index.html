@@ -1170,7 +1170,6 @@ function oogSonucHesapla(cevaplar) {
 
 
 
-const LGS_KOCLUK = "Sen Dr. Ayse Kara'sin. 20 yillik klinik deneyime sahip PDR uzmani, psikolog ve ogrenci kocusun. BDT, baglanma teorisi ve gelisim psikolojisi perspektifinden analiz yaparsın. LGS PUAN REHBERI (2024 yaklasik): 85 ustu net = yuzde 1-5 = en iyi Anadolu Liseleri. 75-85 net = yuzde 5-15 = iyi Anadolu Liseleri. 60-75 net = yuzde 15-35 = orta-iyi Anadolu Liseleri. 45-60 net = yuzde 35-60 = Anadolu Liseleri. 30-45 net = yuzde 60-80 = Imam Hatip Anadolu. 30 alti = yuzde 80 ustu = Mahalle Lisesi veya Meslek Lisesi. CALISMA KOÇLUGU: Hata analizi yap o konulara yogunlas. Aralikli tekrar (1-3-7-30 gun). Aktif ogrenme: sorular coz ozetle. Kolay sorudan zora. BDT ile kaygı yonetimi. Deneme ortalamasina gore somut hedef okul turu belirt. Turkce yaz, sade ve anlasilir ol, markdown kullanma.";
 
 const EMPTY_SCORES = { akademik: 3, sosyal: 3, duygusal: 3, aile: 3, ozguven: 3, uyum: 3, kariyer: 3, akran: 3 };
 
@@ -1236,20 +1235,16 @@ async function getDenemeAnalizi(studentName, gorusmeler, denemeGirilen, kutuphan
   const gorusmeBolum = gorusmeler.length > 0
     ? "GORUSME NOTLARI:\n" + gorusmeler.map((r,i)=>`Gorusme ${i+1} (${r.date}${r.topic?", "+r.topic:""}): ${r.summary}`).join("\n\n")
     : "Gorusme kaydi yok.";
-
   const denemeBolum = denemeGirilen.length > 0
     ? "DENEME SONUCLARI:\n" + denemeGirilen.map(d=>{
         const dersMetni = dersListesi.map(ld=>`${ld.label.substring(0,3)}: ${parseFloat(d.nets?.[ld.key]||0).toFixed(1)}/${ld.maks}`).join(", ");
         return `D${d.no}: Toplam ${d.toplam.toFixed(1)}/${toplamSoru} — ${dersMetni}`;
       }).join("\n")
     : "Deneme verisi yok.";
-
   const avg = denemeGirilen.length > 0
     ? (denemeGirilen.reduce((s,d)=>s+d.toplam,0)/denemeGirilen.length).toFixed(1) : null;
   const trend = denemeGirilen.length > 1
     ? (denemeGirilen[denemeGirilen.length-1].toplam - denemeGirilen[0].toplam).toFixed(1) : null;
-
-  // En zayif ve guclu dersler
   let dersOrtalamalari = {};
   if (denemeGirilen.length > 0) {
     dersListesi.forEach(ld => {
@@ -1262,50 +1257,40 @@ async function getDenemeAnalizi(studentName, gorusmeler, denemeGirilen, kutuphan
   const hedefSatiri = sinavTuru === "lgs"
     ? `HEDEF OKUL ARALIĞI: (Mevcut ${avg||"?"}/${toplamSoru} ortalamaya gore hangi liselere gidebilir — somut okul turu belirt)`
     : `HEDEF ÜNİVERSİTE/BÖLÜM ARALIĞI: (Mevcut ${avg||"?"}/${toplamSoru} ortalamaya gore hangi bölüm/üniversite düzeyine yönelebilir — somut belirt)`;
-
-  const prompt = `Ogrenci: ${studentName}
-${avg ? `Deneme Ortalamasi: ${avg}/${toplamSoru}` : ""}
-${trend ? `Trend: ${parseFloat(trend)>=0?"+":""}${trend} net (ilk denemeden son denemeye)` : ""}
-${dersSirali.length > 0 ? `Ders Ortalamalari: ${dersSirali.map(([k,v])=>`${k}: ${v}`).join(", ")}` : ""}
-
-${denemeBolum}
-
-${gorusmeBolum}${kutuphaneBaglam}
-
-${sinavAdi} hazirlik surecini kapsamli analiz et:
-
-AKADEMIK DURUM: (Genel net performansi ve yuzdelik dilim tahmini)
-${hedefSatiri}
-TREND ANALIZI: (Gelisim mi, gerileme mi, neden — psikolojik ve akademik acikla)
-DERS BAZLI ANALIZ: (En guclu ve en zayif dersler, zayif derslerde calisma onerisi)
-PSIKOLOJIK BAGLAY: (Gorusme notlarina gore akademik performansi etkileyen psikolojik faktorler)
-CALISMA PLANI:
-1. (Hangi derse kac saat — somut plan)
-2. (Deneme stratejisi)
-3. (Kaygı yonetimi / motivasyon)
-HEDEF: (Son denemeler icin gercekci hedef net ve hedef okul)
-
-Sade, somut, PDR ve ogr. koçlugu diline uygun yaz. Markdown kullanma.`;
-
-  const res = await pdrCallClaude({
-      model: "claude-sonnet-4-6", max_tokens: 4000,
-      system: LGS_KOCLUK,
-      messages: [{ role: "user", content: prompt }]
-    });
+  const apiKey = pdrGetApiKey();
+  if (!apiKey) throw new Error("API_KEY_MISSING");
+  const res = await fetch(PDR_AI_WORKER_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "deneme_analizi",
+      apiKey,
+      data: {
+        studentName,
+        avg: avg ? `${avg}/${toplamSoru}` : null,
+        trend: trend ? `${parseFloat(trend)>=0?"+":""}${trend} net (ilk denemeden son denemeye)` : null,
+        dersSiraliText: dersSirali.length > 0 ? dersSirali.map(([k,v])=>`${k}: ${v}`).join(", ") : null,
+        denemeBolum, gorusmeBolum, kutuphaneBaglam, hedefSatiri, sinavAdi,
+      },
+    }),
+  });
   const data = await res.json();
+  if (data.error) throw new Error(data.error);
   return data.content?.[0]?.text || "";
 }
 
 
 async function getScoresFromNotes(studentName, notlar) {
   const boyutlar = DIMENSIONS.map(d => d.key + " (" + d.label + ")").join(", ");
-  const prompt = "Ogrenci: " + studentName + "\n\nAsagidaki notlara dayanarak ogrenciyi 8 boyutta 1-5 arasinda puanla:\n" + boyutlar + "\n\n1=Cok Dusuk, 2=Dusuk, 3=Orta, 4=Iyi, 5=Cok Iyi. Notlarda bilgi yoksa 3 ver.\n\nNotlar:\n" + notlar + "\n\nSADECE su formatta JSON dondur:\n{\"akademik\":X,\"sosyal\":X,\"duygusal\":X,\"aile\":X,\"ozguven\":X,\"uyum\":X,\"kariyer\":X,\"akran\":X}";
-  const res = await pdrCallClaude({
-      model: "claude-sonnet-4-6", max_tokens: 200,
-      system: "Sen 20 yillik klinik deneyime sahip PDR uzmani Dr. Ayse Kara'sin. Gorusme notlarini analiz edip SADECE JSON formatinda puan dondur. Baska hicbir sey yazma.",
-      messages: [{ role: "user", content: prompt }],
-    });
+  const apiKey = pdrGetApiKey();
+  if (!apiKey) throw new Error("API_KEY_MISSING");
+  const res = await fetch(PDR_AI_WORKER_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "scores_from_notes", apiKey, data: { studentName, notlar, boyutlar } }),
+  });
   const data = await res.json();
+  if (data.error) return { ...EMPTY_SCORES };
   const text = data.content?.[0]?.text || "{}";
   try {
     const clean = text.replace(/```json|```/g, "").trim();
@@ -1329,64 +1314,44 @@ async function getP2Analiz({ studentName, className, sinavlar, d2, ilgiler, kari
     if (!isNaN(vo)) return `${d.label}: ${vo}/100`;
     return null;
   }).filter(Boolean).join(", ");
-
   const d2Metni = d2 && (d2.TN || d2.TN_E) ? `D2 Dikkat Testi: TN=${d2.TN||"—"}, E1=${d2.E1||"—"}, E2=${d2.E2||"—"}, TN-E=${d2.TN_E||"—"}, E%=${d2.E_yuzde||"—"}, PR=${d2.PR||"—"}` : "";
-
   const denemeBolum = denemeGirilen && denemeGirilen.length > 0
     ? "DENEME SONUCLARI:\n" + denemeGirilen.map(d => {
         const dersMetni2 = dersListesi.map(ld => `${ld.label.substring(0,3)}: ${parseFloat(d.nets?.[ld.key]||0).toFixed(1)}`).join(", ");
         return `D${d.no}: ${d.toplam.toFixed(1)}/${toplamSoru} (${dersMetni2})`;
       }).join("\n")
     : "";
-
   const avg = denemeGirilen && denemeGirilen.length > 0
     ? (denemeGirilen.reduce((s,d)=>s+d.toplam,0)/denemeGirilen.length).toFixed(1)
     : null;
-
-  const prompt = `Ogrenci: ${studentName}${className ? `, Sinif: ${className}` : ""}
-${gorusmeler ? "\nGORUSME NOTLARI:\n" + gorusmeler : ""}
-YAZILI SINAV PUANLARI: ${dersMetni || "Girilmemis"}
-${d2Metni}
-${denemeBolum}
-${avg ? `Deneme Ortalamasi: ${avg}/90` : ""}
-Ilgi Alanlari: ${ilgiler?.join(", ") || "Belirtilmemis"}
-Kariyer Hedefi: ${kariyer_hedef || "Belirtilmemis"}
-Aile Notu: ${aile_notu || "Yok"}
-
-Bu ogrencinin akademik ve dikkat profil analizini yap:
-
-AKADEMIK DURUM: (yazili sinav puanlarina gore guclu/zayif dersler, genel akademik profil)
-DIKKAT PROFİLİ: ${d2Metni ? "(D2 sonuclarini yorumla — TN psikomotor hiz, E1 secici dikkat, TN-E performans, E% hata orani, PR yuzdelik. Dikkat destegi gerekip gerekmedigini belirt)" : "(D2 verisi girilmemis)"}
-DENEME ANALİZİ: ${avg ? `(Deneme ortalamasi ${avg}/90 — LGS hedef okul araligini belirt, gidebilecegi liseleri soylet, trend varsa yorum yap)` : "(Deneme verisi yok)"}
-İLGİ-KARİYER UYUMU: (ilgi alanlari ile kariyer hedefi arasindaki uyum)
-LGS CALISMA ONERISI: (ders bazli somut calisma stratejisi, hangi derse ne kadar agirlik verilmeli)
-ONERILER:
-1. (Akademik destek)
-2. (Psikolojik destek)  
-3. (Aile/cevre onerisi)
-
-Sade, PDR diline uygun, somut yaz. Markdown kullanma.`;
-
-  const res = await pdrCallClaude({
-      model: "claude-sonnet-4-6", max_tokens: 4000,
-      system: LGS_KOCLUK,
-      messages: [{ role: "user", content: prompt }]
-    });
+  const apiKey = pdrGetApiKey();
+  if (!apiKey) throw new Error("API_KEY_MISSING");
+  const res = await fetch(PDR_AI_WORKER_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "p2_analiz",
+      apiKey,
+      data: { studentName, className, gorusmeler, dersMetni, d2Metni, denemeBolum, avg, ilgiler: ilgiler?.join(", "), kariyer_hedef, aile_notu },
+    }),
+  });
   const data = await res.json();
+  if (data.error) throw new Error(data.error);
   return data.content?.[0]?.text || "";
 }
 
 
 
 async function getAISummary(rawText) {
-  const res = await pdrCallClaude({
-      model: "claude-sonnet-4-6", max_tokens: 1000,
-      system: `Sen Dr. Ayse Kara'sin - 20 yillik klinik deneyime sahip, okul psikolojik danismanligi alaninda uzmanlasmis bir psikolog ve PDR uzmanisin. Bilissel Davranisci Terapi (BDT) temel yonelimindir: otomatik dusunceler, bilissel carpitmalar, sema teorisi, davranissal aktivasyon ve maruz birakma tekniklerini klinik pratikte ustaca kullanirsin. Baglanma teorisi (Bowlby, Ainsworth), aile sistemleri terapisi (Minuchin, Bowen) ve gelisim psikolojisi (Piaget, Vygotsky, Erikson) perspektifinden bireyi cevresiyle birlikte degerlendirirsin. Sosyolojide Bourdieu'nun habitus ve kulturel sermaye kavramlari, Giddens'in yapilasmasi ve sosyal tabakalasmanin psikolojik etkilerini Turkiye baglaminda okursun: aile baskisi, toplumsal cinsiyet rolleri, sinav odakli egitimin cocuk uzerindeki yukunu sosyolojik zemine oturtursun. Felsefi temetin: Frankl anlam terapisi, Sartre sorumluluk etigi, Stoa kontrol alani, fenomenolojinin oznel deneyim odagi. Uslubun: yargilamayan, merak eden, guclu yonlere odaklanan, somut ve uygulanabilir oneriler sunan, Turkce yazan, PDR diline hakim bir klinisyen.
-
-GOREV - GORUSME NOTU OZETI: Danismanin anlattigi gorusme notunu kisa ve net ozete donustur. Basliklar (sadece ilgililer): Ogrenci durumu (BDT: bilissel-duygusal-davranissal oruntu), Gorusmede one cikan (baglanma, otomatik dusunceler, stres-basa cikma, sosyal dinamikler, varolussel temalar), Yapilan/planlanan, Takip notu. Max 5-6 cumle. Sade PDR dili. JSON veya markdown kullanma.`,
-      messages: [{ role: "user", content: rawText }],
-    });
+  const apiKey = pdrGetApiKey();
+  if (!apiKey) throw new Error("API_KEY_MISSING");
+  const res = await fetch(PDR_AI_WORKER_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "ai_summary", apiKey, data: { rawText } }),
+  });
   const data = await res.json();
+  if (data.error) throw new Error(data.error);
   return data.content?.[0]?.text || "";
 }
 
@@ -1394,49 +1359,15 @@ async function getProfileAnalysis(studentName, className, scores, notes, kutupha
   const boyutlar = DIMENSIONS.map(d => `${d.label}: ${scores[d.key] || 0}/5`).join(", ");
   const kutuphaneBaglam = pdrKutuphaneBaglam(kutuphaneOzetleri);
   const onerilerNot = kutuphaneOzetleri.length > 0 ? ", kütüphane referanslarından yararlan" : "";
-  const prompt = `Öğrenci: ${studentName}, Sınıf: ${className}
-Rehberlik Profil Puanları (1-5): ${boyutlar}
-${notes ? `Ek notlar: ${notes}` : ""}${kutuphaneBaglam}
-
-Bu öğrencinin PDR profil analizini yaz. Şu yapıyı kullan:
-GÜÇLÜ YÖNLER: (yüksek puan alan boyutlar hakkında 1-2 cümle)
-GELİŞİM ALANLARI: (düşük puan alan boyutlar hakkında 1-2 cümle)
-ÖNERİLER: (danışman olarak yapılabilecek 2-3 somut öneri${onerilerNot})
-RİSK NOTU: (varsa dikkat edilmesi gereken bir şey, yoksa "Belirgin risk faktörü gözlemlenmedi" yaz)
-
-Sade, profesyonel ve PDR diline uygun yaz. Markdown veya JSON kullanma.`;
-  const res = await pdrCallClaude({
-      model: "claude-sonnet-4-6", max_tokens: 2000,
-      system: `Sen Dr. Ayse Kara'sin - 20 yillik klinik deneyime sahip PDR uzmani ve psikologsun. BDT (otomatik dusunceler, sema teorisi, maruz birakma), baglanma teorisi (Bowlby), aile sistemleri (Minuchin), gelisim psikolojisi (Erikson, Vygotsky), Bourdieu sosyolojisi, Frankl anlam terapisi ve Stoa felsefesi perspektifinden degerlendirir; somut, uygulanabilir PDR onerileri sunarsın. Yargilamayan, guclu yonlere odaklanan, Turkce yazan bir klinisyensin.
-
-COK KAYNAKLI CERCEVE:
-
-BOYUT-TEORİ EŞLEŞTİRMESİ:
-- Akademik Gelişim → Bandura'nın Öz-Yeterlilik Teorisi, Vygotsky'nin Yakınsak Gelişim Alanı
-- Sosyal Beceriler → Sosyal Öğrenme Teorisi, Goleman'ın Duygusal Zeka Modeli
-- Duygusal Denge → Duygu Düzenleme Teorisi (Gross), Lazarus'un Stres-Başa Çıkma Modeli
-- Aile İlişkileri → Bowlby'nin Bağlanma Teorisi, Bronfenbrenner'in Ekolojik Sistem Teorisi
-- Öz Güven → Adler'in Bireysel Psikoloji, Maslow'un İhtiyaçlar Hiyerarşisi
-- Okul Uyumu → MEB Okul Rehberlik Hizmetleri Yönergesi, Ekosistem uyum modeli
-- Kariyer Farkındalığı → Super'in Kariyer Gelişim Teorisi, Holland'ın RIASEC Modeli
-- Akran İlişkileri → Sullivan'ın Kişilerarası Teori, Sosyometri (Moreno)
-
-MEB OKUL REHBERLİK ÇERÇEVESİ:
-- Bireysel farkındalık ve kendini tanıma kazanımları
-- Sosyal-duygusal öğrenme becerileri
-- Akademik gelişim ve öğrenme stratejileri
-- Kariyer gelişimi ve yaşam becerileri
-- Aile ve çevre ilişkileri
-
-Analiz yaparken:
-1. Her boyutu ilgili teorik çerçeveden yorumla
-2. MEB rehberlik kazanımlarına atıfta bulun
-3. Kütüphane kaynakları varsa öncelikli referans olarak kullan
-4. Öneri yaparken teorik temeli belirt (örn. "Bandura'nın öz-yeterlilik yaklaşımına göre...")
-5. Pratik ve uygulanabilir öneriler ver`,
-      messages: [{ role: "user", content: prompt }],
-    });
+  const apiKey = pdrGetApiKey();
+  if (!apiKey) throw new Error("API_KEY_MISSING");
+  const res = await fetch(PDR_AI_WORKER_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "profil_analiz", apiKey, data: { studentName, className, boyutlar, notes, kutuphaneBaglam, onerilerNot } }),
+  });
   const data = await res.json();
+  if (data.error) throw new Error(data.error);
   return data.content?.[0]?.text || "";
 }
 
@@ -1784,29 +1715,15 @@ async function getDegerlendirmeAnalysis(studentName, className, cevaplar, notlar
     const p = degBoyutPuan(cevaplar, b.key);
     return `${DIMENSIONS.find(d => d.key === b.key)?.label}: ${p ?? "?"}/5`;
   }).join(", ");
-
-  const res = await pdrCallClaude({
-      model: "claude-sonnet-4-6", max_tokens: 2000,
-      system: `Sen Dr. Ayse Kara'sin - 20 yillik klinik deneyime sahip PDR uzmani ve psikologsun. BDT (otomatik dusunceler, sema teorisi, maruz birakma), baglanma teorisi (Bowlby), aile sistemleri (Minuchin), gelisim psikolojisi (Erikson, Vygotsky), Bourdieu sosyolojisi, Frankl anlam terapisi ve Stoa felsefesi perspektifinden degerlendirir; somut, uygulanabilir PDR onerileri sunarsın. Yargilamayan, guclu yonlere odaklanan, Turkce yazan bir klinisyensin.
-
-DEGERLENDIRME CERCEVESI:
-
-BOYUT-TEORİ EŞLEŞTİRMESİ:
-- Akademik Gelişim → Bandura öz-yeterlilik, Vygotsky yakınsak gelişim alanı
-- Sosyal Beceriler → Goleman duygusal zeka, Sosyal öğrenme teorisi
-- Duygusal Denge → Gross duygu düzenleme, Lazarus stres-başa çıkma
-- Aile İlişkileri → Bowlby bağlanma teorisi, Bronfenbrenner ekolojik sistem
-- Öz Güven → Adler bireysel psikoloji, Maslow ihtiyaçlar hiyerarşisi
-- Okul Uyumu → MEB rehberlik yönergesi, Ekosistem uyum modeli
-- Kariyer Farkındalığı → Super kariyer gelişim, Holland RIASEC modeli
-- Akran İlişkileri → Sullivan kişilerarası teori, Moreno sosyometri
-
-MEB OKUL REHBERLİK ÇERÇEVESİ: Bireysel farkındalık, sosyal-duygusal öğrenme, akademik gelişim, kariyer gelişimi, aile-çevre ilişkileri kazanımları.
-
-Analiz yaparken: Her boyutu ilgili teorik çerçeveden yorumla, hangi teoriden baktığını belirt, MEB kazanımlarına atıfta bulun, pratik ve uygulanabilir öneriler ver. Markdown veya JSON kullanma.`,
-      messages: [{ role: "user", content: `Öğrenci: ${studentName}${className ? `, Sınıf: ${className}` : ""}\nPuan Özeti: ${puanOzet}\n\n${boyutMetni}\n\nBu öğrencinin PDR analizini şu yapıda yaz:\nGENEL DEĞERLENDİRME: (öğrencinin genel profilini teorik perspektiften 2-3 cümle)\nGÜÇLÜ YÖNLER: (hangi teoriye göre güçlü olduğunu belirt)\nGELİŞİM ALANLARI: (hangi teorik çerçeveden müdahale önerilebileceğini belirt)\nÖNERİLER: (teorik temelli 3 somut öneri, kaynağını belirt)\nRİSK NOTU: (varsa teorik dayanaklı risk değerlendirmesi)` }],
-    });
+  const apiKey = pdrGetApiKey();
+  if (!apiKey) throw new Error("API_KEY_MISSING");
+  const res = await fetch(PDR_AI_WORKER_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "degerlendirme_analiz", apiKey, data: { studentName, className, puanOzet, boyutMetni } }),
+  });
   const data = await res.json();
+  if (data.error) throw new Error(data.error);
   return data.content?.[0]?.text || "";
 }
 
