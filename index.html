@@ -7943,6 +7943,20 @@ export default function App() {
       else aiRiskTuru = bulunan.split("\n")[0].trim();
     }
 
+    // İkincil etkilenen alan — sınav kaygısı gibi durumlarda "kök neden" (örn.
+    // Duygusal) birincil, ama akademik performans da ciddi etkileniyorsa bunu
+    // ayrıca kaydeder. Mevcut tek-kategori yapıyı bozmadan (birincil hâlâ tek),
+    // ek bilgi olarak gösterilir.
+    let ikincilTur = "";
+    const ikincilMatch = aiAnaliz.match(/İKİNCİL ETKİLENEN ALAN:\s*(.+)/);
+    if (ikincilMatch) {
+      const bulunanIkincil = ikincilMatch[1].trim().replace(/-/g, " / ");
+      if (!/^yok/i.test(bulunanIkincil)) {
+        const eslesenIkincil = riskTurleriListesi.find(t => t.toLowerCase().replace(/-/g," / ") === bulunanIkincil.toLowerCase() || bulunanIkincil.toLowerCase().includes(t.toLowerCase().split("/")[0].trim().toLowerCase()));
+        if (eslesenIkincil && eslesenIkincil !== aiRiskTuru) ikincilTur = eslesenIkincil;
+      }
+    }
+
     // Teknoloji/Ekran Bağımlılığı taraması — ana risk türünden bağımsız, AI'ın
     // her analizde görüşme notlarına dayanarak yaptığı ayrı bir tarama. Sadece
     // "Var" ise Sınıf görünümünde rozet olarak gösterilir.
@@ -7955,7 +7969,7 @@ export default function App() {
       if (gerekceMatch) teknolojiGerekce = gerekceMatch[1].split("\n")[0].trim();
     }
 
-    const item = { id: uid(), tarih: today(), ...riskForm, riskTuru: aiRiskTuru, oncelik: aiOncelik, aiAnaliz, kapandi: false, teknolojiBagimliligi, teknolojiGerekce };
+    const item = { id: uid(), tarih: today(), ...riskForm, riskTuru: aiRiskTuru, ikincilTur, oncelik: aiOncelik, aiAnaliz, kapandi: false, teknolojiBagimliligi, teknolojiGerekce };
     const updated = [item, ...riskListesi];
     setRiskListesi(updated); await saveRiskListesi(updated);
     setRiskForm({ studentName: "", className: "", numara: "", riskTuru: "", aciklama: "", oncelik: "Orta" });
@@ -8844,6 +8858,7 @@ export default function App() {
                           <div style={{ display:"flex", gap:6, flexShrink:0 }}>
                             <span style={{ background:"rgba(255,255,255,0.22)", color:"#fff", borderRadius:20, padding:"3px 12px", fontSize:11, fontWeight:800, border:`1px solid ${rc}` }}>{r.oncelik}</span>
                             {r.riskTuru && <span style={{ background:"rgba(255,255,255,0.15)", color:"#fff", borderRadius:20, padding:"3px 12px", fontSize:11, fontWeight:700 }}>{r.riskTuru}</span>}
+                            {r.ikincilTur && <span title="İkincil etkilenen alan" style={{ background:"rgba(255,255,255,0.10)", color:"#fff", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:600, border:"1px dashed rgba(255,255,255,0.4)" }}>+ {r.ikincilTur}</span>}
                           </div>
                         </div>
                         <div style={{ height:1, background:"rgba(255,255,255,0.25)", margin:"8px 0" }} />
