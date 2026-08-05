@@ -7838,8 +7838,10 @@ export default function App() {
   }
 
   async function handleSave() {
-    if (!form.studentName.trim() || !form.summary.trim()) return;
-    const rec = { id: uid(), date: today(), ...form };
+    if (!form.studentName.trim() || !(form.summary.trim() || form.raw.trim())) return;
+    // AI ile özetlenmemişse (kullanıcı "AI Özetle" demeden direkt kaydetmek
+    // istiyorsa), ham metni özet olarak kullan — kaydetmek için AI şart değil.
+    const rec = { id: uid(), date: today(), ...form, summary: form.summary.trim() || form.raw.trim() };
     const updated = [rec, ...records];
     setRecords(updated); await saveRecords(updated);
     setForm({ studentName: "", className: "", numara: "", meetingType: "Öğrenci", topic: "", raw: "", summary: "" });
@@ -8242,7 +8244,7 @@ export default function App() {
                 </div>
               ) : null}
               {/* Kaydet */}
-              <button onClick={handleSave} disabled={!form.studentName.trim()||!form.summary.trim()} style={{ width:"100%", padding:"13px", background:form.studentName&&form.summary?ACCENT:BORDER, color:form.studentName&&form.summary?"#fff":MUTED, border:"none", borderRadius:12, fontSize:15, fontWeight:800, cursor:"pointer" }}>
+              <button onClick={handleSave} disabled={!form.studentName.trim()||!(form.summary.trim()||form.raw.trim())} style={{ width:"100%", padding:"13px", background:form.studentName&&(form.summary||form.raw)?ACCENT:BORDER, color:form.studentName&&(form.summary||form.raw)?"#fff":MUTED, border:"none", borderRadius:12, fontSize:15, fontWeight:800, cursor:"pointer" }}>
                 {saved?"✓ Kaydedildi!":"💾 Görüşmeyi Kaydet"}
               </button>
             </div>
