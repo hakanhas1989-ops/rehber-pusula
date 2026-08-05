@@ -3443,27 +3443,17 @@ function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mud
     const notlar = ogrRec.map((r,i) => `Görüşme ${i+1} (${r.date}): ${r.summary}`).join("\n\n");
     const kutuphaneBaglam = pdrKutuphaneBaglam(kutuphane);
     const kademeMetni = kademeBaglamMetni(kademe);
-    const res = await pdrCallClaude({
-        model:"claude-sonnet-4-6", max_tokens:1500,
-        system:"Sen Dr. Ayse Kara'sin — 20 yillik klinik PDR uzmanisin. BDT ve varoluşçu perspektiften somut müdahale plani olusturursun.",
-        messages:[{role:"user", content:`Öğrenci: ${seciliAd}
-${kademeMetni}
-
-Görüşme Notları:
-${notlar||"Henüz görüşme notu yok."}${kutuphaneBaglam}
-
-Bu öğrenci için somut bir PDR müdahale planı oluştur:
-
-HEDEF: (tek cümle, ölçülebilir)
-MÜDAHALE ADIMLARI:
-1.
-2.
-3.
-SÜRE: (kaç hafta/ay)
-KONTROL KRİTERİ: (nasıl değerlendireceğiz)
-
-${kademe ? "Planı öğrencinin yaş/gelişim dönemine uygun şekilde oluştur. " : ""}${kutuphane?.length > 0 ? "Kütüphane referanslarından (varsa ilgili yönetmelik/mevzuat maddeleri dahil) yararlan. " : ""}Sade yaz, Markdown kullanma.`}]
-      });
+    const apiKey = pdrGetApiKey();
+    if (!apiKey) { setAiLoading(false); return; }
+    const res = await fetch(PDR_AI_WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "mudahale_plani",
+        apiKey,
+        data: { studentName: seciliAd, notlar, kademeMetni, kutuphaneBaglam, kademe, kutuphaneVarMi: kutuphane?.length > 0 },
+      }),
+    });
     const data = await res.json();
     const analiz = data.content?.[0]?.text || "";
     const hedefMatch = analiz.match(/HEDEF:\s*(.+)/);
@@ -7427,22 +7417,14 @@ function KutuphaneEkle({ kutuphane, setKutuphane }) {
   const stl = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, background:CARD, color:TEXT, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
   const lbl = { fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4, textTransform:"uppercase" };
 
-  // İki farklı özetleme yönelimi: klinik/psikolojik kaynaklar (makale, kitap, araştırma)
-  // için PDR/klinik perspektifinden tema özeti; yönetmelik/mevzuat için ise yorum
-  // katmadan somut kural, süre, sayısal eşik ve prosedür çıkarımı.
-  function ozetSistemPrompt() {
-    if (kaynakTuru === "yonetmelik") {
-      return "Sen bir egitim mevzuati uzmanisin. Sana verilen belge bir MEB yonetmeligi, genelgesi veya mevzuat metnidir. Bunu okul PDR (rehberlik) uzmani icin, hicbir klinik/psikolojik yorum katmadan, SADECE somut ve uygulanabilir bilgiyi cikararak ozetle. Su yapida yaz: 1. KAPSAM (bu belge ne hakkinda, kimleri ilgilendiriyor) 2. SOMUT KURALLAR VE SAYISAL ESIKLER (sure, gun sayisi, oran, madde numaralari - varsa aynen koru, yuvarlama) 3. PROSEDUR / KIMIN NE YAPMASI GEREKTIGI (adim adim, sorumluluklar, hangi durumda hangi islem yapilir) 4. ISTISNALAR VE OZEL DURUMLAR. Sadece belgede yazani duzenli sekilde aktar, yorum veya oneri ekleme. Sayisal degerleri MUTLAKA aynen koru. Max 500 kelime. Sade yaz. Markdown kullanma.";
-    }
-    return "Sen Dr. Ayse Kara'sin - 20 yillik klinik deneyime sahip PDR uzmani ve psikologsun. BDT (otomatik dusunceler, sema teorisi, maruz birakma), baglanma teorisi (Bowlby), aile sistemleri (Minuchin), gelisim psikolojisi (Erikson, Vygotsky), Bourdieu sosyolojisi, Frankl anlam terapisi ve Stoa felsefesi perspektifinden degerlendirir; somut, uygulanabilir PDR onerileri sunarsın. Yargilamayan, guclu yonlere odaklanan, Turkce yazan bir klinisyensin. Verilen metni su yapida ozet: 1. ANA TEMALAR 2. PDR/KLINIK ACISINDAN ONEMLI NOKTALAR (BDT, baglanma, sosyoloji, felsefe) 3. ANAHTAR KAVRAMLAR. Max 350 kelime. Sade yaz. Markdown kullanma.";
-  }
-
   async function aiOzetle(metin, baslik) {
-    const res = await pdrCallClaude({
-        model:"claude-sonnet-4-6", max_tokens:800,
-        system: ozetSistemPrompt(),
-        messages:[{role:"user", content:`Başlık: ${baslik||"Belirtilmemiş"}\n\nMetin:\n${metin.substring(0,8000)}`}]
-      });
+    const apiKey = pdrGetApiKey();
+    if (!apiKey) return metin.substring(0,400);
+    const res = await fetch(PDR_AI_WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "kutuphane_ozet", apiKey, data: { metin, baslik, tur: kaynakTuru } }),
+    });
     const data = await res.json();
     return data.content?.[0]?.text || metin.substring(0,400);
   }
@@ -7467,16 +7449,13 @@ function KutuphaneEkle({ kutuphane, setKutuphane }) {
           r.onerror = rej;
           r.readAsDataURL(file);
         });
-        const resp = await pdrCallClaude({
-            model:"claude-sonnet-4-6", max_tokens:800,
-            system: ozetSistemPrompt(),
-            messages:[{role:"user", content:[
-              {type:"document", source:{type:"base64", media_type:"application/pdf", data:b64}},
-              {type:"text", text: kaynakTuru === "yonetmelik"
-                ? `Bu yönetmelik/mevzuat belgesini yukarıdaki talimata göre özetle. Başlık: ${baslik}`
-                : `Bu belgeyi PDR perspektifinden özetle. Başlık: ${baslik}`}
-            ]}]
-          });
+        const apiKey = pdrGetApiKey();
+        if (!apiKey) throw new Error("API_KEY_MISSING");
+        const resp = await fetch(PDR_AI_WORKER_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "kutuphane_ozet", apiKey, data: { pdfBase64: b64, baslik, tur: kaynakTuru } }),
+        });
         const data = await resp.json();
         const ozet = data.content?.[0]?.text || "Özet alınamadı.";
         await kaydet(ozet, baslik, file.name);
@@ -7516,14 +7495,17 @@ function KutuphaneEkle({ kutuphane, setKutuphane }) {
           ? "Bu web sayfasındaki yönetmelik/mevzuat içeriğini yukarıdaki talimata göre özetle: " + yeniLink
           : "Bu web sayfasının içeriğini PDR perspektifinden özetle: " + yeniLink);
 
-      const bodyObj = {
-        model: "claude-sonnet-4-6", max_tokens: 800,
-        system: ozetSistemPrompt(),
-        messages: [{ role: "user", content: mesaj }]
-      };
-      if (!sayfaIcerigi) bodyObj.tools = [{ type: "web_search_20250305", name: "web_search" }];
-
-      const resp = await pdrCallClaude(bodyObj);
+      const apiKey = pdrGetApiKey();
+      if (!apiKey) throw new Error("API_KEY_MISSING");
+      const resp = await fetch(PDR_AI_WORKER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "kutuphane_ozet",
+          apiKey,
+          data: { mesaj, tur: kaynakTuru, useWebSearch: !sayfaIcerigi },
+        }),
+      });
       const data = await resp.json();
       const ozet = data.content?.find(b => b.type === "text")?.text || "İçerik okunamadı.";
       await kaydet(ozet, baslik, yeniLink);
