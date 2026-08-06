@@ -7196,10 +7196,13 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
                   <span style={{fontSize:12,color:TEXT,fontWeight:sayi>0?700:400}}>{t}</span>
                   <div style={{display:"flex",alignItems:"center",gap:6}}>
                     {sayi > 0 && (
-                      <div style={{display:"flex",gap:3}}>
-                        {ogrRisk.map(r=>(
+                      <div style={{display:"flex",gap:3,flexWrap:"wrap",justifyContent:"flex-end",maxWidth:180}}>
+                        {ogrRisk.slice(0,4).map(r=>(
                           <span key={r.id} style={{background:"#FDECEA",color:"#C0392B",borderRadius:10,padding:"1px 7px",fontSize:10,fontWeight:700}}>{r.studentName}</span>
                         ))}
+                        {ogrRisk.length > 4 && (
+                          <span style={{background:BORDER,color:MUTED,borderRadius:10,padding:"1px 7px",fontSize:10,fontWeight:700}}>+{ogrRisk.length-4}</span>
+                        )}
                       </div>
                     )}
                     <span style={{fontSize:12,fontWeight:900,color:sayi>0?"#C0392B":MUTED,width:20,textAlign:"right"}}>{sayi||"—"}</span>
