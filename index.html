@@ -8391,7 +8391,6 @@ export default function App() {
   const uniqueStudents = new Set(studentRecs.map(r => r.studentName)).size;
   const uniqueParents = new Set(veliRecs.map(r => r.studentName)).size;
   const bekleyenSevk = sevkler.filter(s => s.sonucBekleniyor).length;
-  const aktifHatirlatma = (hatirlatmalar||[]).filter(h => !h.tamamlandi).length;
   const bugunkuHatirlatma = (hatirlatmalar||[]).filter(h => !h.tamamlandi && pdrKalanGunHesapla(h.tarih) <= 0).length;
   const tickerItems = [
     `📊 ${totalRecs} görüşme kaydı`,
@@ -8399,7 +8398,7 @@ export default function App() {
     `👪 ${uniqueParents} veli görüşmesi`,
     `📋 ${profiles.length} öğrenci profili`,
     `⚠️ ${riskListesi.length} risk takibi`,
-    bugunkuHatirlatma > 0 ? `🔔 ${bugunkuHatirlatma} hatırlatma BUGÜN!` : `🔔 ${aktifHatirlatma} hatırlatma`,
+    ...(bugunkuHatirlatma > 0 ? [`🔔 ${bugunkuHatirlatma} hatırlatma BUGÜN!`] : []),
     `📮 ${bekleyenSevk} bekleyen sevk sonucu`,
     `📅 Aktif yıl: ${aktifYil}`,
   ];
@@ -8551,10 +8550,10 @@ export default function App() {
               <div style={{ marginBottom:12 }}>
                 <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>ÖĞRENCİ</label>
                 {form.studentName ? (
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:ACCENT_LIGHT, border:`1px solid ${ACCENT}`, borderRadius:10, padding:"8px 12px", marginBottom:8 }}>
-                    <div style={{ fontSize:13, fontWeight:700, color:ACCENT }}>👤 {form.studentName}{form.className ? ` — ${form.className}` : ""}{form.numara ? ` · No: ${form.numara}` : ""}</div>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:PURPLE_LIGHT, border:`1px solid ${PURPLE}`, borderRadius:10, padding:"8px 12px", marginBottom:8 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:PURPLE }}>👤 {form.studentName}{form.className ? ` — ${form.className}` : ""}{form.numara ? ` · No: ${form.numara}` : ""}</div>
                     <button onClick={() => { setForm(f => ({ ...f, studentName:"", className:"", numara:"" })); setAktifOgrenci({ name:"", className:"" }); setNotOgrenciArama(""); }} style={{
-                      background:"none", border:`1px solid ${ACCENT}`, color:ACCENT, borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
+                      background:"none", border:`1px solid ${PURPLE}`, color:PURPLE, borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
                     }}>✕ Değiştir</button>
                   </div>
                 ) : (
@@ -8581,7 +8580,7 @@ export default function App() {
               {/* Görüşme türü */}
               <div style={{ display:"flex", gap:8, marginBottom:12 }}>
                 {["Öğrenci","Veli","Öğretmen"].map(t=>(
-                  <button key={t} onClick={()=>setForm(f=>({...f,meetingType:t}))} style={{ flex:1, padding:"8px", borderRadius:8, border:`2px solid ${form.meetingType===t?ACCENT:BORDER}`, background:form.meetingType===t?ACCENT_LIGHT:CARD, color:form.meetingType===t?ACCENT:MUTED, fontSize:12, fontWeight:700, cursor:"pointer" }}>{t}</button>
+                  <button key={t} onClick={()=>setForm(f=>({...f,meetingType:t}))} style={{ flex:1, padding:"8px", borderRadius:8, border:`2px solid ${form.meetingType===t?PURPLE:BORDER}`, background:form.meetingType===t?PURPLE_LIGHT:CARD, color:form.meetingType===t?PURPLE:MUTED, fontSize:12, fontWeight:700, cursor:"pointer" }}>{t}</button>
                 ))}
               </div>
               {/* Ham not */}
@@ -8589,7 +8588,7 @@ export default function App() {
               <textarea placeholder="Görüşme notlarını buraya yazın..." value={form.raw} onChange={e=>setForm(f=>({...f,raw:e.target.value}))} rows={5} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, resize:"vertical", boxSizing:"border-box", marginBottom:10 }} />
               {/* Sesli giriş */}
               <div style={{ display:"flex", gap:8, marginBottom:10 }}>
-                <button onClick={listening?stopListening:startListening} style={{ flex:1, padding:"10px", background:listening?"#C0392B":ACCENT_LIGHT, color:listening?"#fff":ACCENT, border:"none", borderRadius:10, fontSize:13, fontWeight:700, cursor:"pointer" }}>
+                <button onClick={listening?stopListening:startListening} style={{ flex:1, padding:"10px", background:listening?"#C0392B":PURPLE_LIGHT, color:listening?"#fff":PURPLE, border:"none", borderRadius:10, fontSize:13, fontWeight:700, cursor:"pointer" }}>
                   {listening?"⏹ Durdur":"🎤 Sesli Giriş"}
                 </button>
                 <button onClick={handleSummarize} disabled={!form.raw.trim()||aiLoading} style={{ flex:1, padding:"10px", background:form.raw.trim()&&!aiLoading?PURPLE:BORDER, color:form.raw.trim()&&!aiLoading?"#fff":MUTED, border:"none", borderRadius:10, fontSize:13, fontWeight:700, cursor:"pointer" }}>
@@ -8615,7 +8614,7 @@ export default function App() {
                 </div>
               )}
               {/* Kaydet */}
-              <button onClick={handleSave} disabled={!form.studentName.trim()||!(form.summary.trim()||form.raw.trim())} style={{ width:"100%", padding:"13px", background:form.studentName&&(form.summary||form.raw)?ACCENT:BORDER, color:form.studentName&&(form.summary||form.raw)?"#fff":MUTED, border:"none", borderRadius:12, fontSize:15, fontWeight:800, cursor:"pointer" }}>
+              <button onClick={handleSave} disabled={!form.studentName.trim()||!(form.summary.trim()||form.raw.trim())} style={{ width:"100%", padding:"13px", background:form.studentName&&(form.summary||form.raw)?PURPLE:BORDER, color:form.studentName&&(form.summary||form.raw)?"#fff":MUTED, border:"none", borderRadius:12, fontSize:15, fontWeight:800, cursor:"pointer" }}>
                 {saved?"✓ Kaydedildi!":"💾 Görüşmeyi Kaydet"}
               </button>
             </div>
