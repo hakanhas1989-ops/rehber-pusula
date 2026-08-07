@@ -3583,6 +3583,44 @@ function pdrKalanGunMetni(kalanGun) {
   if (kalanGun === 1) return "Yarın";
   return `${kalanGun} gün sonra`;
 }
+function pdrTarihFormatla(d) {
+  return `${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}.${d.getFullYear()}`;
+}
+// Hatırlatma metnine yazılan tarih ifadelerini ("yarın", "3 gün sonra",
+// "10 Ağustos" gibi) otomatik algılayıp GG.AA.YYYY tarihine çevirir —
+// bulamazsa null döner (mevcut tarih değişmeden kalır).
+const PDR_AYLAR = ["ocak","şubat","mart","nisan","mayıs","haziran","temmuz","ağustos","eylül","ekim","kasım","aralık"];
+function pdrMetindenTarihCikar(metin) {
+  if (!metin) return null;
+  const t = metin.toLowerCase();
+  if (/\bbugün\b/.test(t)) return pdrTarihFormatla(new Date());
+  if (/\byarın\b/.test(t)) {
+    const d = new Date(); d.setDate(d.getDate()+1);
+    return pdrTarihFormatla(d);
+  }
+  let m = t.match(/(\d+)\s*gün\s*sonra/);
+  if (m) { const d = new Date(); d.setDate(d.getDate()+parseInt(m[1])); return pdrTarihFormatla(d); }
+  m = t.match(/(\d+)\s*hafta\s*sonra/);
+  if (m) { const d = new Date(); d.setDate(d.getDate()+parseInt(m[1])*7); return pdrTarihFormatla(d); }
+  for (let i = 0; i < PDR_AYLAR.length; i++) {
+    const ay = PDR_AYLAR[i];
+    const re1 = new RegExp(`(\\d{1,2})\\s*${ay}`, "i");       // "10 ağustos"
+    const re2 = new RegExp(`${ay}[a-zçğıöşü']*\\s*(\\d{1,2})`, "i"); // "ağustos 10" / "ağustos'ta 10"
+    const mm = t.match(re1) || t.match(re2);
+    if (mm) {
+      const gun = parseInt(mm[1]);
+      if (gun >= 1 && gun <= 31) {
+        const simdi = new Date();
+        let d = new Date(simdi.getFullYear(), i, gun);
+        // Bu tarih bugünden 60 günden fazla geride kaldıysa, muhtemelen gelecek
+        // yılı kastediyordur (örn. Ocak ayında "Aralık" yazması gibi)
+        if (d.getTime() < simdi.getTime() - 60*24*60*60*1000) d = new Date(simdi.getFullYear()+1, i, gun);
+        return pdrTarihFormatla(d);
+      }
+    }
+  }
+  return null;
+}
 const HATIRLATMA_KATEGORILERI = [
   { key:"gecikmis", baslik:"⏰ Gecikmiş", renk:"#C0392B", bg:"#FDECEA", border:"#F3B7AE" },
   { key:"bugun",    baslik:"🔔 Bugün",    renk:"#6D28D9", bg:"#F3EEFC", border:"#C9AEEB" },
@@ -3605,6 +3643,7 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
   const [formAcik, setFormAcik] = useState(false);
   const [form, setForm] = useState({ metin: "", tarih: today() });
   const [filtreMetni, setFiltreMetni] = useState("");
+  const [duzenlenenId, setDuzenlenenId] = useState(null); // null = yeni ekleme, dolu = düzenleme modu
 
   useEffect(() => {
     if (aktifOgrenci?.name) setSeciliAd(aktifOgrenci.name);
@@ -3627,14 +3666,38 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
   const tamamlananlar = (hatirlatmalar||[]).filter(h => h.tamamlandi);
   const toplamAktif = (hatirlatmalar||[]).filter(h => !h.tamamlandi).length;
 
-  async function handleEkle() {
+  async function handleKaydet() {
     if (!seciliAd || !form.metin.trim()) return;
-    const yeni = { id: uid(), studentName: seciliAd, className: seciliSinif, numara: seciliNumara, metin: form.metin.trim(), tarih: form.tarih, kaynak: "manuel", olusturmaTarihi: today(), tamamlandi: false };
-    const guncel = [yeni, ...(hatirlatmalar||[])];
-    setHatirlatmalar(guncel);
-    await saveHatirlatmalar(guncel);
+    if (duzenlenenId) {
+      // Mevcut hatırlatmayı güncelle
+      const guncel = (hatirlatmalar||[]).map(h => h.id === duzenlenenId
+        ? { ...h, studentName: seciliAd, className: seciliSinif, numara: seciliNumara, metin: form.metin.trim(), tarih: form.tarih }
+        : h);
+      setHatirlatmalar(guncel);
+      await saveHatirlatmalar(guncel);
+    } else {
+      const yeni = { id: uid(), studentName: seciliAd, className: seciliSinif, numara: seciliNumara, metin: form.metin.trim(), tarih: form.tarih, kaynak: "manuel", olusturmaTarihi: today(), tamamlandi: false };
+      const guncel = [yeni, ...(hatirlatmalar||[])];
+      setHatirlatmalar(guncel);
+      await saveHatirlatmalar(guncel);
+    }
     setForm({ metin: "", tarih: today() });
+    setDuzenlenenId(null);
     setFormAcik(false);
+  }
+
+  function handleDuzenle(h) {
+    setSeciliAd(h.studentName);
+    setAktifOgrenci({ name: h.studentName, className: h.className || "" });
+    setForm({ metin: h.metin, tarih: h.tarih });
+    setDuzenlenenId(h.id);
+    setFormAcik(true);
+  }
+
+  function handleFormKapat() {
+    setFormAcik(false);
+    setDuzenlenenId(null);
+    setForm({ metin: "", tarih: today() });
   }
 
   async function handleTamamlandi(id) {
@@ -3667,8 +3730,8 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
       ) : (
         <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, padding:14, marginBottom:16 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-            <div style={{ fontSize:13, fontWeight:800 }}>Yeni Hatırlatma</div>
-            <button onClick={()=>setFormAcik(false)} style={{ background:"none", border:"none", color:MUTED, fontSize:16, cursor:"pointer" }}>✕</button>
+            <div style={{ fontSize:13, fontWeight:800 }}>{duzenlenenId ? "✏️ Hatırlatmayı Düzenle" : "Yeni Hatırlatma"}</div>
+            <button onClick={handleFormKapat} style={{ background:"none", border:"none", color:MUTED, fontSize:16, cursor:"pointer" }}>✕</button>
           </div>
 
           <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>ÖĞRENCİ</label>
@@ -3698,15 +3761,20 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
           )}
 
           <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>HATIRLATMA</label>
-          <textarea rows={2} placeholder="Örn. 3 gün sonra tekrar görüşülecek" value={form.metin} onChange={e=>setForm(f=>({...f,metin:e.target.value}))} style={{...inp, marginBottom:10, resize:"vertical"}} />
+          <textarea rows={2} placeholder="Örn. 3 gün sonra tekrar görüşülecek, ya da '10 Ağustos'ta hastane randevusu' — tarihi otomatik algılar" value={form.metin} onChange={e=>{
+            const yeniMetin = e.target.value;
+            const tespit = pdrMetindenTarihCikar(yeniMetin);
+            setForm(f => ({ ...f, metin: yeniMetin, tarih: tespit || f.tarih }));
+          }} style={{...inp, marginBottom:4, resize:"vertical"}} />
+          <div style={{ fontSize:10, color:MUTED, marginBottom:10 }}>💡 "yarın", "3 gün sonra", "10 Ağustos" gibi ifadeler yazınca tarih otomatik dolar.</div>
 
           <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>TARİH</label>
           <input type="text" placeholder="GG.AA.YYYY" value={form.tarih} onChange={e=>setForm(f=>({...f,tarih:e.target.value}))} style={{...inp, marginBottom:12}} />
 
-          <button onClick={handleEkle} disabled={!seciliAd || !form.metin.trim()} style={{
+          <button onClick={handleKaydet} disabled={!seciliAd || !form.metin.trim()} style={{
             width:"100%", padding:"10px", background: (seciliAd && form.metin.trim()) ? MOR : BORDER, color: (seciliAd && form.metin.trim()) ? "#fff" : MUTED,
             border:"none", borderRadius:10, fontSize:13, fontWeight:800, cursor: (seciliAd && form.metin.trim()) ? "pointer" : "default"
-          }}>Ekle</button>
+          }}>{duzenlenenId ? "Güncelle" : "Ekle"}</button>
         </div>
       )}
 
@@ -3740,6 +3808,7 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
                       </div>
                       <div style={{ display:"flex", flexDirection:"column", gap:4, flexShrink:0 }}>
                         <button onClick={()=>handleTamamlandi(h.id)} style={{ background:"#1A8C5B", color:"#fff", border:"none", borderRadius:6, padding:"4px 8px", fontSize:10, fontWeight:700, cursor:"pointer" }}>✓ Tamam</button>
+                        <button onClick={()=>handleDuzenle(h)} style={{ background:"none", border:`1px solid ${MOR}`, color:MOR, borderRadius:6, padding:"3px 8px", fontSize:10, fontWeight:700, cursor:"pointer" }}>✏️ Düzenle</button>
                         <button onClick={()=>handleSil(h.id)} style={{ background:"none", border:"none", color:"#C0392B", fontSize:12, cursor:"pointer" }}>🗑</button>
                       </div>
                     </div>
@@ -8435,6 +8504,23 @@ export default function App() {
           ))}
         </div>
       </div>
+
+      {/* Bugünkü/gecikmiş hatırlatmalar — her ekranda görünür, kaçırılmasın diye */}
+      {(() => {
+        const oncelikliHatirlatmalar = (hatirlatmalar||[]).filter(h => !h.tamamlandi && pdrKalanGunHesapla(h.tarih) <= 0)
+          .sort((a,b) => pdrTarihMs(a.tarih) - pdrTarihMs(b.tarih));
+        if (oncelikliHatirlatmalar.length === 0 || tab === "hatirlatici") return null;
+        return (
+          <div onClick={() => setTab("hatirlatici")} style={{ background: "#6D28D9", padding: "8px 16px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13 }}>🔔</span>
+            <span style={{ color: "#fff", fontSize: 12, fontWeight: 700, flex: 1 }}>
+              {oncelikliHatirlatmalar.slice(0, 3).map(h => `${h.studentName} (${pdrKalanGunMetni(pdrKalanGunHesapla(h.tarih))})`).join(" · ")}
+              {oncelikliHatirlatmalar.length > 3 && ` +${oncelikliHatirlatmalar.length - 3} daha`}
+            </span>
+            <span style={{ color: "#E9D8FD", fontSize: 11, fontWeight: 700, textDecoration: "underline", flexShrink: 0 }}>Hatırlatıcı'ya git →</span>
+          </div>
+        );
+      })()}
 
       {/* Tabs */}
       <div style={{ display: "flex", background: CARD, borderBottom: `1px solid ${BORDER}`, overflowX: "auto", boxShadow: "0 3px 8px rgba(0,0,0,0.06)", position: "sticky", top: 0, zIndex: 8 }}>
