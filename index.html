@@ -1520,6 +1520,12 @@ async function loadSevkler() {
 async function saveSevkler(items) {
   try { await window.storage.set("pdr-sevkler", JSON.stringify(items)); } catch(e) { console.warn(e); }
 }
+async function loadHatirlatmalar() {
+  try { const r = await window.storage.get("pdr-hatirlatmalar"); return r ? JSON.parse(r.value) : []; } catch { return []; }
+}
+async function saveHatirlatmalar(items) {
+  try { await window.storage.set("pdr-hatirlatmalar", JSON.stringify(items)); } catch(e) { console.warn(e); }
+}
 
 async function loadHazirlikNotlari() {
   try { const r = await window.storage.get("pdr-hazirlik"); return r ? JSON.parse(r.value) : {}; } catch { return {}; }
@@ -3547,6 +3553,159 @@ function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mud
   );
 }
 
+// ── Hatırlatıcı Bileşeni ─────────────────────────────────────────────────────
+// Amaç: "3 gün sonra görüşülecek", "bugün hastane randevusu var" gibi takip
+// edilmesi gereken şeyleri unutmamak. İki kaynaktan gelir: danışmanın elle
+// eklediği (manuel) ya da AI'ın görüşme notunu özetlerken fark edip önerdiği
+// (AI önerisi, danışman onaylarsa eklenir — AI kendiliğinden hiçbir şey
+// eklemez, karar her zaman danışmanda kalır).
+function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hatirlatmalar, setHatirlatmalar }) {
+  const [seciliAd, setSeciliAd] = useState(aktifOgrenci?.name || "");
+  const [ogrenciArama, setOgrenciArama] = useState("");
+  const [formAcik, setFormAcik] = useState(false);
+  const [form, setForm] = useState({ metin: "", tarih: today() });
+
+  useEffect(() => {
+    if (aktifOgrenci?.name) setSeciliAd(aktifOgrenci.name);
+    else setSeciliAd("");
+  }, [aktifOgrenci?.name]);
+
+  const seciliOgr = kayitliListesi.find(o => o.name === seciliAd);
+  const seciliSinif = seciliOgr?.className || aktifOgrenci?.className || "";
+  const seciliNumara = seciliOgr?.numara || aktifOgrenci?.numara || "";
+
+  const aktifler = (hatirlatmalar||[]).filter(h => !h.tamamlandi).sort((a,b) => pdrTarihMs(a.tarih) - pdrTarihMs(b.tarih));
+  const tamamlananlar = (hatirlatmalar||[]).filter(h => h.tamamlandi);
+
+  async function handleEkle() {
+    if (!seciliAd || !form.metin.trim()) return;
+    const yeni = { id: uid(), studentName: seciliAd, className: seciliSinif, numara: seciliNumara, metin: form.metin.trim(), tarih: form.tarih, kaynak: "manuel", olusturmaTarihi: today(), tamamlandi: false };
+    const guncel = [yeni, ...(hatirlatmalar||[])];
+    setHatirlatmalar(guncel);
+    await saveHatirlatmalar(guncel);
+    setForm({ metin: "", tarih: today() });
+    setFormAcik(false);
+  }
+
+  async function handleTamamlandi(id) {
+    const guncel = (hatirlatmalar||[]).map(h => h.id === id ? { ...h, tamamlandi: true } : h);
+    setHatirlatmalar(guncel);
+    await saveHatirlatmalar(guncel);
+  }
+
+  async function handleSil(id) {
+    const guncel = (hatirlatmalar||[]).filter(h => h.id !== id);
+    setHatirlatmalar(guncel);
+    await saveHatirlatmalar(guncel);
+  }
+
+  const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, boxSizing:"border-box" };
+
+  return (
+    <div style={{ padding: 16, maxWidth: 560 }}>
+      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4 }}>🔔 Hatırlatıcı</div>
+      <div style={{ fontSize: 12, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
+        Öğrencilerle ilgili takip edilecek şeyleri buradan görebilirsin — elle ekleyebilir, ya da görüşme notunu AI ile özetlerken önerilen hatırlatmayı onaylayabilirsin.
+      </div>
+
+      {/* Yeni hatırlatma ekle */}
+      {!formAcik ? (
+        <button onClick={() => setFormAcik(true)} style={{
+          width:"100%", padding:"12px", background:ACCENT, color:"#fff", border:"none", borderRadius:12, fontSize:14, fontWeight:800, cursor:"pointer", marginBottom:16
+        }}>+ Yeni Hatırlatma Ekle</button>
+      ) : (
+        <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, padding:14, marginBottom:16 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+            <div style={{ fontSize:13, fontWeight:800 }}>Yeni Hatırlatma</div>
+            <button onClick={()=>setFormAcik(false)} style={{ background:"none", border:"none", color:MUTED, fontSize:16, cursor:"pointer" }}>✕</button>
+          </div>
+
+          <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>ÖĞRENCİ</label>
+          {seciliAd ? (
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:ACCENT_LIGHT, border:`1px solid ${ACCENT}`, borderRadius:10, padding:"8px 12px", marginBottom:10 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:ACCENT }}>👤 {seciliAd}{seciliSinif?` — ${seciliSinif}`:""}</div>
+              <button onClick={() => { setSeciliAd(""); setAktifOgrenci({ name:"", className:"" }); setOgrenciArama(""); }} style={{
+                background:"none", border:`1px solid ${ACCENT}`, color:ACCENT, borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
+              }}>✕ Değiştir</button>
+            </div>
+          ) : (
+            <>
+              <input value={ogrenciArama} onChange={e=>setOgrenciArama(e.target.value)} placeholder="Öğrenci ara… (en az 2 karakter)" style={{...inp, marginBottom:8}} />
+              {ogrenciArama.trim().length >= 2 && (
+                <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
+                  {kayitliListesi.filter(o =>
+                    o.name.toLowerCase().includes(ogrenciArama.toLowerCase()) ||
+                    o.className?.toLowerCase().includes(ogrenciArama.toLowerCase())
+                  ).slice(0,20).map(o => (
+                    <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => { setSeciliAd(o.name); setAktifOgrenci({ name:o.name, className:o.className||"" }); setOgrenciArama(""); }} style={{
+                      padding:"5px 12px", borderRadius:20, border:`2px solid ${BORDER}`, background:"#fff", color:MUTED, fontSize:12, fontWeight:500, cursor:"pointer"
+                    }}>{o.name}{o.className?` · ${o.className}`:""}</button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>HATIRLATMA</label>
+          <textarea rows={2} placeholder="Örn. 3 gün sonra tekrar görüşülecek" value={form.metin} onChange={e=>setForm(f=>({...f,metin:e.target.value}))} style={{...inp, marginBottom:10, resize:"vertical"}} />
+
+          <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>TARİH</label>
+          <input type="text" placeholder="GG.AA.YYYY" value={form.tarih} onChange={e=>setForm(f=>({...f,tarih:e.target.value}))} style={{...inp, marginBottom:12}} />
+
+          <button onClick={handleEkle} disabled={!seciliAd || !form.metin.trim()} style={{
+            width:"100%", padding:"10px", background: (seciliAd && form.metin.trim()) ? ACCENT : BORDER, color: (seciliAd && form.metin.trim()) ? "#fff" : MUTED,
+            border:"none", borderRadius:10, fontSize:13, fontWeight:800, cursor: (seciliAd && form.metin.trim()) ? "pointer" : "default"
+          }}>Ekle</button>
+        </div>
+      )}
+
+      {/* Aktif hatırlatmalar */}
+      <div style={{ marginBottom:20 }}>
+        <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:8 }}>AKTİF HATIRLATMALAR ({aktifler.length})</label>
+        {aktifler.length === 0 ? (
+          <div style={{ fontSize:12, color:MUTED }}>Aktif hatırlatma yok.</div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {aktifler.map(h => (
+              <div key={h.id} style={{ background:"#FFF8E7", border:"1px solid #F0D68A", borderRadius:10, padding:"10px 12px" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2 }}>
+                      <span style={{ fontSize:13, fontWeight:700, color:TEXT }}>{h.studentName}</span>
+                      {h.className && <span style={{ fontSize:11, color:MUTED }}>· {h.className}</span>}
+                      <span style={{ background: h.kaynak==="ai" ? "#EEF2FF" : "#F0F0F0", color: h.kaynak==="ai" ? "#3B4FD8" : MUTED, borderRadius:8, padding:"1px 7px", fontSize:9, fontWeight:700 }}>{h.kaynak==="ai" ? "AI" : "Manuel"}</span>
+                    </div>
+                    <div style={{ fontSize:13, color:TEXT, lineHeight:1.4 }}>{h.metin}</div>
+                    <div style={{ fontSize:11, color:"#B07D1A", marginTop:3, fontWeight:600 }}>📅 {h.tarih}</div>
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:4, flexShrink:0 }}>
+                    <button onClick={()=>handleTamamlandi(h.id)} style={{ background:"#1A8C5B", color:"#fff", border:"none", borderRadius:6, padding:"4px 8px", fontSize:10, fontWeight:700, cursor:"pointer" }}>✓ Tamam</button>
+                    <button onClick={()=>handleSil(h.id)} style={{ background:"none", border:"none", color:"#C0392B", fontSize:12, cursor:"pointer" }}>🗑</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Tamamlananlar (sönük, katlanabilir olmadan basit liste) */}
+      {tamamlananlar.length > 0 && (
+        <div>
+          <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:8 }}>TAMAMLANANLAR ({tamamlananlar.length})</label>
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {tamamlananlar.slice(0,10).map(h => (
+              <div key={h.id} style={{ fontSize:12, color:MUTED, padding:"6px 10px", background:CARD, border:`1px solid ${BORDER}`, borderRadius:8, textDecoration:"line-through" }}>
+                {h.studentName} — {h.metin}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Sevk Takip Bileşeni ───────────────────────────────────────────────────────
 function SevkTakipEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, sevkler, setSevkler }) {
   const [aramaMetni, setAramaMetni] = useState("");
@@ -5111,7 +5270,8 @@ function OgrenciYonetim({
   async function handleDuzenleAiOzetle() {
     if (!duzenleForm?.raw?.trim()) return;
     setDuzenleAiLoading(true);
-    const summary = await getAISummary(duzenleForm.raw);
+    const tamCevap = await getAISummary(duzenleForm.raw);
+    const summary = tamCevap.split(/---HATIRLATMA---/i)[0].trim();
     setDuzenleForm(f => ({ ...f, summary }));
     setDuzenleAiLoading(false);
   }
@@ -7585,7 +7745,8 @@ function RecordCard({ rec, onDelete, onUpdate }) {
   async function handleAiRewrite() {
     if (!editForm.raw.trim()) return;
     setAiLoading(true);
-    const summary = await getAISummary(editForm.raw);
+    const tamCevap = await getAISummary(editForm.raw);
+    const summary = tamCevap.split(/---HATIRLATMA---/i)[0].trim();
     setEditForm(f => ({ ...f, summary }));
     setAiLoading(false);
   }
@@ -7731,6 +7892,7 @@ export default function App() {
   const [scoresLoading, setScoresLoading] = useState(false);
   const [listening, setListening] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  const [onerilenHatirlatma, setOnerilenHatirlatma] = useState(null); // {metin} | null
   const [profAiLoading, setProfAiLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [profSaved, setProfSaved] = useState(false);
@@ -7782,6 +7944,7 @@ export default function App() {
   const [profNotlari, setProfNotlari] = useState({});
   const [ilerlemeNotlari, setIlerlemeNotlari] = useState({});
   const [sevkler, setSevkler] = useState([]);
+  const [hatirlatmalar, setHatirlatmalar] = useState([]);
   const [kutuphane, setKutuphane] = useState([]);
   const [pdfYukleniyor, setPdfYukleniyor] = useState(false);
   const [search, setSearch] = useState("");
@@ -7809,6 +7972,7 @@ export default function App() {
     loadProfNotlari().then(setProfNotlari);
     loadIlerlemeNotlari().then(setIlerlemeNotlari);
     loadSevkler().then(setSevkler);
+    loadHatirlatmalar().then(setHatirlatmalar);
   }, []);
 
   // aktifOgrenci değişince formu güncelle
@@ -7835,9 +7999,31 @@ export default function App() {
   async function handleSummarize() {
     if (!form.raw.trim()) return;
     setAiLoading(true);
-    const summary = await getAISummary(form.raw);
+    const tamCevap = await getAISummary(form.raw);
+    // AI cevabı, özetin sonuna "---HATIRLATMA---" ayracıyla bir hatırlatma
+    // tespiti ekliyor — özeti temizleyip, varsa hatırlatmayı ayrı gösteriyoruz.
+    const parcalar = tamCevap.split(/---HATIRLATMA---/i);
+    const summary = parcalar[0].trim();
+    const hatirlatmaMetni = (parcalar[1] || "").trim();
     setForm(f => ({ ...f, summary }));
+    if (hatirlatmaMetni && !/^yok/i.test(hatirlatmaMetni)) {
+      setOnerilenHatirlatma({ metin: hatirlatmaMetni });
+    } else {
+      setOnerilenHatirlatma(null);
+    }
     setAiLoading(false);
+  }
+
+  async function handleHatirlatmaOnayla() {
+    if (!onerilenHatirlatma || !form.studentName.trim()) return;
+    const yeni = {
+      id: uid(), studentName: form.studentName, className: form.className, numara: form.numara,
+      metin: onerilenHatirlatma.metin, tarih: today(), kaynak: "ai", olusturmaTarihi: today(), tamamlandi: false
+    };
+    const guncel = [yeni, ...(hatirlatmalar||[])];
+    setHatirlatmalar(guncel);
+    await saveHatirlatmalar(guncel);
+    setOnerilenHatirlatma(null);
   }
 
   async function handleSave() {
@@ -8073,12 +8259,14 @@ export default function App() {
   const uniqueStudents = new Set(studentRecs.map(r => r.studentName)).size;
   const uniqueParents = new Set(veliRecs.map(r => r.studentName)).size;
   const bekleyenSevk = sevkler.filter(s => s.sonucBekleniyor).length;
+  const aktifHatirlatma = (hatirlatmalar||[]).filter(h => !h.tamamlandi).length;
   const tickerItems = [
     `📊 ${totalRecs} görüşme kaydı`,
     `👥 ${uniqueStudents} farklı öğrenci`,
     `👪 ${uniqueParents} veli görüşmesi`,
     `📋 ${profiles.length} öğrenci profili`,
     `⚠️ ${riskListesi.length} risk takibi`,
+    `🔔 ${aktifHatirlatma} hatırlatma`,
     `📮 ${bekleyenSevk} bekleyen sevk sonucu`,
     `📅 Aktif yıl: ${aktifYil}`,
   ];
@@ -8119,6 +8307,7 @@ export default function App() {
     { key: "ogrenciler", label: "👥 Öğrenciler" },
     { key: "profil_merkez", label: "📋 Profil" },
     { key: "yeni", label: "📝 Görüşme Notu" },
+    { key: "hatirlatici", label: "🔔 Hatırlatıcı" },
     { key: "sinif_profili", label: "🏫 Sınıf" },
     { key: "risk", label: "⚠ Risk" },
     { key: "deneme", label: "📊 Deneme" },
@@ -8264,6 +8453,17 @@ export default function App() {
                   <textarea value={form.summary} onChange={e=>setForm(f=>({...f,summary:e.target.value}))} rows={4} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${ACCENT_LIGHT}`, borderRadius:9, fontSize:13, resize:"vertical", boxSizing:"border-box", background:"#F0FAF4" }} />
                 </div>
               ) : null}
+              {/* AI'ın fark ettiği hatırlatma önerisi — onaylarsan Hatırlatıcı'ya eklenir */}
+              {onerilenHatirlatma && (
+                <div style={{ background:"#FFF8E7", border:"1px solid #F0D68A", borderRadius:10, padding:"10px 12px", marginBottom:10 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:"#B07D1A", marginBottom:4 }}>🔔 AI bir hatırlatma fark etti</div>
+                  <div style={{ fontSize:13, color:TEXT, marginBottom:8 }}>{onerilenHatirlatma.metin}</div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={handleHatirlatmaOnayla} disabled={!form.studentName.trim()} style={{ flex:1, padding:"7px", background:"#B07D1A", color:"#fff", border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>✓ Hatırlatıcı'ya Ekle</button>
+                    <button onClick={()=>setOnerilenHatirlatma(null)} style={{ padding:"7px 14px", background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>Yoksay</button>
+                  </div>
+                </div>
+              )}
               {/* Kaydet */}
               <button onClick={handleSave} disabled={!form.studentName.trim()||!(form.summary.trim()||form.raw.trim())} style={{ width:"100%", padding:"13px", background:form.studentName&&(form.summary||form.raw)?ACCENT:BORDER, color:form.studentName&&(form.summary||form.raw)?"#fff":MUTED, border:"none", borderRadius:12, fontSize:15, fontWeight:800, cursor:"pointer" }}>
                 {saved?"✓ Kaydedildi!":"💾 Görüşmeyi Kaydet"}
@@ -8690,6 +8890,17 @@ export default function App() {
             aktifYil={aktifYil}
             sinavTuru={sinavTuru}
             setSinavTuru={setSinavTuru}
+          />
+        )}
+
+        {/* ── HATIRLATICI ──────────────────────────────────────────── */}
+        {tab === "hatirlatici" && (
+          <HatirlaticiEkrani
+            kayitliListesi={kayitliListesi}
+            aktifOgrenci={aktifOgrenci}
+            setAktifOgrenci={setAktifOgrenci}
+            hatirlatmalar={hatirlatmalar}
+            setHatirlatmalar={setHatirlatmalar}
           />
         )}
 
