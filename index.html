@@ -1758,10 +1758,10 @@ function DegerlendirmeEkrani({ onTransfer, onClose, records, profiles, profiles2
       <div style={{ marginBottom: 14 }}>
         <label style={dLbl}>ÖĞRENCİ</label>
         {ogrenci.ad ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#EEF0FD", border: "1px solid #3B4FD8", borderRadius: 10, padding: "8px 12px" }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#3B4FD8" }}>👤 {ogrenci.ad}{ogrenci.sinif ? ` — ${ogrenci.sinif}` : ""}</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: PURPLE_LIGHT, border: `1px solid ${PURPLE}`, borderRadius: 10, padding: "8px 12px" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: PURPLE }}>👤 {ogrenci.ad}{ogrenci.sinif ? ` — ${ogrenci.sinif}` : ""}</div>
             <button onClick={() => { setOgrenci({ ad: "", sinif: "" }); setAktifOgrenci({ name: "", className: "" }); setDegOgrenciArama(""); }} style={{
-              background: "none", border: "1px solid #3B4FD8", color: "#3B4FD8", borderRadius: 8, padding: "3px 9px", fontSize: 11, fontWeight: 600, cursor: "pointer"
+              background: "none", border: `1px solid ${PURPLE}`, color: PURPLE, borderRadius: 8, padding: "3px 9px", fontSize: 11, fontWeight: 600, cursor: "pointer"
             }}>✕ Değiştir</button>
           </div>
         ) : (
@@ -3232,10 +3232,10 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
       <div style={{ marginBottom: 16 }}>
         <label style={lbl}>ÖĞRENCİ</label>
         {seciliAd ? (
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:ACCENT_LIGHT, border:`1px solid ${ACCENT}`, borderRadius:10, padding:"8px 12px" }}>
-            <div style={{ fontSize:13, fontWeight:700, color:ACCENT }}>👤 {seciliAd}{seciliSinif?` — ${seciliSinif}`:""}</div>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:PURPLE_LIGHT, border:`1px solid ${PURPLE}`, borderRadius:10, padding:"8px 12px" }}>
+            <div style={{ fontSize:13, fontWeight:700, color:PURPLE }}>👤 {seciliAd}{seciliSinif?` — ${seciliSinif}`:""}</div>
             <button onClick={() => { setSeciliAd(""); setAktifOgrenci({ name:"", className:"" }); setOgrenciArama(""); setKategori(null); setSeciliTest(null); }} style={{
-              background:"none", border:`1px solid ${ACCENT}`, color:ACCENT, borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
+              background:"none", border:`1px solid ${PURPLE}`, color:PURPLE, borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
             }}>✕ Değiştir</button>
           </div>
         ) : (
@@ -3486,7 +3486,7 @@ function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mud
               <div style={{fontSize:12,fontWeight:700,color:TEXT}}>Yeni Müdahale Planı — {seciliAd}</div>
               <button onClick={()=>{ setSeciliAd(""); if(setAktifOgrenci) setAktifOgrenci({ name:"", className:"" }); }} style={{
                 background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, padding:"4px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
-              }}>✕ Bağlantıyı Kes</button>
+              }}>✕ Değiştir</button>
             </div>
 
             <button onClick={handleAiPlan} disabled={aiLoading} style={{width:"100%",padding:"10px",background:aiLoading?BORDER:PURPLE,color:aiLoading?"#666":"#fff",border:"none",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:12}}>
@@ -4137,7 +4137,7 @@ function VeliMektubu({ kayitliListesi, aktifOgrenci, records }) {
         ))}
       </div>
 
-      <button onClick={handleOlustur} disabled={!seciliAd||aiLoading} style={{width:"100%",padding:"11px",background:seciliAd&&!aiLoading?ACCENT:BORDER,color:seciliAd&&!aiLoading?"#fff":MUTED,border:"none",borderRadius:10,fontSize:14,fontWeight:800,cursor:"pointer",marginBottom:12}}>
+      <button onClick={handleOlustur} disabled={!seciliAd||aiLoading} style={{width:"100%",padding:"11px",background:seciliAd&&!aiLoading?PURPLE:BORDER,color:seciliAd&&!aiLoading?"#fff":MUTED,border:"none",borderRadius:10,fontSize:14,fontWeight:800,cursor:"pointer",marginBottom:12}}>
         {aiLoading?"⏳ Mektup hazırlanıyor...":"✦ AI ile Mektup Oluştur"}
       </button>
 
@@ -6556,7 +6556,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
                   </div>
                   {/* AI Analiz Butonu */}
                   <button onClick={() => handleDenemeAnaliz(seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara)} disabled={denemeAiLoading}
-                    style={{ width:"100%", padding:"11px", background: denemeAiLoading ? BORDER : "#457B9D", color: denemeAiLoading ? MUTED : "#fff", border:"none", borderRadius:10, fontSize:13, fontWeight:700, cursor:"pointer", marginBottom: pdrSozlukOku(denemeAnaliz, seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara) ? 12 : 0 }}>
+                    style={{ width:"100%", padding:"11px", background: denemeAiLoading ? BORDER : PURPLE, color: denemeAiLoading ? MUTED : "#fff", border:"none", borderRadius:10, fontSize:13, fontWeight:700, cursor:"pointer", marginBottom: pdrSozlukOku(denemeAnaliz, seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara) ? 12 : 0 }}>
                     {denemeAiLoading ? "⏳ AI analiz yapıyor…" : "✦ AI Deneme & Hazırlık Analizi"}
                   </button>
                   {pdrSozlukOku(denemeAnaliz, seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara) && (
@@ -6919,7 +6919,7 @@ function ProfilMerkez({
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>{ setSeciliAd(""); if(setAktifOgrenci) setAktifOgrenci({ name:"", className:"" }); }} style={{
                 background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, padding:"6px 10px", fontSize:12, fontWeight:600, cursor:"pointer"
-              }}>✕ Bağlantıyı Kes</button>
+              }}>✕ Değiştir</button>
               <button onClick={()=>setMod(mod==="form"?"onizleme":"form")} style={{
                 background:mod==="onizleme"?ACCENT_LIGHT:BG, color:mod==="onizleme"?ACCENT:MUTED,
                 border:`1px solid ${BORDER}`, borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:700, cursor:"pointer"
@@ -6973,7 +6973,7 @@ function ProfilMerkez({
                       {scoresSet ? "✓ Puanlar görüşme notlarından belirlendi — düzenleyebilirsin." : "Görüşme notlarına bakarak AI puanları otomatik belirlesin."}
                     </div>
                     <button onClick={handleScoresFromNotes} disabled={scoresLoading} style={{
-                      background:scoresLoading?BORDER:ACCENT, color:"#fff", border:"none",
+                      background:scoresLoading?BORDER:PURPLE, color:"#fff", border:"none",
                       borderRadius:8, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer"
                     }}>{scoresLoading?"Notlar okunuyor…":"✦ Görüşme Notlarından Puanla"}</button>
                   </div>
@@ -7121,7 +7121,7 @@ function ProfilMerkez({
                   </div>
 
                   <button onClick={handleP2Analiz} disabled={prof2AiLoading} style={{
-                    width:"100%",padding:"10px",background:prof2AiLoading?BORDER:BLUE,
+                    width:"100%",padding:"10px",background:prof2AiLoading?BORDER:PURPLE,
                     color:prof2AiLoading?"#666":"#fff",border:"none",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:10
                   }}>{prof2AiLoading?"AI analiz yapıyor…":"✦ AI Akademik & D2 Analizi"}</button>
 
@@ -7821,7 +7821,7 @@ function KutuphaneEkle({ kutuphane, setKutuphane }) {
             onChange={e => setYeniLink(e.target.value)} style={{...stl, marginBottom:10}} />
           <button onClick={handleLink} disabled={!yeniLink.trim() || yukleniyor} style={{
             width:"100%", padding:"10px", border:"none", borderRadius:10,
-            background:yeniLink.trim() && !yukleniyor ? ACCENT : BORDER,
+            background:yeniLink.trim() && !yukleniyor ? PURPLE : BORDER,
             color:yeniLink.trim() && !yukleniyor ? "#fff" : MUTED,
             fontSize:13, fontWeight:700, cursor:"pointer"
           }}>{yukleniyor ? "⏳ İçerik okunuyor…" : "✦ AI Özetleyerek Kaydet"}</button>
@@ -7836,7 +7836,7 @@ function KutuphaneEkle({ kutuphane, setKutuphane }) {
             rows={6} style={{...stl, resize:"vertical", lineHeight:1.6, marginBottom:10}} />
           <button onClick={handleMetin} disabled={!yeniMetin.trim() || yukleniyor} style={{
             width:"100%", padding:"10px", border:"none", borderRadius:10,
-            background:yeniMetin.trim() && !yukleniyor ? ACCENT : BORDER,
+            background:yeniMetin.trim() && !yukleniyor ? PURPLE : BORDER,
             color:yeniMetin.trim() && !yukleniyor ? "#fff" : MUTED,
             fontSize:13, fontWeight:700, cursor:"pointer"
           }}>{yukleniyor ? "⏳ AI özetliyor…" : "✦ AI Özetleyerek Kaydet"}</button>
@@ -7944,7 +7944,7 @@ function RecordCard({ rec, onDelete, onUpdate }) {
             rows={4} style={{ width: "100%", padding: "8px 10px", border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 13, resize: "vertical", marginBottom: 8, boxSizing: "border-box", fontFamily: "inherit", lineHeight: 1.6 }} />
 
           <button onClick={handleAiRewrite} disabled={!editForm.raw.trim() || aiLoading} style={{
-            background: aiLoading ? BORDER : ACCENT_LIGHT, color: ACCENT, border: "none",
+            background: aiLoading ? BORDER : PURPLE_LIGHT, color: PURPLE, border: "none",
             borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", marginBottom: 10
           }}>{aiLoading ? "AI yeniden özetliyor…" : "✦ AI ile Özeti Güncelle"}</button>
 
@@ -9094,11 +9094,11 @@ export default function App() {
               <div style={{ fontSize: 12, fontWeight: 700, color: TEXT, marginBottom: 10 }}>+ Yeni Risk Kaydı</div>
 
               {riskForm.studentName && (
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:ACCENT_LIGHT, border:`1px solid ${ACCENT}`, borderRadius:10, padding:"8px 12px", marginBottom:10 }}>
-                  <div style={{ fontSize:12, fontWeight:700, color:ACCENT }}>👤 {riskForm.studentName} — {riskForm.className}{riskForm.numara ? ` · No: ${riskForm.numara}` : ""}</div>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:PURPLE_LIGHT, border:`1px solid ${PURPLE}`, borderRadius:10, padding:"8px 12px", marginBottom:10 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:PURPLE }}>👤 {riskForm.studentName} — {riskForm.className}{riskForm.numara ? ` · No: ${riskForm.numara}` : ""}</div>
                   <button onClick={() => { setRiskForm(f => ({ ...f, studentName:"", className:"", numara:"" })); setAktifOgrenci({ name:"", className:"" }); }} style={{
-                    background:"none", border:`1px solid ${ACCENT}`, color:ACCENT, borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
-                  }}>✕ Bağlantıyı Kes</button>
+                    background:"none", border:`1px solid ${PURPLE}`, color:PURPLE, borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
+                  }}>✕ Değiştir</button>
                 </div>
               )}
 
