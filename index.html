@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#2D6A4F">
+<meta name="theme-color" content="#1FA971">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="PDR Program">
@@ -278,7 +278,7 @@ body {
   font-size: 13px; margin-bottom: 8px; outline: none; box-sizing: border-box;
 }
 #pdr-login-overlay button {
-  width: 100%; padding: 12px; background: #2D6A4F; color: #fff; border: none;
+  width: 100%; padding: 12px; background: #1FA971; color: #fff; border: none;
   border-radius: 10px; font-size: 14px; font-weight: 800; cursor: pointer; margin-top: 4px;
 }
 #pdr-login-overlay button:disabled { opacity: 0.6; cursor: default; }
@@ -505,7 +505,7 @@ function pdrOnayEkraniGoster(durum) {
       <div style="font-size:40px;margin-bottom:12px;">${ikon}</div>
       <div style="font-size:19px;font-weight:800;margin-bottom:8px;">🧭 Rehber Pusula</div>
       <div style="font-size:13px;color:#4a5c53;line-height:1.7;margin-bottom:18px;">${mesaj}</div>
-      <button id="pdr-onay-cikis" style="width:100%;padding:12px;background:#2D6A4F;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;">Çıkış Yap</button>
+      <button id="pdr-onay-cikis" style="width:100%;padding:12px;background:#1FA971;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;">Çıkış Yap</button>
     </div>`;
   el.style.display = "flex";
   document.getElementById("pdr-onay-cikis").onclick = async () => {
@@ -536,7 +536,7 @@ function pdrOdemeEkraniGoster() {
       <div style="background:#EEF2FF;border-radius:10px;padding:12px;margin-bottom:18px;text-align:left;font-size:11px;color:#3B4FD8;line-height:1.6;">
         🔒 Verileriniz güvende, kimse erişemez. Gizlilik için öğrenci soyadlarını kısaltabilirsiniz (örn. "Ahmet Y."). Veri gizliliği (KVKK) sorumluluğu kullanıcıya aittir.
       </div>
-      <button id="pdr-odeme-cikis" style="width:100%;padding:12px;background:#2D6A4F;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;">Çıkış Yap</button>
+      <button id="pdr-odeme-cikis" style="width:100%;padding:12px;background:#1FA971;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;">Çıkış Yap</button>
     </div>`;
   el.style.display = "flex";
   document.getElementById("pdr-odeme-cikis").onclick = async () => {
@@ -579,7 +579,7 @@ function pdrOnayEksikGoster(uid) {
         <label for="pdr-onay-eksik-checkbox" style="font-size:12px;color:#555;line-height:1.5;">Yukarıdaki Kullanım Şartları'nı okudum ve kabul ediyorum.</label>
       </div>
       <div id="pdr-onay-eksik-hata" style="color:#C0392B;font-size:12px;margin-bottom:10px;min-height:14px;"></div>
-      <button id="pdr-onay-eksik-kabul" style="width:100%;padding:12px;background:#2D6A4F;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;margin-bottom:8px;">Kabul Ediyorum, Devam Et</button>
+      <button id="pdr-onay-eksik-kabul" style="width:100%;padding:12px;background:#1FA971;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;margin-bottom:8px;">Kabul Ediyorum, Devam Et</button>
       <button id="pdr-onay-eksik-cikis" style="width:100%;padding:10px;background:none;color:#666;border:1px solid #ddd;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;">Çıkış Yap</button>
     </div>`;
   el.style.display = "flex";
@@ -737,7 +737,7 @@ if (pdrTosLink) {
           <p><b>5. Ücretlendirme</b><br/>Hesabınızın aktif kalabilmesi için belirlenen ücretin ödenmesi veya tarafımızca ücretsiz kullanıcı olarak tanımlanmış olmanız gerekir. Ödeme yapılmayan hesaplar erişime kapatılabilir.</p>
           <p><b>6. Hizmetin Sona Ermesi</b><br/>Bu şartların ihlali durumunda hesabınız önceden bildirim yapılmaksızın askıya alınabilir veya kapatılabilir.</p>
         </div>
-        <button id="pdr-tos-close" style="width:100%;margin-top:16px;padding:11px;background:#2D6A4F;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;">Kapat</button>
+        <button id="pdr-tos-close" style="width:100%;margin-top:16px;padding:11px;background:#1FA971;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;">Kapat</button>
       </div>`;
     el.style.display = "flex";
     document.getElementById("pdr-tos-close").onclick = () => { el.style.display = "none"; };
@@ -1045,8 +1045,8 @@ window.storage = {
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 const XLSX = window.XLSX;
 
-const ACCENT = "#2D6A4F";
-const ACCENT_LIGHT = "#B7E4C7";
+const ACCENT = "#1FA971";
+const ACCENT_LIGHT = "#CFF3E0";
 const BG = "#F8FAF9";
 const CARD = "#FFFFFF";
 const TEXT = "#1B2D27";
@@ -1054,7 +1054,8 @@ const MUTED = "#6B8C7E";
 const BORDER = "#D8EDE4";
 const ORANGE = "#E76F51";
 const BLUE = "#457B9D";
-const PURPLE = "#7B5EA7";
+const PURPLE = "#6D5BD0";
+const PURPLE_LIGHT = "#EDEAFB";
 
 // ── PDR Boyutları ─────────────────────────────────────────────────────────────
 const DIMENSIONS = [
@@ -2216,10 +2217,10 @@ async function raporIndir(elementId, dosyaAdi) {
 </style>
 </head>
 <body>
-<div class="noprint" style="position:fixed;top:0;left:0;right:0;background:#2D6A4F;color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;z-index:999;font-family:Arial,sans-serif;">
+<div class="noprint" style="position:fixed;top:0;left:0;right:0;background:#1FA971;color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;z-index:999;font-family:Arial,sans-serif;">
   <span style="font-weight:700;font-size:15px;">📄 ${dosyaAdi}</span>
   <div style="display:flex;gap:10px;">
-    <button onclick="window.print()" style="background:#fff;color:#2D6A4F;border:none;border-radius:8px;padding:8px 18px;font-size:14px;font-weight:800;cursor:pointer;">🖨️ Yazdır / PDF Kaydet</button>
+    <button onclick="window.print()" style="background:#fff;color:#1FA971;border:none;border-radius:8px;padding:8px 18px;font-size:14px;font-weight:800;cursor:pointer;">🖨️ Yazdır / PDF Kaydet</button>
     <button onclick="window.close()" style="background:rgba(255,255,255,0.2);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:14px;cursor:pointer;">✕</button>
   </div>
 </div>
@@ -2306,7 +2307,7 @@ function RaporModal({ rapor, onKapat }) {
   };
 
   const S = {
-    bolumBaslik: { background: "#2D6A4F", color: "#fff", padding: "6px 12px", borderRadius: "6px 6px 0 0", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" },
+    bolumBaslik: { background: "#1FA971", color: "#fff", padding: "6px 12px", borderRadius: "6px 6px 0 0", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" },
     bolumIcerik: { border: "1px solid #B7E4C7", borderTop: "none", borderRadius: "0 0 6px 6px", padding: 12, marginBottom: 16 },
     bolumBaslik2: { background: "#457B9D", color: "#fff", padding: "6px 12px", borderRadius: "6px 6px 0 0", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" },
     bolumIcerik2: { border: "1px solid #AEC9DC", borderTop: "none", borderRadius: "0 0 6px 6px", padding: 12, marginBottom: 16 },
@@ -2315,15 +2316,15 @@ function RaporModal({ rapor, onKapat }) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "#fff", display: "flex", flexDirection: "column", fontFamily: "Arial, sans-serif" }}>
       {/* Üst bar */}
-      <div style={{ background: "#2D6A4F", color: "#fff", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+      <div style={{ background: "#1FA971", color: "#fff", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
         <span style={{ fontWeight: 800, fontSize: 15 }}>📄 PDR Profil Raporu — {ogrenci}</span>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => raporIndir("pdr-rapor-icerik", "PDR_Rapor_" + (ogrenci||"").replace(/\s+/g,"_"))} style={{ background: "#fff", color: "#2D6A4F", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>🖨 İndir</button>
+          <button onClick={() => raporIndir("pdr-rapor-icerik", "PDR_Rapor_" + (ogrenci||"").replace(/\s+/g,"_"))} style={{ background: "#fff", color: "#1FA971", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>🖨 İndir</button>
           <button onClick={() => {
             // Mobil için: rapor içeriğini data URI ile aç
             const el = document.getElementById("pdr-rapor-icerik");
             if (!el) return;
-            const htmlStr = `<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PDR Raporu</title><style>@page{size:A4;margin:10mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a;padding:10px;margin:0}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.noprint{display:none}}table{width:100%;border-collapse:collapse}svg{max-width:100%}</style></head><body><div class="noprint" style="position:fixed;top:0;left:0;right:0;background:#2D6A4F;color:#fff;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;z-index:999"><span style="font-weight:700">PDR Raporu — ${ogrenci}</span><button onclick="window.print()" style="background:#fff;color:#2D6A4F;border:none;border-radius:6px;padding:6px 14px;font-weight:800;cursor:pointer">🖨️ Yazdır/PDF</button></div><div style="margin-top:50px">${el.innerHTML}</div></body></html>`;
+            const htmlStr = `<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PDR Raporu</title><style>@page{size:A4;margin:10mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a;padding:10px;margin:0}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.noprint{display:none}}table{width:100%;border-collapse:collapse}svg{max-width:100%}</style></head><body><div class="noprint" style="position:fixed;top:0;left:0;right:0;background:#1FA971;color:#fff;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;z-index:999"><span style="font-weight:700">PDR Raporu — ${ogrenci}</span><button onclick="window.print()" style="background:#fff;color:#1FA971;border:none;border-radius:6px;padding:6px 14px;font-weight:800;cursor:pointer">🖨️ Yazdır/PDF</button></div><div style="margin-top:50px">${el.innerHTML}</div></body></html>`;
             // Base64 encode
             const b64 = btoa(unescape(encodeURIComponent(htmlStr)));
             window.location.href = "data:text/html;base64," + b64;
@@ -2335,9 +2336,9 @@ function RaporModal({ rapor, onKapat }) {
       {/* Rapor içeriği */}
       <div id="pdr-rapor-icerik" style={{ flex: 1, overflowY: "auto", padding: "20px 24px", background: "#fff" }}>
         {/* Başlık */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "3px solid #2D6A4F", paddingBottom: 12, marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "3px solid #1FA971", paddingBottom: 12, marginBottom: 20 }}>
           <div>
-            <div style={{ fontSize: 10, color: "#2D6A4F", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>PDR Servisi — Öğrenci Profil Raporu</div>
+            <div style={{ fontSize: 10, color: "#1FA971", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>PDR Servisi — Öğrenci Profil Raporu</div>
             <div style={{ fontSize: 22, fontWeight: 900, color: "#1a1a1a", margin: "4px 0" }}>{ogrenci}</div>
             {profil1?.className && <div style={{ fontSize: 13, color: "#666" }}>{profil1.className}</div>}
           </div>
@@ -2390,7 +2391,7 @@ function RaporModal({ rapor, onKapat }) {
                   }).map((r, i, arr) => (
                     <div key={i} style={{ marginBottom:12, paddingBottom:12, borderBottom: i < arr.length-1 ? "1px solid #e8f4ee" : "none" }}>
                       <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:5, flexWrap:"wrap" }}>
-                        <span style={{ background:"#2D6A4F", color:"#fff", borderRadius:10, padding:"2px 8px", fontSize:9, fontWeight:700 }}>{i+1}. Görüşme</span>
+                        <span style={{ background:"#1FA971", color:"#fff", borderRadius:10, padding:"2px 8px", fontSize:9, fontWeight:700 }}>{i+1}. Görüşme</span>
                         <span style={{ fontSize:10, color:"#888" }}>{r.date}</span>
                         {r.meetingType==="Veli" && <span style={{ background:"#FDEBD0", color:"#E76F51", borderRadius:10, padding:"1px 7px", fontSize:9, fontWeight:700 }}>Veli</span>}
                         {r.topic && <span style={{ background:"#f0f0f0", color:"#555", borderRadius:10, padding:"1px 7px", fontSize:9 }}>{r.topic}</span>}
@@ -2401,7 +2402,7 @@ function RaporModal({ rapor, onKapat }) {
                           <div style={{ fontSize:10, color:"#555", lineHeight:1.6, background:"#fafafa", borderRadius:4, padding:"4px 7px", fontStyle:"italic" }}>{r.raw}</div>
                         </div>
                       )}
-                      <div style={{ fontSize:9, fontWeight:700, color:"#2D6A4F", textTransform:"uppercase", marginBottom:3 }}>Bir Sonraki Seans Planlaması</div>
+                      <div style={{ fontSize:9, fontWeight:700, color:"#1FA971", textTransform:"uppercase", marginBottom:3 }}>Bir Sonraki Seans Planlaması</div>
                       <div style={{ fontSize:11, color:"#333", lineHeight:1.7 }}>{r.summary}</div>
                     </div>
                   ))}
@@ -2464,14 +2465,14 @@ function RaporModal({ rapor, onKapat }) {
                     const prRenk = pr>=85?"#1A8C5B":pr>=70?"#457B9D":pr>=60?"#B07D1A":"#C0392B";
                     return (
                       <div style={{ marginBottom: 10 }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "#7B5EA7", textTransform: "uppercase", marginBottom: 8 }}>D2 Dikkat Testi</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#6D5BD0", textTransform: "uppercase", marginBottom: 8 }}>D2 Dikkat Testi</div>
 
                         {/* TABLO */}
                         <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:8, fontSize:10 }}>
                           <thead>
                             <tr style={{ background:"#F3F0FF" }}>
                               {[["TN","Psikomotor"],["E1","Seçici Dkt"],["E2","Öğr.Güçlük"],["CP","Doğru Perf"],["FR","Salınım"],["TN-E","Test Perf"],["E%","Hata Oranı"],["PR","Yüzdelik"]].map(([k,ac])=>(
-                                <th key={k} style={{padding:"4px 3px",textAlign:"center",color:"#7B5EA7",fontWeight:700,fontSize:9,borderBottom:"2px solid #7B5EA744",borderRight:"1px solid #eee"}}>
+                                <th key={k} style={{padding:"4px 3px",textAlign:"center",color:"#6D5BD0",fontWeight:700,fontSize:9,borderBottom:"2px solid #6D5BD044",borderRight:"1px solid #eee"}}>
                                   <div>{k}</div><div style={{fontSize:7,color:"#888",fontWeight:400}}>{ac}</div>
                                 </th>
                               ))}
@@ -2480,7 +2481,7 @@ function RaporModal({ rapor, onKapat }) {
                           <tbody>
                             <tr>
                               {[d2.TN, d2.E1, d2.E2, d2.CP, d2.FR, d2.TN_E, d2.E_yuzde?d2.E_yuzde+"%":null, d2.PR].map((v,i)=>(
-                                <td key={i} style={{padding:"5px 3px",textAlign:"center",fontWeight:900,fontSize:13,color:"#7B5EA7",borderRight:"1px solid #f0eeff",borderBottom:"1px solid #f0eeff"}}>
+                                <td key={i} style={{padding:"5px 3px",textAlign:"center",fontWeight:900,fontSize:13,color:"#6D5BD0",borderRight:"1px solid #f0eeff",borderBottom:"1px solid #f0eeff"}}>
                                   {v||"—"}
                                 </td>
                               ))}
@@ -2528,7 +2529,7 @@ function RaporModal({ rapor, onKapat }) {
                         {d2.yorum && <div style={{ fontSize:9, color:"#555", marginTop:3 }}>📝 {d2.yorum}</div>}
                         {profil2.d2_analiz && (
                           <div style={{ marginTop:8 }}>
-                            <div style={{ fontSize:9, fontWeight:700, color:"#7B5EA7", textTransform:"uppercase", marginBottom:4 }}>AI Akademik & Dikkat Analizi</div>
+                            <div style={{ fontSize:9, fontWeight:700, color:"#6D5BD0", textTransform:"uppercase", marginBottom:4 }}>AI Akademik & Dikkat Analizi</div>
                             <div style={{ fontSize:9, color:"#333", background:"#EDE9FF", borderRadius:5, padding:"7px 9px", lineHeight:1.7, whiteSpace:"pre-wrap" }}>{profil2.d2_analiz}</div>
                           </div>
                         )}
@@ -2538,7 +2539,7 @@ function RaporModal({ rapor, onKapat }) {
                   {/* P2 analiz — D2 yoksa */}
                   {profil2?.d2_analiz && !(profil2?.d2?.TN || profil2?.d2?.TN_E) && (
                     <div style={{ marginBottom:10 }}>
-                      <div style={{ fontSize:9, fontWeight:700, color:"#7B5EA7", textTransform:"uppercase", marginBottom:4 }}>AI Akademik Analizi</div>
+                      <div style={{ fontSize:9, fontWeight:700, color:"#6D5BD0", textTransform:"uppercase", marginBottom:4 }}>AI Akademik Analizi</div>
                       <div style={{ fontSize:9, color:"#333", background:"#EDE9FF", borderRadius:5, padding:"7px 9px", lineHeight:1.7, whiteSpace:"pre-wrap" }}>{profil2.d2_analiz}</div>
                     </div>
                   )}
@@ -3268,7 +3269,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
               {!kategori ? (
                 <div style={{ display:"flex", gap:8 }}>
                   <button onClick={()=>setKategori("objektif")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #3B4FD8`, background:"#EEF2FF", color:"#3B4FD8", fontSize:13, fontWeight:800, cursor:"pointer" }}>🔵 Objektif Testler</button>
-                  <button onClick={()=>setKategori("projektif")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #7B5EA7`, background:"#F3EEFB", color:"#7B5EA7", fontSize:13, fontWeight:800, cursor:"pointer" }}>🟣 Projektif Testler</button>
+                  <button onClick={()=>setKategori("projektif")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #6D5BD0`, background:"#F3EEFB", color:"#6D5BD0", fontSize:13, fontWeight:800, cursor:"pointer" }}>🟣 Projektif Testler</button>
                 </div>
               ) : (
                 <div>
@@ -3623,7 +3624,7 @@ function pdrMetindenTarihCikar(metin) {
 }
 const HATIRLATMA_KATEGORILERI = [
   { key:"gecikmis", baslik:"⏰ Gecikmiş", renk:"#C0392B", bg:"#FDECEA", border:"#F3B7AE" },
-  { key:"bugun",    baslik:"🔔 Bugün",    renk:"#6D28D9", bg:"#F3EEFC", border:"#C9AEEB" },
+  { key:"bugun",    baslik:"🔔 Bugün",    renk:PURPLE, bg:PURPLE_LIGHT, border:"#C9AEEB" },
   { key:"yarin",    baslik:"📌 Yarın",     renk:"#7C3AED", bg:"#F8F4FE", border:"#DCC9F5" },
   { key:"buhafta",  baslik:"📅 Bu Hafta",  renk:"#8B5CF6", bg:"#FAF7FE", border:"#E5D6FA" },
   { key:"sonra",    baslik:"🗓 Daha Sonra", renk:MUTED,     bg:CARD,      border:BORDER },
@@ -3713,7 +3714,7 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
   }
 
   const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, boxSizing:"border-box" };
-  const MOR = "#6D28D9", MOR_ACIK = "#F3EEFC";
+  const MOR = PURPLE, MOR_ACIK = PURPLE_LIGHT;
 
   return (
     <div style={{ padding: 16, maxWidth: 560 }}>
@@ -4432,9 +4433,9 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
                 style={{background:"#F3EEFB", border:"1px solid #D6C6EE", borderRadius:14, padding:"12px 14px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer"}}>
                 <div>
                   <div style={{fontSize:10,color:MUTED,fontWeight:700,letterSpacing:0.3}}>OLAY / TUTANAK KAYDI</div>
-                  <div style={{fontSize:20,fontWeight:900,color:"#7B5EA7"}}>{olaySirali.length} kayıt</div>
+                  <div style={{fontSize:20,fontWeight:900,color:"#6D5BD0"}}>{olaySirali.length} kayıt</div>
                 </div>
-                <span style={{background:"#7B5EA7",color:"#fff",borderRadius:12,padding:"5px 11px",fontSize:11,fontWeight:700}}>+ Yeni Ekle</span>
+                <span style={{background:"#6D5BD0",color:"#fff",borderRadius:12,padding:"5px 11px",fontSize:11,fontWeight:700}}>+ Yeni Ekle</span>
               </div>
               {olayFormAcik && (
                 <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:10,padding:10,marginTop:6}}>
@@ -4453,7 +4454,7 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
                   <textarea rows={2} value={olayForm.not} onChange={e=>setOlayForm(f=>({...f,not:e.target.value}))}
                     style={{width:"100%",padding:"8px 10px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:13,boxSizing:"border-box",marginBottom:8,resize:"vertical"}} />
                   <button onClick={() => { onOlayEkle(olayForm); setOlayForm({ tur:"Kavga", islem:"Tutanak Tutuldu", not:"" }); setOlayFormAcik(false); }}
-                    style={{width:"100%",padding:"8px 16px",background:"#7B5EA7",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",marginBottom: olaySirali.length>0?10:0}}>Kaydet</button>
+                    style={{width:"100%",padding:"8px 16px",background:"#6D5BD0",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",marginBottom: olaySirali.length>0?10:0}}>Kaydet</button>
                   {olaySirali.length > 0 && (
                     <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:8}}>
                       <div style={{fontSize:10,fontWeight:700,color:MUTED,marginBottom:4}}>GEÇMİŞ</div>
@@ -6103,9 +6104,9 @@ function OgrenciYonetim({
 const LGS_DERSLER = [
   { key: "turkce",   label: "Türkçe",    maks: 20, color: "#E63946" },
   { key: "mat",      label: "Matematik", maks: 20, color: "#457B9D" },
-  { key: "fen",      label: "Fen",       maks: 20, color: "#2D6A4F" },
+  { key: "fen",      label: "Fen",       maks: 20, color: "#1FA971" },
   { key: "sosyal",   label: "Sosyal",    maks: 10, color: "#E76F51" },
-  { key: "ingilizce",label: "İngilizce", maks: 10, color: "#7B5EA7" },
+  { key: "ingilizce",label: "İngilizce", maks: 10, color: "#6D5BD0" },
   { key: "din",      label: "Din",       maks: 10, color: "#E9C46A" },
 ];
 // Okul kademesine göre farklı sınavlar farklı ders/soru dağılımına sahiptir.
@@ -6118,29 +6119,29 @@ const SINAV_TURLERI = {
     { key: "turkce",  label: "Türkçe",          maks: 40, color: "#E63946" },
     { key: "sosyal",  label: "Sosyal Bilimler", maks: 20, color: "#E76F51" },
     { key: "mat",     label: "Temel Matematik", maks: 40, color: "#457B9D" },
-    { key: "fen",     label: "Fen Bilimleri",   maks: 20, color: "#2D6A4F" },
+    { key: "fen",     label: "Fen Bilimleri",   maks: 20, color: "#1FA971" },
   ]},
   ayt_sayisal: { ad: "AYT — Sayısal", dersler: [
     { key: "mat",      label: "Matematik", maks: 40, color: "#457B9D" },
-    { key: "fizik",    label: "Fizik",     maks: 14, color: "#2D6A4F" },
+    { key: "fizik",    label: "Fizik",     maks: 14, color: "#1FA971" },
     { key: "kimya",    label: "Kimya",     maks: 13, color: "#E9C46A" },
-    { key: "biyoloji", label: "Biyoloji",  maks: 13, color: "#7B5EA7" },
+    { key: "biyoloji", label: "Biyoloji",  maks: 13, color: "#6D5BD0" },
   ]},
   ayt_ea: { ad: "AYT — Eşit Ağırlık", dersler: [
     { key: "mat",       label: "Matematik",        maks: 40, color: "#457B9D" },
     { key: "edebiyat",  label: "Edebiyat-Sosyal",  maks: 24, color: "#E63946" },
     { key: "tarih",     label: "Tarih-1",          maks: 10, color: "#E76F51" },
-    { key: "cografya",  label: "Coğrafya-1",       maks: 6,  color: "#2D6A4F" },
+    { key: "cografya",  label: "Coğrafya-1",       maks: 6,  color: "#1FA971" },
   ]},
   ayt_sozel: { ad: "AYT — Sözel", dersler: [
     { key: "edebiyat",  label: "Edebiyat-Sosyal", maks: 24, color: "#E63946" },
     { key: "tarih",     label: "Tarih",           maks: 21, color: "#E76F51" },
-    { key: "cografya",  label: "Coğrafya",        maks: 17, color: "#2D6A4F" },
-    { key: "felsefe",   label: "Felsefe Grubu",   maks: 12, color: "#7B5EA7" },
+    { key: "cografya",  label: "Coğrafya",        maks: 17, color: "#1FA971" },
+    { key: "felsefe",   label: "Felsefe Grubu",   maks: 12, color: "#6D5BD0" },
     { key: "din",       label: "Din Kültürü",     maks: 6,  color: "#E9C46A" },
   ]},
   ayt_dil: { ad: "AYT — Yabancı Dil (YDT)", dersler: [
-    { key: "yabanci_dil", label: "Yabancı Dil", maks: 80, color: "#7B5EA7" },
+    { key: "yabanci_dil", label: "Yabancı Dil", maks: 80, color: "#6D5BD0" },
   ]},
 };
 function aktifDersler(sinavTuru) { return (SINAV_TURLERI[sinavTuru] || SINAV_TURLERI.lgs).dersler; }
@@ -8511,7 +8512,7 @@ export default function App() {
           .sort((a,b) => pdrTarihMs(a.tarih) - pdrTarihMs(b.tarih));
         if (oncelikliHatirlatmalar.length === 0 || tab === "hatirlatici") return null;
         return (
-          <div onClick={() => setTab("hatirlatici")} style={{ background: "#6D28D9", padding: "8px 16px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", flexWrap: "wrap" }}>
+          <div onClick={() => setTab("hatirlatici")} style={{ background: PURPLE, padding: "8px 16px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", flexWrap: "wrap" }}>
             <span style={{ fontSize: 13 }}>🔔</span>
             <span style={{ color: "#fff", fontSize: 12, fontWeight: 700, flex: 1 }}>
               {oncelikliHatirlatmalar.slice(0, 3).map(h => `${h.studentName} (${pdrKalanGunMetni(pdrKalanGunHesapla(h.tarih))})`).join(" · ")}
@@ -9142,7 +9143,7 @@ export default function App() {
                 <label style={labelStyle}>RİSK TÜRÜ</label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
                   {(() => {
-                    const TUR_PALET = ["#E63946","#457B9D","#2A9D8F","#E76F51","#7B5EA7","#E9C46A","#C0392B","#1A8C5B","#8E5B3C","#3B4FD8","#D45D9C","#B07D1A","#00A8A8","#6C757D","#264653"];
+                    const TUR_PALET = ["#E63946","#457B9D","#2A9D8F","#E76F51","#6D5BD0","#E9C46A","#C0392B","#1A8C5B","#8E5B3C","#3B4FD8","#D45D9C","#B07D1A","#00A8A8","#6C757D","#264653"];
                     const turler = ["Davranış", "Akademik", "Aile", "Akran / Zorbalık", "Duygusal", "Devamsızlık", "Öz Zarar", "Sağlık", "Madde Kullanımı", "Teknoloji / Ekran Bağımlılığı", "Ekonomik Güçlük", "Yas / Kayıp", "Travma", "Özel Öğrenme Güçlüğü", "Diğer"];
                     return turler.map((t, ti) => {
                       const s = riskForm.riskTuru === t;
