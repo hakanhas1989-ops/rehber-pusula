@@ -1758,10 +1758,10 @@ function DegerlendirmeEkrani({ onTransfer, onClose, records, profiles, profiles2
       <div style={{ marginBottom: 14 }}>
         <label style={dLbl}>ÖĞRENCİ</label>
         {ogrenci.ad ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: PURPLE_LIGHT, border: `1px solid ${PURPLE}`, borderRadius: 10, padding: "8px 12px" }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: PURPLE }}>👤 {ogrenci.ad}{ogrenci.sinif ? ` — ${ogrenci.sinif}` : ""}</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: PURPLE, border: `1px solid ${PURPLE}`, borderRadius: 10, padding: "8px 12px" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>👤 {ogrenci.ad}{ogrenci.sinif ? ` — ${ogrenci.sinif}` : ""}</div>
             <button onClick={() => { setOgrenci({ ad: "", sinif: "" }); setAktifOgrenci({ name: "", className: "" }); setDegOgrenciArama(""); }} style={{
-              background: "none", border: `1px solid ${PURPLE}`, color: PURPLE, borderRadius: 8, padding: "3px 9px", fontSize: 11, fontWeight: 600, cursor: "pointer"
+              background: "rgba(255,255,255,0.2)", border: "1px solid #fff", color: "#fff", borderRadius: 8, padding: "3px 9px", fontSize: 11, fontWeight: 600, cursor: "pointer"
             }}>✕ Değiştir</button>
           </div>
         ) : (
@@ -3232,10 +3232,10 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
       <div style={{ marginBottom: 16 }}>
         <label style={lbl}>ÖĞRENCİ</label>
         {seciliAd ? (
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:PURPLE_LIGHT, border:`1px solid ${PURPLE}`, borderRadius:10, padding:"8px 12px" }}>
-            <div style={{ fontSize:13, fontWeight:700, color:PURPLE }}>👤 {seciliAd}{seciliSinif?` — ${seciliSinif}`:""}</div>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:PURPLE, border:`1px solid ${PURPLE}`, borderRadius:10, padding:"8px 12px" }}>
+            <div style={{ fontSize:13, fontWeight:700, color:"#fff" }}>👤 {seciliAd}{seciliSinif?` — ${seciliSinif}`:""}</div>
             <button onClick={() => { setSeciliAd(""); setAktifOgrenci({ name:"", className:"" }); setOgrenciArama(""); setKategori(null); setSeciliTest(null); }} style={{
-              background:"none", border:`1px solid ${PURPLE}`, color:PURPLE, borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
+              background:"rgba(255,255,255,0.2)", border:"1px solid #fff", color:"#fff", borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
             }}>✕ Değiştir</button>
           </div>
         ) : (
@@ -3737,10 +3737,10 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
 
           <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>ÖĞRENCİ</label>
           {seciliAd ? (
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:MOR_ACIK, border:`1px solid ${MOR}`, borderRadius:10, padding:"8px 12px", marginBottom:10 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:MOR }}>👤 {seciliAd}{seciliSinif?` — ${seciliSinif}`:""}</div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:MOR, border:`1px solid ${MOR}`, borderRadius:10, padding:"8px 12px", marginBottom:10 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:"#fff" }}>👤 {seciliAd}{seciliSinif?` — ${seciliSinif}`:""}</div>
               <button onClick={() => { setSeciliAd(""); setAktifOgrenci({ name:"", className:"" }); setOgrenciArama(""); }} style={{
-                background:"none", border:`1px solid ${MOR}`, color:MOR, borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
+                background:"rgba(255,255,255,0.2)", border:"1px solid #fff", color:"#fff", borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
               }}>✕ Değiştir</button>
             </div>
           ) : (
@@ -7944,7 +7944,7 @@ function RecordCard({ rec, onDelete, onUpdate }) {
             rows={4} style={{ width: "100%", padding: "8px 10px", border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 13, resize: "vertical", marginBottom: 8, boxSizing: "border-box", fontFamily: "inherit", lineHeight: 1.6 }} />
 
           <button onClick={handleAiRewrite} disabled={!editForm.raw.trim() || aiLoading} style={{
-            background: aiLoading ? BORDER : PURPLE_LIGHT, color: PURPLE, border: "none",
+            background: aiLoading ? BORDER : PURPLE, color: "#fff", border: "none",
             borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", marginBottom: 10
           }}>{aiLoading ? "AI yeniden özetliyor…" : "✦ AI ile Özeti Güncelle"}</button>
 
@@ -8550,10 +8550,10 @@ export default function App() {
               <div style={{ marginBottom:12 }}>
                 <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>ÖĞRENCİ</label>
                 {form.studentName ? (
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:PURPLE_LIGHT, border:`1px solid ${PURPLE}`, borderRadius:10, padding:"8px 12px", marginBottom:8 }}>
-                    <div style={{ fontSize:13, fontWeight:700, color:PURPLE }}>👤 {form.studentName}{form.className ? ` — ${form.className}` : ""}{form.numara ? ` · No: ${form.numara}` : ""}</div>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:PURPLE, border:`1px solid ${PURPLE}`, borderRadius:10, padding:"8px 12px", marginBottom:8 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:"#fff" }}>👤 {form.studentName}{form.className ? ` — ${form.className}` : ""}{form.numara ? ` · No: ${form.numara}` : ""}</div>
                     <button onClick={() => { setForm(f => ({ ...f, studentName:"", className:"", numara:"" })); setAktifOgrenci({ name:"", className:"" }); setNotOgrenciArama(""); }} style={{
-                      background:"none", border:`1px solid ${PURPLE}`, color:PURPLE, borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
+                      background:"rgba(255,255,255,0.2)", border:"1px solid #fff", color:"#fff", borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
                     }}>✕ Değiştir</button>
                   </div>
                 ) : (
@@ -8580,7 +8580,7 @@ export default function App() {
               {/* Görüşme türü */}
               <div style={{ display:"flex", gap:8, marginBottom:12 }}>
                 {["Öğrenci","Veli","Öğretmen"].map(t=>(
-                  <button key={t} onClick={()=>setForm(f=>({...f,meetingType:t}))} style={{ flex:1, padding:"8px", borderRadius:8, border:`2px solid ${form.meetingType===t?PURPLE:BORDER}`, background:form.meetingType===t?PURPLE_LIGHT:CARD, color:form.meetingType===t?PURPLE:MUTED, fontSize:12, fontWeight:700, cursor:"pointer" }}>{t}</button>
+                  <button key={t} onClick={()=>setForm(f=>({...f,meetingType:t}))} style={{ flex:1, padding:"8px", borderRadius:8, border:`2px solid ${PURPLE}`, background:form.meetingType===t?PURPLE:"#fff", color:form.meetingType===t?"#fff":PURPLE, fontSize:12, fontWeight:700, cursor:"pointer" }}>{t}</button>
                 ))}
               </div>
               {/* Ham not */}
@@ -8588,7 +8588,7 @@ export default function App() {
               <textarea placeholder="Görüşme notlarını buraya yazın..." value={form.raw} onChange={e=>setForm(f=>({...f,raw:e.target.value}))} rows={5} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, resize:"vertical", boxSizing:"border-box", marginBottom:10 }} />
               {/* Sesli giriş */}
               <div style={{ display:"flex", gap:8, marginBottom:10 }}>
-                <button onClick={listening?stopListening:startListening} style={{ flex:1, padding:"10px", background:listening?"#C0392B":PURPLE_LIGHT, color:listening?"#fff":PURPLE, border:"none", borderRadius:10, fontSize:13, fontWeight:700, cursor:"pointer" }}>
+                <button onClick={listening?stopListening:startListening} style={{ flex:1, padding:"10px", background:listening?"#C0392B":PURPLE, color:"#fff", border:"none", borderRadius:10, fontSize:13, fontWeight:700, cursor:"pointer" }}>
                   {listening?"⏹ Durdur":"🎤 Sesli Giriş"}
                 </button>
                 <button onClick={handleSummarize} disabled={!form.raw.trim()||aiLoading} style={{ flex:1, padding:"10px", background:form.raw.trim()&&!aiLoading?PURPLE:BORDER, color:form.raw.trim()&&!aiLoading?"#fff":MUTED, border:"none", borderRadius:10, fontSize:13, fontWeight:700, cursor:"pointer" }}>
@@ -9094,10 +9094,10 @@ export default function App() {
               <div style={{ fontSize: 12, fontWeight: 700, color: TEXT, marginBottom: 10 }}>+ Yeni Risk Kaydı</div>
 
               {riskForm.studentName && (
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:PURPLE_LIGHT, border:`1px solid ${PURPLE}`, borderRadius:10, padding:"8px 12px", marginBottom:10 }}>
-                  <div style={{ fontSize:12, fontWeight:700, color:PURPLE }}>👤 {riskForm.studentName} — {riskForm.className}{riskForm.numara ? ` · No: ${riskForm.numara}` : ""}</div>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:PURPLE, border:`1px solid ${PURPLE}`, borderRadius:10, padding:"8px 12px", marginBottom:10 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:"#fff" }}>👤 {riskForm.studentName} — {riskForm.className}{riskForm.numara ? ` · No: ${riskForm.numara}` : ""}</div>
                   <button onClick={() => { setRiskForm(f => ({ ...f, studentName:"", className:"", numara:"" })); setAktifOgrenci({ name:"", className:"" }); }} style={{
-                    background:"none", border:`1px solid ${PURPLE}`, color:PURPLE, borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
+                    background:"rgba(255,255,255,0.2)", border:"1px solid #fff", color:"#fff", borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
                   }}>✕ Değiştir</button>
                 </div>
               )}
