@@ -1054,7 +1054,7 @@ const MUTED = "#6B8C7E";
 const BORDER = "#D8EDE4";
 const ORANGE = "#E76F51";
 const BLUE = "#457B9D";
-const PURPLE = "#6D5BD0";
+const PURPLE = "#9B87F0";
 const PURPLE_LIGHT = "#EDEAFB";
 
 // ── PDR Boyutları ─────────────────────────────────────────────────────────────
@@ -2465,14 +2465,14 @@ function RaporModal({ rapor, onKapat }) {
                     const prRenk = pr>=85?"#1A8C5B":pr>=70?"#457B9D":pr>=60?"#B07D1A":"#C0392B";
                     return (
                       <div style={{ marginBottom: 10 }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "#6D5BD0", textTransform: "uppercase", marginBottom: 8 }}>D2 Dikkat Testi</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#9B87F0", textTransform: "uppercase", marginBottom: 8 }}>D2 Dikkat Testi</div>
 
                         {/* TABLO */}
                         <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:8, fontSize:10 }}>
                           <thead>
                             <tr style={{ background:"#F3F0FF" }}>
                               {[["TN","Psikomotor"],["E1","Seçici Dkt"],["E2","Öğr.Güçlük"],["CP","Doğru Perf"],["FR","Salınım"],["TN-E","Test Perf"],["E%","Hata Oranı"],["PR","Yüzdelik"]].map(([k,ac])=>(
-                                <th key={k} style={{padding:"4px 3px",textAlign:"center",color:"#6D5BD0",fontWeight:700,fontSize:9,borderBottom:"2px solid #6D5BD044",borderRight:"1px solid #eee"}}>
+                                <th key={k} style={{padding:"4px 3px",textAlign:"center",color:"#9B87F0",fontWeight:700,fontSize:9,borderBottom:"2px solid #9B87F044",borderRight:"1px solid #eee"}}>
                                   <div>{k}</div><div style={{fontSize:7,color:"#888",fontWeight:400}}>{ac}</div>
                                 </th>
                               ))}
@@ -2481,7 +2481,7 @@ function RaporModal({ rapor, onKapat }) {
                           <tbody>
                             <tr>
                               {[d2.TN, d2.E1, d2.E2, d2.CP, d2.FR, d2.TN_E, d2.E_yuzde?d2.E_yuzde+"%":null, d2.PR].map((v,i)=>(
-                                <td key={i} style={{padding:"5px 3px",textAlign:"center",fontWeight:900,fontSize:13,color:"#6D5BD0",borderRight:"1px solid #f0eeff",borderBottom:"1px solid #f0eeff"}}>
+                                <td key={i} style={{padding:"5px 3px",textAlign:"center",fontWeight:900,fontSize:13,color:"#9B87F0",borderRight:"1px solid #f0eeff",borderBottom:"1px solid #f0eeff"}}>
                                   {v||"—"}
                                 </td>
                               ))}
@@ -2529,7 +2529,7 @@ function RaporModal({ rapor, onKapat }) {
                         {d2.yorum && <div style={{ fontSize:9, color:"#555", marginTop:3 }}>📝 {d2.yorum}</div>}
                         {profil2.d2_analiz && (
                           <div style={{ marginTop:8 }}>
-                            <div style={{ fontSize:9, fontWeight:700, color:"#6D5BD0", textTransform:"uppercase", marginBottom:4 }}>AI Akademik & Dikkat Analizi</div>
+                            <div style={{ fontSize:9, fontWeight:700, color:"#9B87F0", textTransform:"uppercase", marginBottom:4 }}>AI Akademik & Dikkat Analizi</div>
                             <div style={{ fontSize:9, color:"#333", background:"#EDE9FF", borderRadius:5, padding:"7px 9px", lineHeight:1.7, whiteSpace:"pre-wrap" }}>{profil2.d2_analiz}</div>
                           </div>
                         )}
@@ -2539,7 +2539,7 @@ function RaporModal({ rapor, onKapat }) {
                   {/* P2 analiz — D2 yoksa */}
                   {profil2?.d2_analiz && !(profil2?.d2?.TN || profil2?.d2?.TN_E) && (
                     <div style={{ marginBottom:10 }}>
-                      <div style={{ fontSize:9, fontWeight:700, color:"#6D5BD0", textTransform:"uppercase", marginBottom:4 }}>AI Akademik Analizi</div>
+                      <div style={{ fontSize:9, fontWeight:700, color:"#9B87F0", textTransform:"uppercase", marginBottom:4 }}>AI Akademik Analizi</div>
                       <div style={{ fontSize:9, color:"#333", background:"#EDE9FF", borderRadius:5, padding:"7px 9px", lineHeight:1.7, whiteSpace:"pre-wrap" }}>{profil2.d2_analiz}</div>
                     </div>
                   )}
@@ -3269,7 +3269,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
               {!kategori ? (
                 <div style={{ display:"flex", gap:8 }}>
                   <button onClick={()=>setKategori("objektif")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #3B4FD8`, background:"#EEF2FF", color:"#3B4FD8", fontSize:13, fontWeight:800, cursor:"pointer" }}>🔵 Objektif Testler</button>
-                  <button onClick={()=>setKategori("projektif")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #6D5BD0`, background:"#F3EEFB", color:"#6D5BD0", fontSize:13, fontWeight:800, cursor:"pointer" }}>🟣 Projektif Testler</button>
+                  <button onClick={()=>setKategori("projektif")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #9B87F0`, background:"#F3EEFB", color:"#9B87F0", fontSize:13, fontWeight:800, cursor:"pointer" }}>🟣 Projektif Testler</button>
                 </div>
               ) : (
                 <div>
@@ -4433,9 +4433,9 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
                 style={{background:"#F3EEFB", border:"1px solid #D6C6EE", borderRadius:14, padding:"12px 14px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer"}}>
                 <div>
                   <div style={{fontSize:10,color:MUTED,fontWeight:700,letterSpacing:0.3}}>OLAY / TUTANAK KAYDI</div>
-                  <div style={{fontSize:20,fontWeight:900,color:"#6D5BD0"}}>{olaySirali.length} kayıt</div>
+                  <div style={{fontSize:20,fontWeight:900,color:"#9B87F0"}}>{olaySirali.length} kayıt</div>
                 </div>
-                <span style={{background:"#6D5BD0",color:"#fff",borderRadius:12,padding:"5px 11px",fontSize:11,fontWeight:700}}>+ Yeni Ekle</span>
+                <span style={{background:"#9B87F0",color:"#fff",borderRadius:12,padding:"5px 11px",fontSize:11,fontWeight:700}}>+ Yeni Ekle</span>
               </div>
               {olayFormAcik && (
                 <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:10,padding:10,marginTop:6}}>
@@ -4454,7 +4454,7 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
                   <textarea rows={2} value={olayForm.not} onChange={e=>setOlayForm(f=>({...f,not:e.target.value}))}
                     style={{width:"100%",padding:"8px 10px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:13,boxSizing:"border-box",marginBottom:8,resize:"vertical"}} />
                   <button onClick={() => { onOlayEkle(olayForm); setOlayForm({ tur:"Kavga", islem:"Tutanak Tutuldu", not:"" }); setOlayFormAcik(false); }}
-                    style={{width:"100%",padding:"8px 16px",background:"#6D5BD0",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",marginBottom: olaySirali.length>0?10:0}}>Kaydet</button>
+                    style={{width:"100%",padding:"8px 16px",background:"#9B87F0",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",marginBottom: olaySirali.length>0?10:0}}>Kaydet</button>
                   {olaySirali.length > 0 && (
                     <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:8}}>
                       <div style={{fontSize:10,fontWeight:700,color:MUTED,marginBottom:4}}>GEÇMİŞ</div>
@@ -6106,7 +6106,7 @@ const LGS_DERSLER = [
   { key: "mat",      label: "Matematik", maks: 20, color: "#457B9D" },
   { key: "fen",      label: "Fen",       maks: 20, color: "#1FA971" },
   { key: "sosyal",   label: "Sosyal",    maks: 10, color: "#E76F51" },
-  { key: "ingilizce",label: "İngilizce", maks: 10, color: "#6D5BD0" },
+  { key: "ingilizce",label: "İngilizce", maks: 10, color: "#9B87F0" },
   { key: "din",      label: "Din",       maks: 10, color: "#E9C46A" },
 ];
 // Okul kademesine göre farklı sınavlar farklı ders/soru dağılımına sahiptir.
@@ -6125,7 +6125,7 @@ const SINAV_TURLERI = {
     { key: "mat",      label: "Matematik", maks: 40, color: "#457B9D" },
     { key: "fizik",    label: "Fizik",     maks: 14, color: "#1FA971" },
     { key: "kimya",    label: "Kimya",     maks: 13, color: "#E9C46A" },
-    { key: "biyoloji", label: "Biyoloji",  maks: 13, color: "#6D5BD0" },
+    { key: "biyoloji", label: "Biyoloji",  maks: 13, color: "#9B87F0" },
   ]},
   ayt_ea: { ad: "AYT — Eşit Ağırlık", dersler: [
     { key: "mat",       label: "Matematik",        maks: 40, color: "#457B9D" },
@@ -6137,11 +6137,11 @@ const SINAV_TURLERI = {
     { key: "edebiyat",  label: "Edebiyat-Sosyal", maks: 24, color: "#E63946" },
     { key: "tarih",     label: "Tarih",           maks: 21, color: "#E76F51" },
     { key: "cografya",  label: "Coğrafya",        maks: 17, color: "#1FA971" },
-    { key: "felsefe",   label: "Felsefe Grubu",   maks: 12, color: "#6D5BD0" },
+    { key: "felsefe",   label: "Felsefe Grubu",   maks: 12, color: "#9B87F0" },
     { key: "din",       label: "Din Kültürü",     maks: 6,  color: "#E9C46A" },
   ]},
   ayt_dil: { ad: "AYT — Yabancı Dil (YDT)", dersler: [
-    { key: "yabanci_dil", label: "Yabancı Dil", maks: 80, color: "#6D5BD0" },
+    { key: "yabanci_dil", label: "Yabancı Dil", maks: 80, color: "#9B87F0" },
   ]},
 };
 function aktifDersler(sinavTuru) { return (SINAV_TURLERI[sinavTuru] || SINAV_TURLERI.lgs).dersler; }
@@ -9142,7 +9142,7 @@ export default function App() {
                 <label style={labelStyle}>RİSK TÜRÜ</label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
                   {(() => {
-                    const TUR_PALET = ["#E63946","#457B9D","#2A9D8F","#E76F51","#6D5BD0","#E9C46A","#C0392B","#1A8C5B","#8E5B3C","#3B4FD8","#D45D9C","#B07D1A","#00A8A8","#6C757D","#264653"];
+                    const TUR_PALET = ["#E63946","#457B9D","#2A9D8F","#E76F51","#9B87F0","#E9C46A","#C0392B","#1A8C5B","#8E5B3C","#3B4FD8","#D45D9C","#B07D1A","#00A8A8","#6C757D","#264653"];
                     const turler = ["Davranış", "Akademik", "Aile", "Akran / Zorbalık", "Duygusal", "Devamsızlık", "Öz Zarar", "Sağlık", "Madde Kullanımı", "Teknoloji / Ekran Bağımlılığı", "Ekonomik Güçlük", "Yas / Kayıp", "Travma", "Özel Öğrenme Güçlüğü", "Diğer"];
                     return turler.map((t, ti) => {
                       const s = riskForm.riskTuru === t;
