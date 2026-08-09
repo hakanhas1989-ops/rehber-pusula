@@ -4072,6 +4072,78 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
     setTekrarYukleniyor(false);
   }
 
+  // Net Haritası verisini PDF rapor olarak indirir — mevcut genel amaçlı
+  // raporIndir() fonksiyonunu kullanır (aynı "Yazdır/PDF Kaydet" akışı, diğer
+  // raporlarla tutarlı). İçerik: yüklenen denemeler özeti + tekrarlayan zayıf
+  // konular tablosu + (varsa) AI'ın ürettiği Yanlış Analizi metni.
+  function handleRaporIndir() {
+    if (!seciliAd || ogrKayitlar.length === 0) return;
+
+    // Tekrarlayan zayıf konuları hesapla (aynı mantık, konuOzetiOlustur ile aynı kaynak)
+    const map = {};
+    const siraliKayitlar = [...ogrKayitlar].sort((a,b) => pdrTarihMs(a.tarih) - pdrTarihMs(b.tarih));
+    siraliKayitlar.forEach(kayit => {
+      (kayit.dersler||[]).forEach(ders => {
+        (ders.konular||[]).forEach(k => {
+          const key = ders.ders + "|||" + k.kazanim;
+          if (!map[key]) map[key] = { ders: ders.ders, kazanim: k.kazanim, kezToplam:0, kezYanlis:0, sonBasari:null, sonTarih:null };
+          map[key].kezToplam++;
+          if (k.yanlis > 0) map[key].kezYanlis++;
+          map[key].sonBasari = k.basari;
+          map[key].sonTarih = kayit.tarih;
+        });
+      });
+    });
+    const zayifKonular = Object.values(map).filter(x => x.kezYanlis > 0).sort((a,b) => b.kezYanlis - a.kezYanlis);
+
+    const esc = (s) => String(s ?? "").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    const denemeSatirlari = ogrKayitlar.map(k => `
+      <div style="margin-bottom:14px;">
+        <div style="font-weight:700; font-size:12px; background:#F3EEFB; padding:6px 10px; border-radius:6px 6px 0 0;">${esc(k.denemeAdi || "Deneme")} — ${esc(k.tarih)}</div>
+        <table style="border:1px solid #E5D6FA; border-top:none;">
+          <tr style="background:#FAF7FE; font-size:10px; font-weight:700;"><td style="padding:5px 8px;">Ders</td><td style="padding:5px 8px;">Soru</td><td style="padding:5px 8px;">Doğru</td><td style="padding:5px 8px;">Yanlış</td><td style="padding:5px 8px;">Net</td></tr>
+          ${(k.dersler||[]).map(d => `<tr style="font-size:10px; border-top:1px solid #F0F0F0;"><td style="padding:5px 8px;">${esc(d.ders)}</td><td style="padding:5px 8px;">${esc(d.soru)}</td><td style="padding:5px 8px;">${esc(d.dogru)}</td><td style="padding:5px 8px;">${esc(d.yanlis)}</td><td style="padding:5px 8px; font-weight:700;">${esc(d.net)}</td></tr>`).join("")}
+        </table>
+      </div>`).join("");
+
+    const zayifKonuSatirlari = zayifKonular.length === 0 ? "<div style='font-size:11px; color:#666;'>Tekrarlayan zayıf konu bulunamadı.</div>" : `
+      <table style="border:1px solid #E5D6FA;">
+        <tr style="background:#FAF7FE; font-size:10px; font-weight:700;"><td style="padding:5px 8px;">Ders</td><td style="padding:5px 8px;">Kazanım</td><td style="padding:5px 8px;">Kaç Kez Yanlış</td><td style="padding:5px 8px;">Son Durum</td></tr>
+        ${zayifKonular.map(x => `<tr style="font-size:10px; border-top:1px solid #F0F0F0; ${x.kezYanlis >= 2 ? 'color:#C0392B;' : ''}"><td style="padding:5px 8px;">${esc(x.ders)}</td><td style="padding:5px 8px;">${esc(x.kazanim)}</td><td style="padding:5px 8px; font-weight:700;">${x.kezYanlis}/${x.kezToplam}</td><td style="padding:5px 8px;">%${esc(x.sonBasari)} (${esc(x.sonTarih)})</td></tr>`).join("")}
+      </table>`;
+
+    const analizBolumu = tekrarListesi ? `
+      <div style="margin-top:20px;">
+        <div style="font-weight:700; font-size:12px; background:#6D5BD0; color:#fff; padding:6px 10px; border-radius:6px 6px 0 0;">🔍 Yanlış Analizi ve Tekrar Listesi</div>
+        <div style="border:1px solid #E5D6FA; border-top:none; padding:12px; font-size:11px; white-space:pre-wrap; line-height:1.6;">${esc(tekrarListesi)}</div>
+      </div>` : "";
+
+    const html = `
+      <div style="font-family:Arial,sans-serif; color:#1a1a1a;">
+        <div style="border-bottom:2px solid #6D5BD0; padding-bottom:10px; margin-bottom:16px;">
+          <div style="font-size:18px; font-weight:800; color:#6D5BD0;">🎯 Net Haritası Raporu</div>
+          <div style="font-size:13px; margin-top:4px;">${esc(seciliAd)}${seciliSinif ? " — " + esc(seciliSinif) : ""}</div>
+          <div style="font-size:11px; color:#666; margin-top:2px;">Rapor tarihi: ${esc(today())} · ${ogrKayitlar.length} deneme belgesi</div>
+        </div>
+
+        <div style="font-weight:700; font-size:13px; margin-bottom:8px;">📄 Yüklenen Denemeler</div>
+        ${denemeSatirlari}
+
+        <div style="font-weight:700; font-size:13px; margin:16px 0 8px;">⚠️ Tekrarlayan Zayıf Konular</div>
+        ${zayifKonuSatirlari}
+
+        ${analizBolumu}
+      </div>`;
+
+    const tempDiv = document.createElement("div");
+    tempDiv.id = "net-haritasi-rapor-gecici";
+    tempDiv.style.display = "none";
+    tempDiv.innerHTML = html;
+    document.body.appendChild(tempDiv);
+    raporIndir("net-haritasi-rapor-gecici", "Net_Haritasi_" + seciliAd.replace(/\s+/g,"_"));
+    setTimeout(() => document.body.removeChild(tempDiv), 3000);
+  }
+
   const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, boxSizing:"border-box" };
 
   return (
@@ -4164,10 +4236,14 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
             {tekrarYukleniyor ? "⏳ Analiz ediliyor…" : `🔍 Yanlış Analizi Yap (${ogrKayitlar.length} belgeden)`}
           </button>
           {tekrarListesi && (
-            <div style={{ background:PURPLE_LIGHT, border:`1px solid ${PURPLE}`, borderRadius:12, padding:14, whiteSpace:"pre-wrap", fontSize:13, lineHeight:1.6, color:TEXT }}>
+            <div style={{ background:PURPLE_LIGHT, border:`1px solid ${PURPLE}`, borderRadius:12, padding:14, whiteSpace:"pre-wrap", fontSize:13, lineHeight:1.6, color:TEXT, marginBottom:10 }}>
               {tekrarListesi}
             </div>
           )}
+          <button onClick={handleRaporIndir} style={{
+            width:"100%", padding:11, background:"#fff", color:PURPLE, border:`2px solid ${PURPLE}`,
+            borderRadius:12, fontSize:13, fontWeight:800, cursor:"pointer"
+          }}>📄 PDF Rapor İndir</button>
         </div>
       )}
 
