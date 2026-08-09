@@ -1057,6 +1057,11 @@ const BLUE = "#457B9D";
 const PURPLE = "#9B87F0";
 const PURPLE_LIGHT = "#EDEAFB";
 
+// Görüşme "Konu" alanı için standart liste — Risk türleriyle aynı, böylece
+// İstatistik'teki "Konulara Göre" dağılımı ve Excel çıktısı tutarlı/anlamlı
+// kategorilere göre gruplanır (serbest metin yerine).
+const KONU_LISTESI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygusal","Devamsızlık","Öz Zarar","Sağlık","Madde Kullanımı","Teknoloji / Ekran Bağımlılığı","Ekonomik Güçlük","Yas / Kayıp","Travma","Özel Öğrenme Güçlüğü","Sınav Kaygısı","Kariyer / Gelecek Planlama","Genel Sohbet","Diğer"];
+
 // ── PDR Boyutları ─────────────────────────────────────────────────────────────
 const DIMENSIONS = [
   { key: "akademik", label: "Akademik Gelişim", color: BLUE },
@@ -5992,7 +5997,10 @@ function OgrenciYonetim({
                                     <button key={t} onClick={()=>setDuzenleForm(f=>({...f,meetingType:t}))} style={{flex:1,padding:"6px",borderRadius:8,border:`2px solid ${duzenleForm?.meetingType===t?ACCENT:BORDER}`,background:duzenleForm?.meetingType===t?ACCENT_LIGHT:CARD,color:duzenleForm?.meetingType===t?ACCENT:MUTED,fontSize:11,fontWeight:700,cursor:"pointer"}}>{t}</button>
                                   ))}
                                 </div>
-                                <input placeholder="Konu (örn: Sınav kaygısı)" value={duzenleForm?.topic||""} onChange={e=>setDuzenleForm(f=>({...f,topic:e.target.value}))} style={{width:"100%",padding:"7px 9px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:12,marginBottom:6,boxSizing:"border-box"}}/>
+                                <select value={duzenleForm?.topic||""} onChange={e=>setDuzenleForm(f=>({...f,topic:e.target.value}))} style={{width:"100%",padding:"7px 9px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:12,marginBottom:6,boxSizing:"border-box",background:"#fff"}}>
+                                  <option value="">Konu seçilmedi</option>
+                                  {KONU_LISTESI.map(k => <option key={k} value={k}>{k}</option>)}
+                                </select>
                                 <label style={{fontSize:10,fontWeight:600,color:MUTED,display:"block",marginBottom:2}}>HAM NOT</label>
                                 <textarea value={duzenleForm?.raw||""} onChange={e=>setDuzenleForm(f=>({...f,raw:e.target.value}))} rows={3} style={{width:"100%",padding:"7px 9px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:12,resize:"vertical",boxSizing:"border-box",marginBottom:6}}/>
                                 <button onClick={handleDuzenleAiOzetle} disabled={!duzenleForm?.raw?.trim()||duzenleAiLoading} style={{width:"100%",padding:"7px",background:duzenleForm?.raw?.trim()&&!duzenleAiLoading?PURPLE:BORDER,color:duzenleForm?.raw?.trim()&&!duzenleAiLoading?"#fff":MUTED,border:"none",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer",marginBottom:6}}>
@@ -7986,9 +7994,11 @@ function RecordCard({ rec, onDelete, onUpdate }) {
           <div style={{ fontSize: 12, fontWeight: 700, color: ACCENT, marginBottom: 10 }}>✏ Görüşmeyi Düzenle</div>
 
           <label style={{ fontSize: 11, fontWeight: 600, color: MUTED, display: "block", marginBottom: 4 }}>KONU</label>
-          <input value={editForm.topic} onChange={e => setEditForm(f => ({ ...f, topic: e.target.value }))}
-            placeholder="Aile, Akran, Sınav kaygısı…"
-            style={{ width: "100%", padding: "8px 10px", border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 13, marginBottom: 10, boxSizing: "border-box", fontFamily: "inherit" }} />
+          <select value={editForm.topic} onChange={e => setEditForm(f => ({ ...f, topic: e.target.value }))}
+            style={{ width: "100%", padding: "8px 10px", border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 13, marginBottom: 10, boxSizing: "border-box", fontFamily: "inherit", background:"#fff" }}>
+            <option value="">Konu seçilmedi</option>
+            {KONU_LISTESI.map(k => <option key={k} value={k}>{k}</option>)}
+          </select>
 
           <label style={{ fontSize: 11, fontWeight: 600, color: MUTED, display: "block", marginBottom: 4 }}>HAM NOT / EK GÖRÜŞME</label>
           <textarea value={editForm.raw} onChange={e => setEditForm(f => ({ ...f, raw: e.target.value }))}
@@ -8635,6 +8645,12 @@ export default function App() {
                   <button key={t} onClick={()=>setForm(f=>({...f,meetingType:t}))} style={{ flex:1, padding:"8px", borderRadius:8, border:`2px solid ${PURPLE}`, background:form.meetingType===t?PURPLE:"#fff", color:form.meetingType===t?"#fff":PURPLE, fontSize:12, fontWeight:700, cursor:"pointer" }}>{t}</button>
                 ))}
               </div>
+              {/* Konu — standart liste, İstatistik ve Excel'de tutarlı gruplama için */}
+              <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>KONU (İSTEĞE BAĞLI)</label>
+              <select value={form.topic} onChange={e=>setForm(f=>({...f,topic:e.target.value}))} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, marginBottom:10, boxSizing:"border-box", background:"#fff" }}>
+                <option value="">Konu seçilmedi</option>
+                {KONU_LISTESI.map(k => <option key={k} value={k}>{k}</option>)}
+              </select>
               {/* Ham not */}
               <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>GÖRÜŞME NOTU</label>
               <textarea placeholder="Görüşme notlarını buraya yazın..." value={form.raw} onChange={e=>setForm(f=>({...f,raw:e.target.value}))} rows={5} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, resize:"vertical", boxSizing:"border-box", marginBottom:10 }} />
