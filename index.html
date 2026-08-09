@@ -1532,6 +1532,12 @@ async function loadHatirlatmalar() {
 async function saveHatirlatmalar(items) {
   try { await window.storage.set("pdr-hatirlatmalar", JSON.stringify(items)); } catch(e) { console.warn(e); }
 }
+async function loadNetHaritasi() {
+  try { const r = await window.storage.get("pdr-net-haritasi"); return r ? JSON.parse(r.value) : []; } catch { return []; }
+}
+async function saveNetHaritasi(items) {
+  try { await window.storage.set("pdr-net-haritasi", JSON.stringify(items)); } catch(e) { console.warn(e); }
+}
 
 async function loadHazirlikNotlari() {
   try { const r = await window.storage.get("pdr-hazirlik"); return r ? JSON.parse(r.value) : {}; } catch { return {}; }
@@ -3927,6 +3933,223 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
             ))}
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ── Net Haritası Bileşeni ────────────────────────────────────────────────────
+// Amaç: deneme sonuç belgelerini (PDF) yükleyip, AI'ın ders VE kazanım/konu
+// bazında hangi konularda eksik olduğunu otomatik çıkarmasını sağlamak. Mevcut
+// "Deneme" sekmesindeki basit ders-bazlı net takibinden farklı — burada asıl
+// değer, her kazanımın S/D/Y/B% detayını görebilmek. AI'ın PDF'ten çıkardığı
+// veri, kaydedilmeden ÖNCE danışmana gösterilir — okuma hataları olabileceği
+// için onay/düzeltme adımı zorunlu, AI hiçbir şeyi kendiliğinden kaydetmez.
+function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netHaritasiKayitlari, setNetHaritasiKayitlari }) {
+  const [seciliAd, setSeciliAd] = useState(aktifOgrenci?.name || "");
+  const [ogrenciArama, setOgrenciArama] = useState("");
+  const [yukleniyor, setYukleniyor] = useState(false);
+  const [taslak, setTaslak] = useState(null);
+  const [detayAcikId, setDetayAcikId] = useState(null);
+
+  useEffect(() => {
+    if (aktifOgrenci?.name) setSeciliAd(aktifOgrenci.name);
+    else setSeciliAd("");
+  }, [aktifOgrenci?.name]);
+
+  const seciliOgr = kayitliListesi.find(o => o.name === seciliAd);
+  const seciliSinif = seciliOgr?.className || aktifOgrenci?.className || "";
+  const seciliNumara = seciliOgr?.numara || aktifOgrenci?.numara || "";
+
+  const ogrKayitlar = (netHaritasiKayitlari||[]).filter(k => k.studentName === seciliAd).sort((a,b) => pdrTarihMs(b.tarih) - pdrTarihMs(a.tarih));
+
+  async function handlePdfSec(file) {
+    if (!file || !seciliAd) return;
+    setYukleniyor(true);
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result.split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const apiKey = pdrGetApiKey();
+      if (!apiKey) throw new Error("Önce Ayarlar'dan API anahtarını gir.");
+      const res = await fetch(PDR_AI_WORKER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "net_haritasi_cikar", apiKey, data: { pdfBase64: base64 } }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const text = data.content?.[0]?.text || "{}";
+      const temiz = text.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(temiz);
+      if (!parsed.dersler || parsed.dersler.length === 0) throw new Error("Belgeden ders verisi çıkarılamadı — belge formatı desteklenmiyor olabilir.");
+      setTaslak(parsed);
+    } catch (e) {
+      alert("PDF okunamadı: " + e.message);
+    }
+    setYukleniyor(false);
+  }
+
+  async function handleTaslakKaydet() {
+    if (!taslak || !seciliAd) return;
+    const yeni = {
+      id: uid(), studentName: seciliAd, className: seciliSinif, numara: seciliNumara,
+      tarih: today(), denemeAdi: taslak.denemeAdi || "", dersler: taslak.dersler || []
+    };
+    const guncel = [yeni, ...(netHaritasiKayitlari||[])];
+    setNetHaritasiKayitlari(guncel);
+    await saveNetHaritasi(guncel);
+    setTaslak(null);
+  }
+
+  function taslakSayiGuncelle(dersIdx, konuIdx, alan, deger) {
+    setTaslak(t => {
+      const yeni = { ...t, dersler: t.dersler.map((d, i) => i !== dersIdx ? d : {
+        ...d,
+        ...(konuIdx === null ? { [alan]: deger } : {}),
+        konular: konuIdx === null ? d.konular : d.konular.map((k, j) => j !== konuIdx ? k : { ...k, [alan]: deger })
+      })};
+      return yeni;
+    });
+  }
+
+  async function handleKayitSil(id) {
+    const guncel = (netHaritasiKayitlari||[]).filter(k => k.id !== id);
+    setNetHaritasiKayitlari(guncel);
+    await saveNetHaritasi(guncel);
+  }
+
+  const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, boxSizing:"border-box" };
+
+  return (
+    <div style={{ padding: 16, maxWidth: 640 }}>
+      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4, color:PURPLE }}>🎯 Net Haritası</div>
+      <div style={{ fontSize: 12, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
+        Deneme sonuç belgesini (PDF) yükle — AI, ders ve kazanım bazında hangi konularda eksik olduğunu otomatik çıkarır. Deneme sekmesindeki ders-bazlı net takibi ayrı, bu konu-seviyesinde ek bir analiz.
+      </div>
+
+      {/* Öğrenci seçimi */}
+      {seciliAd ? (
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:PURPLE, border:`1px solid ${PURPLE}`, borderRadius:10, padding:"8px 12px", marginBottom:16 }}>
+          <div style={{ fontSize:13, fontWeight:700, color:"#fff" }}>👤 {seciliAd}{seciliSinif?` — ${seciliSinif}`:""}</div>
+          <button onClick={() => { setSeciliAd(""); setAktifOgrenci({ name:"", className:"" }); setOgrenciArama(""); setTaslak(null); }} style={{
+            background:"rgba(255,255,255,0.2)", border:"1px solid #fff", color:"#fff", borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
+          }}>✕ Değiştir</button>
+        </div>
+      ) : (
+        <>
+          <input value={ogrenciArama} onChange={e=>setOgrenciArama(e.target.value)} placeholder="Öğrenci ara… (en az 2 karakter)" style={{...inp, marginBottom:8}} />
+          {ogrenciArama.trim().length >= 2 && (
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:16 }}>
+              {kayitliListesi.filter(o =>
+                o.name.toLocaleLowerCase("tr").includes(ogrenciArama.toLocaleLowerCase("tr")) ||
+                o.className?.toLocaleLowerCase("tr").includes(ogrenciArama.toLocaleLowerCase("tr"))
+              ).slice(0,20).map(o => (
+                <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => { setSeciliAd(o.name); setAktifOgrenci({ name:o.name, className:o.className||"" }); setOgrenciArama(""); }} style={{
+                  padding:"5px 12px", borderRadius:20, border:`2px solid ${BORDER}`, background:"#fff", color:MUTED, fontSize:12, fontWeight:500, cursor:"pointer"
+                }}>{o.name}{o.className?` · ${o.className}`:""}</button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* PDF yükleme */}
+      {seciliAd && !taslak && (
+        <label style={{ display:"block", width:"100%", padding:18, background:"#fff", border:`2px dashed ${PURPLE}`, borderRadius:12, textAlign:"center", color:PURPLE, fontWeight:700, cursor:"pointer", marginBottom:20, boxSizing:"border-box" }}>
+          {yukleniyor ? "⏳ PDF okunuyor, konu bazlı veri çıkarılıyor… (biraz sürebilir)" : "📄 Deneme Sonuç Belgesi Yükle (PDF)"}
+          <input type="file" accept="application/pdf" onChange={e => handlePdfSec(e.target.files?.[0])} style={{ display:"none" }} disabled={yukleniyor} />
+        </label>
+      )}
+
+      {/* AI'ın çıkardığı taslak — onay bekliyor */}
+      {taslak && (
+        <div style={{ background:"#FFF8E7", border:"1px solid #F0D68A", borderRadius:12, padding:14, marginBottom:20 }}>
+          <div style={{ fontSize:13, fontWeight:800, color:"#B07D1A", marginBottom:4 }}>⚠️ AI Çıkardı — Kaydetmeden Önce Kontrol Et</div>
+          <div style={{ fontSize:11, color:"#B07D1A", marginBottom:10 }}>Sayılar yanlışsa aşağıdan düzeltebilirsin. Sadece yanlış yapılan kazanımlar listeleniyor (tümünü görmek istersen "Tüm Konular"a bas).</div>
+          {taslak.denemeAdi && <div style={{ fontSize:12, fontWeight:700, marginBottom:10 }}>📋 {taslak.denemeAdi}</div>}
+          {taslak.dersler.map((ders, di) => (
+            <div key={di} style={{ marginBottom:10, background:"#fff", borderRadius:8, padding:10 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                <div style={{ fontWeight:800, fontSize:13 }}>{ders.ders}</div>
+                <div style={{ fontSize:11, color:MUTED }}>Soru:
+                  <input type="number" value={ders.soru} onChange={e=>taslakSayiGuncelle(di,null,"soru",parseFloat(e.target.value)||0)} style={{ width:36, marginLeft:3, marginRight:6, border:`1px solid ${BORDER}`, borderRadius:4, fontSize:11 }} />
+                  D:<input type="number" value={ders.dogru} onChange={e=>taslakSayiGuncelle(di,null,"dogru",parseFloat(e.target.value)||0)} style={{ width:32, marginLeft:2, marginRight:6, border:`1px solid ${BORDER}`, borderRadius:4, fontSize:11 }} />
+                  Y:<input type="number" value={ders.yanlis} onChange={e=>taslakSayiGuncelle(di,null,"yanlis",parseFloat(e.target.value)||0)} style={{ width:32, marginLeft:2, marginRight:6, border:`1px solid ${BORDER}`, borderRadius:4, fontSize:11 }} />
+                  Net:<input type="number" value={ders.net} onChange={e=>taslakSayiGuncelle(di,null,"net",parseFloat(e.target.value)||0)} style={{ width:40, marginLeft:2, border:`1px solid ${BORDER}`, borderRadius:4, fontSize:11 }} />
+                </div>
+              </div>
+              {(ders.konular||[]).filter(k => k.yanlis > 0).length > 0 && (
+                <div style={{ fontSize:11 }}>
+                  {ders.konular.filter(k => k.yanlis > 0).map((k, kiOrig) => {
+                    const ki = ders.konular.indexOf(k);
+                    return (
+                      <div key={ki} style={{ padding:"5px 0", borderTop:"1px solid #F0F0F0", color: k.basari < 50 ? "#C0392B" : TEXT }}>
+                        {k.kazanim} — <b>{k.dogru}/{k.soru}</b> (%{k.basari})
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {(ders.konular||[]).length === 0 && <div style={{ fontSize:11, color:MUTED }}>Bu ders için kazanım detayı bulunamadı.</div>}
+            </div>
+          ))}
+          <div style={{ display:"flex", gap:8, marginTop:10 }}>
+            <button onClick={handleTaslakKaydet} style={{ flex:1, padding:11, background:PURPLE, color:"#fff", border:"none", borderRadius:10, fontWeight:800, fontSize:13, cursor:"pointer" }}>✓ Doğru, Kaydet</button>
+            <button onClick={()=>setTaslak(null)} style={{ padding:11, background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>İptal</button>
+          </div>
+        </div>
+      )}
+
+      {/* Geçmiş yüklenen belgeler */}
+      {seciliAd && ogrKayitlar.length > 0 && (
+        <div>
+          <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:8 }}>YÜKLENEN BELGELER ({ogrKayitlar.length})</label>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {ogrKayitlar.map(k => {
+              const acik = detayAcikId === k.id;
+              const toplamYanlisKonu = (k.dersler||[]).reduce((s,d) => s + (d.konular||[]).filter(x=>x.yanlis>0).length, 0);
+              return (
+                <div key={k.id} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:10, padding:"10px 12px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer" }} onClick={()=>setDetayAcikId(acik?null:k.id)}>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:700 }}>{k.denemeAdi || "Deneme"} <span style={{ fontWeight:400, color:MUTED }}>· {k.tarih}</span></div>
+                      <div style={{ fontSize:11, color:MUTED, marginTop:2 }}>{(k.dersler||[]).length} ders · {toplamYanlisKonu} zayıf konu</div>
+                    </div>
+                    <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                      <span style={{ fontSize:11, color:PURPLE }}>{acik?"▲":"▼"}</span>
+                      <button onClick={(e)=>{e.stopPropagation(); handleKayitSil(k.id);}} style={{ background:"none", border:"none", color:"#C0392B", fontSize:13, cursor:"pointer" }}>🗑</button>
+                    </div>
+                  </div>
+                  {acik && (
+                    <div style={{ marginTop:10, borderTop:`1px solid ${BORDER}`, paddingTop:10 }}>
+                      {(k.dersler||[]).map((ders, di) => (
+                        <div key={di} style={{ marginBottom:10 }}>
+                          <div style={{ fontSize:12, fontWeight:700, marginBottom:4 }}>{ders.ders} — {ders.dogru}/{ders.soru} (Net: {ders.net})</div>
+                          {(ders.konular||[]).filter(x=>x.yanlis>0).length === 0 ? (
+                            <div style={{ fontSize:11, color:"#1A8C5B" }}>✓ Zayıf konu yok</div>
+                          ) : (
+                            <div style={{ fontSize:11 }}>
+                              {ders.konular.filter(x=>x.yanlis>0).map((x,xi) => (
+                                <div key={xi} style={{ padding:"3px 0", color: x.basari < 50 ? "#C0392B" : TEXT }}>• {x.kazanim} (%{x.basari})</div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {seciliAd && ogrKayitlar.length === 0 && !taslak && (
+        <div style={{ fontSize:12, color:MUTED }}>Bu öğrenci için henüz Net Haritası kaydı yok.</div>
       )}
     </div>
   );
@@ -8176,6 +8399,7 @@ export default function App() {
   const [ilerlemeNotlari, setIlerlemeNotlari] = useState({});
   const [sevkler, setSevkler] = useState([]);
   const [hatirlatmalar, setHatirlatmalar] = useState([]);
+  const [netHaritasiKayitlari, setNetHaritasiKayitlari] = useState([]);
   const [kutuphane, setKutuphane] = useState([]);
   const [pdfYukleniyor, setPdfYukleniyor] = useState(false);
   const [search, setSearch] = useState("");
@@ -8204,6 +8428,7 @@ export default function App() {
     loadIlerlemeNotlari().then(setIlerlemeNotlari);
     loadSevkler().then(setSevkler);
     loadHatirlatmalar().then(setHatirlatmalar);
+    loadNetHaritasi().then(setNetHaritasiKayitlari);
   }, []);
 
   // aktifOgrenci değişince formu güncelle
@@ -8539,6 +8764,7 @@ export default function App() {
     { key: "profil_merkez", label: "📋 Profil" },
     { key: "yeni", label: "📝 Görüşme Notu" },
     { key: "hatirlatici", label: "🔔 Hatırlatıcı" },
+    { key: "net_haritasi", label: "🎯 Net Haritası" },
     { key: "sinif_profili", label: "🏫 Sınıf" },
     { key: "risk", label: "⚠ Risk" },
     { key: "deneme", label: "📊 Deneme" },
@@ -9155,6 +9381,17 @@ export default function App() {
             setAktifOgrenci={setAktifOgrenci}
             hatirlatmalar={hatirlatmalar}
             setHatirlatmalar={setHatirlatmalar}
+          />
+        )}
+
+        {/* ── NET HARİTASI ─────────────────────────────────────────── */}
+        {tab === "net_haritasi" && (
+          <NetHaritasiEkrani
+            kayitliListesi={kayitliListesi}
+            aktifOgrenci={aktifOgrenci}
+            setAktifOgrenci={setAktifOgrenci}
+            netHaritasiKayitlari={netHaritasiKayitlari}
+            setNetHaritasiKayitlari={setNetHaritasiKayitlari}
           />
         )}
 
