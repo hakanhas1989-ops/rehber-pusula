@@ -3975,10 +3975,11 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
       });
       const apiKey = pdrGetApiKey();
       if (!apiKey) throw new Error("Önce Ayarlar'dan API anahtarını gir.");
+      const mediaType = file.type || (file.name.toLocaleLowerCase("tr").endsWith(".pdf") ? "application/pdf" : "image/jpeg");
       const res = await fetch(PDR_AI_WORKER_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "net_haritasi_cikar", apiKey, data: { pdfBase64: base64 } }),
+        body: JSON.stringify({ action: "net_haritasi_cikar", apiKey, data: { dosyaBase64: base64, mediaType } }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -4028,7 +4029,7 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
     <div style={{ padding: 16, maxWidth: 640 }}>
       <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4, color:PURPLE }}>🎯 Net Haritası</div>
       <div style={{ fontSize: 12, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
-        Deneme sonuç belgesini (PDF) yükle — AI, ders ve kazanım bazında hangi konularda eksik olduğunu otomatik çıkarır. Deneme sekmesindeki ders-bazlı net takibi ayrı, bu konu-seviyesinde ek bir analiz.
+        Deneme sonuç belgesini (PDF ya da ekran görüntüsü) yükle — AI, ders ve kazanım bazında hangi konularda eksik olduğunu otomatik çıkarır. Deneme sekmesindeki ders-bazlı net takibi ayrı, bu konu-seviyesinde ek bir analiz.
       </div>
 
       {/* Öğrenci seçimi */}
@@ -4060,8 +4061,8 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
       {/* PDF yükleme */}
       {seciliAd && !taslak && (
         <label style={{ display:"block", width:"100%", padding:18, background:"#fff", border:`2px dashed ${PURPLE}`, borderRadius:12, textAlign:"center", color:PURPLE, fontWeight:700, cursor:"pointer", marginBottom:20, boxSizing:"border-box" }}>
-          {yukleniyor ? "⏳ PDF okunuyor, konu bazlı veri çıkarılıyor… (biraz sürebilir)" : "📄 Deneme Sonuç Belgesi Yükle (PDF)"}
-          <input type="file" accept="application/pdf" onChange={e => handlePdfSec(e.target.files?.[0])} style={{ display:"none" }} disabled={yukleniyor} />
+          {yukleniyor ? "⏳ Belge okunuyor, konu bazlı veri çıkarılıyor… (biraz sürebilir)" : "📄 Deneme Sonuç Belgesi Yükle (PDF ya da Ekran Görüntüsü)"}
+          <input type="file" accept="application/pdf,image/*" onChange={e => handlePdfSec(e.target.files?.[0])} style={{ display:"none" }} disabled={yukleniyor} />
         </label>
       )}
 
