@@ -1743,7 +1743,7 @@ function DegerlendirmeEkrani({ onTransfer, onClose, records, profiles, profiles2
       skorlar[d.key] = p !== null ? Math.round(p) : 3;
     });
     // Değerlendirme cevaplarını storage'a kaydet — handleScoresFromNotes kullanabilsin
-    const degKey = "deg-" + ogrenci.ad.toLowerCase().trim().replace(/\s+/g, "-");
+    const degKey = "deg-" + ogrenci.ad.toLocaleLowerCase("tr").trim().replace(/\s+/g, "-");
     window.storage.set(degKey, JSON.stringify({ skorlar, cevaplar, tarih: new Date().toLocaleDateString("tr-TR") })).catch(()=>{});
     onTransfer({ studentName: ogrenci.ad, className: ogrenci.sinif, scores: skorlar, analysis: analiz });
   }
@@ -1778,8 +1778,8 @@ function DegerlendirmeEkrani({ onTransfer, onClose, records, profiles, profiles2
                 {degOgrenciArama.trim().length >= 2 ? (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
                     {kayitliListesi.filter(o =>
-                      o.name.toLowerCase().includes(degOgrenciArama.toLowerCase()) ||
-                      o.className?.toLowerCase().includes(degOgrenciArama.toLowerCase()) ||
+                      o.name.toLocaleLowerCase("tr").includes(degOgrenciArama.toLocaleLowerCase("tr")) ||
+                      o.className?.toLocaleLowerCase("tr").includes(degOgrenciArama.toLocaleLowerCase("tr")) ||
                       o.numara?.includes(degOgrenciArama)
                     ).slice(0, 20).map(o => (
                       <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => { setOgrenci({ ad: o.name, sinif: o.className || "" }); setAktifOgrenci({ name: o.name, className: o.className || "" }); setDegOgrenciArama(""); }} style={{
@@ -2142,8 +2142,8 @@ function uid() { return Date.now().toString(36) + Math.random().toString(36).sli
 // sayılır. Numara taraflardan birinde yoksa ya da sınıf bilgisi tutmuyorsa,
 // eski isim+sınıf(+numara) eşleştirmesine geri dönülür.
 function pdrAyniOgrenci(ad1, sinif1, ad2, sinif2, no1, no2) {
-  const s1 = (sinif1 || "").toLowerCase().trim();
-  const s2 = (sinif2 || "").toLowerCase().trim();
+  const s1 = (sinif1 || "").toLocaleLowerCase("tr").trim();
+  const s2 = (sinif2 || "").toLocaleLowerCase("tr").trim();
   const n1 = (no1 || "").toString().trim();
   const n2 = (no2 || "").toString().trim();
 
@@ -2151,8 +2151,8 @@ function pdrAyniOgrenci(ad1, sinif1, ad2, sinif2, no1, no2) {
   // olsa bile aynı öğrencidir.
   if (s1 && s2 && s1 === s2 && n1 && n2 && n1 === n2) return true;
 
-  const a1 = (ad1 || "").toLowerCase().trim();
-  const a2 = (ad2 || "").toLowerCase().trim();
+  const a1 = (ad1 || "").toLocaleLowerCase("tr").trim();
+  const a2 = (ad2 || "").toLocaleLowerCase("tr").trim();
   if (!a1 || a1 !== a2) return false;
   if (!s1 || !s2) return true; // sınıf bilgisi eksikse eski davranış korunur
   if (s1 !== s2) return false;
@@ -3249,8 +3249,8 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
             {ogrenciArama.trim().length >= 2 ? (
               <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
                 {kayitliListesi.filter(o =>
-                  o.name.toLowerCase().includes(ogrenciArama.toLowerCase()) ||
-                  o.className?.toLowerCase().includes(ogrenciArama.toLowerCase()) ||
+                  o.name.toLocaleLowerCase("tr").includes(ogrenciArama.toLocaleLowerCase("tr")) ||
+                  o.className?.toLocaleLowerCase("tr").includes(ogrenciArama.toLocaleLowerCase("tr")) ||
                   o.numara?.includes(ogrenciArama)
                 ).slice(0,20).map(o => (
                   <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => { setSeciliAd(o.name); setAktifOgrenci({ name:o.name, className:o.className||"" }); setOgrenciArama(""); }} style={{
@@ -3477,7 +3477,7 @@ function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mud
       {/* Öğrenci seç */}
       <input placeholder="Öğrenci ara..." value={aramaMetni} onChange={e=>setAramaMetni(e.target.value)} style={{...inp, marginBottom:8}} />
       <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:14}}>
-        {kayitliListesi.filter(o=>o.name.toLowerCase().includes(aramaMetni.toLowerCase())).slice(0,15).map(o=>{
+        {kayitliListesi.filter(o=>o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr"))).slice(0,15).map(o=>{
           const s=seciliAd===o.name;
           return <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={()=>{setSeciliAd(o.name); if(setAktifOgrenci) setAktifOgrenci({ name:o.name, className:o.className||"" });}} style={{padding:"4px 10px",borderRadius:16,border:`2px solid ${s?ACCENT:BORDER}`,background:s?ACCENT_LIGHT:CARD,color:s?ACCENT:MUTED,fontSize:11,fontWeight:s?700:500,cursor:"pointer"}}>{o.name}</button>;
         })}
@@ -3574,6 +3574,20 @@ function pdrKalanGunHesapla(tarihStr) {
   const hedef = new Date(hedefMs); hedef.setHours(0,0,0,0);
   return Math.round((hedef.getTime() - bugun.getTime()) / (1000*60*60*24));
 }
+// RAM randevusu için "hatırlatma tarihi" saklanmış (dondurulmuş) bir değer
+// değil, HER SEFERİNDE bu fonksiyonla yeniden hesaplanır — böylece "Bugün"
+// kuralı (randevuya 1 haftadan az kalmışsa hemen hatırlat) her zaman güncel
+// kalır, eski kayıtlarda bile. Genel (RAM olmayan) hatırlatmalarda h.tarih
+// aynen kullanılır.
+function pdrHatirlatmaEfektifTarih(h) {
+  if (h.tur !== "ram" || !h.ramTarihi) return h.tarih;
+  const ms = pdrTarihMs(h.ramTarihi);
+  if (!ms) return h.tarih;
+  const d = new Date(ms);
+  d.setDate(d.getDate() - 7);
+  const bugun = new Date(); bugun.setHours(0,0,0,0);
+  return d.getTime() < bugun.getTime() ? pdrTarihFormatla(bugun) : pdrTarihFormatla(d);
+}
 function pdrHatirlatmaKategori(kalanGun) {
   if (kalanGun === null) return "sonra";
   if (kalanGun < 0) return "gecikmis";
@@ -3597,6 +3611,16 @@ function pdrTarihFormatla(d) {
 // bulamazsa null döner (mevcut tarih değişmeden kalır).
 const PDR_AYLAR = ["ocak","şubat","mart","nisan","mayıs","haziran","temmuz","ağustos","eylül","ekim","kasım","aralık"];
 const PDR_GUNLER = {"pazar":0,"pazartesi":1,"salı":2,"çarşamba":3,"perşembe":4,"cuma":5,"cumartesi":6};
+// "iki hafta sonra", "üç gün sonra" gibi yazıyla yazılan sayıları da rakama
+// çevirebilmek için — sadece rakam yazıldığında değil, yazıyla yazıldığında da
+// tarih algılama çalışsın diye.
+const PDR_SAYI_KELIME = {"bir":1,"iki":2,"üç":3,"dört":4,"beş":5,"altı":6,"yedi":7,"sekiz":8,"dokuz":9,"on":10,"on bir":11,"on iki":12};
+function pdrSayiCoz(s) {
+  if (!s) return null;
+  const temiz = s.trim().toLocaleLowerCase("tr");
+  if (/^\d+$/.test(temiz)) return parseInt(temiz);
+  return PDR_SAYI_KELIME[temiz] ?? null;
+}
 // Bugünden itibaren, verilen haftanın günü (0=Pazar..6=Cumartesi) için bir
 // sonraki gerçekleşmeyi bulur, sonra haftaOffset kadar (0=bu hafta/en yakın,
 // 1=gelecek hafta, N=N hafta sonra) ek hafta ekler.
@@ -3610,27 +3634,30 @@ function pdrGunOffsetTarih(gunIndex, haftaOffset) {
 }
 function pdrMetindenTarihCikar(metin) {
   if (!metin) return null;
-  const t = metin.toLowerCase();
+  const t = metin.toLocaleLowerCase("tr");
   if (/\bbugün\b/.test(t)) return pdrTarihFormatla(new Date());
   if (/\byarın\b/.test(t)) {
     const d = new Date(); d.setDate(d.getDate()+1);
     return pdrTarihFormatla(d);
   }
-  // Gün ismi + hafta niteleyicisi ("2 hafta sonra çarşamba" gibi özel
-  // ifadeler, genel "X hafta sonra" kuralından ÖNCE kontrol edilmeli)
+  // Gün ismi + hafta niteleyicisi ("2 hafta sonra çarşamba" / "iki hafta sonra
+  // çarşamba" gibi özel ifadeler, genel "X hafta sonra" kuralından ÖNCE
+  // kontrol edilmeli). Sayı kısmı hem rakam hem yazıyla olabilir.
   const gunAdlari = Object.keys(PDR_GUNLER).join("|");
-  let gm = t.match(new RegExp(`(\\d+)\\s*hafta\\s*sonra\\s*(${gunAdlari})`));
-  if (gm) return pdrGunOffsetTarih(PDR_GUNLER[gm[2]], parseInt(gm[1]));
+  const sayiAdlari = Object.keys(PDR_SAYI_KELIME).join("|");
+  const sayiPattern = `(\\d+|${sayiAdlari})`;
+  let gm = t.match(new RegExp(`${sayiPattern}\\s*hafta\\s*sonra\\s*(${gunAdlari})`));
+  if (gm) { const n = pdrSayiCoz(gm[1]); if (n) return pdrGunOffsetTarih(PDR_GUNLER[gm[2]], n); }
   gm = t.match(new RegExp(`(gelecek|önümüzdeki|haftaya)\\s*hafta?\\s*(${gunAdlari})`));
   if (gm) return pdrGunOffsetTarih(PDR_GUNLER[gm[2]], 1);
   gm = t.match(new RegExp(`bu\\s*hafta\\s*(${gunAdlari})`));
   if (gm) return pdrGunOffsetTarih(PDR_GUNLER[gm[1]], 0);
   gm = t.match(new RegExp(`(${gunAdlari})\\s*günü`)) || t.match(new RegExp(`\\b(${gunAdlari})\\b`));
   if (gm) return pdrGunOffsetTarih(PDR_GUNLER[gm[1]], 0);
-  let m = t.match(/(\d+)\s*gün\s*sonra/);
-  if (m) { const d = new Date(); d.setDate(d.getDate()+parseInt(m[1])); return pdrTarihFormatla(d); }
-  m = t.match(/(\d+)\s*hafta\s*sonra/);
-  if (m) { const d = new Date(); d.setDate(d.getDate()+parseInt(m[1])*7); return pdrTarihFormatla(d); }
+  let m = t.match(new RegExp(`${sayiPattern}\\s*gün\\s*sonra`));
+  if (m) { const n = pdrSayiCoz(m[1]); if (n) { const d = new Date(); d.setDate(d.getDate()+n); return pdrTarihFormatla(d); } }
+  m = t.match(new RegExp(`${sayiPattern}\\s*hafta\\s*sonra`));
+  if (m) { const n = pdrSayiCoz(m[1]); if (n) { const d = new Date(); d.setDate(d.getDate()+n*7); return pdrTarihFormatla(d); } }
   for (let i = 0; i < PDR_AYLAR.length; i++) {
     const ay = PDR_AYLAR[i];
     const re1 = new RegExp(`(\\d{1,2})\\s*${ay}`, "i");       // "10 ağustos"
@@ -3685,11 +3712,11 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
 
   let aktifler = (hatirlatmalar||[]).filter(h => !h.tamamlandi);
   if (filtreMetni.trim()) {
-    const f = filtreMetni.toLowerCase();
-    aktifler = aktifler.filter(h => h.studentName?.toLowerCase().includes(f) || h.className?.toLowerCase().includes(f));
+    const f = filtreMetni.toLocaleLowerCase("tr");
+    aktifler = aktifler.filter(h => h.studentName?.toLocaleLowerCase("tr").includes(f) || h.className?.toLocaleLowerCase("tr").includes(f));
   }
   // Her hatırlatmaya kalan gün + kategori ekleyip, kategori içinde tarihe göre sırala
-  const zenginlestirilmis = aktifler.map(h => ({ ...h, _kalanGun: pdrKalanGunHesapla(h.tarih), _kategori: pdrHatirlatmaKategori(pdrKalanGunHesapla(h.tarih)) }))
+  const zenginlestirilmis = aktifler.map(h => { const eTarih = pdrHatirlatmaEfektifTarih(h); return { ...h, _efektifTarih: eTarih, _kalanGun: pdrKalanGunHesapla(eTarih), _kategori: pdrHatirlatmaKategori(pdrKalanGunHesapla(eTarih)) }; })
     .sort((a,b) => pdrTarihMs(a.tarih) - pdrTarihMs(b.tarih));
   const gruplar = HATIRLATMA_KATEGORILERI.map(k => ({ ...k, items: zenginlestirilmis.filter(h => h._kategori === k.key) })).filter(g => g.items.length > 0);
   const tamamlananlar = (hatirlatmalar||[]).filter(h => h.tamamlandi);
@@ -3795,8 +3822,8 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
               {ogrenciArama.trim().length >= 2 && (
                 <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
                   {kayitliListesi.filter(o =>
-                    o.name.toLowerCase().includes(ogrenciArama.toLowerCase()) ||
-                    o.className?.toLowerCase().includes(ogrenciArama.toLowerCase())
+                    o.name.toLocaleLowerCase("tr").includes(ogrenciArama.toLocaleLowerCase("tr")) ||
+                    o.className?.toLocaleLowerCase("tr").includes(ogrenciArama.toLocaleLowerCase("tr"))
                   ).slice(0,20).map(o => (
                     <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => { setSeciliAd(o.name); setAktifOgrenci({ name:o.name, className:o.className||"" }); setOgrenciArama(""); }} style={{
                       padding:"5px 12px", borderRadius:20, border:`2px solid ${BORDER}`, background:"#fff", color:MUTED, fontSize:12, fontWeight:500, cursor:"pointer"
@@ -3867,7 +3894,7 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
                         </div>
                         <div style={{ fontSize:13, color:TEXT, lineHeight:1.4 }}>{h.metin}</div>
                         {h.tur === "ram" && h.ramTarihi && <div style={{ fontSize:11, color:MOR, marginTop:2 }}>🏥 Randevu: {h.ramTarihi}</div>}
-                        <div style={{ fontSize:11, color:g.renk, marginTop:3, fontWeight:700 }}>📅 {h.tarih} · {pdrKalanGunMetni(h._kalanGun)}</div>
+                        <div style={{ fontSize:11, color:g.renk, marginTop:3, fontWeight:700 }}>📅 {h._efektifTarih} · {pdrKalanGunMetni(h._kalanGun)}</div>
                       </div>
                       <div style={{ display:"flex", flexDirection:"column", gap:4, flexShrink:0 }}>
                         <button onClick={()=>handleTamamlandi(h.id)} style={{ background:"#1A8C5B", color:"#fff", border:"none", borderRadius:6, padding:"4px 8px", fontSize:10, fontWeight:700, cursor:"pointer" }}>✓ Tamam</button>
@@ -3931,7 +3958,7 @@ function SevkTakipEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, sevkle
     if (gosterFiltre === "Bekliyor") return s.sonucBekleniyor;
     if (gosterFiltre === "Tamamlandı") return !s.sonucBekleniyor;
     return true;
-  }).filter(s => !aramaMetni || s.studentName?.toLowerCase().includes(aramaMetni.toLowerCase()));
+  }).filter(s => !aramaMetni || s.studentName?.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")));
 
   const sevkYerleri = ["RAM","Psikolog","Psikiyatrist","Özel Eğitim","Sosyal Hizmetler","Rehberlik Araştırma","Diğer"];
 
@@ -3948,7 +3975,7 @@ function SevkTakipEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, sevkle
         {/* Öğrenci seç */}
         <label style={lbl}>ÖĞRENCİ</label>
         <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
-          {kayitliListesi.filter(o=>o.name.toLowerCase().includes(aramaMetni.toLowerCase())).slice(0,12).map(o=>{
+          {kayitliListesi.filter(o=>o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr"))).slice(0,12).map(o=>{
             const s=form.studentName===o.name;
             return <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={()=>{setForm(f=>({...f,studentName:o.name,className:o.className||""})); if(setAktifOgrenci) setAktifOgrenci({ name:o.name, className:o.className||"" });}} style={{padding:"4px 10px",borderRadius:16,border:`2px solid ${s?ACCENT:BORDER}`,background:s?ACCENT_LIGHT:CARD,color:s?ACCENT:MUTED,fontSize:11,fontWeight:s?700:500,cursor:"pointer"}}>{o.name}</button>;
           })}
@@ -4032,7 +4059,7 @@ function MEBRaporEkrani({ records, profiles, riskListesi, sevkler, kayitliListes
   const toplamGorusme = records.length;
   const ogrenciGorusme = records.filter(r => (r.meetingType||"Öğrenci")==="Öğrenci").length;
   const veliGorusme = records.filter(r => r.meetingType==="Veli").length;
-  const benzersizOgrenci = new Set(records.map(r => r.studentName?.toLowerCase().trim())).size;
+  const benzersizOgrenci = new Set(records.map(r => r.studentName?.toLocaleLowerCase("tr").trim())).size;
   const aktifRisk = riskListesi.filter(r => !r.kapandi).length;
   const tamamlananSevk = sevkler.filter(s => !s.sonucBekleniyor).length;
   const bekleyenSevk = sevkler.filter(s => s.sonucBekleniyor).length;
@@ -4186,7 +4213,7 @@ function VeliMektubu({ kayitliListesi, aktifOgrenci, records }) {
 
       <input placeholder="Öğrenci ara..." value={aramaMetni} onChange={e=>setAramaMetni(e.target.value)} style={{width:"100%",padding:"9px 11px",border:`1px solid ${BORDER}`,borderRadius:9,fontSize:13,boxSizing:"border-box",marginBottom:8}} />
       <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:12}}>
-        {kayitliListesi.filter(o=>o.name.toLowerCase().includes(aramaMetni.toLowerCase())).slice(0,12).map(o=>{
+        {kayitliListesi.filter(o=>o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr"))).slice(0,12).map(o=>{
           const s=seciliAd===o.name;
           return <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={()=>setSeciliAd(o.name)} style={{padding:"4px 10px",borderRadius:16,border:`2px solid ${s?ACCENT:BORDER}`,background:s?ACCENT_LIGHT:CARD,color:s?ACCENT:MUTED,fontSize:11,fontWeight:s?700:500,cursor:"pointer"}}>{o.name}</button>;
         })}
@@ -5484,19 +5511,19 @@ function OgrenciYonetim({
   }
 
   async function handleOgrenciSil(studentName) {
-    const ad = studentName.toLowerCase().trim();
-    const updOgr = ogrenciler.filter(o => o.studentName.toLowerCase().trim() !== ad);
+    const ad = studentName.toLocaleLowerCase("tr").trim();
+    const updOgr = ogrenciler.filter(o => o.studentName.toLocaleLowerCase("tr").trim() !== ad);
     setOgrenciler(updOgr); await saveOgrenciler(updOgr);
-    const updRec = records.filter(r => r.studentName?.toLowerCase().trim() !== ad);
+    const updRec = records.filter(r => r.studentName?.toLocaleLowerCase("tr").trim() !== ad);
     setRecords(updRec); await saveRecords(updRec);
-    const updP1 = profiles.filter(p => p.studentName?.toLowerCase().trim() !== ad);
+    const updP1 = profiles.filter(p => p.studentName?.toLocaleLowerCase("tr").trim() !== ad);
     setProfiles(updP1); await saveProfiles(updP1);
-    const updP2 = profiles2.filter(p => p.studentName?.toLowerCase().trim() !== ad);
+    const updP2 = profiles2.filter(p => p.studentName?.toLocaleLowerCase("tr").trim() !== ad);
     setProfiles2(updP2); await saveProfiles2(updP2);
     const updDen = { ...denemeler };
-    Object.keys(updDen).forEach(k => { if (k.toLowerCase().trim() === ad) delete updDen[k]; });
+    Object.keys(updDen).forEach(k => { if (k.toLocaleLowerCase("tr").trim() === ad) delete updDen[k]; });
     setDenemeler(updDen); await saveDenemeler(updDen);
-    const updRisk = riskListesi.filter(r => r.studentName?.toLowerCase().trim() !== ad);
+    const updRisk = riskListesi.filter(r => r.studentName?.toLocaleLowerCase("tr").trim() !== ad);
     setRiskListesi(updRisk); await saveRiskListesi(updRisk);
     if (setAktifOgrenci) setAktifOgrenci({ name: "", className: "" });
     setSeciliOgrenci(null);
@@ -5512,8 +5539,8 @@ function OgrenciYonetim({
 
   const filtreliListe = useMemo(() => tumOgrenciler.filter(o =>
     !aramaDebounce ||
-    o.studentName?.toLowerCase().includes(aramaDebounce.toLowerCase()) ||
-    o.className?.toLowerCase().includes(aramaDebounce.toLowerCase()) ||
+    o.studentName?.toLocaleLowerCase("tr").includes(aramaDebounce.toLocaleLowerCase("tr")) ||
+    o.className?.toLocaleLowerCase("tr").includes(aramaDebounce.toLocaleLowerCase("tr")) ||
     o.numara?.includes(aramaDebounce)
   ), [tumOgrenciler, aramaDebounce]);
 
@@ -6232,8 +6259,8 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
   const [kaydedildi, setKaydedildi] = useState(false);
 
   const filtreliListe = kayitliListesi.filter(o =>
-    o.name.toLowerCase().includes(aramaMetni.toLowerCase()) ||
-    o.className?.toLowerCase().includes(aramaMetni.toLowerCase()) ||
+    o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) ||
+    o.className?.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) ||
     o.numara?.includes(aramaMetni)
   );
   const seciliOgrenciSinif = kayitliListesi.find(o => o.name === seciliOgrenci)?.className || aktifOgrenci?.className || "";
@@ -6807,12 +6834,12 @@ function ProfilMerkez({
   }, [seciliAd, profiles, profiles2]);
 
   const filtreliListe = kayitliListesi.filter(o =>
-    o.name.toLowerCase().includes(aramaMetni.toLowerCase()) || o.className?.toLowerCase().includes(aramaMetni.toLowerCase())
+    o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) || o.className?.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr"))
   );
 
   // AI: görüşme notlarından puan
   async function handleScoresFromNotes() {
-    const ad = seciliAd.toLowerCase().trim();
+    const ad = seciliAd.toLocaleLowerCase("tr").trim();
     const recs = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, seciliAd, seciliSinif, r.numara, seciliNumara) && r.summary);
 
     // Değerlendirme sorularından mevcut puanları oku
@@ -6895,7 +6922,7 @@ function ProfilMerkez({
   // Kaydet
   async function handleKaydet() {
     if (!seciliAd.trim()) return;
-    const adKey = seciliAd.toLowerCase().trim();
+    const adKey = seciliAd.toLocaleLowerCase("tr").trim();
     // Stale closure sorununu önle — anlık bul
     const curP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif, p.numara, seciliNumara));
     const curP2 = profiles2.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif, p.numara, seciliNumara));
@@ -7430,9 +7457,9 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
   function subeIstatistik(sube) {
     const ogr = yilOgrencileri.filter(o => (o.className||"").toUpperCase().replace(" ","") === sube.replace("-","").toUpperCase() ||
       (o.className||"").toUpperCase() === sube.toUpperCase());
-    const ogrAdlar = ogr.map(o => o.studentName.toLowerCase().trim());
-    const gorusmeler = records.filter(r => ogrAdlar.includes(r.studentName?.toLowerCase().trim()) && ogr.some(o => pdrAyniOgrenci(o.studentName, o.className, r.studentName, r.className)));
-    const riskler = riskListesi.filter(r => ogrAdlar.includes(r.studentName?.toLowerCase().trim()) && !r.kapandi && ogr.some(o => pdrAyniOgrenci(o.studentName, o.className, r.studentName, r.className)));
+    const ogrAdlar = ogr.map(o => o.studentName.toLocaleLowerCase("tr").trim());
+    const gorusmeler = records.filter(r => ogrAdlar.includes(r.studentName?.toLocaleLowerCase("tr").trim()) && ogr.some(o => pdrAyniOgrenci(o.studentName, o.className, r.studentName, r.className)));
+    const riskler = riskListesi.filter(r => ogrAdlar.includes(r.studentName?.toLocaleLowerCase("tr").trim()) && !r.kapandi && ogr.some(o => pdrAyniOgrenci(o.studentName, o.className, r.studentName, r.className)));
     const riskDagilim = {};
     RISK_TURLERI.forEach(t => {
       riskDagilim[t] = riskler.filter(r => r.riskTuru === t).length;
@@ -8295,7 +8322,7 @@ export default function App() {
   async function handleRiskEkle() {
     if (!riskForm.studentName.trim()) return;
     setRiskAiLoading(true);
-    const ad = riskForm.studentName.toLowerCase().trim();
+    const ad = riskForm.studentName.toLocaleLowerCase("tr").trim();
     const ogrGorusmeler = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, riskForm.studentName, riskForm.className, r.numara, riskForm.numara));
     const ogrP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, riskForm.studentName, riskForm.className, p.numara, riskForm.numara));
     // Deneme özeti — öğrenci listesi rozetiyle aynı hesaplama mantığı (8. sınıf
@@ -8326,7 +8353,7 @@ export default function App() {
     const turMatch = aiAnaliz.match(/RİSK TÜRÜ:\s*(.+)/);
     if (turMatch) {
       const bulunan = turMatch[1].trim().replace(/-/g, " / ");
-      const eslesen = riskTurleriListesi.find(t => t.toLowerCase().replace(/-/g," / ") === bulunan.toLowerCase() || bulunan.toLowerCase().includes(t.toLowerCase().split("/")[0].trim().toLowerCase()));
+      const eslesen = riskTurleriListesi.find(t => t.toLocaleLowerCase("tr").replace(/-/g," / ") === bulunan.toLocaleLowerCase("tr") || bulunan.toLocaleLowerCase("tr").includes(t.toLocaleLowerCase("tr").split("/")[0].trim().toLocaleLowerCase("tr")));
       if (eslesen) aiRiskTuru = eslesen;
       else aiRiskTuru = bulunan.split("\n")[0].trim();
     }
@@ -8340,7 +8367,7 @@ export default function App() {
     if (ikincilMatch) {
       const bulunanIkincil = ikincilMatch[1].trim().replace(/-/g, " / ");
       if (!/^yok/i.test(bulunanIkincil)) {
-        const eslesenIkincil = riskTurleriListesi.find(t => t.toLowerCase().replace(/-/g," / ") === bulunanIkincil.toLowerCase() || bulunanIkincil.toLowerCase().includes(t.toLowerCase().split("/")[0].trim().toLowerCase()));
+        const eslesenIkincil = riskTurleriListesi.find(t => t.toLocaleLowerCase("tr").replace(/-/g," / ") === bulunanIkincil.toLocaleLowerCase("tr") || bulunanIkincil.toLocaleLowerCase("tr").includes(t.toLocaleLowerCase("tr").split("/")[0].trim().toLocaleLowerCase("tr")));
         if (eslesenIkincil && eslesenIkincil !== aiRiskTuru) ikincilTur = eslesenIkincil;
       }
     }
@@ -8351,7 +8378,7 @@ export default function App() {
     let teknolojiBagimliligi = false;
     let teknolojiGerekce = "";
     const teknoMatch = aiAnaliz.match(/BELİRTİ:\s*(Var|Yok|Yetersiz Veri)/i);
-    if (teknoMatch && teknoMatch[1].toLowerCase() === "var") {
+    if (teknoMatch && teknoMatch[1].toLocaleLowerCase("tr") === "var") {
       teknolojiBagimliligi = true;
       const gerekceMatch = aiAnaliz.match(/GEREKÇE:\s*(.+)/);
       if (gerekceMatch) teknolojiGerekce = gerekceMatch[1].split("\n")[0].trim();
@@ -8373,7 +8400,7 @@ export default function App() {
   }
 
   async function handleDenemeAnaliz(studentName, className, numara) {
-    const ad = studentName.toLowerCase().trim();
+    const ad = studentName.toLocaleLowerCase("tr").trim();
     const gorusmeler = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, studentName, className, r.numara, numara));
     const ogrDeneme = pdrSozlukOku(denemeler, studentName, className, numara) || {};
     const girilen = Object.entries(ogrDeneme).sort((a,b)=>a[0]-b[0]).map(([no,nets])=>({
@@ -8447,7 +8474,7 @@ export default function App() {
   }
 
   const filtered = records.filter(r =>
-    r.studentName.toLowerCase().includes(search.toLowerCase()) || r.className?.toLowerCase().includes(search.toLowerCase())
+    r.studentName.toLocaleLowerCase("tr").includes(search.toLocaleLowerCase("tr")) || r.className?.toLocaleLowerCase("tr").includes(search.toLocaleLowerCase("tr"))
   );
   const byStudent = filtered.reduce((acc, r) => { acc[r.studentName] = acc[r.studentName] || []; acc[r.studentName].push(r); return acc; }, {});
   const byDate = filtered.reduce((acc, r) => { acc[r.date] = acc[r.date] || []; acc[r.date].push(r); return acc; }, {});
@@ -8458,7 +8485,7 @@ export default function App() {
   const uniqueStudents = new Set(studentRecs.map(r => r.studentName)).size;
   const uniqueParents = new Set(veliRecs.map(r => r.studentName)).size;
   const bekleyenSevk = sevkler.filter(s => s.sonucBekleniyor).length;
-  const bugunkuHatirlatma = (hatirlatmalar||[]).filter(h => !h.tamamlandi && pdrKalanGunHesapla(h.tarih) <= 0).length;
+  const bugunkuHatirlatma = (hatirlatmalar||[]).filter(h => !h.tamamlandi && pdrKalanGunHesapla(pdrHatirlatmaEfektifTarih(h)) <= 0).length;
   const tickerItems = [
     `📊 ${totalRecs} görüşme kaydı`,
     `👥 ${uniqueStudents} farklı öğrenci`,
@@ -8484,18 +8511,18 @@ export default function App() {
     const map = new Map();
     // 1) Öğrenci listesi (ogrenciler) esas kaynak — numara varsa üçlü anahtar (isim+sınıf+numara) kullanılır
     ogrenciler.forEach(o => {
-      const key = pdrOgrAnahtar(o.studentName.toLowerCase().trim(), (o.className||"").toLowerCase().trim(), o.numara);
+      const key = pdrOgrAnahtar(o.studentName.toLocaleLowerCase("tr").trim(), (o.className||"").toLocaleLowerCase("tr").trim(), o.numara);
       map.set(key, { name: o.studentName, className: o.className || "", numara: o.numara || "" });
     });
     // 2) Sadece ogrenciler listesinde karşılığı olmayan (örn. sadece görüşme notuyla var olan
     // "yolcu" kayıtlar) isim+sınıf ile eklenir — böylece tek bir gerçek öğrenci, numarasız
     // eski bir kayıt yüzünden listede yanlışlıkla ikiye bölünmüş görünmez.
     const varMiIsimSinif = (ad, sinif) => ogrenciler.some(o =>
-      (o.studentName||"").toLowerCase().trim() === (ad||"").toLowerCase().trim() &&
-      (o.className||"").toLowerCase().trim() === (sinif||"").toLowerCase().trim());
+      (o.studentName||"").toLocaleLowerCase("tr").trim() === (ad||"").toLocaleLowerCase("tr").trim() &&
+      (o.className||"").toLocaleLowerCase("tr").trim() === (sinif||"").toLocaleLowerCase("tr").trim());
     [...records.filter(r => (r.meetingType || "Öğrenci") === "Öğrenci"), ...profiles, ...profiles2].forEach(r => {
       if (varMiIsimSinif(r.studentName, r.className)) return;
-      const key = pdrOgrAnahtar(r.studentName.toLowerCase().trim(), (r.className||"").toLowerCase().trim(), r.numara);
+      const key = pdrOgrAnahtar(r.studentName.toLocaleLowerCase("tr").trim(), (r.className||"").toLocaleLowerCase("tr").trim(), r.numara);
       if (!map.has(key)) map.set(key, { name: r.studentName, className: r.className || "", numara: r.numara || "" });
     });
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, "tr"));
@@ -8574,14 +8601,14 @@ export default function App() {
 
       {/* Bugünkü/gecikmiş hatırlatmalar — her ekranda görünür, kaçırılmasın diye */}
       {(() => {
-        const oncelikliHatirlatmalar = (hatirlatmalar||[]).filter(h => !h.tamamlandi && pdrKalanGunHesapla(h.tarih) <= 0)
+        const oncelikliHatirlatmalar = (hatirlatmalar||[]).filter(h => !h.tamamlandi && pdrKalanGunHesapla(pdrHatirlatmaEfektifTarih(h)) <= 0)
           .sort((a,b) => pdrTarihMs(a.tarih) - pdrTarihMs(b.tarih));
         if (oncelikliHatirlatmalar.length === 0 || tab === "hatirlatici") return null;
         return (
           <div onClick={() => setTab("hatirlatici")} style={{ background: PURPLE, padding: "8px 16px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", flexWrap: "wrap" }}>
             <span style={{ fontSize: 13 }}>🔔</span>
             <span style={{ color: "#fff", fontSize: 12, fontWeight: 700, flex: 1 }}>
-              {oncelikliHatirlatmalar.slice(0, 3).map(h => `${h.tur === "ram" ? "🏥 RAM — " : ""}${h.studentName} (${pdrKalanGunMetni(pdrKalanGunHesapla(h.tarih))})`).join(" · ")}
+              {oncelikliHatirlatmalar.slice(0, 3).map(h => `${h.tur === "ram" ? "🏥 RAM — " : ""}${h.studentName} (${pdrKalanGunMetni(pdrKalanGunHesapla(pdrHatirlatmaEfektifTarih(h)))})`).join(" · ")}
               {oncelikliHatirlatmalar.length > 3 && ` +${oncelikliHatirlatmalar.length - 3} daha`}
             </span>
             <span style={{ color: "#E9D8FD", fontSize: 11, fontWeight: 700, textDecoration: "underline", flexShrink: 0 }}>Hatırlatıcı'ya git →</span>
@@ -8630,8 +8657,8 @@ export default function App() {
                     {notOgrenciArama.trim().length >= 2 ? (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom:8 }}>
                         {kayitliListesi.filter(o =>
-                          o.name.toLowerCase().includes(notOgrenciArama.toLowerCase()) ||
-                          o.className?.toLowerCase().includes(notOgrenciArama.toLowerCase()) ||
+                          o.name.toLocaleLowerCase("tr").includes(notOgrenciArama.toLocaleLowerCase("tr")) ||
+                          o.className?.toLocaleLowerCase("tr").includes(notOgrenciArama.toLocaleLowerCase("tr")) ||
                           o.numara?.includes(notOgrenciArama)
                         ).slice(0, 20).map(o => (
                           <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => { setForm(f=>({...f, studentName:o.name, className:o.className||"", numara:o.numara||""})); setAktifOgrenci({ name:o.name, className:o.className||"" }); setNotOgrenciArama(""); }} style={{ padding:"5px 10px", borderRadius:16, border:`2px solid ${BORDER}`, background:CARD, color:MUTED, fontSize:12, fontWeight:500, cursor:"pointer" }}>{o.name}</button>
@@ -9183,8 +9210,8 @@ export default function App() {
                   {riskOgrenciArama.trim().length >= 2 ? (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {kayitliListesi.filter(o =>
-                        o.name.toLowerCase().includes(riskOgrenciArama.toLowerCase()) ||
-                        o.className?.toLowerCase().includes(riskOgrenciArama.toLowerCase()) ||
+                        o.name.toLocaleLowerCase("tr").includes(riskOgrenciArama.toLocaleLowerCase("tr")) ||
+                        o.className?.toLocaleLowerCase("tr").includes(riskOgrenciArama.toLocaleLowerCase("tr")) ||
                         o.numara?.includes(riskOgrenciArama)
                       ).slice(0, 20).map(o => {
                         const s = riskForm.studentName === o.name;
