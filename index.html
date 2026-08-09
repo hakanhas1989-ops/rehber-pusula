@@ -3728,16 +3728,21 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
   // veriyorsa), "randevu - 7 gün" geçmişte kalır ve yanıltıcı şekilde
   // "gecikmiş" görünür — bu durumda hatırlatmayı doğrudan BUGÜN'e ayarlıyoruz,
   // böylece hemen ve net şekilde öne çıkıyor.
+  // NOT: Bu alan hem "GG.AA.YYYY" hem "5 gün sonra"/"gelecek hafta salı" gibi
+  // doğal dil ifadelerini kabul eder — geçerli bir tarih bulunursa GG.AA.YYYY
+  // formatına çevrilip öyle saklanır (aksi halde tarih hesaplaması bozulur).
   function handleRamTarihiDegis(v) {
-    const ms = pdrTarihMs(v);
+    const ms = pdrTarihMs(v) || pdrTarihMs(pdrMetindenTarihCikar(v));
     let hatirlatmaTarihi = form.tarih;
+    let cozulenRamTarihi = v;
     if (ms) {
+      cozulenRamTarihi = pdrTarihFormatla(new Date(ms));
       const d = new Date(ms);
       d.setDate(d.getDate() - 7);
       const bugun = new Date(); bugun.setHours(0,0,0,0);
       hatirlatmaTarihi = d.getTime() < bugun.getTime() ? pdrTarihFormatla(bugun) : pdrTarihFormatla(d);
     }
-    setForm(f => ({ ...f, ramTarihi: v, tarih: hatirlatmaTarihi }));
+    setForm(f => ({ ...f, ramTarihi: cozulenRamTarihi, tarih: hatirlatmaTarihi }));
   }
 
   async function handleKaydet() {
@@ -3843,7 +3848,7 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
           {form.tur === "ram" && (
             <>
               <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>RAM RANDEVU TARİHİ</label>
-              <input type="text" placeholder="GG.AA.YYYY" value={form.ramTarihi} onChange={e=>handleRamTarihiDegis(e.target.value)} style={{...inp, marginBottom:4}} />
+              <input type="text" placeholder="GG.AA.YYYY ya da '5 gün sonra', 'gelecek hafta salı'" value={form.ramTarihi} onChange={e=>handleRamTarihiDegis(e.target.value)} style={{...inp, marginBottom:4}} />
               <div style={{ fontSize:10, color:MOR, marginBottom:10, fontWeight:600 }}>💡 Form hazırlığı için, randevudan 1 hafta önce otomatik hatırlatılacaksın.</div>
             </>
           )}
