@@ -3951,6 +3951,8 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
   const [yukleniyor, setYukleniyor] = useState(false);
   const [taslak, setTaslak] = useState(null);
   const [detayAcikId, setDetayAcikId] = useState(null);
+  const [tekrarListesi, setTekrarListesi] = useState(null);
+  const [tekrarYukleniyor, setTekrarYukleniyor] = useState(false);
 
   useEffect(() => {
     if (aktifOgrenci?.name) setSeciliAd(aktifOgrenci.name);
@@ -4021,6 +4023,53 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
     const guncel = (netHaritasiKayitlari||[]).filter(k => k.id !== id);
     setNetHaritasiKayitlari(guncel);
     await saveNetHaritasi(guncel);
+  }
+
+  // Öğrencinin BİRDEN FAZLA Net Haritası kaydını (deneme belgesi) tek bir
+  // kazanım-bazlı özete indirger — hangi kazanım kaç kez sorulmuş, kaç kez
+  // yanlış yapılmış, en son ne durumdaymış. AI'a ham PDF değil bu özet
+  // gönderilir; AI böylece TEKRARLILIĞA dayalı bir öncelik listesi çıkarabilir.
+  function konuOzetiOlustur() {
+    const map = {};
+    const siraliKayitlar = [...ogrKayitlar].sort((a,b) => pdrTarihMs(a.tarih) - pdrTarihMs(b.tarih));
+    siraliKayitlar.forEach(kayit => {
+      (kayit.dersler||[]).forEach(ders => {
+        (ders.konular||[]).forEach(k => {
+          const key = ders.ders + "|||" + k.kazanim;
+          if (!map[key]) map[key] = { ders: ders.ders, kazanim: k.kazanim, kezToplam:0, kezYanlis:0, sonBasari:null, sonTarih:null };
+          map[key].kezToplam++;
+          if (k.yanlis > 0) map[key].kezYanlis++;
+          map[key].sonBasari = k.basari;
+          map[key].sonTarih = kayit.tarih;
+        });
+      });
+    });
+    return Object.values(map)
+      .sort((a,b) => b.kezYanlis - a.kezYanlis)
+      .map(x => `${x.ders} | ${x.kazanim} | ${x.kezToplam} denemede soruldu | ${x.kezYanlis} kez yanlış | son durum: %${x.sonBasari} (${x.sonTarih})`)
+      .join("\n");
+  }
+
+  async function handleTekrarListesi() {
+    if (!seciliAd || ogrKayitlar.length === 0) return;
+    setTekrarYukleniyor(true);
+    setTekrarListesi(null);
+    try {
+      const ozet = konuOzetiOlustur();
+      const apiKey = pdrGetApiKey();
+      if (!apiKey) throw new Error("Önce Ayarlar'dan API anahtarını gir.");
+      const res = await fetch(PDR_AI_WORKER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "net_haritasi_tekrar_listesi", apiKey, data: { ogrenci: seciliAd, ozet } }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setTekrarListesi(data.content?.[0]?.text || "");
+    } catch (e) {
+      alert("Analiz oluşturulamadı: " + e.message);
+    }
+    setTekrarYukleniyor(false);
   }
 
   const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, boxSizing:"border-box" };
@@ -4102,6 +4151,23 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
             <button onClick={handleTaslakKaydet} style={{ flex:1, padding:11, background:PURPLE, color:"#fff", border:"none", borderRadius:10, fontWeight:800, fontSize:13, cursor:"pointer" }}>✓ Doğru, Kaydet</button>
             <button onClick={()=>setTaslak(null)} style={{ padding:11, background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>İptal</button>
           </div>
+        </div>
+      )}
+
+      {/* Yanlış Analizi + Kişiselleştirilmiş Tekrar Listesi */}
+      {seciliAd && ogrKayitlar.length > 0 && !taslak && (
+        <div style={{ marginBottom:20 }}>
+          <button onClick={handleTekrarListesi} disabled={tekrarYukleniyor} style={{
+            width:"100%", padding:12, background: tekrarYukleniyor ? BORDER : PURPLE, color: tekrarYukleniyor ? MUTED : "#fff",
+            border:"none", borderRadius:12, fontSize:14, fontWeight:800, cursor: tekrarYukleniyor ? "default" : "pointer", marginBottom:10
+          }}>
+            {tekrarYukleniyor ? "⏳ Analiz ediliyor…" : `🔍 Yanlış Analizi Yap (${ogrKayitlar.length} belgeden)`}
+          </button>
+          {tekrarListesi && (
+            <div style={{ background:PURPLE_LIGHT, border:`1px solid ${PURPLE}`, borderRadius:12, padding:14, whiteSpace:"pre-wrap", fontSize:13, lineHeight:1.6, color:TEXT }}>
+              {tekrarListesi}
+            </div>
+          )}
         </div>
       )}
 
