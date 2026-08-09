@@ -3697,13 +3697,18 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
 
   // RAM randevu tarihi girildiğinde, hatırlatma tarihini otomatik olarak
   // randevudan 1 hafta ÖNCEYE ayarlar (form doldurmaya vakit kalsın diye).
+  // AMA: randevuya zaten 1 haftadan AZ kalmışsa (örn. aile 3 gün önceden haber
+  // veriyorsa), "randevu - 7 gün" geçmişte kalır ve yanıltıcı şekilde
+  // "gecikmiş" görünür — bu durumda hatırlatmayı doğrudan BUGÜN'e ayarlıyoruz,
+  // böylece hemen ve net şekilde öne çıkıyor.
   function handleRamTarihiDegis(v) {
     const ms = pdrTarihMs(v);
     let hatirlatmaTarihi = form.tarih;
     if (ms) {
       const d = new Date(ms);
       d.setDate(d.getDate() - 7);
-      hatirlatmaTarihi = pdrTarihFormatla(d);
+      const bugun = new Date(); bugun.setHours(0,0,0,0);
+      hatirlatmaTarihi = d.getTime() < bugun.getTime() ? pdrTarihFormatla(bugun) : pdrTarihFormatla(d);
     }
     setForm(f => ({ ...f, ramTarihi: v, tarih: hatirlatmaTarihi }));
   }
