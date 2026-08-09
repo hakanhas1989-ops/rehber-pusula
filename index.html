@@ -7142,6 +7142,60 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
                       <div style={{ fontSize: 13, color: TEXT, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{pdrSozlukOku(denemeAnaliz, seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara)}</div>
                     </div>
                   )}
+                  <button onClick={() => {
+                      const esc = (s) => String(s ?? "").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+                      const aiMetin = pdrSozlukOku(denemeAnaliz, seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara);
+                      const denemeSatirlari = girilenDenemeler.map(d => `
+                        <tr style="font-size:11px; border-top:1px solid #F0F0F0;">
+                          <td style="padding:6px 8px; font-weight:700;">Deneme ${d.no}</td>
+                          ${dersler.map(ds => `<td style="padding:6px 8px;">${esc(parseFloat(d.nets[ds.key]||0))}</td>`).join("")}
+                          <td style="padding:6px 8px; font-weight:800; color:#6D5BD0;">${d.toplam.toFixed(2)}</td>
+                        </tr>`).join("");
+                      const ort = (girilenDenemeler.reduce((s,d)=>s+d.toplam,0)/girilenDenemeler.length).toFixed(1);
+                      const enYuksek = Math.max(...girilenDenemeler.map(d => d.toplam)).toFixed(1);
+                      const enDusuk = Math.min(...girilenDenemeler.map(d => d.toplam)).toFixed(1);
+                      const html = `
+                        <div style="font-family:Arial,sans-serif; color:#1a1a1a;">
+                          <div style="border-bottom:2px solid #6D5BD0; padding-bottom:10px; margin-bottom:16px;">
+                            <div style="font-size:18px; font-weight:800; color:#6D5BD0;">📊 Deneme Analiz Raporu</div>
+                            <div style="font-size:13px; margin-top:4px;">${esc(seciliOgrenci)}${seciliOgrenciSinif ? " — " + esc(seciliOgrenciSinif) : ""}</div>
+                            <div style="font-size:11px; color:#666; margin-top:2px;">Rapor tarihi: ${esc(today())} · ${girilenDenemeler.length} deneme girildi</div>
+                          </div>
+
+                          <div style="font-weight:700; font-size:13px; margin-bottom:8px;">Özet</div>
+                          <div style="display:flex; gap:10px; margin-bottom:16px;">
+                            <div style="flex:1; text-align:center; background:#FAF7FE; border-radius:8px; padding:10px;"><div style="font-size:18px; font-weight:900; color:#1A8C5B;">${enYuksek}</div><div style="font-size:10px; color:#666;">En Yüksek</div></div>
+                            <div style="flex:1; text-align:center; background:#FAF7FE; border-radius:8px; padding:10px;"><div style="font-size:18px; font-weight:900; color:#C0392B;">${enDusuk}</div><div style="font-size:10px; color:#666;">En Düşük</div></div>
+                            <div style="flex:1; text-align:center; background:#FAF7FE; border-radius:8px; padding:10px;"><div style="font-size:18px; font-weight:900; color:#3B4FD8;">${ort}</div><div style="font-size:10px; color:#666;">Ortalama</div></div>
+                          </div>
+
+                          <div style="font-weight:700; font-size:13px; margin-bottom:8px;">📈 Deneme Bazında Netler</div>
+                          <table style="border:1px solid #E5D6FA; width:100%; border-collapse:collapse; margin-bottom:16px;">
+                            <tr style="background:#FAF7FE; font-size:10px; font-weight:700;">
+                              <td style="padding:6px 8px;">Deneme</td>
+                              ${dersler.map(ds => `<td style="padding:6px 8px;">${esc(ds.label)}</td>`).join("")}
+                              <td style="padding:6px 8px;">Toplam</td>
+                            </tr>
+                            ${denemeSatirlari}
+                          </table>
+
+                          ${aiMetin ? `
+                          <div style="margin-top:20px;">
+                            <div style="font-weight:700; font-size:12px; background:#6D5BD0; color:#fff; padding:6px 10px; border-radius:6px 6px 0 0;">✦ AI LGS Hazırlık Analizi</div>
+                            <div style="border:1px solid #E5D6FA; border-top:none; padding:12px; font-size:11px; white-space:pre-wrap; line-height:1.6;">${esc(aiMetin)}</div>
+                          </div>` : ""}
+                        </div>`;
+                      const tempDiv = document.createElement("div");
+                      tempDiv.id = "deneme-rapor-gecici";
+                      tempDiv.style.display = "none";
+                      tempDiv.innerHTML = html;
+                      document.body.appendChild(tempDiv);
+                      raporIndir("deneme-rapor-gecici", "Deneme_Analiz_" + seciliOgrenci.replace(/\s+/g,"_"));
+                      setTimeout(() => document.body.removeChild(tempDiv), 3000);
+                    }}
+                    style={{ width:"100%", padding:"10px", marginTop: 10, background:"#fff", color:"#6D5BD0", border:`1px solid #6D5BD0`, borderRadius:10, fontSize:12, fontWeight:700, cursor:"pointer" }}>
+                    🖨 Rapor İndir (PDF)
+                  </button>
                 </div>
               )}
             </>
