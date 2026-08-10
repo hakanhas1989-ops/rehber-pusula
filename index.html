@@ -7979,7 +7979,7 @@ function ProfilMerkez({
 }
 
 // ── Sınıf Profili Bileşeni ────────────────────────────────────────────────────
-function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYil, sinifListesi, setSinifListesi }) {
+function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYil, sinifListesi, setSinifListesi, denemeler, sinavTuru }) {
   const [seciliSinif, setSeciliSinif] = useState(null);
   const [listeYukleAcik, setListeYukleAcik] = useState(false);
   const [listeMetni, setListeMetni] = useState("");
@@ -8003,7 +8003,47 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
     RISK_TURLERI.forEach(t => {
       riskDagilim[t] = riskler.filter(r => r.riskTuru === t).length;
     });
-    return { ogr, gorusmeler, riskler, riskDagilim };
+
+    // Kaç FARKLI öğrenci en az 1 kez servise gelmiş (toplam görüşme sayısından farklı)
+    const gelenOgrenciAdlari = new Set(gorusmeler.map(r => r.studentName?.toLocaleLowerCase("tr").trim()).filter(Boolean));
+    const gelenOgrenciSayisi = gelenOgrenciAdlari.size;
+
+    // Görüşme konuları — standart KONU_LISTESI'ne göre dağılım
+    const konuDagilim = {};
+    gorusmeler.forEach(r => {
+      const k = r.topic || "Belirtilmemiş";
+      konuDagilim[k] = (konuDagilim[k]||0) + 1;
+    });
+    const konuSirali = Object.entries(konuDagilim).sort((a,b)=>b[1]-a[1]);
+
+    // Deneme ortalaması — sınavTuru'na göre aktif dersler, her öğrencinin EN SON
+    // deneme girişindeki toplam net'i alınıp, deneme girmiş öğrenciler üzerinden ortalanır
+    const dersler = aktifDersler(sinavTuru);
+    const denemeNetleri = [];
+    ogr.forEach(o => {
+      const sozluk = pdrSozlukOku(denemeler, o.studentName, o.className, o.numara) || {};
+      const girisler = Object.entries(sozluk).filter(([k])=>k!=="7sinif").sort((a,b)=>Number(a[0])-Number(b[0]));
+      if (girisler.length === 0) return;
+      const sonNets = girisler[girisler.length-1][1];
+      const toplamNet = dersler.reduce((s,d)=>s+(parseFloat(sonNets[d.key])||0),0);
+      denemeNetleri.push(toplamNet);
+    });
+    const denemeOrt = denemeNetleri.length > 0 ? (denemeNetleri.reduce((a,b)=>a+b,0)/denemeNetleri.length) : null;
+
+    // Cinsiyet dağılımı
+    const cinsiyetDagilim = { Kız:0, Erkek:0, Belirtilmemiş:0 };
+    ogr.forEach(o => {
+      if (o.cinsiyet === "Kız") cinsiyetDagilim.Kız++;
+      else if (o.cinsiyet === "Erkek") cinsiyetDagilim.Erkek++;
+      else cinsiyetDagilim.Belirtilmemiş++;
+    });
+
+    // Devamsızlık — öğrenci öğrenci, çoktan aza sıralı
+    const devamsizlikListesi = ogr
+      .map(o => ({ ad: o.studentName, sinif: o.className, numara: o.numara, devamsizlik: parseInt(o.devamsizlik)||0 }))
+      .sort((a,b) => b.devamsizlik - a.devamsizlik);
+
+    return { ogr, gorusmeler, riskler, riskDagilim, gelenOgrenciSayisi, konuSirali, denemeOrt, denemeKapsam: denemeNetleri.length, cinsiyetDagilim, devamsizlikListesi };
   }
 
   // Gösterilecek sınıflar: elle eklenen sınıflar + öğrencisi olan tüm sınıflar (birleşim)
@@ -8017,6 +8057,12 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
     setSinifListesi(guncel);
     await saveSinifListesi(guncel);
     setYeniSinifAdi("");
+  }
+
+  async function handleCinsiyetGuncelle(ogrenci, cinsiyet) {
+    const guncel = ogrenciler.map(o => pdrAyniOgrenci(o.studentName, o.className, ogrenci.studentName, ogrenci.className, o.numara, ogrenci.numara) ? { ...o, cinsiyet } : o);
+    setOgrenciler(guncel);
+    await saveOgrenciler(guncel);
   }
 
   async function handleSinifSil(sube) {
@@ -8097,8 +8143,10 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}}>
           {[
             {label:"Öğrenci",val:st.ogr.length,color:ACCENT},
-            {label:"Görüşme",val:st.gorusmeler.length,color:BLUE},
+            {label:"Gelen Öğrenci",val:st.gelenOgrenciSayisi,color:BLUE},
             {label:"Aktif Risk",val:st.riskler.length,color:st.riskler.length>0?"#C0392B":MUTED},
+            {label:"Görüşme",val:st.gorusmeler.length,color:BLUE},
+            {label:"Deneme Ort.",val: st.denemeOrt!==null ? st.denemeOrt.toFixed(1) : "—", color:PURPLE},
           ].map(c=>(
             <div key={c.label} style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:10,padding:"10px 6px",textAlign:"center"}}>
               <div style={{fontSize:22,fontWeight:900,color:c.color}}>{c.val}</div>
@@ -8106,6 +8154,61 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
             </div>
           ))}
         </div>
+        {st.denemeOrt!==null && (
+          <div style={{ fontSize:10, color:MUTED, marginTop:-8, marginBottom:14, textAlign:"right" }}>Deneme ortalaması {st.denemeKapsam}/{st.ogr.length} öğrenciden hesaplandı</div>
+        )}
+
+        {/* Görüşme Konuları */}
+        {st.konuSirali.length > 0 && (
+          <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,padding:14,marginBottom:14}}>
+            <div style={{fontSize:12,fontWeight:700,color:PURPLE,textTransform:"uppercase",marginBottom:10}}>💬 Görüşme Konuları</div>
+            {st.konuSirali.map(([konu,adet]) => (
+              <div key={konu} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${BORDER}`,fontSize:12}}>
+                <span>{konu}</span>
+                <span style={{fontWeight:700,color:PURPLE}}>{adet}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Cinsiyet Dağılımı */}
+        <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{fontSize:12,fontWeight:700,color:ACCENT,textTransform:"uppercase",marginBottom:10}}>🚻 Cinsiyet Dağılımı</div>
+          <div style={{display:"flex",gap:14,marginBottom: st.cinsiyetDagilim.Belirtilmemiş>0 ? 12 : 0}}>
+            <div style={{fontSize:13}}>👧 Kız: <b>{st.cinsiyetDagilim.Kız}</b></div>
+            <div style={{fontSize:13}}>👦 Erkek: <b>{st.cinsiyetDagilim.Erkek}</b></div>
+            {st.cinsiyetDagilim.Belirtilmemiş>0 && <div style={{fontSize:13,color:MUTED}}>Belirtilmemiş: <b>{st.cinsiyetDagilim.Belirtilmemiş}</b></div>}
+          </div>
+          {st.cinsiyetDagilim.Belirtilmemiş>0 && (
+            <div>
+              <div style={{fontSize:10,color:MUTED,marginBottom:6}}>Cinsiyeti belirtilmemiş öğrenciler — hızlı işaretle:</div>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {st.ogr.filter(o=>!o.cinsiyet).map(o => (
+                  <div key={pdrOgrAnahtar(o.studentName,o.className,o.numara)} style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <span style={{fontSize:12}}>{o.studentName}</span>
+                    <div style={{display:"flex",gap:4}}>
+                      <button onClick={()=>handleCinsiyetGuncelle(o,"Kız")} style={{padding:"2px 8px",borderRadius:6,border:`1px solid ${BORDER}`,background:"#fff",fontSize:11,cursor:"pointer"}}>Kız</button>
+                      <button onClick={()=>handleCinsiyetGuncelle(o,"Erkek")} style={{padding:"2px 8px",borderRadius:6,border:`1px solid ${BORDER}`,background:"#fff",fontSize:11,cursor:"pointer"}}>Erkek</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Devamsızlık — öğrenci öğrenci */}
+        {st.devamsizlikListesi.some(d=>d.devamsizlik>0) && (
+          <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,padding:14,marginBottom:14}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#E76F51",textTransform:"uppercase",marginBottom:10}}>📅 Devamsızlık (Öğrenci Öğrenci)</div>
+            {st.devamsizlikListesi.filter(d=>d.devamsizlik>0).map(d => (
+              <div key={pdrOgrAnahtar(d.ad,d.sinif,d.numara)} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${BORDER}`,fontSize:12}}>
+                <span>{d.ad}</span>
+                <span style={{fontWeight:700,color: d.devamsizlik>=10 ? "#C0392B" : "#E76F51"}}>{d.devamsizlik} gün</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Risk Haritası */}
         <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,padding:14,marginBottom:14}}>
@@ -9716,6 +9819,8 @@ export default function App() {
             aktifYil={aktifYil}
             sinifListesi={sinifListesi}
             setSinifListesi={setSinifListesi}
+            denemeler={denemeler}
+            sinavTuru={sinavTuru}
           />
         )}
 
