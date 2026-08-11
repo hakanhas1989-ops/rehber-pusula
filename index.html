@@ -10250,10 +10250,28 @@ const inputStyle = {
 };
 const labelStyle = { fontSize: 11, fontWeight: 600, color: MUTED, display: "block", marginBottom: 4 };
 
+class PdrHataYakalayici extends React.Component {
+  constructor(props) { super(props); this.state = { hata: null, bilgi: null }; }
+  static getDerivedStateFromError(hata) { return { hata }; }
+  componentDidCatch(hata, bilgi) { this.setState({ bilgi }); console.error("PDR uygulama hatası:", hata, bilgi); }
+  render() {
+    if (this.state.hata) {
+      return React.createElement("div", { style: { padding: 18, fontFamily: "monospace", fontSize: 12, color: "#8E2A20", background: "#FDECEA", minHeight: "100vh", whiteSpace: "pre-wrap", wordBreak: "break-word" } },
+        React.createElement("div", { style: { fontSize: 15, fontWeight: 800, marginBottom: 10, fontFamily: "system-ui" } }, "⚠️ Uygulama bir hatayla karşılaştı"),
+        React.createElement("div", { style: { fontSize: 13, fontWeight: 700, marginBottom: 6, fontFamily: "system-ui" } }, "Bu ekran görüntüsünü Claude'a gönder:"),
+        React.createElement("div", { style: { marginBottom: 10 } }, String(this.state.hata && this.state.hata.message || this.state.hata)),
+        this.state.hata && this.state.hata.stack ? React.createElement("div", { style: { fontSize: 10, opacity: 0.8 } }, this.state.hata.stack) : null,
+        this.state.bilgi && this.state.bilgi.componentStack ? React.createElement("div", { style: { fontSize: 10, opacity: 0.8, marginTop: 10, borderTop: "1px solid #f0c4bd", paddingTop: 10 } }, this.state.bilgi.componentStack) : null
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const container=document.getElementById("root");
 const root=ReactDOM.createRoot(container);
 window.__pdrAuthReady.then(() => {
-  root.render(React.createElement(App));
+  root.render(React.createElement(PdrHataYakalayici, null, React.createElement(App)));
   setTimeout(()=>{const s=document.getElementById("splash");if(s)s.className="hide";},800);
 });
 </script>
