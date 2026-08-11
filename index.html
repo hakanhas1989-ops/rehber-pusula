@@ -34,6 +34,39 @@
   // Tüm AI çağrıları artık doğrudan Cloudflare Worker'a (PDR_AI_WORKER_URL)
   // gönderiliyor — bkz. her AI fonksiyonunun kendi içindeki fetch() çağrısı.
 </script>
+<script>
+window.addEventListener('error', function(e) {
+  var msg = (e && (e.message || (e.error && e.error.message))) || 'Bilinmeyen hata';
+  var stack = (e && e.error && e.error.stack) || '';
+  var src = e && e.filename ? (e.filename + ':' + e.lineno + ':' + e.colno) : '';
+  showPdrFatalError(msg, stack, src);
+});
+window.addEventListener('unhandledrejection', function(e) {
+  var reason = e && e.reason;
+  var msg = (reason && reason.message) || String(reason);
+  var stack = (reason && reason.stack) || '';
+  showPdrFatalError('(promise hatası) ' + msg, stack, '');
+});
+function showPdrFatalError(msg, stack, src) {
+  if (document.getElementById('pdr-fatal-error')) return;
+  var s = document.getElementById('splash'); if (s) s.className = 'hide';
+  var box = document.createElement('div');
+  box.id = 'pdr-fatal-error';
+  box.style.cssText = 'position:fixed;inset:0;z-index:999999;background:#FDECEA;color:#8E2A20;padding:18px;font-family:monospace;font-size:12px;white-space:pre-wrap;word-break:break-word;overflow:auto;';
+  box.innerHTML = '<div style="font-size:15px;font-weight:800;margin-bottom:10px;font-family:system-ui;">⚠️ Sayfa yüklenirken hata oluştu</div>' +
+    '<div style="font-size:13px;font-weight:700;margin-bottom:6px;font-family:system-ui;">Bu ekran görüntüsünü Claude\'a gönder:</div>' +
+    '<div style="margin-bottom:8px;">' + msg.replace(/</g,'&lt;') + '</div>' +
+    (src ? '<div style="margin-bottom:8px;opacity:0.8;">Konum: ' + src.replace(/</g,'&lt;') + '</div>' : '') +
+    (stack ? '<div style="font-size:10px;opacity:0.8;">' + stack.replace(/</g,'&lt;') + '</div>' : '');
+  document.body.appendChild(box);
+}
+setTimeout(function() {
+  var root = document.getElementById('root');
+  if (!document.getElementById('pdr-fatal-error') && (!root || root.children.length === 0)) {
+    showPdrFatalError('Sayfa 10 saniyede yüklenemedi (zaman aşımı). İnternet/Firebase bağlantısında bir sorun olabilir, veya bir betik (script) hiç çalışmamış olabilir.', '', '');
+  }
+}, 10000);
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
