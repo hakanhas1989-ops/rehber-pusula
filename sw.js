@@ -1,4 +1,4 @@
-const CACHE_NAME = "pdr-v7";
+const CACHE_NAME = "pdr-v8";
 
 const CACHE_URLS = [
   "./manifest.json",
