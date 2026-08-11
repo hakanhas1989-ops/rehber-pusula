@@ -36,11 +36,15 @@
 </script>
 <script>
 window.addEventListener('error', function(e) {
+  if (e && e.target && e.target.tagName === 'SCRIPT') {
+    showPdrFatalError('Bir betik dosyası yüklenemedi: ' + e.target.src, '', 'Ağ/engelleme sorunu olabilir (okul wifi, VPN, reklam engelleyici vb.)');
+    return;
+  }
   var msg = (e && (e.message || (e.error && e.error.message))) || 'Bilinmeyen hata';
   var stack = (e && e.error && e.error.stack) || '';
   var src = e && e.filename ? (e.filename + ':' + e.lineno + ':' + e.colno) : '';
   showPdrFatalError(msg, stack, src);
-});
+}, true);
 window.addEventListener('unhandledrejection', function(e) {
   var reason = e && e.reason;
   var msg = (reason && reason.message) || String(reason);
@@ -63,7 +67,16 @@ function showPdrFatalError(msg, stack, src) {
 setTimeout(function() {
   var root = document.getElementById('root');
   if (!document.getElementById('pdr-fatal-error') && (!root || root.children.length === 0)) {
-    showPdrFatalError('Sayfa 10 saniyede yüklenemedi (zaman aşımı). İnternet/Firebase bağlantısında bir sorun olabilir, veya bir betik (script) hiç çalışmamış olabilir.', '', '');
+    var eksikler = [];
+    if (typeof React === 'undefined') eksikler.push('React');
+    if (typeof ReactDOM === 'undefined') eksikler.push('ReactDOM');
+    if (typeof Babel === 'undefined') eksikler.push('Babel');
+    if (typeof XLSX === 'undefined') eksikler.push('XLSX');
+    if (typeof firebase === 'undefined') eksikler.push('Firebase');
+    var detay = eksikler.length
+      ? ('Yüklenemeyen kütüphaneler: ' + eksikler.join(', ') + '. Muhtemelen ağ/güvenlik duvarı bu adresleri (cdnjs.cloudflare.com ve/veya www.gstatic.com) engelliyor.')
+      : 'Tüm kütüphaneler yüklenmiş görünüyor ama sayfa yine de açılmadı — Firebase girişi/veritabanı bağlantısında takılmış olabilir.';
+    showPdrFatalError('Sayfa 10 saniyede yüklenemedi (zaman aşımı).', '', detay);
   }
 }, 10000);
 </script>
