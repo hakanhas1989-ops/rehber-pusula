@@ -8820,12 +8820,6 @@ export default function App() {
   const [tab, setTab] = useState("ogrenci");
   const [form, setForm] = useState({ studentName: "", className: "", numara: "", meetingType: "Öğrenci", topic: "", raw: "", summary: "" });
   const [notOgrenciArama, setNotOgrenciArama] = useState("");
-  useEffect(() => {
-    if (aktifOgrenci?.name) {
-      const bulunan = kayitliListesi.find(o => pdrAyniOgrenci(o.name, o.className, aktifOgrenci.name, aktifOgrenci.className));
-      setForm(f => ({ ...f, studentName: aktifOgrenci.name, className: aktifOgrenci.className || "", numara: bulunan?.numara || "" }));
-    }
-  }, [aktifOgrenci?.name]);
   const [profForm, setProfForm] = useState({ studentName: "", className: "", numara: "", notes: "", scores: { ...EMPTY_SCORES }, analysis: "" });
   const [prof2Form, setProf2Form] = useState({ ...EMPTY_PROF2 });
   const [scoresSet, setScoresSet] = useState(false);
@@ -8845,6 +8839,12 @@ export default function App() {
   const [denemeSeciliOgrenci, setDenemeSeciliOgrenci] = useState("");
   const [ogrenciler, setOgrenciler] = useState([]);
   const [aktifOgrenci, setAktifOgrenci] = useState({ name: "", className: "" });
+  useEffect(() => {
+    if (aktifOgrenci?.name) {
+      const bulunan = kayitliListesi.find(o => pdrAyniOgrenci(o.name, o.className, aktifOgrenci.name, aktifOgrenci.className));
+      setForm(f => ({ ...f, studentName: aktifOgrenci.name, className: aktifOgrenci.className || "", numara: bulunan?.numara || "" }));
+    }
+  }, [aktifOgrenci?.name]);
   const [profMerkezKey, setProfMerkezKey] = useState(0); // force re-render
   const [riskForm, setRiskForm] = useState({ studentName: "", className: "", numara: "", riskTuru: "", aciklama: "", oncelik: "Orta" });
   const [riskOgrenciArama, setRiskOgrenciArama] = useState("");
