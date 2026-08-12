@@ -880,6 +880,12 @@ document.addEventListener("visibilitychange", () => {
 
 let pdrFirstReady = true;
 let pdrBasvuruUnsub = null; // admin onay durumunu canlı izleyen dinleyici — oturum boyunca aktif
+function pdrZamanAsimliBekle(promise, ms) {
+  return Promise.race([
+    promise.then(v => ({ zamanAsimi: false, deger: v })),
+    new Promise((resolve) => setTimeout(() => resolve({ zamanAsimi: true, deger: null }), ms))
+  ]);
+}
 pdrAuth.onAuthStateChanged(async (user) => {
   const splashEl = document.getElementById("splash");
   if (user) {
@@ -888,7 +894,13 @@ pdrAuth.onAuthStateChanged(async (user) => {
 
     // Admin hariç herkes için onay durumu kontrolü
     if (user.email !== PDR_ADMIN_EMAIL) {
-      const basvuru = await pdrOnayDurumuGetir(user);
+      const onaySonuc = await pdrZamanAsimliBekle(pdrOnayDurumuGetir(user), 8000);
+      if (onaySonuc.zamanAsimi) {
+        if (splashEl) splashEl.className = "hide";
+        showPdrFatalError("Onay/ödeme durumu sunucudan alınamadı (zaman aşımı).", "", "İnternet bağlantısı yavaş olabilir veya Firestore (Google veritabanı) ağ tarafından engelleniyor olabilir. Bağlantını değiştirip tekrar dener misin?");
+        return;
+      }
+      const basvuru = onaySonuc.deger;
       if (basvuru.durum !== "onayli") {
         if (splashEl) splashEl.className = "hide";
         pdrOnayEkraniGoster(basvuru.durum);
@@ -945,7 +957,11 @@ pdrAuth.onAuthStateChanged(async (user) => {
     pdrOdemeEkraniGizle();
     pdrInaktiviteSifirla();
 
-    await pdrSyncDown(user.uid);
+    // Firestore'a erişilemiyorsa (ağ engeli/zaman aşımı) uygulamayı sonsuza
+    // kadar bekletmemek için en fazla 8 saniye bekleriz; süre dolarsa
+    // yerelde önceden inmiş veriyle devam edilir, senkronizasyon arka
+    // planda tekrar denenmeye devam edebilir.
+    await pdrZamanAsimliBekle(pdrSyncDown(user.uid), 8000);
     if (pdrFirstReady) { pdrFirstReady = false; pdrResolveReady(user); }
   } else {
     if (pdrBasvuruUnsub) { pdrBasvuruUnsub(); pdrBasvuruUnsub = null; }
