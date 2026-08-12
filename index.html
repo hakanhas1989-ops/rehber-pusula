@@ -74,7 +74,7 @@ setTimeout(function() {
     if (typeof XLSX === 'undefined') eksikler.push('XLSX');
     if (typeof firebase === 'undefined') eksikler.push('Firebase');
     var detay = eksikler.length
-      ? ('Yüklenemeyen kütüphaneler: ' + eksikler.join(', ') + '. Muhtemelen ağ/güvenlik duvarı bu adresleri (cdnjs.cloudflare.com ve/veya www.gstatic.com) engelliyor.')
+      ? ('Yüklenemeyen kütüphaneler: ' + eksikler.join(', ') + '. Muhtemelen ağ/güvenlik duvarı bu adresleri (cdn.jsdelivr.net ve/veya www.gstatic.com) engelliyor.')
       : 'Tüm kütüphaneler yüklenmiş görünüyor ama sayfa yine de açılmadı — Firebase girişi/veritabanı bağlantısında takılmış olabilir.';
     showPdrFatalError('Sayfa 10 saniyede yüklenemedi (zaman aşımı).', '', detay);
   }
