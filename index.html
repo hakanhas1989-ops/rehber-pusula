@@ -66,6 +66,13 @@ function showPdrFatalError(msg, stack, src) {
 }
 setTimeout(function() {
   var root = document.getElementById('root');
+  // Eğer Firebase Auth zaten cevap verdiyse (pdrAuthStateFired), ya da onun
+  // için kurduğumuz 8 saniyelik yedek zaten devreye girip giriş formunu
+  // görünür kıldıysa (8sn < 10sn, o yüzden burada hep önce çalışır), burada
+  // tekrar bir "fatal error" göstermeye gerek yok — kullanıcı zaten en
+  // azından giriş yapmayı deneyebileceği bir ekranla karşı karşıya.
+  if (typeof pdrAuthStateFired !== 'undefined' && pdrAuthStateFired) return;
+  if (document.getElementById('pdr-login-overlay') && document.getElementById('pdr-login-overlay').style.display === 'flex') return;
   if (!document.getElementById('pdr-fatal-error') && (!root || root.children.length === 0)) {
     var eksikler = [];
     if (typeof React === 'undefined') eksikler.push('React');
@@ -886,7 +893,28 @@ function pdrZamanAsimliBekle(promise, ms) {
     new Promise((resolve) => setTimeout(() => resolve({ zamanAsimi: true, deger: null }), ms))
   ]);
 }
+// Firebase Auth SDK dosyaları (gstatic.com) yüklense bile, kimlik doğrulama
+// SUNUCUSUYLA (identitytoolkit/securetoken.googleapis.com) ilk bağlantı bazı
+// ağlarda (okul wifi/VPN) engellenip onAuthStateChanged callback'inin HİÇ
+// tetiklenmemesine yol açabiliyordu — bu durumda kullanıcı splash ekranında
+// sonsuza kadar kalıyordu. Artık 8 saniye içinde callback hiç çağrılmazsa,
+// kullanıcıyı sonsuza kadar bekletmek yerine giriş formunu gösteriyoruz
+// (üstte, engellenemeyecek küçük bir uyarıyla) — böylece en azından giriş
+// denemesi yapabiliyor, tamamen kilitli kalmıyor.
+let pdrAuthStateFired = false;
+setTimeout(() => {
+  if (pdrAuthStateFired) return;
+  const splashEl = document.getElementById("splash");
+  if (splashEl) splashEl.className = "hide";
+  if (pdrLoginOverlay) pdrLoginOverlay.style.display = "flex";
+  const uyariEl = document.createElement("div");
+  uyariEl.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:99998;background:#FDECEA;color:#8E2A20;padding:10px 16px;font-size:12px;font-weight:700;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);";
+  uyariEl.textContent = "⚠️ Kimlik doğrulama sunucusuna bağlanmakta gecikme var (ağ/güvenlik duvarı engeli olabilir). Yine de giriş yapmayı deneyebilirsin.";
+  document.body.appendChild(uyariEl);
+}, 8000);
+
 pdrAuth.onAuthStateChanged(async (user) => {
+  pdrAuthStateFired = true;
   const splashEl = document.getElementById("splash");
   if (user) {
     if (pdrLoginOverlay) pdrLoginOverlay.style.display = "none";
