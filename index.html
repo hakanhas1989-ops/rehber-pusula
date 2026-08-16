@@ -8439,25 +8439,22 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
             const gSayisi = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className, r.numara, o.numara)).length;
             const oRisk = riskListesi.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className, r.numara, o.numara) && !r.kapandi);
             const oTeknoloji = oRisk.some(r => r.teknolojiBagimliligi);
-            // GDO — Genel Deneme Ortalaması: bu dönem (Deneme 1-10) girilmiş
-            // denemelerin net ortalaması; hiç girilmemişse Öğrenciler/Risk
-            // sekmelerindeki aynı mantıkla 7. sınıf (geçmiş dönem, Excel'den
-            // gelen) ortalamasına geri düşer — "7sinif" anahtarı ayrı tutulur,
-            // yoksa hep 0.0 çıkardı.
+            // GDO — Genel Deneme Ortalaması: SADECE geçmiş dönem (7. sınıf,
+            // Excel'den içeri aktarılan) ortalaması. Bu yıl girilen her deneme
+            // ise AYRI AYRI kendi net'iyle (D1, D2, D3...) gösterilir — ikisi
+            // birbirine karıştırılmaz, ikisi de aynı anda görünebilir.
             const denemeSozluk = pdrSozlukOku(denemeler, o.studentName, o.className, o.numara) || {};
             const o7sinif = denemeSozluk["7sinif"] || null;
+            const gdo = o7sinif ? parseFloat(o7sinif.ortalama) : null;
             const denemeGirisleri = Object.entries(denemeSozluk).filter(([k]) => k !== "7sinif").sort((a,b) => Number(a[0]) - Number(b[0]));
             const dersler = aktifDersler(sinavTuru);
-            const denemeNetToplamlari = denemeGirisleri.map(([,nets]) => dersler.reduce((s,d) => s + (parseFloat(nets[d.key]) || 0), 0));
-            const gdoSayi = denemeNetToplamlari.length > 0 ? (denemeNetToplamlari.reduce((a,b)=>a+b,0) / denemeNetToplamlari.length) : null;
-            const gdo = gdoSayi !== null ? gdoSayi : (o7sinif ? parseFloat(o7sinif.ortalama) : null);
-            const gdoKaynak = gdoSayi !== null ? "Bu dönem denemeleri" : "Geçmiş dönem denemeleri";
+            const denemeNetleri = denemeGirisleri.map(([idx,nets]) => ({ idx, net: dersler.reduce((s,d) => s + (parseFloat(nets[d.key]) || 0), 0) }));
             const devamsizlikSayisi = parseInt(o.devamsizlik) || 0;
             const olaySayisi = (o.olayKayitlari || []).length;
             return (
-              <div key={pdrOgrAnahtar(o.studentName, o.className, o.numara)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${BORDER}`,flexWrap:"wrap",gap:6}}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <div style={{width:30,height:30,borderRadius:"50%",background:ACCENT_LIGHT,color:ACCENT,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800}}>
+              <div key={pdrOgrAnahtar(o.studentName, o.className, o.numara)} style={{padding:"8px 0",borderBottom:`1px solid ${BORDER}`}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                  <div style={{width:30,height:30,borderRadius:"50%",background:ACCENT_LIGHT,color:ACCENT,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,flexShrink:0}}>
                     {o.studentName.charAt(0).toUpperCase()}
                   </div>
                   <div>
@@ -8465,13 +8462,16 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
                     {o.numara && <div style={{fontSize:10,color:MUTED}}>No: {o.numara}</div>}
                   </div>
                 </div>
-                <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end"}}>
-                  {oRisk.length > 0 && <span style={{background:"#FDECEA",color:"#C0392B",borderRadius:10,padding:"2px 7px",fontSize:10,fontWeight:700}}>⚠ Risk</span>}
-                  {oTeknoloji && <span title={oRisk.find(r=>r.teknolojiBagimliligi)?.teknolojiGerekce || ""} style={{background:"#EEF2FF",color:"#3B4FD8",borderRadius:10,padding:"2px 7px",fontSize:10,fontWeight:700}}>📱 Teknoloji Bağımlılığı</span>}
-                  {gdo !== null && <span title={`Genel Deneme Ortalaması — ${gdoKaynak}`} style={{background:"#F3EEFB",color:PURPLE,borderRadius:10,padding:"2px 7px",fontSize:10,fontWeight:700}}>📊 GDO: {gdo.toFixed(1)}</span>}
-                  {devamsizlikSayisi > 0 && <span title="Devamsızlık" style={{background:"#FFF4E5",color:"#B5651D",borderRadius:10,padding:"2px 7px",fontSize:10,fontWeight:700}}>🗓 {devamsizlikSayisi} gün</span>}
-                  {olaySayisi > 0 && <span title="Olay/Tutanak Kaydı" style={{background:"#FDECEA",color:"#8E2A20",borderRadius:10,padding:"2px 7px",fontSize:10,fontWeight:700}}>📋 {olaySayisi} olay</span>}
-                  <span style={{background:ACCENT_LIGHT,color:ACCENT,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:700}}>{gSayisi} görüşme</span>
+                <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap",paddingLeft:38}}>
+                  {oRisk.length > 0 && <span style={{background:"#FDECEA",color:"#C0392B",borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>⚠ Risk</span>}
+                  {oTeknoloji && <span title={oRisk.find(r=>r.teknolojiBagimliligi)?.teknolojiGerekce || ""} style={{background:"#EEF2FF",color:"#3B4FD8",borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>📱 Teknoloji</span>}
+                  {gdo !== null && <span title="Geçmiş Dönem Deneme Ortalaması" style={{background:"#F3EEFB",color:PURPLE,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>📊 GDO: {gdo.toFixed(1)}</span>}
+                  {denemeNetleri.map(d => (
+                    <span key={d.idx} title={`Deneme ${d.idx} — Net`} style={{background:"#EDEAFB",color:PURPLE,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>D{d.idx} {d.net.toFixed(1)}</span>
+                  ))}
+                  {devamsizlikSayisi > 0 && <span title="Devamsızlık" style={{background:"#FFF4E5",color:"#B5651D",borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>🗓 {devamsizlikSayisi}g</span>}
+                  {olaySayisi > 0 && <span title="Olay/Tutanak Kaydı" style={{background:"#FDECEA",color:"#8E2A20",borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>📋 {olaySayisi} olay</span>}
+                  <span style={{background:ACCENT_LIGHT,color:ACCENT,borderRadius:8,padding:"1px 7px",fontSize:9,fontWeight:700}}>{gSayisi} görüşme</span>
                 </div>
               </div>
             );
