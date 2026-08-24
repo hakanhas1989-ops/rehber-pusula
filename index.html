@@ -6141,6 +6141,9 @@ function OgrenciYonetim({
   const [excelPanelAcik, setExcelPanelAcik] = useState(false);
   const [sinifGuncelleAcik, setSinifGuncelleAcik] = useState(false);
   const [yeniSinifDegeri, setYeniSinifDegeri] = useState("");
+  const [yeniAdDegeri, setYeniAdDegeri] = useState("");
+  const [gdoDuzenleAcik, setGdoDuzenleAcik] = useState(false);
+  const [gdoDegeri, setGdoDegeri] = useState("");
 
   // "Aktif öğrenci" başka bir sekmede seçilip buraya dönülürse, o öğrencinin
   // detayını göstermeye devam et — sadece açıkça "Geri" ile çıkıldığında
@@ -6227,6 +6230,21 @@ function OgrenciYonetim({
     await onOgrenciSil(studentName, className, numara);
     if (aktifOgrenci?.name === studentName) setAktifOgrenci({ name: "", className: "" });
     setSeciliOgrenci(null);
+  }
+
+  // Geçmiş Dönem (7. sınıf) deneme ortalamasını manuel girmek/düzeltmek için —
+  // normalde bu veri toplu Excel yapıştırma ile geliyor, ama tek tek elle
+  // girmek/düzeltmek isteyen danışmanlar için ayrı bir yol. "manuel" işareti
+  // eklenir ki ileride toplu içe aktarma bu değeri sessizce ezmesin.
+  async function handleGdoManuelKaydet() {
+    const deger = gdoDegeri.trim();
+    if (!deger || isNaN(parseFloat(deger))) return;
+    const mevcutSozluk = pdrSozlukOku(denemeler, seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara) || {};
+    const guncelSozluk = { ...mevcutSozluk, "7sinif": { ...(mevcutSozluk["7sinif"]||{}), ortalama: parseFloat(deger).toFixed(1), manuel: true } };
+    const yeniDenemeler = pdrSozlukYaz(denemeler, seciliOgrenci, seciliOgrenciSinif, guncelSozluk, seciliOgrenciNumara);
+    setDenemeler(yeniDenemeler);
+    await saveDenemeler(yeniDenemeler);
+    setGdoDuzenleAcik(false);
   }
 
 
@@ -6543,10 +6561,10 @@ function OgrenciYonetim({
               background:"none", border:"1px solid #F28B82", color:"#C5221F",
               borderRadius:8, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer"
             }}>🗑 Öğrenciyi Sil</button>
-            <button onClick={() => { setYeniSinifDegeri(seciliOgrenciSinif); setSinifGuncelleAcik(true); }} style={{
+            <button onClick={() => { setYeniSinifDegeri(seciliOgrenciSinif); setYeniAdDegeri(seciliOgrenci); setSinifGuncelleAcik(true); }} style={{
               background:"none", border:`1px solid ${ACCENT}`, color:ACCENT,
               borderRadius:8, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer"
-            }}>🎓 Sınıf Güncelle</button>
+            }}>✏️ Bilgileri Güncelle</button>
             <div style={{ flex:1, minWidth:120 }}>
               <div style={{ fontWeight:800, fontSize:16, color:TEXT }}>{seciliOgrenci}</div>
               {(() => { const o = tumOgrenciler.find(x=>x.studentName===seciliOgrenci); return o ? <div style={{ fontSize:11, color:MUTED }}>{o.className}{o.numara ? ` · No: ${o.numara}` : ""}</div> : null; })()}
@@ -6567,20 +6585,45 @@ function OgrenciYonetim({
           {sinifGuncelleAcik && (
             <div style={{ background:ACCENT_LIGHT, border:`1px solid ${ACCENT}`, borderRadius:10, padding:12, marginBottom:14 }}>
               <div style={{ fontSize:12, fontWeight:700, color:ACCENT, marginBottom:8 }}>
-                🎓 Sınıf Güncelle — öğrencinin sınıfı değiştiğinde (örn. 7-A → 8-A) tüm geçmiş verisi (görüşme, risk, profil, deneme) otomatik olarak yeni sınıfa taşınır.
+                ✏️ Öğrenci Bilgilerini Güncelle — ad soyad yanlış girildiyse ya da sınıf değiştiyse (örn. 7-A → 8-A), tüm geçmiş verisi (görüşme, risk, profil, deneme, hatırlatıcı, net haritası) otomatik olarak taşınır.
               </div>
+              <label style={{ fontSize:10, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>AD SOYAD</label>
+              <input value={yeniAdDegeri} onChange={e=>setYeniAdDegeri(e.target.value)} placeholder="Ad Soyad"
+                style={{ width:"100%", padding:"8px 10px", border:`1px solid ${BORDER}`, borderRadius:8, fontSize:13, boxSizing:"border-box", marginBottom:8 }} />
+              <label style={{ fontSize:10, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>SINIF</label>
               <div style={{ display:"flex", gap:8 }}>
                 <input value={yeniSinifDegeri} onChange={e=>setYeniSinifDegeri(e.target.value)} placeholder="Yeni sınıf (örn. 8-A)"
                   style={{ flex:1, padding:"8px 10px", border:`1px solid ${BORDER}`, borderRadius:8, fontSize:13, boxSizing:"border-box" }} />
                 <button onClick={() => { setSinifGuncelleAcik(false); }} style={{ padding:"8px 12px", background:BG, border:`1px solid ${BORDER}`, borderRadius:8, fontSize:12, fontWeight:700, color:MUTED, cursor:"pointer" }}>İptal</button>
                 <button onClick={async () => {
-                  if (!yeniSinifDegeri.trim() || yeniSinifDegeri.trim() === seciliOgrenciSinif) { setSinifGuncelleAcik(false); return; }
-                  await onSinifGuncelle(seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara, yeniSinifDegeri.trim());
+                  const yAd = yeniAdDegeri.trim(), yeSinif = yeniSinifDegeri.trim();
+                  if (!yAd || !yeSinif || (yAd === seciliOgrenci && yeSinif === seciliOgrenciSinif)) { setSinifGuncelleAcik(false); return; }
+                  await onSinifGuncelle(seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara, yAd, yeSinif);
                   setSinifGuncelleAcik(false);
-                }} disabled={!yeniSinifDegeri.trim()} style={{ padding:"8px 14px", background:yeniSinifDegeri.trim()?ACCENT:BORDER, color:yeniSinifDegeri.trim()?"#fff":MUTED, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>💾 Kaydet</button>
+                }} disabled={!yeniAdDegeri.trim() || !yeniSinifDegeri.trim()} style={{ padding:"8px 14px", background:(yeniAdDegeri.trim()&&yeniSinifDegeri.trim())?ACCENT:BORDER, color:(yeniAdDegeri.trim()&&yeniSinifDegeri.trim())?"#fff":MUTED, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>💾 Kaydet</button>
               </div>
             </div>
           )}
+
+          {/* Geçmiş Dönem (GDO) — manuel giriş/düzenleme */}
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, flexWrap:"wrap" }}>
+            <span style={{ fontSize:11, color:MUTED, fontWeight:600 }}>📊 Geçmiş Dönem Ortalaması (GDO):</span>
+            {!gdoDuzenleAcik ? (
+              <>
+                <span style={{ fontSize:13, fontWeight:800, color:PURPLE }}>{sinif7Data ? sinif7Data.ortalama : "—"}</span>
+                <button onClick={() => { setGdoDegeri(sinif7Data ? String(sinif7Data.ortalama) : ""); setGdoDuzenleAcik(true); }} style={{
+                  background:"none", border:`1px solid ${PURPLE}`, color:PURPLE, borderRadius:6, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer"
+                }}>✏️ {sinif7Data ? "Düzenle" : "Elle Gir"}</button>
+              </>
+            ) : (
+              <>
+                <input type="number" step="0.1" value={gdoDegeri} onChange={e=>setGdoDegeri(e.target.value)} placeholder="örn. 24.5"
+                  style={{ width:80, padding:"5px 8px", border:`1px solid ${BORDER}`, borderRadius:6, fontSize:12, boxSizing:"border-box" }} />
+                <button onClick={handleGdoManuelKaydet} disabled={!gdoDegeri.trim()} style={{ background:PURPLE, color:"#fff", border:"none", borderRadius:6, padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer" }}>Kaydet</button>
+                <button onClick={()=>setGdoDuzenleAcik(false)} style={{ background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:6, padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer" }}>İptal</button>
+              </>
+            )}
+          </div>
 
           {/* Alt sekmeler */}
           <div style={{ display:"flex", gap:4, marginBottom:14, borderBottom:`1px solid ${BORDER}`, paddingBottom:0 }}>
@@ -9836,51 +9879,57 @@ export default function App() {
             ilerlemeNotlari={ilerlemeNotlari}
             setIlerlemeNotlari={setIlerlemeNotlari}
             onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari }))}
-            onSinifGuncelle={async (eskiAd, eskiSinif, eskiNumara, yeniSinif) => {
+            onSinifGuncelle={async (eskiAd, eskiSinif, eskiNumara, yeniAd, yeniSinif) => {
               const ayniMi = (ad, sinif, no) => pdrAyniOgrenci(eskiAd, eskiSinif, ad, sinif, eskiNumara, no);
 
-              const yeniOgrenciler = ogrenciler.map(o => ayniMi(o.studentName, o.className, o.numara) ? { ...o, className: yeniSinif } : o);
+              const yeniOgrenciler = ogrenciler.map(o => ayniMi(o.studentName, o.className, o.numara) ? { ...o, studentName: yeniAd, className: yeniSinif } : o);
               setOgrenciler(yeniOgrenciler); await saveOgrenciler(yeniOgrenciler);
 
-              const yeniRecords = records.map(r => ayniMi(r.studentName, r.className, r.numara) ? { ...r, className: yeniSinif } : r);
+              const yeniRecords = records.map(r => ayniMi(r.studentName, r.className, r.numara) ? { ...r, studentName: yeniAd, className: yeniSinif } : r);
               setRecords(yeniRecords); await saveRecords(yeniRecords);
 
-              const yeniRisk = riskListesi.map(r => ayniMi(r.studentName, r.className, r.numara) ? { ...r, className: yeniSinif } : r);
+              const yeniRisk = riskListesi.map(r => ayniMi(r.studentName, r.className, r.numara) ? { ...r, studentName: yeniAd, className: yeniSinif } : r);
               setRiskListesi(yeniRisk); await saveRiskListesi(yeniRisk);
 
-              const yeniProfiles = profiles.map(p => ayniMi(p.studentName, p.className, p.numara) ? { ...p, className: yeniSinif } : p);
+              const yeniProfiles = profiles.map(p => ayniMi(p.studentName, p.className, p.numara) ? { ...p, studentName: yeniAd, className: yeniSinif } : p);
               setProfiles(yeniProfiles); await saveProfiles(yeniProfiles);
 
-              const yeniProfiles2 = profiles2.map(p => ayniMi(p.studentName, p.className, p.numara) ? { ...p, className: yeniSinif } : p);
+              const yeniProfiles2 = profiles2.map(p => ayniMi(p.studentName, p.className, p.numara) ? { ...p, studentName: yeniAd, className: yeniSinif } : p);
               setProfiles2(yeniProfiles2); await saveProfiles2(yeniProfiles2);
 
-              const yeniSevkler = sevkler.map(s => ayniMi(s.studentName, s.className, s.numara) ? { ...s, className: yeniSinif } : s);
+              const yeniSevkler = sevkler.map(s => ayniMi(s.studentName, s.className, s.numara) ? { ...s, studentName: yeniAd, className: yeniSinif } : s);
               setSevkler(yeniSevkler); await saveSevkler(yeniSevkler);
 
-              // İsimle anahtarlanan sözlükler: eski anahtardaki veriyi yeni (sınıf güncellenmiş) anahtara taşı
-              function pdrSozlukSinifTasi(sozluk) {
+              const yeniHatirlatmalar = (hatirlatmalar||[]).map(h => ayniMi(h.studentName, h.className, h.numara) ? { ...h, studentName: yeniAd, className: yeniSinif } : h);
+              setHatirlatmalar(yeniHatirlatmalar); await saveHatirlatmalar(yeniHatirlatmalar);
+
+              const yeniNetHaritasi = (netHaritasiKayitlari||[]).map(k => ayniMi(k.studentName, k.className, k.numara) ? { ...k, studentName: yeniAd, className: yeniSinif } : k);
+              setNetHaritasiKayitlari(yeniNetHaritasi); await saveNetHaritasi(yeniNetHaritasi);
+
+              // İsimle anahtarlanan sözlükler: eski anahtardaki veriyi yeni (ad/sınıf güncellenmiş) anahtara taşı
+              function pdrSozlukTasi(sozluk) {
                 const eskiKey = pdrOgrAnahtar(eskiAd, eskiSinif);
                 const veri = sozluk[eskiKey] !== undefined ? sozluk[eskiKey] : sozluk[eskiAd];
                 if (veri === undefined) return sozluk;
-                const yeniKey = pdrOgrAnahtar(eskiAd, yeniSinif);
+                const yeniKey = pdrOgrAnahtar(yeniAd, yeniSinif);
                 const guncel = { ...sozluk, [yeniKey]: veri };
                 delete guncel[eskiKey];
                 delete guncel[eskiAd];
                 return guncel;
               }
-              const yeniDenemeler = pdrSozlukSinifTasi(denemeler);
+              const yeniDenemeler = pdrSozlukTasi(denemeler);
               setDenemeler(yeniDenemeler); await saveDenemeler(yeniDenemeler);
 
-              const yeniMudahale = pdrSozlukSinifTasi(mudahalePlan);
+              const yeniMudahale = pdrSozlukTasi(mudahalePlan);
               setMudahalePlan(yeniMudahale); await saveMudahalePlan(yeniMudahale);
 
-              const yeniHazirlik = pdrSozlukSinifTasi(hazirlikNotlari);
+              const yeniHazirlik = pdrSozlukTasi(hazirlikNotlari);
               setHazirlikNotlari(yeniHazirlik); await saveHazirlikNotlari(yeniHazirlik);
 
-              const yeniIlerleme = pdrSozlukSinifTasi(ilerlemeNotlari);
+              const yeniIlerleme = pdrSozlukTasi(ilerlemeNotlari);
               setIlerlemeNotlari(yeniIlerleme); await saveIlerlemeNotlari(yeniIlerleme);
 
-              const yeniOog = oogDegerlendirmeler.map(o => ayniMi(o.studentName, o.className, o.numara) ? { ...o, className: yeniSinif } : o);
+              const yeniOog = oogDegerlendirmeler.map(o => ayniMi(o.studentName, o.className, o.numara) ? { ...o, studentName: yeniAd, className: yeniSinif } : o);
               setOogDegerlendirmeler(yeniOog); await saveOogDegerlendirmeler(yeniOog);
             }}
             onOgrenciSil={async (studentName, className, numara) => {
@@ -9903,6 +9952,12 @@ export default function App() {
 
               const updSevkler = sevkler.filter(s => !silinecekMi(s.studentName, s.className, s.numara));
               setSevkler(updSevkler); await saveSevkler(updSevkler);
+
+              const updHatirlatmalar = (hatirlatmalar||[]).filter(h => !silinecekMi(h.studentName, h.className, h.numara));
+              setHatirlatmalar(updHatirlatmalar); await saveHatirlatmalar(updHatirlatmalar);
+
+              const updNetHaritasi = (netHaritasiKayitlari||[]).filter(k => !silinecekMi(k.studentName, k.className, k.numara));
+              setNetHaritasiKayitlari(updNetHaritasi); await saveNetHaritasi(updNetHaritasi);
 
               const updOog = oogDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
               setOogDegerlendirmeler(updOog); await saveOogDegerlendirmeler(updOog);
