@@ -1255,6 +1255,10 @@ function KazanimlarSekmesi() {
 // İstatistik'teki "Konulara Göre" dağılımı ve Excel çıktısı tutarlı/anlamlı
 // kategorilere göre gruplanır (serbest metin yerine).
 const KONU_LISTESI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygusal","Devamsızlık","Öz Zarar","Sağlık","Madde Kullanımı","Teknoloji / Ekran Bağımlılığı","Ekonomik Güçlük","Yas / Kayıp","Travma","Özel Öğrenme Güçlüğü","Sınav Kaygısı","Kariyer / Gelecek Planlama","Genel Sohbet","Diğer"];
+// Kaynaştırma/tanı listesi — e-Okul'dan sınıf bazında gelen kaynaştırma
+// öğrencilerini işaretlemek için. Bir öğrencide birden fazla tanı olabilir,
+// o yüzden çoklu seçim (dizi) olarak tutulur.
+const KAYNASTIRMA_TANILAR = ["Özel Öğrenme Güçlüğü","DEHB","Otizm Spektrum Bozukluğu","Zihinsel Yetersizlik","İşitme Yetersizliği","Görme Yetersizliği","Dil ve Konuşma Güçlüğü","Diğer"];
 
 // ── PDR Boyutları ─────────────────────────────────────────────────────────────
 const DIMENSIONS = [
@@ -2486,14 +2490,14 @@ async function raporIndir(elementId, dosyaAdi) {
 
 
 // ── PDF Rapor Verisi ─────────────────────────────────────────────────────────
-function raporVerisiOlustur({ ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler, mudahalePlan, riskListesi, sinavTuru, testKayitlari }) {
-  return { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: denemeler || {}, mudahalePlan: mudahalePlan || {}, riskListesi: riskListesi || [], sinavTuru, testKayitlari: testKayitlari || [], tarih: new Date().toLocaleDateString("tr-TR") };
+function raporVerisiOlustur({ ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler, mudahalePlan, riskListesi, sinavTuru, testKayitlari, kaynastirma }) {
+  return { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: denemeler || {}, mudahalePlan: mudahalePlan || {}, riskListesi: riskListesi || [], sinavTuru, testKayitlari: testKayitlari || [], kaynastirma: kaynastirma || [], tarih: new Date().toLocaleDateString("tr-TR") };
 }
 
 // ── PDF Rapor Bileşeni ────────────────────────────────────────────────────────
 function RaporModal({ rapor, onKapat }) {
   if (!rapor) return null;
-  const { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: raporDenemeler, mudahalePlan: raporMudahale, riskListesi: raporRisk, tarih, sinavTuru, testKayitlari: raporTestler } = rapor;
+  const { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: raporDenemeler, mudahalePlan: raporMudahale, riskListesi: raporRisk, tarih, sinavTuru, testKayitlari: raporTestler, kaynastirma: raporKaynastirma } = rapor;
   const dersler = aktifDersler(sinavTuru);
 
   const dersOrtalama = () => {
@@ -2546,6 +2550,9 @@ function RaporModal({ rapor, onKapat }) {
             <div style={{ fontSize: 10, color: "#1FA971", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>PDR Servisi — Öğrenci Profil Raporu</div>
             <div style={{ fontSize: 22, fontWeight: 900, color: "#1a1a1a", margin: "4px 0" }}>{ogrenci}</div>
             {profil1?.className && <div style={{ fontSize: 13, color: "#666" }}>{profil1.className}</div>}
+            {raporKaynastirma && raporKaynastirma.length > 0 && (
+              <div style={{ fontSize: 11, color: "#8B5A00", fontWeight: 700, marginTop: 4 }}>🧩 Kaynaştırma / Tanı: {raporKaynastirma.join(", ")}</div>
+            )}
           </div>
           <div style={{ textAlign: "right", fontSize: 11, color: "#888" }}>
             <div>Rapor Tarihi</div>
@@ -6577,7 +6584,8 @@ function OgrenciYonetim({
                 profil1: ogrP1 || null,
                 profil2: ogrP2 || null,
                 gorusmeler: ogrRec,
-                denemeler: ogrDeneme
+                denemeler: ogrDeneme,
+                kaynastirma: tumOgrenciler.find(x => x.studentName === seciliOgrenci)?.kaynastirma || []
               });
             }} style={{ background:ACCENT, color:"#fff", border:"none", borderRadius:8, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer" }}>📄 Rapor</button>
           </div>
@@ -7810,7 +7818,7 @@ function ProfilMerkez({
                   aile_notu: prof2Form.aile_notu || "",
                   d2_analiz: prof2Analiz || ""
                 };
-                onRaporAc({ogrenci:seciliAd, ogrenciSinif:seciliSinif, profil1:p1Rapor, profil2:p2Rapor, gorusmeler:ogrRec, denemeler:ogrDeneme});
+                onRaporAc({ogrenci:seciliAd, ogrenciSinif:seciliSinif, profil1:p1Rapor, profil2:p2Rapor, gorusmeler:ogrRec, denemeler:ogrDeneme, kaynastirma: kayitliListesi.find(o => o.name === seciliAd)?.kaynastirma || []});
               }} style={{
                 background:ACCENT, color:"#fff", border:"none", borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:700, cursor:"pointer"
               }}>📄 PDF Rapor</button>
@@ -8223,6 +8231,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
   const [listeSonuc, setListeSonuc] = useState(null);
   const [yeniSinifAdi, setYeniSinifAdi] = useState("");
   const [sinifSilOnay, setSinifSilOnay] = useState(null);
+  const [kaynastirmaAcikId, setKaynastirmaAcikId] = useState(null);
 
   const RISK_TURLERI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygusal","Devamsızlık","Öz Zarar","Sağlık","Madde Kullanımı","Teknoloji / Ekran Bağımlılığı","Ekonomik Güçlük","Yas / Kayıp","Travma","Özel Öğrenme Güçlüğü","Diğer"];
 
@@ -8280,7 +8289,14 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
       .map(o => ({ ad: o.studentName, sinif: o.className, numara: o.numara, devamsizlik: parseInt(o.devamsizlik)||0 }))
       .sort((a,b) => b.devamsizlik - a.devamsizlik);
 
-    return { ogr, gorusmeler, riskler, riskDagilim, gelenOgrenciSayisi, konuSirali, denemeOrt, denemeKapsam: denemeNetleri.length, cinsiyetDagilim, devamsizlikListesi };
+    // Kaynaştırma/tanı özeti — kaç öğrenci, hangi tanı(lar)dan kaçar tane
+    const kaynastirmaOgrenciler = ogr.filter(o => (o.kaynastirma||[]).length > 0);
+    const kaynastirmaDagilim = {};
+    kaynastirmaOgrenciler.forEach(o => {
+      (o.kaynastirma||[]).forEach(t => { kaynastirmaDagilim[t] = (kaynastirmaDagilim[t]||0) + 1; });
+    });
+
+    return { ogr, gorusmeler, riskler, riskDagilim, gelenOgrenciSayisi, konuSirali, denemeOrt, denemeKapsam: denemeNetleri.length, cinsiyetDagilim, devamsizlikListesi, kaynastirmaOgrenciler, kaynastirmaDagilim };
   }
 
   // Gösterilecek sınıflar: elle eklenen sınıflar + öğrencisi olan tüm sınıflar (birleşim)
@@ -8307,6 +8323,16 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
     setSinifListesi(guncel);
     await saveSinifListesi(guncel);
     setSinifSilOnay(null);
+  }
+
+  // Kaynaştırma/tanı bilgisini doğrudan Sınıf sekmesinden güncelle — e-Okul'dan
+  // sınıf bazında gelen listeye bakarak, görüşme yapmadan işaretleyebilmek için.
+  // Öğrenciler sekmesindeki düzenlemenin "görüşülmüş" izlenimi vermesinden
+  // ayrı, bağımsız bir giriş noktası.
+  async function handleKaynastirmaGuncelle(ogrenci, yeniTanilar) {
+    const guncel = ogrenciler.map(o => pdrAyniOgrenci(o.studentName, o.className, ogrenci.studentName, ogrenci.className, o.numara, ogrenci.numara) ? { ...o, kaynastirma: yeniTanilar } : o);
+    setOgrenciler(guncel);
+    await saveOgrenciler(guncel);
   }
 
 
@@ -8434,6 +8460,26 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
           )}
         </div>
 
+        {/* Kaynaştırma / Tanı Özeti */}
+        {st.kaynastirmaOgrenciler.length > 0 && (
+          <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,padding:14,marginBottom:14}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#8B5A00",textTransform:"uppercase",marginBottom:10}}>🧩 Kaynaştırma Öğrencileri ({st.kaynastirmaOgrenciler.length})</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+              {Object.entries(st.kaynastirmaDagilim).map(([tani,adet]) => (
+                <span key={tani} style={{background:"#FFF4E5",color:"#8B5A00",borderRadius:10,padding:"3px 9px",fontSize:11,fontWeight:700}}>{tani}: {adet}</span>
+              ))}
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              {st.kaynastirmaOgrenciler.map(o => (
+                <div key={pdrOgrAnahtar(o.studentName,o.className,o.numara)} style={{fontSize:12,display:"flex",justifyContent:"space-between"}}>
+                  <span>{o.studentName}</span>
+                  <span style={{color:MUTED}}>{(o.kaynastirma||[]).join(", ")}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Devamsızlık — öğrenci öğrenci */}
         {st.devamsizlikListesi.some(d=>d.devamsizlik>0) && (
           <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,padding:14,marginBottom:14}}>
@@ -8504,8 +8550,11 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
             const denemeNetleri = denemeGirisleri.map(([idx,nets]) => ({ idx, net: dersler.reduce((s,d) => s + (parseFloat(nets[d.key]) || 0), 0) }));
             const devamsizlikSayisi = parseInt(o.devamsizlik) || 0;
             const olaySayisi = (o.olayKayitlari || []).length;
+            const ogrKey = pdrOgrAnahtar(o.studentName, o.className, o.numara);
+            const kaynastirmaTanilari = o.kaynastirma || [];
+            const kaynastirmaAcik = kaynastirmaAcikId === ogrKey;
             return (
-              <div key={pdrOgrAnahtar(o.studentName, o.className, o.numara)} style={{padding:"8px 0",borderBottom:`1px solid ${BORDER}`}}>
+              <div key={ogrKey} style={{padding:"8px 0",borderBottom:`1px solid ${BORDER}`}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
                   <div style={{width:30,height:30,borderRadius:"50%",background:ACCENT_LIGHT,color:ACCENT,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,flexShrink:0}}>
                     {o.studentName.charAt(0).toUpperCase()}
@@ -8518,6 +8567,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
                 <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap",paddingLeft:38}}>
                   {oRisk.length > 0 && <span style={{background:"#FDECEA",color:"#C0392B",borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>⚠ Risk</span>}
                   {oTeknoloji && <span title={oRisk.find(r=>r.teknolojiBagimliligi)?.teknolojiGerekce || ""} style={{background:"#EEF2FF",color:"#3B4FD8",borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>📱 Teknoloji</span>}
+                  {kaynastirmaTanilari.length > 0 && <span title={kaynastirmaTanilari.join(", ")} style={{background:"#FFF4E5",color:"#8B5A00",borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>🧩 {kaynastirmaTanilari.length===1?kaynastirmaTanilari[0]:`${kaynastirmaTanilari.length} tanı`}</span>}
                   {gdo !== null && <span title="Geçmiş Dönem Deneme Ortalaması" style={{background:"#F3EEFB",color:PURPLE,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>📊 GDO: {gdo.toFixed(1)}</span>}
                   {denemeNetleri.map(d => (
                     <span key={d.idx} title={`Deneme ${d.idx} — Net`} style={{background:"#EDEAFB",color:PURPLE,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>D{d.idx} {d.net.toFixed(1)}</span>
@@ -8525,7 +8575,27 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
                   {devamsizlikSayisi > 0 && <span title="Devamsızlık" style={{background:"#FFF4E5",color:"#B5651D",borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>🗓 {devamsizlikSayisi}g</span>}
                   {olaySayisi > 0 && <span title="Olay/Tutanak Kaydı" style={{background:"#FDECEA",color:"#8E2A20",borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>📋 {olaySayisi} olay</span>}
                   <span style={{background:ACCENT_LIGHT,color:ACCENT,borderRadius:8,padding:"1px 7px",fontSize:9,fontWeight:700}}>{gSayisi} görüşme</span>
+                  <button onClick={()=>setKaynastirmaAcikId(kaynastirmaAcik?null:ogrKey)} style={{background:"none",border:`1px solid ${BORDER}`,color:MUTED,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700,cursor:"pointer"}}>🧩 {kaynastirmaAcik?"Kapat":"Tanı Düzenle"}</button>
                 </div>
+                {kaynastirmaAcik && (
+                  <div style={{marginLeft:38,marginTop:6,padding:10,background:"#FFF8ED",border:"1px solid #F0D68A",borderRadius:8}}>
+                    <div style={{fontSize:10,fontWeight:700,color:"#8B5A00",marginBottom:6}}>Kaynaştırma Tanısı (birden fazla seçilebilir):</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                      {KAYNASTIRMA_TANILAR.map(t => {
+                        const secili = kaynastirmaTanilari.includes(t);
+                        return (
+                          <button key={t} onClick={() => {
+                            const yeni = secili ? kaynastirmaTanilari.filter(x=>x!==t) : [...kaynastirmaTanilari, t];
+                            handleKaynastirmaGuncelle(o, yeni);
+                          }} style={{
+                            padding:"3px 9px", borderRadius:14, border:`1.5px solid ${secili?"#8B5A00":BORDER}`,
+                            background:secili?"#8B5A00":"#fff", color:secili?"#fff":MUTED, fontSize:10, fontWeight:600, cursor:"pointer"
+                          }}>{t}</button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
