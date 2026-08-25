@@ -9163,6 +9163,7 @@ export default function App() {
   const [listening, setListening] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [onerilenHatirlatma, setOnerilenHatirlatma] = useState(null); // {metin} | null
+  const [onerilenBireyiTanima, setOnerilenBireyiTanima] = useState(null); // [{kategori,metin,secili}] | null
   const [profAiLoading, setProfAiLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [profSaved, setProfSaved] = useState(false);
@@ -9280,16 +9281,35 @@ export default function App() {
     if (!form.raw.trim()) return;
     setAiLoading(true);
     const tamCevap = await getAISummary(form.raw);
-    // AI cevabı, özetin sonuna "---HATIRLATMA---" ayracıyla bir hatırlatma
-    // tespiti ekliyor — özeti temizleyip, varsa hatırlatmayı ayrı gösteriyoruz.
+    // AI cevabı, özetin sonuna "---HATIRLATMA---" ve "---BIREYI_TANIMA---"
+    // ayraçlarıyla iki ayrı tespit ekliyor — özeti temizleyip, ikisini de
+    // ayrı ayrı gösteriyoruz. İkisi de sadece ÖNERİ; danışman onaylamadan
+    // hiçbir şey kaydedilmez.
     const parcalar = tamCevap.split(/---HATIRLATMA---/i);
     const summary = parcalar[0].trim();
-    const hatirlatmaMetni = (parcalar[1] || "").trim();
+    const kalan = parcalar[1] || "";
+    const btParcalari = kalan.split(/---BIREYI_TANIMA---/i);
+    const hatirlatmaMetni = (btParcalari[0] || "").trim();
+    const bireyiTanimaBlok = (btParcalari[1] || "").trim();
     setForm(f => ({ ...f, summary }));
     if (hatirlatmaMetni && !/^yok/i.test(hatirlatmaMetni)) {
       setOnerilenHatirlatma({ metin: hatirlatmaMetni });
     } else {
       setOnerilenHatirlatma(null);
+    }
+    if (bireyiTanimaBlok && !/^yok/i.test(bireyiTanimaBlok)) {
+      const gecerliKategoriler = ["aile","saglik","olaylar","sosyoekonomik","ilgi","okul"];
+      const oneriler = bireyiTanimaBlok.split("\n").map(satir => {
+        const m = satir.match(/^([a-zçğıöşü]+)\s*:\s*(.+)$/i);
+        if (!m) return null;
+        const kategori = m[1].trim().toLocaleLowerCase("tr");
+        const metin = m[2].trim();
+        if (!gecerliKategoriler.includes(kategori) || !metin || /^yok$/i.test(metin)) return null;
+        return { kategori, metin, secili: true };
+      }).filter(Boolean);
+      setOnerilenBireyiTanima(oneriler.length > 0 ? oneriler : null);
+    } else {
+      setOnerilenBireyiTanima(null);
     }
     setAiLoading(false);
   }
@@ -9304,6 +9324,24 @@ export default function App() {
     setHatirlatmalar(guncel);
     await saveHatirlatmalar(guncel);
     setOnerilenHatirlatma(null);
+  }
+
+  function handleBireyiTanimaOneriToggle(index) {
+    setOnerilenBireyiTanima(prev => prev.map((o,i) => i===index ? { ...o, secili: !o.secili } : o));
+  }
+
+  async function handleBireyiTanimaOnayla() {
+    if (!onerilenBireyiTanima || !form.studentName.trim()) return;
+    const secilenler = onerilenBireyiTanima.filter(o => o.secili);
+    if (secilenler.length === 0) { setOnerilenBireyiTanima(null); return; }
+    const yeniMaddeler = secilenler.map(o => ({
+      id: uid(), studentName: form.studentName, className: form.className, numara: form.numara,
+      kategori: o.kategori, metin: o.metin, tarih: today()
+    }));
+    const guncel = [...yeniMaddeler, ...(bireyiTanima||[])];
+    setBireyiTanima(guncel);
+    await saveBireyiTanima(guncel);
+    setOnerilenBireyiTanima(null);
   }
 
   async function handleSave() {
@@ -9766,6 +9804,27 @@ export default function App() {
                   <div style={{ display:"flex", gap:8 }}>
                     <button onClick={handleHatirlatmaOnayla} disabled={!form.studentName.trim()} style={{ flex:1, padding:"7px", background:"#B07D1A", color:"#fff", border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>✓ Hatırlatıcı'ya Ekle</button>
                     <button onClick={()=>setOnerilenHatirlatma(null)} style={{ padding:"7px 14px", background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>Yoksay</button>
+                  </div>
+                </div>
+              )}
+              {/* AI'ın fark ettiği Bireyi Tanıma bilgileri — hangileri eklensin seçebilirsin */}
+              {onerilenBireyiTanima && (
+                <div style={{ background:"#FFF8ED", border:"1px solid #F0D68A", borderRadius:10, padding:"10px 12px", marginBottom:10 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:"#8B5A00", marginBottom:8 }}>🔍 AI, Bireyi Tanıma için {onerilenBireyiTanima.length} bilgi fark etti — eklemek istediklerini seç:</div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:10 }}>
+                    {onerilenBireyiTanima.map((o,i) => {
+                      const katLabel = (BIREYI_TANIMA_KATEGORILER.find(k=>k.key===o.kategori)||{}).label || o.kategori;
+                      return (
+                        <label key={i} style={{ display:"flex", alignItems:"flex-start", gap:8, fontSize:12, cursor:"pointer" }}>
+                          <input type="checkbox" checked={o.secili} onChange={()=>handleBireyiTanimaOneriToggle(i)} style={{ marginTop:2 }} />
+                          <span><span style={{ color:"#8B5A00", fontWeight:700 }}>{katLabel}:</span> {o.metin}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={handleBireyiTanimaOnayla} disabled={!form.studentName.trim()} style={{ flex:1, padding:"7px", background:"#8B5A00", color:"#fff", border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>✓ Seçilenleri Ekle</button>
+                    <button onClick={()=>setOnerilenBireyiTanima(null)} style={{ padding:"7px 14px", background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>Yoksay</button>
                   </div>
                 </div>
               )}
