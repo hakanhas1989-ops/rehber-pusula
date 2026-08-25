@@ -1157,6 +1157,7 @@ const KAZANIM_VERI_CILT2 = {"5":[{"ay":"Eylül","tarih":"8-12 Eylül","etkinlik"
 // 5. sınıf 1. cilt için sayfa numaraları eklendi; diğer kademe/ciltler
 // geldikçe aynı desenle genişletilebilir.
 const KAZANIM_PDF_URL_5 = "5-sinif-rehberlik-etkinlikleri.pdf";
+const KAZANIM_PDF_RAW_URL_5 = "https://raw.githubusercontent.com/hakanhas1989-ops/rehber-pusula/main/5-sinif-rehberlik-etkinlikleri.pdf";
 const KAZANIM_ALAN_STIL = {
   "Akademik": { renk: BLUE, bg: "#EAF2F8", kisaltma: "AKD" },
   "Kariyer": { renk: "#C9A227", bg: "#FBF3D9", kisaltma: "KAR" },
@@ -1237,7 +1238,7 @@ function KazanimlarSekmesi() {
                   // eklenecek, o zamana kadar kart tıklanamaz kalıyor.
                   const pdfSayfa = (cilt === "1" && sinif === "5") ? k.sayfa : null;
                   return (
-                    <div key={i} onClick={pdfSayfa ? () => window.open(`${KAZANIM_PDF_URL_5}#page=${pdfSayfa}`, "_blank") : undefined}
+                    <div key={i} onClick={pdfSayfa ? () => window.open(`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(KAZANIM_PDF_RAW_URL_5)}#page=${pdfSayfa}`, "_blank") : undefined}
                       style={{ background: CARD, border: `1px solid ${BORDER}`, borderLeft: `4px solid ${stil.renk}`, borderRadius: 10, padding: "10px 12px", marginBottom: 8, cursor: pdfSayfa ? "pointer" : "default" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
                         <div style={{ fontWeight: 700, fontSize: 13, color: TEXT }}>{k.etkinlik}</div>
