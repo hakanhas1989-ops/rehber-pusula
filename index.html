@@ -5145,13 +5145,13 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
   return (
     <div>
       {/* Panel seçici */}
-      <div style={{display:"flex", borderBottom:`1px solid ${BORDER}`, marginBottom:14}}>
+      <div style={{display:"flex", gap:6, marginBottom:14, flexWrap:"wrap"}}>
         {[["ozet","📊 Özet"],["hazirlik","🎯 Seans Hazırlık"],["ilerleme","📈 İlerleme"]].map(([k,l])=>(
           <button key={k} onClick={()=>setAktifPanel(k)} style={{
-            flex:1, padding:"8px 4px", border:"none", background:"none",
+            padding:"6px 12px", border:`1px solid ${aktifPanel===k ? ACCENT : BORDER}`,
+            background:aktifPanel===k ? ACCENT_LIGHT : "#fff",
             color:aktifPanel===k?ACCENT:MUTED, fontWeight:aktifPanel===k?700:500,
-            fontSize:12, cursor:"pointer",
-            borderBottom:aktifPanel===k?`3px solid ${ACCENT}`:"3px solid transparent"
+            fontSize:11, cursor:"pointer", borderRadius:8
           }}>{l}</button>
         ))}
       </div>
@@ -6680,7 +6680,7 @@ function OgrenciYonetim({
           </div>
 
           {/* Alt sekmeler */}
-          <div style={{ display:"flex", gap:4, marginBottom:14, borderBottom:`1px solid ${BORDER}`, paddingBottom:0, flexWrap:"wrap" }}>
+          <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
             {[
               { key:"ozet", label:"Özet" },
               { key:"gorusme", label:`Görüşme (${ogrRec.length})` },
@@ -6689,11 +6689,11 @@ function OgrenciYonetim({
               { key:"bireyi_tanima", label:"🔍 Bireyi Tanıma" },
             ].map(s => (
               <button key={s.key} onClick={() => setAktifSekme(s.key)} style={{
-                padding:"8px 10px", border:"none", background:"none",
+                padding:"6px 12px", border:`1px solid ${aktifSekme===s.key ? ACCENT : BORDER}`,
+                background:aktifSekme===s.key ? ACCENT_LIGHT : "#fff",
                 color:aktifSekme===s.key ? ACCENT : MUTED,
                 fontWeight:aktifSekme===s.key ? 700 : 500,
-                fontSize:12, cursor:"pointer",
-                borderBottom:aktifSekme===s.key ? `3px solid ${ACCENT}` : "3px solid transparent"
+                fontSize:11, cursor:"pointer", borderRadius:8
               }}>{s.label}</button>
             ))}
           </div>
@@ -7920,13 +7920,13 @@ function ProfilMerkez({
           {mod === "form" && (
             <>
               {/* Alt sekmeler */}
-              <div style={{display:"flex",gap:0,marginBottom:14,borderBottom:`1px solid ${BORDER}`}}>
+              <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
                 {[["p1","📊 Profil 1"],["p2","📚 Profil 2 + D2"],["oog","🧩 ÖÖG"]].map(([k,l])=>(
                   <button key={k} onClick={()=>setAltSekme(k)} style={{
-                    padding:"9px 16px", border:"none", background:"none",
+                    padding:"7px 14px", border:`1px solid ${altSekme===k ? ACCENT : BORDER}`,
+                    background:altSekme===k ? ACCENT_LIGHT : "#fff",
                     color:altSekme===k?ACCENT:MUTED, fontWeight:altSekme===k?700:500,
-                    fontSize:13, cursor:"pointer",
-                    borderBottom:altSekme===k?`3px solid ${ACCENT}`:"3px solid transparent"
+                    fontSize:12, cursor:"pointer", borderRadius:8
                   }}>{l}</button>
                 ))}
               </div>
