@@ -8580,12 +8580,19 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
         <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,padding:14,marginBottom:14}}>
           <div style={{fontSize:12,fontWeight:700,color:"#C0392B",textTransform:"uppercase",marginBottom:10}}>⚠ Risk Haritası</div>
           {RISK_TURLERI.map(t => {
-            const sayi = st.riskDagilim[t]||0;
-            const ogrRisk = st.riskler.filter(r=>r.riskTuru===t);
+            // "Özel Öğrenme Güçlüğü" satırı artık risk kaydı yerine, Sınıf
+            // sekmesinden işaretlenen Kaynaştırma tanılarını sayıyor — aynı
+            // görsel yapı, farklı veri kaynağı.
+            const kaynastirmaSatiri = t === "Özel Öğrenme Güçlüğü";
+            const sayi = kaynastirmaSatiri ? st.kaynastirmaOgrenciler.length : (st.riskDagilim[t]||0);
+            const ogrRisk = kaynastirmaSatiri
+              ? st.kaynastirmaOgrenciler.map(o => ({ id: pdrOgrAnahtar(o.studentName,o.className,o.numara), studentName: o.studentName }))
+              : st.riskler.filter(r=>r.riskTuru===t);
+            const label = kaynastirmaSatiri ? "🧩 Kaynaştırma Öğrencisi" : t;
             return (
               <div key={t} style={{marginBottom:8}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-                  <span style={{fontSize:12,color:TEXT,fontWeight:sayi>0?700:400}}>{t}</span>
+                  <span style={{fontSize:12,color:TEXT,fontWeight:sayi>0?700:400}}>{label}</span>
                   <div style={{display:"flex",alignItems:"center",gap:6}}>
                     {sayi > 0 && (
                       <div style={{display:"flex",gap:3,flexWrap:"wrap",justifyContent:"flex-end",maxWidth:180}}>
@@ -10124,13 +10131,24 @@ export default function App() {
 
               // İsimle anahtarlanan sözlükler: eski anahtardaki veriyi yeni (ad/sınıf güncellenmiş) anahtara taşı
               function pdrSozlukTasi(sozluk) {
-                const eskiKey = pdrOgrAnahtar(eskiAd, eskiSinif);
-                const veri = sozluk[eskiKey] !== undefined ? sozluk[eskiKey] : sozluk[eskiAd];
-                if (veri === undefined) return sozluk;
-                const yeniKey = pdrOgrAnahtar(yeniAd, yeniSinif);
-                const guncel = { ...sozluk, [yeniKey]: veri };
-                delete guncel[eskiKey];
-                delete guncel[eskiAd];
+                // pdrSozlukOku ÜÇ anahtarı sırayla dener: isim+sınıf+numara,
+                // isim+sınıf, sadece isim. Bu fonksiyon ÖNCEDEN sadece ikisini
+                // kontrol ediyordu (numaralı anahtarı atlıyordu) — deneme/GDO
+                // verisi genelde numaralı anahtarda saklandığı için, isim
+                // güncellemesinde bu veri "kayboluyormuş" gibi görünüyordu.
+                // Artık üçünü de sırayla kontrol edip, bulduğunu YENİ numaralı
+                // anahtara taşıyor.
+                const eskiKeyNumarali = pdrOgrAnahtar(eskiAd, eskiSinif, eskiNumara);
+                const eskiKeySinif = pdrOgrAnahtar(eskiAd, eskiSinif);
+                let veri, eskiKeyBulunan;
+                if (eskiNumara && sozluk[eskiKeyNumarali] !== undefined) { veri = sozluk[eskiKeyNumarali]; eskiKeyBulunan = eskiKeyNumarali; }
+                else if (sozluk[eskiKeySinif] !== undefined) { veri = sozluk[eskiKeySinif]; eskiKeyBulunan = eskiKeySinif; }
+                else if (sozluk[eskiAd] !== undefined) { veri = sozluk[eskiAd]; eskiKeyBulunan = eskiAd; }
+                else return sozluk;
+                const yeniKey = pdrOgrAnahtar(yeniAd, yeniSinif, eskiNumara);
+                const guncel = { ...sozluk };
+                delete guncel[eskiKeyBulunan];
+                guncel[yeniKey] = veri;
                 return guncel;
               }
               const yeniDenemeler = pdrSozlukTasi(denemeler);
