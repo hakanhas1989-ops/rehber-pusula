@@ -6267,8 +6267,16 @@ function OgrenciYonetim({
   async function handleGdoManuelKaydet() {
     const deger = gdoDegeri.trim();
     if (!deger || isNaN(parseFloat(deger))) return;
+    const net = parseFloat(deger);
+    // Excel'den içe aktarımda hem "ortalama" HEM "risk" alanı birlikte
+    // yazılıyordu; manuel giriş sadece ortalamayı kaydedip "risk" alanını
+    // boş bırakıyordu — bu yüzden Öğrenciler listesindeki risk etiketi
+    // ("Riskli"/"Takip Gerekli") ve "Geçmiş dönem denemeleri" kaynak yazısı
+    // manuel girilen öğrencilerde hep varsayılana düşüyordu. Artık aynı
+    // denemeRiskHesapla mantığıyla risk de hesaplanıp kaydediliyor.
+    const risk = denemeRiskHesapla(net, dersler);
     const mevcutSozluk = pdrSozlukOku(denemeler, seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara) || {};
-    const guncelSozluk = { ...mevcutSozluk, "7sinif": { ...(mevcutSozluk["7sinif"]||{}), ortalama: parseFloat(deger).toFixed(1), manuel: true } };
+    const guncelSozluk = { ...mevcutSozluk, "7sinif": { ...(mevcutSozluk["7sinif"]||{}), ortalama: net.toFixed(1), risk, manuel: true } };
     const yeniDenemeler = pdrSozlukYaz(denemeler, seciliOgrenci, seciliOgrenciSinif, guncelSozluk, seciliOgrenciNumara);
     setDenemeler(yeniDenemeler);
     await saveDenemeler(yeniDenemeler);
