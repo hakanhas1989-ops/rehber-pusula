@@ -7093,6 +7093,45 @@ function aktifDersler(sinavTuru) { return (SINAV_TURLERI[sinavTuru] || SINAV_TUR
 // Risk eşiği artık sabit net (55/30) değil, sınavın toplam soru sayısına göre
 // YÜZDE olarak hesaplanır — böylece 90 soruluk LGS'de de, 120 soruluk TYT'de
 // de, 80 soruluk AYT'de de doğru orantılı çalışır.
+// Bir öğrenci listesindeki geçmiş dönem (7. sınıf) deneme risk dağılımını sayar.
+function pdrRiskOzetiHesapla(liste) {
+  const yuksek = liste.filter(o => o.risk7sinif === "yuksek").length;
+  const orta = liste.filter(o => o.risk7sinif === "orta").length;
+  const dusuk = liste.filter(o => o.risk7sinif === "dusuk").length;
+  return { yuksek, orta, dusuk, veriliToplam: yuksek + orta + dusuk };
+}
+
+// Kalıcı risk özeti kartları — yükleme ekranı kapansa da her yerde canlı veriden hesaplanır, kaybolmaz.
+function RiskOzetKartlari({ ogrenciler, kompakt, baslik }) {
+  const { yuksek, orta, dusuk, veriliToplam } = pdrRiskOzetiHesapla(ogrenciler || []);
+  if (veriliToplam === 0) return null;
+  const sayiBoyut = kompakt ? 16 : 20;
+  const etiketBoyut = kompakt ? 9 : 10;
+  const pad = kompakt ? "6px" : "8px";
+  return (
+    <div style={{ marginBottom: kompakt ? 10 : 14 }}>
+      {baslik && <div style={{ fontSize: 11, fontWeight: 700, color: MUTED, marginBottom: 6 }}>{baslik}</div>}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+        <div style={{ background: "#FDECEA", borderRadius: 8, padding: pad, textAlign: "center" }}>
+          <div style={{ fontSize: sayiBoyut, fontWeight: 900, color: "#C0392B" }}>{yuksek}</div>
+          <div style={{ fontSize: etiketBoyut, color: "#C0392B", fontWeight: 700 }}>🔴 Yüksek Risk</div>
+          <div style={{ fontSize: etiketBoyut - 1, color: "#C0392B" }}>0-30 net</div>
+        </div>
+        <div style={{ background: "#FDF6E3", borderRadius: 8, padding: pad, textAlign: "center" }}>
+          <div style={{ fontSize: sayiBoyut, fontWeight: 900, color: "#B07D1A" }}>{orta}</div>
+          <div style={{ fontSize: etiketBoyut, color: "#B07D1A", fontWeight: 700 }}>🟡 Orta Risk</div>
+          <div style={{ fontSize: etiketBoyut - 1, color: "#B07D1A" }}>30-55 net</div>
+        </div>
+        <div style={{ background: "#E6F5EE", borderRadius: 8, padding: pad, textAlign: "center" }}>
+          <div style={{ fontSize: sayiBoyut, fontWeight: 900, color: "#1A8C5B" }}>{dusuk}</div>
+          <div style={{ fontSize: etiketBoyut, color: "#1A8C5B", fontWeight: 700 }}>🟢 Düşük Risk</div>
+          <div style={{ fontSize: etiketBoyut - 1, color: "#1A8C5B" }}>55+ net</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function denemeRiskHesapla(net, dersler) {
   const maksToplam = dersler.reduce((s, d) => s + d.maks, 0) || 90;
   const yuzde = (net / maksToplam) * 100;
@@ -7301,6 +7340,8 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
       <div style={{ background: "#EEF2FF", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: BLUE, fontWeight: 600 }}>
         📊 {SINAV_TURLERI[sinavTuru || "lgs"].ad} Deneme Takibi — {DENEME_SAYISI} deneme, {dersler.length} ders, {dersToplami} soru
       </div>
+
+      <RiskOzetKartlari ogrenciler={(ogrenciler||[]).filter(o => !o.yil || o.yil === aktifYil)} baslik="📊 Tüm Okul — Geçmiş Dönem Risk Dağılımı" />
 
       {!excelPanelAcik && (
         <button onClick={() => setExcelPanelAcik(true)} style={{
@@ -8347,7 +8388,7 @@ function ProfilMerkez({
 }
 
 // ── Sınıf Profili Bileşeni ────────────────────────────────────────────────────
-function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYil, sinifListesi, setSinifListesi, denemeler, sinavTuru }) {
+function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYil, sinifListesi, setSinifListesi, denemeler, sinavTuru, onSinifSilTumVeri }) {
   const [seciliSinif, setSeciliSinif] = useState(null);
   const [listeYukleAcik, setListeYukleAcik] = useState(false);
   const [listeMetni, setListeMetni] = useState("");
@@ -8441,10 +8482,11 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
     await saveOgrenciler(guncel);
   }
 
+  const [sinifSiliniyor, setSinifSiliniyor] = useState(false);
   async function handleSinifSil(sube) {
-    const guncel = (sinifListesi||[]).filter(s => s !== sube);
-    setSinifListesi(guncel);
-    await saveSinifListesi(guncel);
+    setSinifSiliniyor(true);
+    await onSinifSilTumVeri(sube);
+    setSinifSiliniyor(false);
     setSinifSilOnay(null);
   }
 
@@ -8543,6 +8585,8 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
         {st.denemeOrt!==null && (
           <div style={{ fontSize:10, color:MUTED, marginTop:-8, marginBottom:14, textAlign:"right" }}>Deneme ortalaması {st.denemeKapsam}/{st.ogr.length} öğrenciden hesaplandı</div>
         )}
+
+        <RiskOzetKartlari ogrenciler={st.ogr} kompakt baslik="📊 Geçmiş Dönem Risk Dağılımı" />
 
         {/* Görüşme Konuları */}
         {st.konuSirali.length > 0 && (
@@ -8741,6 +8785,8 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
         🏫 {aktifYil} — Sınıf & Şube Haritası
       </div>
 
+      <RiskOzetKartlari ogrenciler={yilOgrencileri} baslik="📊 Tüm Okul — Geçmiş Dönem Risk Dağılımı" />
+
       {/* Sınıf ekle */}
       <div style={{display:"flex", gap:8, marginBottom:14}}>
         <input value={yeniSinifAdi} onChange={e=>setYeniSinifAdi(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSinifEkle()}
@@ -8765,12 +8811,17 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
               transition:"all 0.15s", position:"relative"
             }}>
               {sinifSilOnay === sube ? (
-                <div style={{position:"absolute", top:6, right:6, display:"flex", gap:4, zIndex:2}}>
-                  <button onClick={(e)=>{e.stopPropagation(); handleSinifSil(sube);}} style={{background:"#C0392B",color:"#fff",border:"none",borderRadius:6,padding:"3px 7px",fontSize:10,fontWeight:800,cursor:"pointer"}}>Sil</button>
-                  <button onClick={(e)=>{e.stopPropagation(); setSinifSilOnay(null);}} style={{background:BG,color:MUTED,border:`1px solid ${BORDER}`,borderRadius:6,padding:"3px 6px",fontSize:10,cursor:"pointer"}}>✕</button>
+                <div style={{position:"absolute", top:6, right:6, left:6, zIndex:3, background:"#FDECEA", border:"1px solid #F28B82", borderRadius:8, padding:8}}>
+                  <div style={{fontSize:10, color:"#C0392B", fontWeight:600, marginBottom:6, lineHeight:1.5}}>
+                    <b>{st.ogr.length} öğrenci</b> ve tüm görüşme/risk/profil/deneme verisi silinecek.
+                  </div>
+                  <div style={{display:"flex", gap:4}}>
+                    <button disabled={sinifSiliniyor} onClick={(e)=>{e.stopPropagation(); handleSinifSil(sube);}} style={{flex:1, background:"#C0392B",color:"#fff",border:"none",borderRadius:6,padding:"4px 7px",fontSize:10,fontWeight:800,cursor:sinifSiliniyor?"default":"pointer",opacity:sinifSiliniyor?0.6:1}}>{sinifSiliniyor?"Siliniyor…":"Evet, Sil"}</button>
+                    <button disabled={sinifSiliniyor} onClick={(e)=>{e.stopPropagation(); setSinifSilOnay(null);}} style={{flex:1, background:BG,color:MUTED,border:`1px solid ${BORDER}`,borderRadius:6,padding:"4px 6px",fontSize:10,cursor:"pointer"}}>Vazgeç</button>
+                  </div>
                 </div>
               ) : (
-                <button onClick={(e)=>{e.stopPropagation(); setSinifSilOnay(sube);}} title="Sınıfı sil (sadece boş sınıflar için önerilir)" style={{
+                <button onClick={(e)=>{e.stopPropagation(); setSinifSilOnay(sube);}} title="Sınıfı ve tüm öğrencilerini kalıcı olarak sil" style={{
                   position:"absolute", top:6, right:6, background:"none", border:"none", color:MUTED, fontSize:13, cursor:"pointer", padding:2, zIndex:2
                 }}>🗑</button>
               )}
@@ -9538,6 +9589,64 @@ export default function App() {
     setRiskListesi(updated); await saveRiskListesi(updated);
   }
 
+  // Bir sınıfı ve o sınıfa ait TÜM veriyi (öğrenciler + görüşme/risk/profil/deneme/sevk/notlar) kalıcı olarak siler.
+  // Hem Öğrenciler sekmesindeki "sınıfı sil" özelliğinden hem Sınıf sekmesindeki 🗑 ikonundan çağrılır.
+  async function handleSinifSilTumVeri(className) {
+    const hedefSinif = (className || "").trim();
+    const silinecekler = ogrenciler.filter(o => (o.className||"").trim() === hedefSinif);
+    const silinecekMi = (ad, sinif, no) =>
+      silinecekler.some(s => pdrAyniOgrenci(s.studentName, s.className, ad, sinif, s.numara, no));
+
+    const updOgr = ogrenciler.filter(o => (o.className||"").trim() !== hedefSinif);
+    setOgrenciler(updOgr); await saveOgrenciler(updOgr);
+
+    const updRec = records.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
+    setRecords(updRec); await saveRecords(updRec);
+
+    const updRisk = riskListesi.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
+    setRiskListesi(updRisk); await saveRiskListesi(updRisk);
+
+    const updP1 = profiles.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
+    setProfiles(updP1); await saveProfiles(updP1);
+
+    const updP2 = profiles2.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
+    setProfiles2(updP2); await saveProfiles2(updP2);
+
+    const updSevkler = sevkler.filter(s => !silinecekMi(s.studentName, s.className, s.numara));
+    setSevkler(updSevkler); await saveSevkler(updSevkler);
+
+    const updOog = oogDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
+    setOogDegerlendirmeler(updOog); await saveOogDegerlendirmeler(updOog);
+
+    function pdrSozlukSinifTemizle(sozluk) {
+      const yeni = { ...sozluk };
+      silinecekler.forEach(o => {
+        delete yeni[pdrOgrAnahtar(o.studentName, o.className, o.numara)];
+        delete yeni[pdrOgrAnahtar(o.studentName, o.className)];
+        delete yeni[o.studentName];
+      });
+      return yeni;
+    }
+    const updDen = pdrSozlukSinifTemizle(denemeler);
+    setDenemeler(updDen); await saveDenemeler(updDen);
+
+    const updMudahale = pdrSozlukSinifTemizle(mudahalePlan);
+    setMudahalePlan(updMudahale); await saveMudahalePlan(updMudahale);
+
+    const updHazirlik = pdrSozlukSinifTemizle(hazirlikNotlari);
+    setHazirlikNotlari(updHazirlik); await saveHazirlikNotlari(updHazirlik);
+
+    const updIlerleme2 = pdrSozlukSinifTemizle(ilerlemeNotlari);
+    setIlerlemeNotlari(updIlerleme2); await saveIlerlemeNotlari(updIlerleme2);
+
+    const updProfNotlari2 = pdrSozlukSinifTemizle(profNotlari);
+    setProfNotlari(updProfNotlari2); await saveProfNotlari(updProfNotlari2);
+
+    // Elle eklenen sınıf listesinden de kaldır — aksi halde öğrencisiz olsa da kart tekrar görünür/eklenebilir kalır.
+    const updSinifListesi = (sinifListesi||[]).filter(s => s !== hedefSinif);
+    setSinifListesi(updSinifListesi); await saveSinifListesi(updSinifListesi);
+  }
+
   async function handleDenemeAnaliz(studentName, className, numara) {
     const ad = studentName.toLocaleLowerCase("tr").trim();
     const gorusmeler = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, studentName, className, r.numara, numara));
@@ -10257,54 +10366,7 @@ export default function App() {
               const updIlerleme = pdrSozlukOgrenciTemizle(ilerlemeNotlari);
               setIlerlemeNotlari(updIlerleme); await saveIlerlemeNotlari(updIlerleme);
             }}
-            onSinifSil={async (className) => {
-              const hedefSinif = (className || "").trim();
-              const silinecekler = ogrenciler.filter(o => (o.className||"").trim() === hedefSinif);
-              const silinecekMi = (ad, sinif, no) =>
-                silinecekler.some(s => pdrAyniOgrenci(s.studentName, s.className, ad, sinif, s.numara, no));
-
-              const updOgr = ogrenciler.filter(o => (o.className||"").trim() !== hedefSinif);
-              setOgrenciler(updOgr); await saveOgrenciler(updOgr);
-
-              const updRec = records.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
-              setRecords(updRec); await saveRecords(updRec);
-
-              const updRisk = riskListesi.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
-              setRiskListesi(updRisk); await saveRiskListesi(updRisk);
-
-              const updP1 = profiles.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
-              setProfiles(updP1); await saveProfiles(updP1);
-
-              const updP2 = profiles2.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
-              setProfiles2(updP2); await saveProfiles2(updP2);
-
-              const updSevkler = sevkler.filter(s => !silinecekMi(s.studentName, s.className, s.numara));
-              setSevkler(updSevkler); await saveSevkler(updSevkler);
-
-              const updOog = oogDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
-              setOogDegerlendirmeler(updOog); await saveOogDegerlendirmeler(updOog);
-
-              function pdrSozlukSinifTemizle(sozluk) {
-                const yeni = { ...sozluk };
-                silinecekler.forEach(o => {
-                  delete yeni[pdrOgrAnahtar(o.studentName, o.className, o.numara)];
-                  delete yeni[pdrOgrAnahtar(o.studentName, o.className)];
-                  delete yeni[o.studentName];
-                });
-                return yeni;
-              }
-              const updDen = pdrSozlukSinifTemizle(denemeler);
-              setDenemeler(updDen); await saveDenemeler(updDen);
-
-              const updMudahale = pdrSozlukSinifTemizle(mudahalePlan);
-              setMudahalePlan(updMudahale); await saveMudahalePlan(updMudahale);
-
-              const updHazirlik = pdrSozlukSinifTemizle(hazirlikNotlari);
-              setHazirlikNotlari(updHazirlik); await saveHazirlikNotlari(updHazirlik);
-
-              const updIlerleme2 = pdrSozlukSinifTemizle(ilerlemeNotlari);
-              setIlerlemeNotlari(updIlerleme2); await saveIlerlemeNotlari(updIlerleme2);
-            }}
+            onSinifSil={handleSinifSilTumVeri}
             setAktifOgrenci={setAktifOgrenci}
             setTab={setTab}
           />
@@ -10363,6 +10425,7 @@ export default function App() {
             setSinifListesi={setSinifListesi}
             denemeler={denemeler}
             sinavTuru={sinavTuru}
+            onSinifSilTumVeri={handleSinifSilTumVeri}
           />
         )}
 
