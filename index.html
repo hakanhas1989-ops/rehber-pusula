@@ -4321,7 +4321,30 @@ function netIlerlemeSVGOlustur(ogrKayitlar, genislik, yukseklik) {
 // değer, her kazanımın S/D/Y/B% detayını görebilmek. AI'ın PDF'ten çıkardığı
 // veri, kaydedilmeden ÖNCE danışmana gösterilir — okuma hataları olabileceği
 // için onay/düzeltme adımı zorunlu, AI hiçbir şeyi kendiliğinden kaydetmez.
-function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netHaritasiKayitlari, setNetHaritasiKayitlari }) {
+// TYT/AYT (YKS) güncel soru dağılımı — ÖSYM'nin yıllardır kullandığı stabil test
+// yapısı (yıldan yıla küçük farklar olabilir). kademe "lise" olduğunda Net
+// Haritası ekranında rozet ve AI'a giden veri paketinde bağlam olarak
+// kullanılır. NOT: bu sürümde AI çağrıları PDR_AI_WORKER_URL üzerinden action
+// bazlı yapılıyor (sistem promptları worker tarafında) — burada kademe/sinavAdi
+// veriyi worker'a iletiyoruz ki worker güncellendiğinde kullanılabilsin; ancak
+// worker kodu bu depoda değil, o yüzden worker güncellenmeden asıl AI yanıtının
+// içeriği bu bilgiyi otomatik yansıtmaz.
+const TYT_AYT_SORU_DAGILIMI = `TYT (120 soru, 165 dk): Türkçe 40, Temel Matematik 40, Sosyal Bilimler 20 (Tarih 5, Coğrafya 5, Felsefe 5, Din Kültürü ve Ahlak Bilgisi 5), Fen Bilimleri 20 (Fizik 7, Kimya 7, Biyoloji 6). Tüm adaylar TYT'ye girer.
+AYT (160 soru, 180 dk, alana göre ilgili testler): Matematik 40 · Fen Bilimleri 40 (Fizik 14, Kimya 13, Biyoloji 13) · Türk Dili ve Edebiyatı-Sosyal Bilimler-1 40 (Edebiyat 24, Tarih-1 10, Coğrafya-1 6) · Sosyal Bilimler-2 40 (Tarih-2 11, Coğrafya-2 11, Felsefe Grubu 12, Din Kültürü ve Ahlak Bilgisi 6).
+Alan bazında sorumluluk: Sayısal → TYT + AYT Matematik + AYT Fen Bilimleri; Eşit Ağırlık → TYT + AYT Matematik + AYT Türk Dili ve Edebiyatı-Sosyal Bilimler-1; Sözel → TYT + AYT Türk Dili ve Edebiyatı-Sosyal Bilimler-1 + AYT Sosyal Bilimler-2.`;
+
+function netHaritasiSinavBaglami(kademe) {
+  if (kademe === "lise") {
+    return { sinavAdi: "TYT/AYT (YKS)", ekBaglam: TYT_AYT_SORU_DAGILIMI, ornekDeneme: "3D TYT Genel Deneme-4" };
+  }
+  if (kademe === "ortaokul") {
+    return { sinavAdi: "LGS", ekBaglam: "", ornekDeneme: "ARI 8. Sınıf SDS-2" };
+  }
+  return { sinavAdi: "deneme sınavı", ekBaglam: "", ornekDeneme: "ARI 8. Sınıf SDS-2" };
+}
+
+function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netHaritasiKayitlari, setNetHaritasiKayitlari, kademe }) {
+  const sinavBaglami = netHaritasiSinavBaglami(kademe);
   const [seciliAd, setSeciliAd] = useState(aktifOgrenci?.name || "");
   const [ogrenciArama, setOgrenciArama] = useState("");
   const [yukleniyor, setYukleniyor] = useState(false);
@@ -4357,7 +4380,7 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
       const res = await fetch(PDR_AI_WORKER_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "net_haritasi_cikar", apiKey, data: { dosyaBase64: base64, mediaType } }),
+        body: JSON.stringify({ action: "net_haritasi_cikar", apiKey, data: { dosyaBase64: base64, mediaType, kademe, sinavAdi: sinavBaglami.sinavAdi, ornekDeneme: sinavBaglami.ornekDeneme } }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -4437,7 +4460,7 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
       const res = await fetch(PDR_AI_WORKER_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "net_haritasi_tekrar_listesi", apiKey, data: { ogrenci: seciliAd, ozet } }),
+        body: JSON.stringify({ action: "net_haritasi_tekrar_listesi", apiKey, data: { ogrenci: seciliAd, ozet, kademe, sinavAdi: sinavBaglami.sinavAdi, ekBaglam: sinavBaglami.ekBaglam } }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -4526,7 +4549,7 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
 
   return (
     <div style={{ padding: 16, maxWidth: 640 }}>
-      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4, color:PURPLE }}>🎯 Net Haritası</div>
+      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4, color:PURPLE }}>🎯 Net Haritası {kademe && <span style={{fontSize:12, fontWeight:700, background:PURPLE_LIGHT, color:PURPLE, borderRadius:8, padding:"2px 8px", marginLeft:4}}>{sinavBaglami.sinavAdi}</span>}</div>
       <div style={{ fontSize: 12, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
         Deneme sonuç belgesini (PDF ya da ekran görüntüsü) yükle — AI, ders ve kazanım bazında hangi konularda eksik olduğunu otomatik çıkarır. Deneme sekmesindeki ders-bazlı net takibi ayrı, bu konu-seviyesinde ek bir analiz.
       </div>
@@ -10447,6 +10470,7 @@ export default function App() {
             setAktifOgrenci={setAktifOgrenci}
             netHaritasiKayitlari={netHaritasiKayitlari}
             setNetHaritasiKayitlari={setNetHaritasiKayitlari}
+            kademe={kademe}
           />
         )}
 
