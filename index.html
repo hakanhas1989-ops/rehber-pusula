@@ -1780,6 +1780,14 @@ async function loadNetHaritasi() {
 async function saveNetHaritasi(items) {
   try { await window.storage.set("pdr-net-haritasi", JSON.stringify(items)); } catch(e) { console.warn(e); }
 }
+// Konu Haritası: öğrenci başına { [ders]: { [konu]: true } } — hangi konuların
+// "bitirdim" olarak işaretlendiğini tutar. pdrOgrAnahtar ile anahtarlanır.
+async function loadKonuHaritasi() {
+  try { const r = await window.storage.get("pdr-konu-haritasi"); return r ? JSON.parse(r.value) : {}; } catch { return {}; }
+}
+async function saveKonuHaritasi(data) {
+  try { await window.storage.set("pdr-konu-haritasi", JSON.stringify(data)); } catch(e) { console.warn(e); }
+}
 async function loadBireyiTanima() {
   try { const r = await window.storage.get("pdr-bireyi-tanima"); return r ? JSON.parse(r.value) : []; } catch { return []; }
 }
@@ -4312,6 +4320,198 @@ function netIlerlemeSVGOlustur(ogrKayitlar, genislik, yukseklik) {
   legend += `</div>`;
 
   return svg + legend;
+}
+
+// ── Konu Haritası (LGS) ──────────────────────────────────────────────────────
+// LGS'nin 6 dersi için konu listesi + son 7 yılda (2020-2026) o konudan çıkan
+// toplam soru sayısı. Kaynak: danışmanın paylaştığı "LGS Konulara Göre Soru
+// Dağılımı" tabloları. Her ders kendi içinde soru sayısına göre azalan sırada
+// — en sık sorulan konu en üstte çıksın, önceliklendirme kolaylaşsın. Bu bir
+// yardımcı referans, kesin/güncel müfredat kaynağı değil; ÖSYM'nin resmi bir
+// yayını değildir, danışmanın kendi topladığı istatistiksel bir özettir.
+const LGS_KONU_HARITASI = {
+  "Türkçe": [
+    { konu: "Parçada Anlam", gecmisSoru: 51 },
+    { konu: "Sözel Mantık", gecmisSoru: 24 },
+    { konu: "Cümlede Anlam", gecmisSoru: 16 },
+    { konu: "Sözcükte Anlam", gecmisSoru: 12 },
+    { konu: "Yazım Kuralları", gecmisSoru: 6 },
+    { konu: "Noktalama İşaretleri", gecmisSoru: 6 },
+    { konu: "Metin Türleri", gecmisSoru: 5 },
+    { konu: "Fiilimsiler", gecmisSoru: 3 },
+    { konu: "Deyimler ve Atasözleri", gecmisSoru: 3 },
+    { konu: "Cümlenin Ögeleri", gecmisSoru: 3 },
+    { konu: "Fiillerde Çatı", gecmisSoru: 3 },
+    { konu: "Cümle Türleri", gecmisSoru: 3 },
+    { konu: "Anlatım Bozukluğu", gecmisSoru: 3 },
+    { konu: "Söz Sanatları", gecmisSoru: 2 },
+  ],
+  "Matematik": [
+    { konu: "Köklü Sayılar", gecmisSoru: 22 },
+    { konu: "Üslü Sayılar", gecmisSoru: 19 },
+    { konu: "Cebirsel İfadeler", gecmisSoru: 18 },
+    { konu: "Doğrusal Denklemler ve Eğim", gecmisSoru: 15 },
+    { konu: "Çarpanlar ve Katlar", gecmisSoru: 13 },
+    { konu: "Veri Analizi", gecmisSoru: 12 },
+    { konu: "Olasılık", gecmisSoru: 10 },
+    { konu: "Üçgenler", gecmisSoru: 10 },
+    { konu: "Eşitsizlikler", gecmisSoru: 8 },
+    { konu: "Eşlik ve Benzerlik", gecmisSoru: 5 },
+    { konu: "Dönüşüm Geometrisi", gecmisSoru: 4 },
+    { konu: "Geometrik Cisimler", gecmisSoru: 4 },
+  ],
+  "Fen Bilimleri": [
+    { konu: "DNA ve Genetik Kod", gecmisSoru: 35 },
+    { konu: "Madde ve Endüstri", gecmisSoru: 33 },
+    { konu: "Basınç", gecmisSoru: 20 },
+    { konu: "Enerji Dönüşümleri ve Çevre Bilimi", gecmisSoru: 19 },
+    { konu: "Mevsimler ve İklim", gecmisSoru: 15 },
+    { konu: "Basit Makineler", gecmisSoru: 10 },
+    { konu: "Elektrik Yükleri ve Elektrik Enerjisi", gecmisSoru: 10 },
+  ],
+  "İnkılap Tarihi": [
+    { konu: "Milli Uyanış: Bağımsızlık Yolunda Atılan Adımlar", gecmisSoru: 20 },
+    { konu: "Ya İstiklal Ya Ölüm", gecmisSoru: 14 },
+    { konu: "Atatürkçülük ve Çağdaşlaşan Türkiye", gecmisSoru: 14 },
+    { konu: "Bir Kahraman Doğuyor", gecmisSoru: 12 },
+    { konu: "Demokratikleşme Çabaları", gecmisSoru: 5 },
+    { konu: "Atatürk Dönemi Türk Dış Politikası", gecmisSoru: 5 },
+    { konu: "Atatürk'ün Vefatı ve Sonrası", gecmisSoru: 0 },
+  ],
+  "Din Kültürü": [
+    { konu: "Din ve Hayat", gecmisSoru: 19 },
+    { konu: "Zekat ve Sadaka", gecmisSoru: 18 },
+    { konu: "Kader İnancı", gecmisSoru: 16 },
+    { konu: "Hz. Muhammed'in Örnekliği", gecmisSoru: 6 },
+    { konu: "Kur'an-ı Kerim'in Özellikleri", gecmisSoru: 6 },
+    { konu: "Bir Peygamber Tanıyorum: Hz. Musa", gecmisSoru: 5 },
+  ],
+  "İngilizce": [
+    { konu: "Friendship", gecmisSoru: 14 },
+    { konu: "In The Kitchen", gecmisSoru: 10 },
+    { konu: "On The Phone", gecmisSoru: 9 },
+    { konu: "The Internet", gecmisSoru: 9 },
+    { konu: "Teen Life", gecmisSoru: 7 },
+    { konu: "Tourism", gecmisSoru: 6 },
+    { konu: "Adventures", gecmisSoru: 5 },
+    { konu: "Chores", gecmisSoru: 5 },
+    { konu: "Science", gecmisSoru: 5 },
+    { konu: "Natural Forces", gecmisSoru: 1 },
+  ],
+};
+const LGS_KONU_HARITASI_DERSLER = Object.keys(LGS_KONU_HARITASI);
+
+// Bir öğrencinin bir dersteki işaretli konu sayısına göre tamamlanma yüzdesini
+// hesaplar. checkedMap: { [konu]: true } — sadece LGS_KONU_HARITASI'nda o ders
+// için gerçekten var olan konular sayılır (eski/silinmiş bir konu kalıntısı
+// yüzdeyi bozmasın diye).
+function konuHaritasiYuzdeHesapla(ders, checkedMap) {
+  const konular = LGS_KONU_HARITASI[ders] || [];
+  if (konular.length === 0) return 0;
+  const isaretli = konular.filter(k => checkedMap && checkedMap[k.konu]).length;
+  return Math.round((isaretli / konular.length) * 100);
+}
+
+function KonuHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, konuHaritasiVerisi, setKonuHaritasiVerisi }) {
+  const [seciliAd, setSeciliAd] = useState(aktifOgrenci?.name || "");
+  const [ogrenciArama, setOgrenciArama] = useState("");
+  const [acikDers, setAcikDers] = useState(null);
+
+  useEffect(() => {
+    if (aktifOgrenci?.name) setSeciliAd(aktifOgrenci.name);
+    else setSeciliAd("");
+  }, [aktifOgrenci?.name]);
+
+  const seciliOgr = kayitliListesi.find(o => o.name === seciliAd);
+  const seciliSinif = seciliOgr?.className || aktifOgrenci?.className || "";
+  const seciliNumara = seciliOgr?.numara || aktifOgrenci?.numara || "";
+  const ogrAnahtar = seciliAd ? pdrOgrAnahtar(seciliAd, seciliSinif, seciliNumara) : null;
+  const ogrVerisi = (ogrAnahtar && konuHaritasiVerisi[ogrAnahtar]) || {};
+
+  async function konuToggle(ders, konu) {
+    if (!ogrAnahtar) return;
+    const mevcutDers = ogrVerisi[ders] || {};
+    const yeniDers = { ...mevcutDers, [konu]: !mevcutDers[konu] };
+    const yeni = { ...konuHaritasiVerisi, [ogrAnahtar]: { ...ogrVerisi, [ders]: yeniDers } };
+    setKonuHaritasiVerisi(yeni);
+    await saveKonuHaritasi(yeni);
+  }
+
+  const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, boxSizing:"border-box" };
+
+  return (
+    <div style={{ padding: 16, maxWidth: 640 }}>
+      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4, color:PURPLE }}>📚 Konu Haritası <span style={{fontSize:12, fontWeight:700, background:PURPLE_LIGHT, color:PURPLE, borderRadius:8, padding:"2px 8px", marginLeft:4}}>LGS</span></div>
+      <div style={{ fontSize: 12, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
+        Görüşme sırasında öğrencinin "bitirdim" dediği konuları işaretle — ders başlığındaki yüzde otomatik hesaplanır. Konunun yanındaki sayı, o konudan son 7 yılda (2020-2026) LGS'de kaç soru çıktığını gösterir; henüz işaretlenmemiş ama sık çıkan konulara öncelik verilebilir.
+      </div>
+
+      {/* Öğrenci seçimi */}
+      {seciliAd ? (
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:PURPLE, border:`1px solid ${PURPLE}`, borderRadius:10, padding:"8px 12px", marginBottom:16 }}>
+          <div style={{ fontSize:13, fontWeight:700, color:"#fff" }}>👤 {seciliAd}{seciliSinif?` — ${seciliSinif}`:""}</div>
+          <button onClick={() => { setSeciliAd(""); setAktifOgrenci({ name:"", className:"" }); setOgrenciArama(""); setAcikDers(null); }} style={{
+            background:"rgba(255,255,255,0.2)", border:"1px solid #fff", color:"#fff", borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
+          }}>✕ Değiştir</button>
+        </div>
+      ) : (
+        <>
+          <input value={ogrenciArama} onChange={e=>setOgrenciArama(e.target.value)} placeholder="Öğrenci ara… (en az 2 karakter)" style={{...inp, marginBottom:8}} />
+          {ogrenciArama.trim().length >= 2 && (
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:16 }}>
+              {kayitliListesi.filter(o =>
+                o.name.toLocaleLowerCase("tr").includes(ogrenciArama.toLocaleLowerCase("tr")) ||
+                o.className?.toLocaleLowerCase("tr").includes(ogrenciArama.toLocaleLowerCase("tr"))
+              ).slice(0,20).map(o => (
+                <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => { setSeciliAd(o.name); setAktifOgrenci({ name:o.name, className:o.className||"" }); setOgrenciArama(""); }} style={{
+                  padding:"5px 12px", borderRadius:20, border:`2px solid ${BORDER}`, background:"#fff", color:MUTED, fontSize:12, fontWeight:500, cursor:"pointer"
+                }}>{o.name}{o.className?` · ${o.className}`:""}</button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Ders listesi */}
+      {seciliAd && (
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {LGS_KONU_HARITASI_DERSLER.map(ders => {
+            const acik = acikDers === ders;
+            const yuzde = konuHaritasiYuzdeHesapla(ders, ogrVerisi[ders]);
+            const renk = yuzde >= 75 ? "#1A8C5B" : yuzde >= 40 ? "#B07D1A" : "#C0392B";
+            return (
+              <div key={ders} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, overflow:"hidden" }}>
+                <button onClick={()=>setAcikDers(acik?null:ders)} style={{
+                  width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 14px",
+                  background:"none", border:"none", cursor:"pointer", textAlign:"left"
+                }}>
+                  <span style={{ fontSize:14, fontWeight:800 }}>{ders}</span>
+                  <span style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontSize:13, fontWeight:900, color:renk }}>%{yuzde}</span>
+                    <span style={{ fontSize:11, color:MUTED }}>{acik?"▲":"▼"}</span>
+                  </span>
+                </button>
+                {acik && (
+                  <div style={{ borderTop:`1px solid ${BORDER}`, padding:"6px 14px 12px" }}>
+                    {LGS_KONU_HARITASI[ders].map(k => {
+                      const isaretli = !!(ogrVerisi[ders] && ogrVerisi[ders][k.konu]);
+                      return (
+                        <label key={k.konu} style={{ display:"flex", alignItems:"center", gap:9, padding:"7px 0", borderBottom:`1px solid ${BG}`, cursor:"pointer" }}>
+                          <input type="checkbox" checked={isaretli} onChange={()=>konuToggle(ders, k.konu)} style={{ width:16, height:16, flexShrink:0, cursor:"pointer" }} />
+                          <span style={{ flex:1, fontSize:13, color: isaretli ? MUTED : TEXT, textDecoration: isaretli ? "line-through" : "none" }}>{k.konu}</span>
+                          <span style={{ fontSize:10, color:MUTED, background:BG, borderRadius:8, padding:"2px 7px", flexShrink:0 }}>{k.gecmisSoru} soru</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Net Haritası Bileşeni ────────────────────────────────────────────────────
@@ -9370,6 +9570,7 @@ export default function App() {
   const [sevkler, setSevkler] = useState([]);
   const [hatirlatmalar, setHatirlatmalar] = useState([]);
   const [netHaritasiKayitlari, setNetHaritasiKayitlari] = useState([]);
+  const [konuHaritasiVerisi, setKonuHaritasiVerisi] = useState({});
   const [bireyiTanima, setBireyiTanima] = useState([]);
   const [kutuphane, setKutuphane] = useState([]);
   const [pdfYukleniyor, setPdfYukleniyor] = useState(false);
@@ -9400,6 +9601,7 @@ export default function App() {
     loadSevkler().then(setSevkler);
     loadHatirlatmalar().then(setHatirlatmalar);
     loadNetHaritasi().then(setNetHaritasiKayitlari);
+    loadKonuHaritasi().then(setKonuHaritasiVerisi);
     loadBireyiTanima().then(setBireyiTanima);
   }, []);
 
@@ -9830,12 +10032,17 @@ export default function App() {
   // kademesinde anlamı yok, o yüzden kademe "ilkokul" iken sekme listesinden
   // ve dolayısıyla arama/seçim listelerinden çıkarılır.
   const ILKOKULDA_GIZLENECEK_SEKMELER = ["net_haritasi", "deneme"];
+  // Konu Haritası şu an sadece LGS (ortaokul) konu/soru verisiyle dolu; kademe
+  // "ilkokul" ya da "lise" iken (o kademeler için henüz veri olmadığından)
+  // gizlenir. kademe boşsa (henüz seçilmemişse) gösterilmeye devam eder.
+  const SADECE_ORTAOKULDA_GORUNEN_SEKMELER = ["konu_haritasi"];
   const TABS_TUMU = [
     { key: "ogrenciler", label: "👥 Öğrenciler" },
     { key: "profil_merkez", label: "📋 Profil" },
     { key: "yeni", label: "📝 Görüşme Notu" },
     { key: "hatirlatici", label: "🔔 Hatırlatıcı" },
     { key: "net_haritasi", label: "🎯 Net Haritası" },
+    { key: "konu_haritasi", label: "📚 Konu Haritası" },
     { key: "sinif_profili", label: "🏫 Sınıf" },
     { key: "risk", label: "⚠ Risk" },
     { key: "deneme", label: "📊 Deneme" },
@@ -9848,12 +10055,16 @@ export default function App() {
     { key: "ayarlar", label: "⚙️ Ayarlar" },
     ...(pdrIsAdmin ? [{ key: "onaylar", label: "🛠 Onaylar" }] : []),
   ];
-  const TABS = TABS_TUMU.filter(t => !(kademe === "ilkokul" && ILKOKULDA_GIZLENECEK_SEKMELER.includes(t.key)));
+  const TABS = TABS_TUMU.filter(t =>
+    !(kademe === "ilkokul" && ILKOKULDA_GIZLENECEK_SEKMELER.includes(t.key)) &&
+    !(kademe && kademe !== "ortaokul" && SADECE_ORTAOKULDA_GORUNEN_SEKMELER.includes(t.key))
+  );
 
-  // Kademe "ilkokul"a değiştiğinde, o an açık olan sekme gizlenen sekmelerden
-  // biriyse boş ekranda kalmamak için Öğrenciler'e yönlendir.
+  // Kademe değiştiğinde, o an açık olan sekme yeni kademede gizlenen
+  // sekmelerden biriyse boş ekranda kalmamak için Öğrenciler'e yönlendir.
   useEffect(() => {
     if (kademe === "ilkokul" && ILKOKULDA_GIZLENECEK_SEKMELER.includes(tab)) setTab("ogrenciler");
+    if (kademe && kademe !== "ortaokul" && SADECE_ORTAOKULDA_GORUNEN_SEKMELER.includes(tab)) setTab("ogrenciler");
   }, [kademe]);
 
   return (
@@ -10471,6 +10682,17 @@ export default function App() {
             netHaritasiKayitlari={netHaritasiKayitlari}
             setNetHaritasiKayitlari={setNetHaritasiKayitlari}
             kademe={kademe}
+          />
+        )}
+
+        {/* ── KONU HARİTASI ────────────────────────────────────────── */}
+        {tab === "konu_haritasi" && (
+          <KonuHaritasiEkrani
+            kayitliListesi={kayitliListesi}
+            aktifOgrenci={aktifOgrenci}
+            setAktifOgrenci={setAktifOgrenci}
+            konuHaritasiVerisi={konuHaritasiVerisi}
+            setKonuHaritasiVerisi={setKonuHaritasiVerisi}
           />
         )}
 
