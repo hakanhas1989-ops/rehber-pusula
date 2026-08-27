@@ -9960,13 +9960,16 @@ export default function App() {
   async function handleProf2Delete(id) { const u = profiles2.filter(p => p.id !== id); setProfiles2(u); await saveProfiles2(u); }
 
   // Değerlendirmeden Profil 1'e aktar
-  async function handleDegerlendirmeTransfer({ studentName, className, scores, analysis }) {
-    const p = { id: uid(), date: today(), studentName, className, notes: "", scores, analysis };
-    const updated = [p, ...profiles];
-    setProfiles(updated);
-    await saveProfiles(updated);
-    setProfForm({ studentName: "", className: "", numara: "", notes: "", scores: { ...EMPTY_SCORES }, analysis: "" });
-    setTab("profil_merkez");
+  // "Gözlem Sorularıyla AI Destekli Değerlendir" akışından dönen puan ve analizi
+  // artık DOĞRUDAN AYRI BİR PROFİL OLARAK KAYDETMİYOR — bunun yerine, o an açık
+  // olan Profil 1 formunun içine dolduruyor (buton adının zaten söylediği gibi:
+  // "Profil 1'e Aktar"). Danışman formu gözden geçirip istediği gibi elle
+  // düzenleyebilir, en son kendi "Kaydet ve Önizle" butonuna basarak kaydeder.
+  // Eskiden burada hem mevcut formdaki kaydedilmemiş değişiklikler sessizce
+  // kayboluyordu hem de öğrencinin var olan profili güncellenmek yerine
+  // (handleKaydet'in yaptığı gibi) ikinci, ayrı bir profil kaydı oluşuyordu.
+  function handleDegerlendirmeTransfer({ scores, analysis }) {
+    setProfForm(f => ({ ...f, scores: { ...scores }, analysis: analysis || f.analysis }));
   }
 
   function toggleIlgi(ilgi) {
