@@ -3394,6 +3394,109 @@ function Profile2Card({ p, onDelete }) {
 // Orta, 30-63 Şiddetli). Diğer "toplam puan" tipi testlerde kesin klinik eşik
 // değerleri güvenilir şekilde doğrulanamadığı için otomatik hesaplama YAPILMAZ —
 // danışman toplam puanı girer, düzeyi kendi bildiği referansa göre kendisi yazar.
+// ── BEİER Cümle Tamamlama Testi — Form A (8-16 yaş) ──────────────────────────
+// Kaynak: BEİER Cümle Tamamlama Testi uygulama/puanlama kılavuzu (Form A, 56
+// madde, 8-16 yaş için). Danışman öğrenciyle uyguladıktan sonra doldurulmuş
+// kağıdın fotoğrafını/PDF'ini yükler; AI her maddenin öğrenci cevabını okur VE
+// kılavuzdaki puanlama mantığına göre (+ sağlıklı/uygun, - olumsuz/sağlıksız,
+// 0 nötr/tarafsız) puanlar. Danışman kaydetmeden önce her maddeyi gözden
+// geçirip düzeltebilir. Kategori toplamları (Form A Madde Çözümleme Kağıdı'yla
+// birebir aynı 11 alan ve madde numarası eşleşmesi) TAMAMEN yerel/deterministik
+// hesaplanır — AI sadece madde bazında okuma+puanlama yapar, toplamayı program
+// yapar. ÖNEMLİ: kılavuzun kendisi de bu testin "teşhis edici değil, ipucu
+// verici" olduğunu vurguluyor — bu ilke sistem promptuna aynen taşınmıştır.
+// NOT: bu sürümde AI çağrısı PDR_AI_WORKER_URL üzerinden "beier_cikar" action'ı
+// ile yapılıyor — sistem promptu worker tarafında.
+const BEIER_FORM_A_MADDELER = [
+  "Büyüdüğüm zaman.",
+  "Arkadaşlar.",
+  "Yaramazlık yaptığım zaman.",
+  "Okulda.",
+  "Bir türlü unutamadığım.",
+  "İyi arkadaşlar.",
+  "Evimiz.",
+  "Annelerin iyisi.",
+  "Geçen sene.",
+  "Elimden gelseydi.",
+  "Benim en iyi.",
+  "Öğretmenler.",
+  "Annemi severim ama.",
+  "Canım sıkılınca.",
+  "Pişman olduğum.",
+  "Ailem.",
+  "Bana göre okul.",
+  "Arkadaş olarak hoşlandığım kimseler.",
+  "Bazen babam.",
+  "Eskiden.",
+  "Başkalarına göre ben.",
+  "Keşke annem.",
+  "İşlerin başında ben olsaydım.",
+  "En büyük üzüntüm.",
+  "Tahsilimi bitirsem.",
+  "Babaların iyisi.",
+  "Yapmamam gereken.",
+  "Kardeşlerim.",
+  "En çok istediğim.",
+  "Beceremediğim şey.",
+  "Hayatın en kötü tarafı.",
+  "Eğer annem.",
+  "Sıkıntıda olduğum zaman arkadaşlarım.",
+  "Cezalar ve yasaklar.",
+  "Kurtulmak istediğim üzüntü.",
+  "Kötü bir baba.",
+  "Yaptığım en kötü şey.",
+  "İyi öğretmenlerin yapması gereken.",
+  "Evde her şey.",
+  "Hatırımda kalan.",
+  "Ben.",
+  "Beni en çok endişelendiren şey.",
+  "Dileğim.",
+  "Annem.",
+  "Çocuklar.",
+  "Eğer babam.",
+  "Korktuğum şey.",
+  "Ben küçükken.",
+  "Büyükler.",
+  "Vazgeçebilsem.",
+  "Ders kitaplarını kapayınca.",
+  "Vücudum.",
+  "Babam ve ben.",
+  "Kendi evim olunca.",
+  "Yalnız kalınca.",
+  "Hayatta olmak istediğim şey."
+];
+const BEIER_FORM_A_KATEGORILER = [
+  { ad: "Geçmişe karşı tavırlar", maddeler: [9, 20, 31, 40, 48] },
+  { ad: "Geleceğe karşı tavırlar", maddeler: [1, 10, 29, 43, 56] },
+  { ad: "Benlik duygusu ve kendi kabiliyetlerine karşı tavırlar", maddeler: [11, 21, 30, 41, 52, 55] },
+  { ad: "Anneye karşı tavırlar", maddeler: [8, 13, 22, 32, 44] },
+  { ad: "Babaya karşı tavırlar", maddeler: [19, 26, 36, 46, 53] },
+  { ad: "Ev ve aile ilişkilerine karşı tavırlar", maddeler: [7, 16, 28, 39, 54] },
+  { ad: "Arkadaşlara karşı tavırlar", maddeler: [2, 6, 18, 33, 45] },
+  { ad: "Otoriteye karşı tavırlar", maddeler: [3, 12, 23, 34, 49] },
+  { ad: "Korku ve endişeler", maddeler: [14, 24, 35, 42, 47] },
+  { ad: "Suçluluk duyguları", maddeler: [5, 15, 27, 37, 50] },
+  { ad: "Okul ve işe karşı tavırlar", maddeler: [4, 17, 25, 38, 51] },
+];
+
+function beierKategoriBul(maddeNo) {
+  return BEIER_FORM_A_KATEGORILER.find(k => k.maddeler.includes(maddeNo)) || null;
+}
+
+function beierKategoriOzetiHesapla(maddeler) {
+  const puanHaritasi = {};
+  (maddeler || []).forEach(m => { puanHaritasi[m.no] = m.puan; });
+  return BEIER_FORM_A_KATEGORILER.map(kat => {
+    const sayac = { "+": 0, "-": 0, "0": 0, "cevapsiz": 0 };
+    kat.maddeler.forEach(no => {
+      const p = puanHaritasi[no];
+      if (p === "+" || p === "-" || p === "0") sayac[p]++;
+      else sayac.cevapsiz++;
+    });
+    return { ad: kat.ad, maddeler: kat.maddeler, ...sayac };
+  });
+}
+
 const TEST_LISTESI = {
   objektif: [
     { ad: "D2 Dikkat Testi", tip: "d2" },
@@ -3422,7 +3525,7 @@ const TEST_LISTESI = {
     { ad: "Kuder Mesleki İlgi Envanteri", tip: "kariyer" },
   ],
   projektif: [
-    { ad: "BEİER Cümle Tamamlama Testi", tip: "nitel" },
+    { ad: "BEİER Cümle Tamamlama Testi (Form A, 8-16 Yaş)", tip: "beier_form_a" },
     { ad: "Goodenough–Harris Bir İnsan Çiz Testi", tip: "iq_esdeger" },
     { ad: "Louisa Düss Psikanalitik Hikayeler", tip: "nitel" },
   ],
@@ -3444,6 +3547,14 @@ function testSonucOzeti(k) {
     case "toplam_duzey_serbest": return `Toplam Puan: ${v.toplamPuan||"—"}${v.duzeyYorum?` · ${v.duzeyYorum}`:""}`;
     case "kariyer": return `${v.oneCikanAlanlar||"—"}`;
     case "nitel": return k.not ? "Nitel değerlendirme (nota bakınız)" : "—";
+    case "beier_form_a": {
+      const maddeler = v.maddeler || [];
+      const cevaplanan = maddeler.filter(m => m.cevap && m.cevap.trim()).length;
+      if (cevaplanan === 0) return "Henüz madde işlenmedi";
+      const kategoriler = beierKategoriOzetiHesapla(maddeler);
+      const enOlumsuz = [...kategoriler].sort((a,b) => b["-"] - a["-"])[0];
+      return `${cevaplanan}/56 madde · en olumsuz alan: ${enOlumsuz?.ad || "—"} (${enOlumsuz?.["-"] || 0} adet -)`;
+    }
     default: return v.sonuc || "—";
   }
 }
@@ -3454,7 +3565,7 @@ function testDuzeyHesapla(testTanim, puan) {
   return bulunan ? bulunan.ad : testTanim.duzeyler[testTanim.duzeyler.length-1].ad;
 }
 
-const TEST_FORM_BOS = { tarih: today(), not: "", dogru:"", yanlisAtlanan:"", dikkatPuani:"", pr:"", altPuanlar:{}, genelSonuc:"", hamPuan:"", zekaYasi:"", zekaBolumu:"", hataPuani:"", gelisimselYas:"", toplamPuan:"", duzeyYorum:"", oneCikanAlanlar:"", genelYorum:"" };
+const TEST_FORM_BOS = { tarih: today(), not: "", dogru:"", yanlisAtlanan:"", dikkatPuani:"", pr:"", altPuanlar:{}, genelSonuc:"", hamPuan:"", zekaYasi:"", zekaBolumu:"", hataPuani:"", gelisimselYas:"", toplamPuan:"", duzeyYorum:"", oneCikanAlanlar:"", genelYorum:"", maddeler:[], guvenlikUyarisi:"" };
 function testVeriOlustur(tip, testTanim, form) {
   switch (tip) {
     case "d2": return { dogru: form.dogru, yanlisAtlanan: form.yanlisAtlanan, dikkatPuani: form.dikkatPuani, pr: form.pr };
@@ -3464,6 +3575,7 @@ function testVeriOlustur(tip, testTanim, form) {
     case "toplam_duzey": return { toplamPuan: form.toplamPuan, duzey: testDuzeyHesapla(testTanim, form.toplamPuan) };
     case "toplam_duzey_serbest": return { toplamPuan: form.toplamPuan, duzeyYorum: form.duzeyYorum };
     case "kariyer": return { oneCikanAlanlar: form.oneCikanAlanlar, genelYorum: form.genelYorum };
+    case "beier_form_a": return { maddeler: form.maddeler || [], genelYorum: form.genelYorum, guvenlikUyarisi: form.guvenlikUyarisi || "" };
     default: return {};
   }
 }
@@ -3475,6 +3587,7 @@ function testFormGecerliMi(tip, form) {
     case "gelisimsel_hata": return !!form.hataPuani;
     case "toplam_duzey": case "toplam_duzey_serbest": return !!form.toplamPuan;
     case "kariyer": return !!form.oneCikanAlanlar.trim();
+    case "beier_form_a": return (form.maddeler||[]).some(m => m.cevap && m.cevap.trim());
     case "nitel": return !!form.not.trim();
     default: return false;
   }
@@ -3487,6 +3600,8 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
   const [seciliTest, setSeciliTest] = useState(null); // TEST_LISTESI'nden bir test tanımı objesi
   const [form, setForm] = useState({ ...TEST_FORM_BOS });
   const [kaydedildi, setKaydedildi] = useState(false);
+  const [beierYukleniyor, setBeierYukleniyor] = useState(false);
+  const [acikTestId, setAcikTestId] = useState(null);
 
   useEffect(() => {
     if (aktifOgrenci?.name) setSeciliAd(aktifOgrenci.name);
@@ -3515,6 +3630,45 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
     const guncel = pdrSozlukYaz(testKayitlari, seciliAd, seciliSinif, kayitlar.filter(k => k.id !== id), seciliNumara);
     setTestKayitlari(guncel);
     await saveTestKayitlari(guncel);
+  }
+
+  // BEİER Cümle Tamamlama Testi (Form A) — doldurulmuş kağıdın fotoğrafını/PDF'ini
+  // okuyup her maddenin öğrenci cevabını VE kılavuza göre +/-/0 puanını çıkarır.
+  // Sistem promptu worker'da (action: "beier_cikar") — burada sadece dosya
+  // hazırlanıp gönderiliyor. Kategori toplamları yerelde hesaplanır.
+  async function handleBeierPdfSec(file) {
+    if (!file) return;
+    setBeierYukleniyor(true);
+    try {
+      const apiKey = pdrGetApiKey();
+      if (!apiKey) throw new Error("Önce Ayarlar'dan API anahtarını gir.");
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result.split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const mediaType = file.type || (file.name.toLocaleLowerCase("tr").endsWith(".pdf") ? "application/pdf" : "image/jpeg");
+      const res = await fetch(PDR_AI_WORKER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "beier_cikar", apiKey, data: { dosyaBase64: base64, mediaType } }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const text = data.content?.[0]?.text || "{}";
+      const temiz = text.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(temiz);
+      const gecerliMaddeler = (parsed.maddeler||[]).filter(m => Number.isInteger(m.no) && m.no>=1 && m.no<=56);
+      if (gecerliMaddeler.length === 0) throw new Error("Belgeden madde okunamadı — belge formatı desteklenmiyor olabilir.");
+      setForm(f => ({ ...f, maddeler: gecerliMaddeler, genelYorum: parsed.genelYorum || "", guvenlikUyarisi: parsed.guvenlikUyarisi || "" }));
+      if (parsed.guvenlikUyarisi) {
+        alert("⚠️ DİKKAT: AI bu formda olası bir güvenlik/risk işareti fark etti. Kaydetmeden önce 'Güvenlik Uyarısı' alanını mutlaka oku.");
+      }
+    } catch (e) {
+      alert("Cevap kağıdı okunamadı: " + e.message);
+    }
+    setBeierYukleniyor(false);
   }
 
   const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, boxSizing:"border-box" };
@@ -3655,6 +3809,88 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                 <input value={form.genelYorum} onChange={e=>setForm(f=>({...f,genelYorum:e.target.value}))} style={{...inp, marginBottom:10}} />
               </>)}
 
+              {seciliTest.tip === "beier_form_a" && (() => {
+                const maddeler = form.maddeler || [];
+                const getMadde = (no) => maddeler.find(m => m.no === no) || { no, cevap: "", puan: "0" };
+                const updateMadde = (no, patch) => setForm(f => {
+                  const mevcut = f.maddeler || [];
+                  const varMi = mevcut.some(m => m.no === no);
+                  const yeni = varMi
+                    ? mevcut.map(m => m.no === no ? { ...m, ...patch } : m)
+                    : [...mevcut, { no, cevap: "", puan: "0", ...patch }];
+                  return { ...f, maddeler: yeni };
+                });
+                const kategoriler = beierKategoriOzetiHesapla(maddeler);
+                const puanRenk = { "+": "#1A8C5B", "-": "#C0392B", "0": MUTED };
+                return (
+                  <>
+                    <label style={{ display:"block", width:"100%", padding:14, background:"#fff", border:`2px dashed ${PURPLE}`, borderRadius:12, textAlign:"center", color:PURPLE, fontWeight:700, cursor:"pointer", marginBottom:12, boxSizing:"border-box" }}>
+                      {beierYukleniyor ? "⏳ Cevap kağıdı okunuyor…" : "📄 Doldurulmuş Kağıdı Yükle (PDF ya da Fotoğraf)"}
+                      <input type="file" accept="application/pdf,image/*" onChange={e=>handleBeierPdfSec(e.target.files?.[0])} style={{ display:"none" }} disabled={beierYukleniyor} />
+                    </label>
+
+                    {form.guvenlikUyarisi && (
+                      <div style={{ background:"#FDECEA", border:`2px solid #C0392B`, borderRadius:10, padding:12, marginBottom:12 }}>
+                        <div style={{ fontSize:12, fontWeight:800, color:"#C0392B", marginBottom:4 }}>⚠️ Güvenlik Uyarısı</div>
+                        <div style={{ fontSize:12, color:"#8B2E22", lineHeight:1.5 }}>{form.guvenlikUyarisi}</div>
+                      </div>
+                    )}
+
+                    {maddeler.length > 0 && (
+                      <div style={{ marginBottom:12 }}>
+                        <div style={{ fontSize:11, fontWeight:700, color:MUTED, marginBottom:6 }}>ALAN ÖZETİ (canlı hesaplanır)</div>
+                        <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                          {kategoriler.map(k => (
+                            <div key={k.ad} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"5px 8px", background:BG, borderRadius:6, fontSize:11 }}>
+                              <span style={{ color:TEXT }}>{k.ad}</span>
+                              <span style={{ display:"flex", gap:6, fontWeight:700 }}>
+                                <span style={{ color:"#1A8C5B" }}>+{k["+"]}</span>
+                                <span style={{ color:"#C0392B" }}>-{k["-"]}</span>
+                                <span style={{ color:MUTED }}>0:{k["0"]}</span>
+                                {k.cevapsiz > 0 && <span style={{ color:"#B07D1A" }}>boş:{k.cevapsiz}</span>}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ fontSize:11, color:MUTED, marginBottom:8 }}>
+                      Yüklemeden önce ya da sonra, aşağıdaki 56 maddeyi kağıtla karşılaştırıp cevabı/puanı düzeltebilirsin.
+                    </div>
+                    <div style={{ maxHeight:360, overflowY:"auto", border:`1px solid ${BORDER}`, borderRadius:10, padding:8, marginBottom:12 }}>
+                      {BEIER_FORM_A_MADDELER.map((stem, i) => {
+                        const no = i + 1;
+                        const m = getMadde(no);
+                        const kat = beierKategoriBul(no);
+                        return (
+                          <div key={no} style={{ padding:"7px 4px", borderBottom:`1px solid ${BG}` }}>
+                            <div style={{ fontSize:11.5, color:TEXT, marginBottom:4 }}>
+                              <b>{no}.</b> {stem} <span style={{ color:MUTED, fontSize:9 }}>({kat?.ad})</span>
+                            </div>
+                            <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                              <input value={m.cevap} onChange={e=>updateMadde(no, { cevap: e.target.value })} placeholder="öğrenci cevabı…"
+                                style={{ flex:1, padding:"5px 8px", border:`1px solid ${BORDER}`, borderRadius:6, fontSize:11.5 }} />
+                              {["+","0","-"].map(p => (
+                                <button key={p} onClick={()=>updateMadde(no, { puan: p })} style={{
+                                  width:28, height:28, borderRadius:6, border:`2px solid ${m.puan===p?puanRenk[p]:BORDER}`,
+                                  background: m.puan===p?puanRenk[p]:"#fff", color: m.puan===p?"#fff":MUTED,
+                                  fontSize:13, fontWeight:800, cursor:"pointer", flexShrink:0
+                                }}>{p}</button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <label style={lbl}>GENEL YORUM (AI önerisi — düzenleyebilirsin)</label>
+                    <textarea rows={6} value={form.genelYorum} onChange={e=>setForm(f=>({...f,genelYorum:e.target.value}))}
+                      style={{...inp, marginBottom:10, resize:"vertical", lineHeight:1.6}} />
+                  </>
+                );
+              })()}
+
               <label style={lbl}>NOT {seciliTest.tip==="nitel" ? "" : "(opsiyonel)"}</label>
               <textarea rows={3} placeholder="Yorum, gözlem, öneri..." value={form.not} onChange={e=>setForm(f=>({...f,not:e.target.value}))} style={{...inp, marginBottom:10, resize:"vertical"}} />
 
@@ -3672,20 +3908,56 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
               <div style={{ fontSize:12, color:MUTED }}>Henüz test kaydı yok.</div>
             ) : (
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                {kayitlar.map(k => (
+                {kayitlar.map(k => {
+                  const beierMi = k.tip === "beier_form_a";
+                  const detayAcik = acikTestId === k.id;
+                  return (
                   <div key={k.id} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:10, padding:"10px 12px" }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8, cursor: beierMi?"pointer":"default" }} onClick={()=>{ if(beierMi) setAcikTestId(detayAcik?null:k.id); }}>
                       <div>
                         <div style={{ fontSize:13, fontWeight:700, color:TEXT }}>
                           {k.kategori === "objektif" ? "🔵" : "🟣"} {k.testAdi}
                         </div>
                         <div style={{ fontSize:11, color:MUTED, marginTop:2 }}>{k.tarih} · {testSonucOzeti(k)}</div>
                         {k.not && <div style={{ fontSize:12, color:TEXT, marginTop:4, lineHeight:1.4 }}>{k.not}</div>}
+                        {beierMi && k.veri?.guvenlikUyarisi && (
+                          <div style={{ fontSize:11, fontWeight:700, color:"#C0392B", marginTop:4 }}>⚠️ Güvenlik uyarısı var — açıp oku</div>
+                        )}
                       </div>
-                      <button onClick={()=>handleSil(k.id)} style={{ background:"none", border:"none", color:"#C0392B", fontSize:14, cursor:"pointer", flexShrink:0 }}>🗑</button>
+                      <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
+                        {beierMi && <span style={{ fontSize:11, color:PURPLE }}>{detayAcik?"▲":"▼"}</span>}
+                        <button onClick={(e)=>{e.stopPropagation(); handleSil(k.id);}} style={{ background:"none", border:"none", color:"#C0392B", fontSize:14, cursor:"pointer" }}>🗑</button>
+                      </div>
                     </div>
+                    {beierMi && detayAcik && (() => {
+                      const kategoriler = beierKategoriOzetiHesapla(k.veri?.maddeler||[]);
+                      return (
+                        <div style={{ marginTop:10, borderTop:`1px solid ${BORDER}`, paddingTop:10, display:"flex", flexDirection:"column", gap:6 }}>
+                          {k.veri?.guvenlikUyarisi && (
+                            <div style={{ background:"#FDECEA", border:`2px solid #C0392B`, borderRadius:10, padding:10 }}>
+                              <div style={{ fontSize:11, fontWeight:800, color:"#C0392B", marginBottom:3 }}>⚠️ Güvenlik Uyarısı</div>
+                              <div style={{ fontSize:11, color:"#8B2E22", lineHeight:1.5 }}>{k.veri.guvenlikUyarisi}</div>
+                            </div>
+                          )}
+                          {kategoriler.map(kat => (
+                            <div key={kat.ad} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 8px", background: kat["-"]>0 ? "#FDECEA" : BG, borderRadius:8 }}>
+                              <div style={{ fontSize:11.5, fontWeight:700, color:TEXT }}>{kat.ad}</div>
+                              <div style={{ display:"flex", gap:8, fontSize:11, fontWeight:800 }}>
+                                <span style={{ color:"#1A8C5B" }}>+{kat["+"]}</span>
+                                <span style={{ color:"#C0392B" }}>-{kat["-"]}</span>
+                                <span style={{ color:MUTED }}>0:{kat["0"]}</span>
+                              </div>
+                            </div>
+                          ))}
+                          {k.veri?.genelYorum && (
+                            <div style={{ fontSize:12, color:TEXT, lineHeight:1.6, background:BG, borderRadius:8, padding:10, marginTop:4 }}>{k.veri.genelYorum}</div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
