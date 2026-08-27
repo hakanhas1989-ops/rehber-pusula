@@ -2082,7 +2082,11 @@ function DegerlendirmeEkrani({ onTransfer, onClose, records, profiles, profiles2
   if (adim === "sorular") return (
     <div>
       {/* Boyut başlığı */}
-      <div style={{ background: dim?.color || ACCENT, color: "#fff", padding: "12px 16px" }}>
+      <div style={{ background: dim?.color || ACCENT, color: "#fff", padding: "12px 16px", position: "relative" }}>
+        <button onClick={() => { if (window.confirm("Değerlendirmeden vazgeçmek istediğine emin misin? Şu ana kadar girdiğin cevaplar kaybolacak.")) onClose(); }} style={{
+          position: "absolute", top: 10, right: 12, background: "rgba(255,255,255,0.22)", border: "1px solid rgba(255,255,255,0.5)",
+          borderRadius: 8, color: "#fff", fontSize: 11, fontWeight: 700, padding: "5px 10px", cursor: "pointer"
+        }}>✕ Vazgeç</button>
         <div style={{ fontSize: 11, opacity: 0.8, fontWeight: 600 }}>{ogrenci.ad}{ogrenci.sinif ? ` · ${ogrenci.sinif}` : ""}</div>
         <div style={{ fontSize: 17, fontWeight: 900, marginTop: 2 }}>{boyut.emoji} {dim?.label}</div>
         <div style={{ fontSize: 11, opacity: 0.75, marginTop: 2 }}>{boyut.aciklama}</div>
@@ -3126,27 +3130,27 @@ function RadarChart({ scores, size = 240, glass = false }) {
 }
 
 // ── ScoreSlider ───────────────────────────────────────────────────────────────
+// NOT: bu bileşen daha önce native <input type="range"> kullanıyordu. Tam
+// genişlikte bir kaydırma çubuğu, ekranı aşağı kaydırmak için parmağın
+// üzerinden geçmesi durumunda mobilde yanlışlıkla değer değiştirebiliyordu
+// (dokunma, tarayıcı tarafından sürükleme olarak yorumlanabiliyor). Bunun
+// yerine 1-5 arası ayrık dokunma butonları kullanılıyor — bir buton dokunuşu
+// kaydırma hareketiyle asla karışmaz.
 function ScoreSlider({ dim, value, onChange }) {
-  const pct = ((value - 1) / 4) * 100;
   const labels = ["", "Çok Düşük", "Düşük", "Orta", "İyi", "Çok İyi"];
   return (
     <div style={{ marginBottom: 14 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: TEXT }}>{dim.label}</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 11, color: MUTED }}>{labels[value]}</span>
-          <span style={{
-            background: dim.color, color: "#fff", borderRadius: 20,
-            padding: "1px 8px", fontSize: 12, fontWeight: 800
-          }}>{value}</span>
-        </div>
+        <span style={{ fontSize: 11, color: MUTED }}>{labels[value]}</span>
       </div>
-      <input type="range" min={1} max={5} step={1} value={value}
-        onChange={e => onChange(Number(e.target.value))}
-        style={{ width: "100%", accentColor: dim.color, height: 4 }} />
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
+      <div style={{ display: "flex", gap: 5 }}>
         {[1, 2, 3, 4, 5].map(n => (
-          <span key={n} style={{ fontSize: 10, color: value === n ? dim.color : MUTED, fontWeight: value === n ? 700 : 400 }}>{n}</span>
+          <button key={n} onClick={() => onChange(n)} style={{
+            flex: 1, padding: "9px 0", borderRadius: 8, border: `2px solid ${value === n ? dim.color : BORDER}`,
+            background: value === n ? dim.color : "#fff", color: value === n ? "#fff" : MUTED,
+            fontSize: 13, fontWeight: 800, cursor: "pointer"
+          }}>{n}</button>
         ))}
       </div>
     </div>
