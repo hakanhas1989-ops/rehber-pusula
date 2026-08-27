@@ -8637,6 +8637,150 @@ function ProfilMerkez({
 }
 
 // ── Sınıf Profili Bileşeni ────────────────────────────────────────────────────
+// ── Görüşme Takvimi ──────────────────────────────────────────────────────────
+// Öğrenci görüşmelerini (records, meetingType "Öğrenci") aktif okul yılına göre
+// ay → hafta → görüşme listesi olarak gruplar. Hiçbir ayrı veri saklamaz —
+// tamamen "records"tan canlı hesaplanır; Görüşme Notu sekmesinde kaydedilen
+// her görüşme burada otomatik görünür.
+function pdrTarihParcala(tarihStr) {
+  if (!tarihStr) return null;
+  const p = String(tarihStr).split(".");
+  if (p.length !== 3) return null;
+  const gun = parseInt(p[0], 10), ay = parseInt(p[1], 10) - 1, yil = parseInt(p[2], 10);
+  if (isNaN(gun) || isNaN(ay) || isNaN(yil)) return null;
+  return { gun, ay, yil };
+}
+
+// "2026-2027" gibi bir okul yılı string'inden Eylül'den Haziran'a 10 ayı,
+// her birinin gerçek takvim yılıyla birlikte üretir.
+function okulYiliAylari(aktifYil) {
+  const baslangicYil = parseInt(String(aktifYil || "").split("-")[0], 10) || new Date().getFullYear();
+  const bitisYil = baslangicYil + 1;
+  return [
+    { ay: "Eylül", ayIndex: 8, yil: baslangicYil },
+    { ay: "Ekim", ayIndex: 9, yil: baslangicYil },
+    { ay: "Kasım", ayIndex: 10, yil: baslangicYil },
+    { ay: "Aralık", ayIndex: 11, yil: baslangicYil },
+    { ay: "Ocak", ayIndex: 0, yil: bitisYil },
+    { ay: "Şubat", ayIndex: 1, yil: bitisYil },
+    { ay: "Mart", ayIndex: 2, yil: bitisYil },
+    { ay: "Nisan", ayIndex: 3, yil: bitisYil },
+    { ay: "Mayıs", ayIndex: 4, yil: bitisYil },
+    { ay: "Haziran", ayIndex: 5, yil: bitisYil },
+  ];
+}
+
+// Bir ayın günlerini Pazartesi başlangıçlı takvim haftalarına göre gruplar —
+// tıpkı bir duvar takviminin satırları gibi (ayın ilk haftası kısa olabilir).
+// Döner: [{ haftaNo, ilkGun, sonGun }]
+function ayHaftalariniHesapla(ayIndex, yil) {
+  const ilkGunTarihi = new Date(yil, ayIndex, 1);
+  const pztIndex = (ilkGunTarihi.getDay() + 6) % 7; // 0=Pzt ... 6=Paz
+  const sonGun = new Date(yil, ayIndex + 1, 0).getDate();
+  const haftalar = {};
+  for (let gun = 1; gun <= sonGun; gun++) {
+    const haftaNo = Math.ceil((gun + pztIndex) / 7);
+    if (!haftalar[haftaNo]) haftalar[haftaNo] = { haftaNo, ilkGun: gun, sonGun: gun };
+    haftalar[haftaNo].sonGun = gun;
+  }
+  return Object.values(haftalar);
+}
+
+function GorusmeTakvimiEkrani({ records, aktifYil }) {
+  const [acikAy, setAcikAy] = useState(null);
+  const [acikHafta, setAcikHafta] = useState(null);
+
+  const ogrenciGorusmeleri = useMemo(() =>
+    (records || []).filter(r => (r.meetingType || "Öğrenci") === "Öğrenci" && r.date),
+  [records]);
+
+  const aylikVeri = useMemo(() => okulYiliAylari(aktifYil).map(ayBilgi => {
+    const ayKayitlari = ogrenciGorusmeleri
+      .filter(r => { const t = pdrTarihParcala(r.date); return t && t.ay === ayBilgi.ayIndex && t.yil === ayBilgi.yil; })
+      .sort((a, b) => pdrTarihMs(a.date) - pdrTarihMs(b.date));
+    const haftalar = ayHaftalariniHesapla(ayBilgi.ayIndex, ayBilgi.yil).map(h => {
+      const kayitlar = ayKayitlari.filter(r => { const t = pdrTarihParcala(r.date); return t.gun >= h.ilkGun && t.gun <= h.sonGun; });
+      const farkliOgrenci = new Set(kayitlar.map(r => pdrOgrAnahtar(r.studentName, r.className, r.numara))).size;
+      return { ...h, kayitlar, farkliOgrenci };
+    }).filter(h => h.kayitlar.length > 0);
+    const farkliOgrenciAy = new Set(ayKayitlari.map(r => pdrOgrAnahtar(r.studentName, r.className, r.numara))).size;
+    return { ...ayBilgi, toplamGorusme: ayKayitlari.length, farkliOgrenci: farkliOgrenciAy, haftalar };
+  }), [ogrenciGorusmeleri, aktifYil]);
+
+  const yilToplam = aylikVeri.reduce((s, a) => s + a.toplamGorusme, 0);
+
+  return (
+    <div style={{ padding: 16, maxWidth: 640 }}>
+      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4, color:BLUE }}>📅 Görüşme Takvimi</div>
+      <div style={{ fontSize: 12, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
+        {aktifYil} eğitim-öğretim yılında yapılan öğrenci görüşmeleri, ay ve hafta bazında listelenir. Veri, Görüşme Notu sekmesinde kaydettiğin her görüşmeden otomatik oluşur — burada ayrıca bir şey girmen gerekmez.
+      </div>
+
+      <div style={{ background:"#EEF2FF", borderRadius:10, padding:"10px 14px", marginBottom:16, fontSize:13, color:BLUE, fontWeight:600 }}>
+        {aktifYil} toplam: {yilToplam} görüşme
+      </div>
+
+      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+        {aylikVeri.map(ayVeri => {
+          const ayKey = ayVeri.ay + ayVeri.yil;
+          const acik = acikAy === ayKey;
+          return (
+            <div key={ayKey} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, overflow:"hidden" }}>
+              <button onClick={()=>setAcikAy(acik?null:ayKey)} style={{
+                width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 14px",
+                background:"none", border:"none", cursor:"pointer", textAlign:"left"
+              }}>
+                <span style={{ fontSize:14, fontWeight:800 }}>{ayVeri.ay} {ayVeri.yil}</span>
+                <span style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ fontSize:11, fontWeight:700, color: ayVeri.toplamGorusme>0?BLUE:MUTED, background: ayVeri.toplamGorusme>0?"#EEF2FF":BG, borderRadius:8, padding:"2px 8px" }}>
+                    {ayVeri.toplamGorusme > 0 ? `${ayVeri.toplamGorusme} görüşme · ${ayVeri.farkliOgrenci} öğrenci` : "Görüşme yok"}
+                  </span>
+                  <span style={{ fontSize:11, color:MUTED }}>{acik?"▲":"▼"}</span>
+                </span>
+              </button>
+              {acik && (
+                <div style={{ borderTop:`1px solid ${BORDER}`, padding:"6px 14px 12px" }}>
+                  {ayVeri.haftalar.length === 0 ? (
+                    <div style={{ fontSize:12, color:MUTED, padding:"8px 0" }}>Bu ay görüşme kaydı yok.</div>
+                  ) : ayVeri.haftalar.map(hafta => {
+                    const haftaKey = ayKey + "-" + hafta.haftaNo;
+                    const haftaAcik = acikHafta === haftaKey;
+                    const aralik = hafta.ilkGun === hafta.sonGun ? `${hafta.ilkGun} ${ayVeri.ay}` : `${hafta.ilkGun}-${hafta.sonGun} ${ayVeri.ay}`;
+                    return (
+                      <div key={haftaKey} style={{ marginTop:8 }}>
+                        <button onClick={()=>setAcikHafta(haftaAcik?null:haftaKey)} style={{
+                          width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 10px",
+                          background:BG, border:`1px solid ${BORDER}`, borderRadius:8, cursor:"pointer", textAlign:"left"
+                        }}>
+                          <span style={{ fontSize:12, fontWeight:700 }}>{hafta.haftaNo}. Hafta <span style={{ fontWeight:400, color:MUTED }}>({aralik})</span></span>
+                          <span style={{ display:"flex", alignItems:"center", gap:6 }}>
+                            <span style={{ fontSize:10, color:BLUE, fontWeight:700 }}>{hafta.kayitlar.length} görüşme · {hafta.farkliOgrenci} öğrenci</span>
+                            <span style={{ fontSize:10, color:MUTED }}>{haftaAcik?"▲":"▼"}</span>
+                          </span>
+                        </button>
+                        {haftaAcik && (
+                          <div style={{ padding:"4px 4px 4px 10px" }}>
+                            {hafta.kayitlar.map(r => (
+                              <div key={r.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 0", borderBottom:`1px solid ${BORDER}`, fontSize:12 }}>
+                                <span>{r.studentName}{r.className?` — ${r.className}`:""}</span>
+                                <span style={{ color:MUTED, fontSize:11 }}>{r.date}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYil, sinifListesi, setSinifListesi, denemeler, sinavTuru, onSinifSilTumVeri, kademe }) {
   const [seciliSinif, setSeciliSinif] = useState(null);
   const [listeYukleAcik, setListeYukleAcik] = useState(false);
@@ -10041,6 +10185,7 @@ export default function App() {
     { key: "profil_merkez", label: "📋 Profil" },
     { key: "yeni", label: "📝 Görüşme Notu" },
     { key: "hatirlatici", label: "🔔 Hatırlatıcı" },
+    { key: "gorusme_takvimi", label: "📅 Takvim" },
     { key: "net_haritasi", label: "🎯 Net Haritası" },
     { key: "konu_haritasi", label: "📚 Konu Haritası" },
     { key: "sinif_profili", label: "🏫 Sınıf" },
@@ -10670,6 +10815,14 @@ export default function App() {
             setAktifOgrenci={setAktifOgrenci}
             hatirlatmalar={hatirlatmalar}
             setHatirlatmalar={setHatirlatmalar}
+          />
+        )}
+
+        {/* ── GÖRÜŞME TAKVİMİ ──────────────────────────────────────── */}
+        {tab === "gorusme_takvimi" && (
+          <GorusmeTakvimiEkrani
+            records={records}
+            aktifYil={aktifYil}
           />
         )}
 
