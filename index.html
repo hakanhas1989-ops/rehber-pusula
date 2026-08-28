@@ -1563,7 +1563,7 @@ async function getAISummary(rawText) {
   const res = await fetch(PDR_AI_WORKER_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "ai_summary", apiKey, data: { rawText } }),
+    body: JSON.stringify({ action: "ai_summary", apiKey, data: { rawText, bugunBaglam: pdrBugunBaglam() } }),
   });
   const data = await res.json();
   if (data.error) throw new Error(data.error);
@@ -2240,6 +2240,13 @@ const EMPTY_D2 = { TN: "", E1: "", E2: "", CP: "", FR: "", E_yuzde: "", TN_E: ""
 const EMPTY_PROF2 = { studentName:"", className:"", sinavlar:{...EMPTY_SINAV}, d2: {...EMPTY_D2}, ilgiler:[], ilgiNot:"", kariyer_hedef:"", aile_notu:"" };
 
 function today() { return new Date().toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" }); }
+// AI'a "bugün" bağlamı vermek için — sadece tarih değil GÜN ADI da lazım,
+// çünkü "haftaya çarşamba" gibi ifadeleri doğru hesaplaması için bugünün
+// hangi gün olduğunu bilmesi gerekiyor (hatırlatıcı tarih hesaplamasında kullanılır).
+function pdrBugunBaglam() {
+  const gunler = ["Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi"];
+  return `${today()} (${gunler[new Date().getDay()]})`;
+}
 function pdrTarihMs(tarihStr) {
   if (!tarihStr) return 0;
   const [g, ay, y] = tarihStr.split(".");
@@ -2439,6 +2446,20 @@ function pdrAyniOgrenci(ad1, sinif1, ad2, sinif2, no1, no2) {
 // hâlâ okunabilsin diye, yeni anahtar bulunamazsa eski düz-isim anahtarına da bakılır.
 // Numara verilirse (üçüncü katman), aynı isim+sınıftaki öğrenciler arasında da
 // (örn. iki "Yavuz Er" aynı sınıfta) ayrım yapılabilir.
+// AI'ın "---HATIRLATMA---" bloğundan döndürdüğü "TARIH: GG.AA.YYYY / METIN: ..."
+// formatını ayrıştırır. AI beklenen formatı tutturamazsa (örn. eski/serbest
+// metin formatına döndüyse) TARIH bulunamaz ve bugünün tarihine düşer — hiç
+// çökmez, sadece daha az kesin bir tarihle devam eder.
+function pdrHatirlatmaBlokParcala(blok) {
+  const temiz = (blok || "").trim();
+  if (!temiz || /^yok/i.test(temiz)) return null;
+  const tarihMatch = temiz.match(/TAR[İI]H:\s*(\d{1,2}\.\d{1,2}\.\d{4})/i);
+  const metinMatch = temiz.match(/MET[İI]N:\s*(.+)/i);
+  return {
+    tarih: tarihMatch ? tarihMatch[1] : today(),
+    metin: metinMatch ? metinMatch[1].trim() : temiz,
+  };
+}
 function pdrOgrAnahtar(name, className, numara) {
   const n = (name || "").trim();
   const c = (className || "").trim();
@@ -5653,7 +5674,7 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
 
   async function handleHazirlikNotu() {
     setHazirlikAiLoading(true);
-    const gorusmeler = ogrRec.slice(0,5).map((r,i) =>
+    const gorusmeler = ogrRec.slice(0,8).map((r,i) =>
       `Görüşme ${i+1} (${r.date}): ${r.summary}`
     ).join("\n\n");
     const mudahaleBolum = ogrMudahale.length > 0
@@ -7576,6 +7597,19 @@ function RiskOzetKartlari({ ogrenciler, kompakt, baslik }) {
   );
 }
 
+// Bir denemenin toplam netini hesaplar. Normalde ders bazlı girilen netlerin
+// toplamıdır. Ancak toplu Excel yüklemesiyle (bu yılın deneme sonucu, sınıf/okul
+// genelinde tek seferde) SADECE toplam net girilmiş, ders kırılımı olmayan bir
+// kayıt varsa "_topluNet" alanındaki değeri doğrudan kullanır — ders bazlı
+// grafikler/rozetler o kayıt için boş kalır ama toplam net doğru hesaba katılır.
+function pdrToplamNetHesapla(nets, dersler) {
+  if (!nets) return 0;
+  if (nets._topluNet !== undefined && nets._topluNet !== null && nets._topluNet !== "") {
+    return parseFloat(nets._topluNet) || 0;
+  }
+  return dersler.reduce((sum, d) => sum + (parseFloat(nets?.[d.key]) || 0), 0);
+}
+
 function denemeRiskHesapla(net, dersler) {
   const maksToplam = dersler.reduce((s, d) => s + d.maks, 0) || 90;
   const yuzde = (net / maksToplam) * 100;
@@ -7583,9 +7617,205 @@ function denemeRiskHesapla(net, dersler) {
 }
 const DENEME_SAYISI = 10;
 
+// Bu yılın her bir denemesi (Deneme 1, 2, 3...) için okul geneli VE sınıf
+// bazında yüksek/orta/düşük risk dağılımını hesaplar. "Geçmiş Dönem" (7. sınıf)
+// risk dağılımından TAMAMEN AYRI ve BAĞIMSIZDIR — biri diğerini silmez, ikisi
+// de aynı anda görünür. Sadece veri girilmiş (kayıtlı) denemeler için bir
+// bölüm üretir; hiç veri yoksa o deneme numarası listede hiç görünmez.
+function denemeBazliRiskDagilimiHesapla(denemeler, kayitliListesi, dersler) {
+  const sonuc = [];
+  for (let no = 1; no <= DENEME_SAYISI; no++) {
+    const kayitlar = [];
+    (kayitliListesi || []).forEach(o => {
+      const ogrDenemeleri = pdrSozlukOku(denemeler, o.name, o.className, o.numara) || {};
+      const nets = ogrDenemeleri[no];
+      if (!nets) return;
+      const net = pdrToplamNetHesapla(nets, dersler);
+      kayitlar.push({ ad: o.name, sinif: o.className || "Sınıf Belirtilmemiş", net, risk: denemeRiskHesapla(net, dersler) });
+    });
+    if (kayitlar.length === 0) continue;
+    const sayVe = (liste) => ({
+      yuksek: liste.filter(k => k.risk === "yuksek").length,
+      orta: liste.filter(k => k.risk === "orta").length,
+      dusuk: liste.filter(k => k.risk === "dusuk").length,
+      toplam: liste.length,
+    });
+    const siniflar = {};
+    kayitlar.forEach(k => { (siniflar[k.sinif] ||= []).push(k); });
+    const sinifSirali = Object.entries(siniflar)
+      .sort((a, b) => a[0].localeCompare(b[0], "tr"))
+      .map(([sinif, liste]) => ({ sinif, ...sayVe(liste) }));
+    sonuc.push({ no, okulGeneli: sayVe(kayitlar), siniflar: sinifSirali });
+  }
+  return sonuc.reverse();
+}
+
+// ── Bu Yılın Denemesi — Toplu Toplam Net Yükleme ─────────────────────────────
+// Okulda/sınıfta topluca yapılan bir denemenin (Deneme 1, 2, 3...) sonuçlarını,
+// ders bazlı kırılım olmadan SADECE toplam net olarak, tüm öğrenciler için tek
+// seferde Excel'den yükler. "Geçmiş Dönem Excel Toplu Yükle" (7. sınıf 9 deneme
+// geçmişi, farklı bir veri) ile KARIŞTIRILMASIN — bu, İÇİNDE BULUNULAN yılın
+// deneme takibine (DenemeTabip'in kendi "Deneme N" kutularına) yazar. Ders
+// kırılımı olmadığı için nets objesine sadece "_topluNet" alanı yazılır;
+// pdrToplamNetHesapla bu alanı fark edip doğrudan kullanır.
+// Bu yılın deneme bazlı risk dağılımını gösterir — her deneme (Deneme 1, 2,
+// 3...) kendi kalıcı bölümünde, en yenisi en üstte. "Geçmiş Dönem" risk
+// dağılımının YANINA eklenir, onun yerine geçmez.
+function DenemeBazliRiskGosterimi({ denemeler, kayitliListesi, dersler }) {
+  const [acikDeneme, setAcikDeneme] = useState(null);
+  const veriler = denemeBazliRiskDagilimiHesapla(denemeler, kayitliListesi, dersler);
+  if (veriler.length === 0) return null;
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: TEXT, marginBottom: 8 }}>📈 Bu Yılın Deneme Bazlı Risk Dağılımı</div>
+      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+        {veriler.map(v => {
+          const acik = acikDeneme === v.no;
+          return (
+            <div key={v.no} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:10, overflow:"hidden" }}>
+              <button onClick={()=>setAcikDeneme(acik?null:v.no)} style={{
+                width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px",
+                background:"none", border:"none", cursor:"pointer", textAlign:"left"
+              }}>
+                <span style={{ fontSize:12, fontWeight:800, color:TEXT }}>Deneme {v.no} — Okul Geneli ({v.okulGeneli.toplam} öğrenci)</span>
+                <span style={{ fontSize:11, color:MUTED }}>{acik?"▲":"▼"}</span>
+              </button>
+              <div style={{ display:"flex", gap:8, padding:"0 12px 10px" }}>
+                <div style={{ flex:1, textAlign:"center", background:"#FDECEA", borderRadius:8, padding:"6px 4px" }}>
+                  <div style={{ fontSize:18, fontWeight:900, color:"#C0392B" }}>{v.okulGeneli.yuksek}</div>
+                  <div style={{ fontSize:9, color:"#C0392B", fontWeight:700 }}>Yüksek Risk</div>
+                </div>
+                <div style={{ flex:1, textAlign:"center", background:"#FDF6E3", borderRadius:8, padding:"6px 4px" }}>
+                  <div style={{ fontSize:18, fontWeight:900, color:"#B07D1A" }}>{v.okulGeneli.orta}</div>
+                  <div style={{ fontSize:9, color:"#B07D1A", fontWeight:700 }}>Orta Risk</div>
+                </div>
+                <div style={{ flex:1, textAlign:"center", background:"#E6F5EE", borderRadius:8, padding:"6px 4px" }}>
+                  <div style={{ fontSize:18, fontWeight:900, color:"#1A8C5B" }}>{v.okulGeneli.dusuk}</div>
+                  <div style={{ fontSize:9, color:"#1A8C5B", fontWeight:700 }}>Düşük Risk</div>
+                </div>
+              </div>
+              {acik && (
+                <div style={{ borderTop:`1px solid ${BORDER}`, padding:"8px 12px 10px", display:"flex", flexDirection:"column", gap:5 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:MUTED, marginBottom:2 }}>SINIF BAZINDA</div>
+                  {v.siniflar.map(s => (
+                    <div key={s.sinif} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"5px 8px", background:BG, borderRadius:6 }}>
+                      <span style={{ fontSize:11, fontWeight:700, color:TEXT }}>{s.sinif} <span style={{color:MUTED, fontWeight:400}}>({s.toplam})</span></span>
+                      <span style={{ display:"flex", gap:8, fontSize:10, fontWeight:700 }}>
+                        <span style={{color:"#C0392B"}}>Y:{s.yuksek}</span>
+                        <span style={{color:"#B07D1A"}}>O:{s.orta}</span>
+                        <span style={{color:"#1A8C5B"}}>D:{s.dusuk}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function DenemeGuncelYilTopluYukle({ denemeler, setDenemeler, onKapat }) {
+  const [denemeNo, setDenemeNo] = useState(1);
+  const [yukleniyor, setYukleniyor] = useState(false);
+  const [sonuc, setSonuc] = useState(null);
+
+  function handleDosya(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setYukleniyor(true);
+    setSonuc(null);
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const wb = XLSX.read(evt.target.result, { type: "binary" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+        if (rows.length < 2) throw new Error("Dosyada veri satırı bulunamadı.");
+
+        function trNormalize(s) {
+          return String(s || "").toUpperCase()
+            .replace(/İ/g,"I").replace(/I/g,"I").replace(/Ş/g,"S").replace(/Ğ/g,"G")
+            .replace(/Ü/g,"U").replace(/Ö/g,"O").replace(/Ç/g,"C")
+            .replace(/\s+/g," ").trim();
+        }
+        const headers = rows[0].map(trNormalize);
+        const colAd = headers.findIndex(h => h.includes("AD SOYAD") || h.includes("ADI SOYADI") || h.includes("ISIM"));
+        const colSinif = headers.findIndex(h => h.includes("SINIF") || h.includes("SUBE"));
+        const colNumara = headers.findIndex(h => h.includes("NUMARA") || h === "NO" || h.includes("OKUL NO"));
+        const colNet = headers.findIndex(h => h.includes("TOPLAM NET") || h.includes("NET") || h.includes("PUAN"));
+        if (colAd < 0) throw new Error('"Ad Soyad" sütunu bulunamadı.');
+        if (colNet < 0) throw new Error('"Toplam Net" (ya da "Net") sütunu bulunamadı.');
+
+        const yeniDenemeler = { ...denemeler };
+        let islenen = 0;
+        const eslesmeyen = [];
+
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          const adSoyad = String(row[colAd] || "").trim();
+          if (!adSoyad) continue;
+          const sinif = colSinif >= 0 ? String(row[colSinif] || "").trim() : "";
+          const numara = colNumara >= 0 ? String(row[colNumara] || "").trim() : "";
+          const netStr = String(row[colNet] ?? "").replace(",", ".").trim();
+          const net = parseFloat(netStr);
+          if (isNaN(net)) { eslesmeyen.push(adSoyad); continue; }
+
+          const key = pdrOgrAnahtar(adSoyad, sinif, numara);
+          const mevcut = pdrSozlukOku(yeniDenemeler, adSoyad, sinif, numara) || {};
+          yeniDenemeler[key] = { ...mevcut, [denemeNo]: { _topluNet: net } };
+          islenen++;
+        }
+
+        setDenemeler(yeniDenemeler);
+        await saveDenemeler(yeniDenemeler);
+        setSonuc({ islenen, eslesmeyen });
+      } catch (err) {
+        alert("Dosya okunamadı: " + err.message);
+      }
+      setYukleniyor(false);
+    };
+    reader.readAsBinaryString(file);
+  }
+
+  return (
+    <div style={{ background:CARD, border:`2px solid ${BLUE}`, borderRadius:12, padding:14, marginBottom:14 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+        <div style={{ fontSize:13, fontWeight:800, color:BLUE }}>📊 Bu Yılın Denemesi — Toplu Yükle</div>
+        <button onClick={onKapat} style={{ background:"none", border:"none", color:MUTED, fontSize:14, cursor:"pointer" }}>✕</button>
+      </div>
+      <div style={{ fontSize:11, color:MUTED, marginBottom:10, lineHeight:1.5 }}>
+        Okulda/sınıfta topluca yapılan bir denemenin sonuçlarını (sadece TOPLAM NET, ders kırılımı olmadan) tüm öğrenciler için tek seferde yükle. Excel'de "Ad Soyad" (zorunlu), varsa "Sınıf"/"Numara" ve "Toplam Net" (ya da "Net") sütunları olmalı.
+      </div>
+      <label style={{ fontSize:11, fontWeight:700, color:MUTED, display:"block", marginBottom:4 }}>HANGİ DENEME?</label>
+      <select value={denemeNo} onChange={e=>setDenemeNo(parseInt(e.target.value))} style={{
+        width:"100%", padding:"8px 10px", border:`1px solid ${BORDER}`, borderRadius:8, fontSize:13, fontWeight:700, color:TEXT, background:"#fff", marginBottom:10
+      }}>
+        {Array.from({length: DENEME_SAYISI}, (_,i)=>i+1).map(n => <option key={n} value={n}>Deneme {n}</option>)}
+      </select>
+      <label style={{ display:"block", width:"100%", padding:14, background:"#fff", border:`2px dashed ${BLUE}`, borderRadius:12, textAlign:"center", color:BLUE, fontWeight:700, cursor:"pointer", boxSizing:"border-box" }}>
+        {yukleniyor ? "⏳ İşleniyor…" : "📂 Excel Dosyası Seç (.xlsx)"}
+        <input type="file" accept=".xlsx,.xls,.csv" onChange={handleDosya} style={{ display:"none" }} disabled={yukleniyor} />
+      </label>
+      {sonuc && (
+        <div style={{ marginTop:10, background:"#E6F5EE", borderRadius:8, padding:10 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:"#1A8C5B" }}>✓ Deneme {denemeNo} — {sonuc.islenen} öğrenci işlendi.</div>
+          {sonuc.eslesmeyen.length > 0 && (
+            <div style={{ fontSize:11, color:"#B07D1A", marginTop:6, lineHeight:1.5 }}>⚠️ {sonuc.eslesmeyen.length} satırda geçerli bir net okunamadı ({sonuc.eslesmeyen.slice(0,5).join(", ")}{sonuc.eslesmeyen.length>5?"...":""}).</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, setAktifOgrenci, handleDenemeAnaliz, denemeAiLoading, denemeAnaliz, ogrenciler, setOgrenciler, aktifYil, sinavTuru, setSinavTuru }) {
   const dersler = aktifDersler(sinavTuru);
   const [excelPanelAcik, setExcelPanelAcik] = useState(false);
+  const [guncelYilExcelAcik, setGuncelYilExcelAcik] = useState(false);
   const [seciliOgrenci, setSeciliOgrenci] = useState(aktifOgrenci?.name || "");
   // aktifOgrenci değişince güncelle
   useEffect(() => { if (aktifOgrenci?.name) setSeciliOgrenci(aktifOgrenci.name); }, [aktifOgrenci?.name]);
@@ -7607,7 +7837,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
 
   // Toplam net hesapla
   function toplamNet(nets) {
-    return dersler.reduce((sum, d) => sum + (parseFloat(nets?.[d.key]) || 0), 0);
+    return pdrToplamNetHesapla(nets, dersler);
   }
 
   // Grafik için veri
@@ -7715,14 +7945,26 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
 
   // Deneme giriş formu
   function DenemeForm({ no, mevcutNets, onKaydet, onIptal }) {
-    const [nets, setNets] = useState({
-      turkce: "", mat: "", fen: "", sosyal: "", ingilizce: "", din: "",
-      ...mevcutNets
+    // Bu deneme toplu Excel ile SADECE toplam net olarak yüklenmişse (ders
+    // kırılımı yok), "_topluNet" alanını buraya hiç almıyoruz — böylece
+    // danışman ders bazlı net girmeye başladığında canlı toplam hemen o
+    // girdiği değerlere göre güncellenir ve kaydettiğinde "_topluNet" değil,
+    // gerçek ders kırılımı kalıcı olur (ikisi karışıp biri sessizce göz ardı
+    // edilmez).
+    const topluIdi = mevcutNets && mevcutNets._topluNet !== undefined;
+    const [nets, setNets] = useState(() => {
+      const { _topluNet, ...dersNetleri } = mevcutNets || {};
+      return { turkce: "", mat: "", fen: "", sosyal: "", ingilizce: "", din: "", ...dersNetleri };
     });
     const toplam = toplamNet(nets);
     return (
       <div style={{ background: CARD, border: `2px solid ${ACCENT}`, borderRadius: 12, padding: 14, marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontWeight: 800, color: ACCENT, marginBottom: 12 }}>Deneme {no} — Net Girişi</div>
+        {topluIdi && (
+          <div style={{ background: "#EEF2FF", border: `1px solid ${BLUE}`, borderRadius: 8, padding: "8px 10px", marginBottom: 12, fontSize: 11, color: BLUE, lineHeight: 1.5 }}>
+            📊 Bu deneme toplu yüklemeyle sadece toplam net ({parseFloat(mevcutNets._topluNet).toFixed(2)}) olarak girilmişti. Aşağıya ders bazlı netleri girip kaydedersen, bu toplam yerine ders kırılımından hesaplanan toplam geçerli olur.
+          </div>
+        )}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
           {dersler.map(d => (
             <div key={d.key}>
@@ -7786,6 +8028,25 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
       </div>
 
       <RiskOzetKartlari ogrenciler={(ogrenciler||[]).filter(o => !o.yil || o.yil === aktifYil)} baslik="📊 Tüm Okul — Geçmiş Dönem Risk Dağılımı" />
+
+      <DenemeBazliRiskGosterimi denemeler={denemeler} kayitliListesi={kayitliListesi} dersler={dersler} />
+
+      {!guncelYilExcelAcik && (
+        <button onClick={() => setGuncelYilExcelAcik(true)} style={{
+          width: "100%", padding: "10px", marginBottom: 10,
+          background: BLUE, color: "#fff", border: "none", borderRadius: 10,
+          fontSize: 13, fontWeight: 800, cursor: "pointer"
+        }}>
+          📊 Bu Yılın Denemesi — Toplu Yükle (Deneme 1, 2, 3...)
+        </button>
+      )}
+      {guncelYilExcelAcik && (
+        <DenemeGuncelYilTopluYukle
+          denemeler={denemeler}
+          setDenemeler={setDenemeler}
+          onKapat={() => setGuncelYilExcelAcik(false)}
+        />
+      )}
 
       {!excelPanelAcik && (
         <button onClick={() => setExcelPanelAcik(true)} style={{
@@ -7945,13 +8206,19 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
                       {toplam !== null ? (
                         <>
                           <div style={{ fontSize: 24, fontWeight: 900, color: renkSinif, marginBottom: 4 }}>{toplam.toFixed(2)}</div>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginBottom: 8 }}>
-                            {dersler.map(d => (
-                              <span key={d.key} style={{ fontSize: 9, background: "#fff", color: d.color, borderRadius: 4, padding: "1px 4px", fontWeight: 700 }}>
-                                {d.label[0]}: {parseFloat(nets[d.key] || 0).toFixed(2) === (parseFloat(nets[d.key] || 0)).toString() ? parseFloat(nets[d.key] || 0) : parseFloat(nets[d.key] || 0).toFixed(2)}
-                              </span>
-                            ))}
-                          </div>
+                          {nets._topluNet !== undefined ? (
+                            <div style={{ fontSize: 9, background: "#EEF2FF", color: BLUE, borderRadius: 4, padding: "2px 6px", fontWeight: 700, marginBottom: 8, display: "inline-block" }}>
+                              📊 Toplu yüklendi — ders kırılımı yok
+                            </div>
+                          ) : (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginBottom: 8 }}>
+                              {dersler.map(d => (
+                                <span key={d.key} style={{ fontSize: 9, background: "#fff", color: d.color, borderRadius: 4, padding: "1px 4px", fontWeight: 700 }}>
+                                  {d.label[0]}: {parseFloat(nets[d.key] || 0).toFixed(2) === (parseFloat(nets[d.key] || 0)).toString() ? parseFloat(nets[d.key] || 0) : parseFloat(nets[d.key] || 0).toFixed(2)}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                           <div style={{ display: "flex", gap: 4 }}>
                             <button onClick={() => setAktifDeneme(aktif ? null : no)} style={{ flex: 1, padding: "5px", background: ACCENT_LIGHT, color: ACCENT, border: "none", borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>✏ Düzenle</button>
                             <button onClick={() => handleSil(no)} style={{ padding: "5px 8px", background: "none", border: "1px solid #F28B82", color: "#C5221F", borderRadius: 6, fontSize: 10, cursor: "pointer" }}>✕</button>
@@ -9165,7 +9432,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
             const gdo = o7sinif ? parseFloat(o7sinif.ortalama) : null;
             const denemeGirisleri = Object.entries(denemeSozluk).filter(([k]) => k !== "7sinif").sort((a,b) => Number(a[0]) - Number(b[0]));
             const dersler = aktifDersler(sinavTuru);
-            const denemeNetleri = denemeGirisleri.map(([idx,nets]) => ({ idx, net: dersler.reduce((s,d) => s + (parseFloat(nets[d.key]) || 0), 0) }));
+            const denemeNetleri = denemeGirisleri.map(([idx,nets]) => ({ idx, net: pdrToplamNetHesapla(nets, dersler) }));
             const devamsizlikSayisi = parseInt(o.devamsizlik) || 0;
             const olaySayisi = (o.olayKayitlari || []).length;
             const ogrKey = pdrOgrAnahtar(o.studentName, o.className, o.numara);
@@ -9829,13 +10096,9 @@ export default function App() {
     const summary = parcalar[0].trim();
     // Worker güncellenmeden önceki eski cevaplarda hatırlatmadan sonra hâlâ bir
     // ---BIREYI_TANIMA--- bloğu gelebilir — burada atılıyor, hiç kullanılmıyor.
-    const hatirlatmaMetni = (parcalar[1] || "").split(/---BIREYI_TANIMA---/i)[0].trim();
+    const hatirlatmaBlok = (parcalar[1] || "").split(/---BIREYI_TANIMA---/i)[0].trim();
     setForm(f => ({ ...f, summary }));
-    if (hatirlatmaMetni && !/^yok/i.test(hatirlatmaMetni)) {
-      setOnerilenHatirlatma({ metin: hatirlatmaMetni });
-    } else {
-      setOnerilenHatirlatma(null);
-    }
+    setOnerilenHatirlatma(pdrHatirlatmaBlokParcala(hatirlatmaBlok));
     setAiLoading(false);
   }
 
@@ -9843,7 +10106,7 @@ export default function App() {
     if (!onerilenHatirlatma || !form.studentName.trim()) return;
     const yeni = {
       id: uid(), studentName: form.studentName, className: form.className, numara: form.numara,
-      metin: onerilenHatirlatma.metin, tarih: today(), kaynak: "ai", olusturmaTarihi: today(), tamamlandi: false
+      metin: onerilenHatirlatma.metin, tarih: onerilenHatirlatma.tarih || today(), kaynak: "ai", olusturmaTarihi: today(), tamamlandi: false
     };
     const guncel = [yeni, ...(hatirlatmalar||[])];
     setHatirlatmalar(guncel);
@@ -10389,6 +10652,9 @@ export default function App() {
                 <div style={{ background:"#FFF8E7", border:"1px solid #F0D68A", borderRadius:10, padding:"10px 12px", marginBottom:10 }}>
                   <div style={{ fontSize:11, fontWeight:700, color:"#B07D1A", marginBottom:4 }}>🔔 AI bir hatırlatma fark etti</div>
                   <div style={{ fontSize:13, color:TEXT, marginBottom:8 }}>{onerilenHatirlatma.metin}</div>
+                  <label style={{ fontSize:10, fontWeight:600, color:"#B07D1A", display:"block", marginBottom:3 }}>TARİH (AI hesapladı — yanlışsa düzelt)</label>
+                  <input value={onerilenHatirlatma.tarih} onChange={e=>setOnerilenHatirlatma(h=>({...h, tarih:e.target.value}))} placeholder="GG.AA.YYYY"
+                    style={{ width:"100%", padding:"7px 9px", border:"1px solid #F0D68A", borderRadius:8, fontSize:12, marginBottom:8, boxSizing:"border-box", background:"#fff" }} />
                   <div style={{ display:"flex", gap:8 }}>
                     <button onClick={handleHatirlatmaOnayla} disabled={!form.studentName.trim()} style={{ flex:1, padding:"7px", background:"#B07D1A", color:"#fff", border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>✓ Hatırlatıcı'ya Ekle</button>
                     <button onClick={()=>setOnerilenHatirlatma(null)} style={{ padding:"7px 14px", background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>Yoksay</button>
