@@ -1291,18 +1291,6 @@ const KONU_LISTESI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygus
 // öğrencilerini işaretlemek için. Bir öğrencide birden fazla tanı olabilir,
 // o yüzden çoklu seçim (dizi) olarak tutulur.
 const KAYNASTIRMA_TANILAR = ["Özel Öğrenme Güçlüğü","DEHB","Otizm Spektrum Bozukluğu","Zihinsel Yetersizlik","İşitme Yetersizliği","Görme Yetersizliği","Bedensel Yetersizlik","Süregelen Hastalık","Dil ve Konuşma Güçlüğü","Diğer"];
-// Bireyi Tanıma — öğrenciyle ilgili sosyo-demografik/psikososyal bilgileri
-// madde madde biriktirmek için. Tamamen MANUEL (AI çağrısı yok, sıfır
-// maliyetli) — danışman görüşme sırasında/sonrasında aklına takılan bir
-// bilgiyi buraya kısa bir not olarak ekliyor.
-const BIREYI_TANIMA_KATEGORILER = [
-  { key:"aile", label:"👨‍👩‍👧‍👦 Aile Yapısı ve İlişkileri" },
-  { key:"saglik", label:"🩺 Sağlık ve Gelişim Öyküsü" },
-  { key:"olaylar", label:"⚡ Yaşam Olayları" },
-  { key:"sosyoekonomik", label:"💰 Sosyoekonomik İpuçları" },
-  { key:"ilgi", label:"🎨 İlgi, Yetenek ve Sosyal Yaşam" },
-  { key:"okul", label:"🏫 Okul Geçmişi" },
-];
 
 // ── PDR Boyutları ─────────────────────────────────────────────────────────────
 const DIMENSIONS = [
@@ -1787,12 +1775,6 @@ async function loadKonuHaritasi() {
 }
 async function saveKonuHaritasi(data) {
   try { await window.storage.set("pdr-konu-haritasi", JSON.stringify(data)); } catch(e) { console.warn(e); }
-}
-async function loadBireyiTanima() {
-  try { const r = await window.storage.get("pdr-bireyi-tanima"); return r ? JSON.parse(r.value) : []; } catch { return []; }
-}
-async function saveBireyiTanima(items) {
-  try { await window.storage.set("pdr-bireyi-tanima", JSON.stringify(items)); } catch(e) { console.warn(e); }
 }
 
 async function loadHazirlikNotlari() {
@@ -6713,7 +6695,6 @@ function OgrenciYonetim({
   hazirlikNotlari, setHazirlikNotlari,
   ilerlemeNotlari, setIlerlemeNotlari,
   onRaporAc, setAktifOgrenci, aktifOgrenci, setTab, onSinifGuncelle, onOgrenciSil, onSinifSil, sinifListesi, sinavTuru, sevkler, testKayitlari, kademe,
-  bireyiTanima, setBireyiTanima
 }) {
   const dersler = aktifDersler(sinavTuru);
 
@@ -6726,8 +6707,6 @@ function OgrenciYonetim({
   const [yeniAdDegeri, setYeniAdDegeri] = useState("");
   const [gdoDuzenleAcik, setGdoDuzenleAcik] = useState(false);
   const [gdoDegeri, setGdoDegeri] = useState("");
-  const [bireyiTanimaAcikKategori, setBireyiTanimaAcikKategori] = useState(null);
-  const [bireyiTanimaMetni, setBireyiTanimaMetni] = useState("");
 
   // "Aktif öğrenci" başka bir sekmede seçilip buraya dönülürse, o öğrencinin
   // detayını göstermeye devam et — sadece açıkça "Geri" ile çıkıldığında
@@ -6838,23 +6817,6 @@ function OgrenciYonetim({
     setDenemeler(yeniDenemeler);
     await saveDenemeler(yeniDenemeler);
     setGdoDuzenleAcik(false);
-  }
-
-  // Bireyi Tanıma — tamamen manuel, AI çağrısı yok. Danışman istediği kategoriye
-  // kısa bir madde ekliyor, silebiliyor. Sosyo-demografik/psikososyal bilgiler
-  // için düşük maliyetli, tam kontrolü danışmanda bırakan bir not sistemi.
-  async function handleBireyiTanimaEkle(kategori, metin) {
-    if (!metin.trim() || !seciliOgrenci) return;
-    const yeni = { id: uid(), studentName: seciliOgrenci, className: seciliOgrenciSinif, numara: seciliOgrenciNumara, kategori, metin: metin.trim(), tarih: today() };
-    const guncel = [yeni, ...(bireyiTanima||[])];
-    setBireyiTanima(guncel);
-    await saveBireyiTanima(guncel);
-  }
-
-  async function handleBireyiTanimaSil(id) {
-    const guncel = (bireyiTanima||[]).filter(x => x.id !== id);
-    setBireyiTanima(guncel);
-    await saveBireyiTanima(guncel);
   }
 
 
@@ -7243,7 +7205,6 @@ function OgrenciYonetim({
               { key:"gorusme", label:`Görüşme (${ogrRec.length})` },
               { key:"deneme", label:`Deneme (${Object.keys(ogrDeneme).length})` },
               { key:"profil", label:"Profil" },
-              { key:"bireyi_tanima", label:"🔍 Bireyi Tanıma" },
             ].map(s => (
               <button key={s.key} onClick={() => setAktifSekme(s.key)} style={{
                 padding:"6px 12px", border:`1px solid ${aktifSekme===s.key ? ACCENT : BORDER}`,
@@ -7521,49 +7482,7 @@ function OgrenciYonetim({
             </div>
           )}
 
-          {/* Bireyi Tanıma — tamamen manuel, kategori kategori madde listesi */}
-          {aktifSekme === "bireyi_tanima" && (
-            <div>
-              <div style={{ fontSize:11, color:MUTED, marginBottom:14, lineHeight:1.5 }}>
-                Görüşmeler sırasında öğrendiğin sosyo-demografik/psikososyal bilgileri kategori kategori madde madde ekleyebilirsin. Tamamen elle giriliyor, hiçbir AI çağrısı yapılmıyor.
-              </div>
-              {BIREYI_TANIMA_KATEGORILER.map(kat => {
-                const maddeler = (bireyiTanima||[]).filter(b => pdrAyniOgrenci(b.studentName, b.className, seciliOgrenci, seciliOgrenciSinif, b.numara, seciliOgrenciNumara) && b.kategori === kat.key);
-                const formAcik = bireyiTanimaAcikKategori === kat.key;
-                return (
-                  <div key={kat.key} style={{ marginBottom:16 }}>
-                    <div style={{ fontSize:12, fontWeight:700, color:TEXT, marginBottom:8 }}>{kat.label} {maddeler.length>0 && <span style={{color:MUTED,fontWeight:500}}>({maddeler.length})</span>}</div>
-                    {maddeler.length === 0 && !formAcik && (
-                      <div style={{ fontSize:11, color:MUTED, marginBottom:6 }}>Henüz madde eklenmedi.</div>
-                    )}
-                    {maddeler.map(m => (
-                      <div key={m.id} style={{ display:"flex", alignItems:"flex-start", gap:6, marginBottom:5, fontSize:12, color:TEXT }}>
-                        <span style={{ color:ACCENT, fontWeight:800, marginTop:1 }}>•</span>
-                        <span style={{ flex:1 }}>{m.metin} <span style={{ fontSize:10, color:MUTED }}>({m.tarih})</span></span>
-                        <button onClick={()=>handleBireyiTanimaSil(m.id)} style={{ background:"none", border:"none", color:"#C0392B", fontSize:12, cursor:"pointer", flexShrink:0 }}>🗑</button>
-                      </div>
-                    ))}
-                    {formAcik ? (
-                      <div style={{ display:"flex", gap:6, marginTop:6 }}>
-                        <input autoFocus value={bireyiTanimaMetni} onChange={e=>setBireyiTanimaMetni(e.target.value)}
-                          onKeyDown={e=>{ if(e.key==="Enter"){ handleBireyiTanimaEkle(kat.key, bireyiTanimaMetni); setBireyiTanimaMetni(""); } }}
-                          placeholder="Örn. 2 kardeşi var, babası çalışmıyor"
-                          style={{ flex:1, padding:"7px 10px", border:`1px solid ${BORDER}`, borderRadius:8, fontSize:12, boxSizing:"border-box" }} />
-                        <button onClick={()=>{ handleBireyiTanimaEkle(kat.key, bireyiTanimaMetni); setBireyiTanimaMetni(""); }} disabled={!bireyiTanimaMetni.trim()} style={{
-                          background:bireyiTanimaMetni.trim()?ACCENT:BORDER, color:bireyiTanimaMetni.trim()?"#fff":MUTED, border:"none", borderRadius:8, padding:"7px 12px", fontSize:12, fontWeight:700, cursor:"pointer"
-                        }}>Ekle</button>
-                        <button onClick={()=>{ setBireyiTanimaAcikKategori(null); setBireyiTanimaMetni(""); }} style={{ background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, padding:"7px 10px", fontSize:12, cursor:"pointer" }}>✕</button>
-                      </div>
-                    ) : (
-                      <button onClick={()=>setBireyiTanimaAcikKategori(kat.key)} style={{
-                        background:"none", border:`1px dashed ${ACCENT}`, color:ACCENT, borderRadius:8, padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer"
-                      }}>+ Madde Ekle</button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+
         </div>
       )}
     </div>
@@ -9786,7 +9705,6 @@ export default function App() {
   const [listening, setListening] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [onerilenHatirlatma, setOnerilenHatirlatma] = useState(null); // {metin} | null
-  const [onerilenBireyiTanima, setOnerilenBireyiTanima] = useState(null); // [{kategori,metin,secili}] | null
   const [profAiLoading, setProfAiLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [profSaved, setProfSaved] = useState(false);
@@ -9847,7 +9765,6 @@ export default function App() {
   const [hatirlatmalar, setHatirlatmalar] = useState([]);
   const [netHaritasiKayitlari, setNetHaritasiKayitlari] = useState([]);
   const [konuHaritasiVerisi, setKonuHaritasiVerisi] = useState({});
-  const [bireyiTanima, setBireyiTanima] = useState([]);
   const [kutuphane, setKutuphane] = useState([]);
   const [pdfYukleniyor, setPdfYukleniyor] = useState(false);
   const [search, setSearch] = useState("");
@@ -9878,7 +9795,6 @@ export default function App() {
     loadHatirlatmalar().then(setHatirlatmalar);
     loadNetHaritasi().then(setNetHaritasiKayitlari);
     loadKonuHaritasi().then(setKonuHaritasiVerisi);
-    loadBireyiTanima().then(setBireyiTanima);
   }, []);
 
   // aktifOgrenci değişince formu güncelle
@@ -9906,35 +9822,19 @@ export default function App() {
     if (!form.raw.trim()) return;
     setAiLoading(true);
     const tamCevap = await getAISummary(form.raw);
-    // AI cevabı, özetin sonuna "---HATIRLATMA---" ve "---BIREYI_TANIMA---"
-    // ayraçlarıyla iki ayrı tespit ekliyor — özeti temizleyip, ikisini de
-    // ayrı ayrı gösteriyoruz. İkisi de sadece ÖNERİ; danışman onaylamadan
+    // AI cevabı, özetin sonuna "---HATIRLATMA---" ayracıyla bir tespit ekliyor —
+    // özeti temizleyip ayrı gösteriyoruz. Bu sadece ÖNERİ; danışman onaylamadan
     // hiçbir şey kaydedilmez.
     const parcalar = tamCevap.split(/---HATIRLATMA---/i);
     const summary = parcalar[0].trim();
-    const kalan = parcalar[1] || "";
-    const btParcalari = kalan.split(/---BIREYI_TANIMA---/i);
-    const hatirlatmaMetni = (btParcalari[0] || "").trim();
-    const bireyiTanimaBlok = (btParcalari[1] || "").trim();
+    // Worker güncellenmeden önceki eski cevaplarda hatırlatmadan sonra hâlâ bir
+    // ---BIREYI_TANIMA--- bloğu gelebilir — burada atılıyor, hiç kullanılmıyor.
+    const hatirlatmaMetni = (parcalar[1] || "").split(/---BIREYI_TANIMA---/i)[0].trim();
     setForm(f => ({ ...f, summary }));
     if (hatirlatmaMetni && !/^yok/i.test(hatirlatmaMetni)) {
       setOnerilenHatirlatma({ metin: hatirlatmaMetni });
     } else {
       setOnerilenHatirlatma(null);
-    }
-    if (bireyiTanimaBlok && !/^yok/i.test(bireyiTanimaBlok)) {
-      const gecerliKategoriler = ["aile","saglik","olaylar","sosyoekonomik","ilgi","okul"];
-      const oneriler = bireyiTanimaBlok.split("\n").map(satir => {
-        const m = satir.match(/^([a-zçğıöşü]+)\s*:\s*(.+)$/i);
-        if (!m) return null;
-        const kategori = m[1].trim().toLocaleLowerCase("tr");
-        const metin = m[2].trim();
-        if (!gecerliKategoriler.includes(kategori) || !metin || /^yok$/i.test(metin)) return null;
-        return { kategori, metin, secili: true };
-      }).filter(Boolean);
-      setOnerilenBireyiTanima(oneriler.length > 0 ? oneriler : null);
-    } else {
-      setOnerilenBireyiTanima(null);
     }
     setAiLoading(false);
   }
@@ -9949,24 +9849,6 @@ export default function App() {
     setHatirlatmalar(guncel);
     await saveHatirlatmalar(guncel);
     setOnerilenHatirlatma(null);
-  }
-
-  function handleBireyiTanimaOneriToggle(index) {
-    setOnerilenBireyiTanima(prev => prev.map((o,i) => i===index ? { ...o, secili: !o.secili } : o));
-  }
-
-  async function handleBireyiTanimaOnayla() {
-    if (!onerilenBireyiTanima || !form.studentName.trim()) return;
-    const secilenler = onerilenBireyiTanima.filter(o => o.secili);
-    if (secilenler.length === 0) { setOnerilenBireyiTanima(null); return; }
-    const yeniMaddeler = secilenler.map(o => ({
-      id: uid(), studentName: form.studentName, className: form.className, numara: form.numara,
-      kategori: o.kategori, metin: o.metin, tarih: today()
-    }));
-    const guncel = [...yeniMaddeler, ...(bireyiTanima||[])];
-    setBireyiTanima(guncel);
-    await saveBireyiTanima(guncel);
-    setOnerilenBireyiTanima(null);
   }
 
   async function handleSave() {
@@ -10513,27 +10395,6 @@ export default function App() {
                   </div>
                 </div>
               )}
-              {/* AI'ın fark ettiği Bireyi Tanıma bilgileri — hangileri eklensin seçebilirsin */}
-              {onerilenBireyiTanima && (
-                <div style={{ background:"#FFF8ED", border:"1px solid #F0D68A", borderRadius:10, padding:"10px 12px", marginBottom:10 }}>
-                  <div style={{ fontSize:11, fontWeight:700, color:"#8B5A00", marginBottom:8 }}>🔍 AI, Bireyi Tanıma için {onerilenBireyiTanima.length} bilgi fark etti — eklemek istediklerini seç:</div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:10 }}>
-                    {onerilenBireyiTanima.map((o,i) => {
-                      const katLabel = (BIREYI_TANIMA_KATEGORILER.find(k=>k.key===o.kategori)||{}).label || o.kategori;
-                      return (
-                        <label key={i} style={{ display:"flex", alignItems:"flex-start", gap:8, fontSize:12, cursor:"pointer" }}>
-                          <input type="checkbox" checked={o.secili} onChange={()=>handleBireyiTanimaOneriToggle(i)} style={{ marginTop:2 }} />
-                          <span><span style={{ color:"#8B5A00", fontWeight:700 }}>{katLabel}:</span> {o.metin}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                  <div style={{ display:"flex", gap:8 }}>
-                    <button onClick={handleBireyiTanimaOnayla} disabled={!form.studentName.trim()} style={{ flex:1, padding:"7px", background:"#8B5A00", color:"#fff", border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>✓ Seçilenleri Ekle</button>
-                    <button onClick={()=>setOnerilenBireyiTanima(null)} style={{ padding:"7px 14px", background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>Yoksay</button>
-                  </div>
-                </div>
-              )}
               {/* Kaydet */}
               <button onClick={handleSave} disabled={!form.studentName.trim()||!(form.summary.trim()||form.raw.trim())} style={{ width:"100%", padding:"13px", background:form.studentName&&(form.summary||form.raw)?PURPLE:BORDER, color:form.studentName&&(form.summary||form.raw)?"#fff":MUTED, border:"none", borderRadius:12, fontSize:15, fontWeight:800, cursor:"pointer" }}>
                 {saved?"✓ Kaydedildi!":"💾 Görüşmeyi Kaydet"}
@@ -10798,8 +10659,6 @@ export default function App() {
             setHazirlikNotlari={setHazirlikNotlari}
             ilerlemeNotlari={ilerlemeNotlari}
             setIlerlemeNotlari={setIlerlemeNotlari}
-            bireyiTanima={bireyiTanima}
-            setBireyiTanima={setBireyiTanima}
             onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari }))}
             onSinifGuncelle={async (eskiAd, eskiSinif, eskiNumara, yeniAd, yeniSinif) => {
               const ayniMi = (ad, sinif, no) => pdrAyniOgrenci(eskiAd, eskiSinif, ad, sinif, eskiNumara, no);
