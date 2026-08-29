@@ -9644,33 +9644,17 @@ function KutuphaneEkle({ kutuphane, setKutuphane }) {
     setYukleniyor(false);
   }
 
+  // NOT: Bu fonksiyon önceden bir üçüncü parti ücretsiz proxy servisine
+  // (api.allorigins.win) bağımlıydı — bu tür servisler sık sık kesintiye
+  // uğrar/kapasitesi dolar, "link eklemiyor gibi" görünmenin asıl sebebi
+  // buydu. Artık worker, Anthropic'in kendi resmi "web_fetch" aracını
+  // kullanıyor — üçüncü parti bağımlılık yok, Claude URL'yi doğrudan
+  // kendisi getiriyor. Burada sadece URL'yi ve türünü gönderiyoruz.
   async function handleLink() {
     if (!yeniLink.trim()) return;
     setYukleniyor(true);
     try {
       const baslik = yeniBaslik || yeniLink;
-
-      // 1. Sayfayı fetch et
-      let sayfaIcerigi = "";
-      try {
-        const proxyUrl = "https://api.allorigins.win/get?url=" + encodeURIComponent(yeniLink);
-        const fetchResp = await fetch(proxyUrl);
-        const fetchData = await fetchResp.json();
-        const html = fetchData.contents || "";
-        const div = document.createElement("div");
-        div.innerHTML = html;
-        div.querySelectorAll("script,style,nav,footer,header").forEach(el => el.remove());
-        sayfaIcerigi = (div.innerText || div.textContent || "").replace(/\s+/g, " ").trim().substring(0, 8000);
-      } catch { sayfaIcerigi = ""; }
-
-      const mesaj = sayfaIcerigi
-        ? (kaynakTuru === "yonetmelik"
-          ? "Bu web sayfasındaki yönetmelik/mevzuat içeriğini yukarıdaki talimata göre özetle.\nURL: " + yeniLink + "\n\nİÇERİK:\n" + sayfaIcerigi
-          : "Bu web sayfası içeriğini PDR perspektifinden özetle.\nURL: " + yeniLink + "\n\nİÇERİK:\n" + sayfaIcerigi)
-        : (kaynakTuru === "yonetmelik"
-          ? "Bu web sayfasındaki yönetmelik/mevzuat içeriğini yukarıdaki talimata göre özetle: " + yeniLink
-          : "Bu web sayfasının içeriğini PDR perspektifinden özetle: " + yeniLink);
-
       const apiKey = pdrGetApiKey();
       if (!apiKey) throw new Error("API_KEY_MISSING");
       const resp = await fetch(PDR_AI_WORKER_URL, {
@@ -9679,11 +9663,13 @@ function KutuphaneEkle({ kutuphane, setKutuphane }) {
         body: JSON.stringify({
           action: "kutuphane_ozet",
           apiKey,
-          data: { mesaj, tur: kaynakTuru, useWebSearch: !sayfaIcerigi },
+          data: { link: yeniLink, tur: kaynakTuru },
         }),
       });
       const data = await resp.json();
-      const ozet = data.content?.find(b => b.type === "text")?.text || "İçerik okunamadı.";
+      if (data.error) throw new Error(typeof data.error === "string" ? data.error : (data.error.message || JSON.stringify(data.error)));
+      const textBlocks = (data.content || []).filter(b => b.type === "text");
+      const ozet = textBlocks.length > 0 ? textBlocks[textBlocks.length - 1].text : "İçerik okunamadı — bağlantı erişilemez olabilir.";
       await kaydet(ozet, baslik, yeniLink);
     } catch(e) { alert("Hata: " + e.message); }
     setYukleniyor(false);
