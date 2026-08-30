@@ -1180,6 +1180,33 @@ function kazanimVeriKaynagi(kademe, cilt, sinif) {
   if (kademe === "lise") return ((cilt === "2" ? KAZANIM_VERI_LISE_CILT2 : KAZANIM_VERI_LISE) || {})[sinif];
   return ((cilt === "2" ? KAZANIM_VERI_CILT2 : KAZANIM_VERI) || {})[sinif];
 }
+// Seans Hazırlık'ta sınıf rehberlik etkinliği önermek için: öğrencinin sınıf
+// düzeyine uygun etkinlikleri toplar — sadece eşleştirme için gereken alanları
+// (etkinlik/kazanım/alan/yeterlik/sınıf) alır, ay/tarih bilgisini atar (token
+// tasarrufu). AI bu listeden seçim yapar, program tarafında sabittir — AI
+// kendiliğinden etkinlik uydurmaz.
+// SARMAL PROGRAM MANTIĞI: MEB rehberlik müfredatı sarmal ilerler — öğrenci
+// bulunduğu sınıfa gelene kadar kademesindeki ÖNCEKİ sınıfların kazanımlarını
+// da görmüş sayılır. Bu yüzden havuz, kademenin başından (ilkokul 1, ortaokul
+// 5, lise 9) öğrencinin GÜNCEL sınıfına kadar (dahil) TÜM sınıfları kapsar —
+// örn. 8. sınıf bir öğrenci için 5, 6, 7 ve 8. sınıf etkinlikleri birlikte
+// havuzda olur. Asla DAHA ÜST bir sınıfın etkinliği havuza girmez — henüz
+// işlenmemiş sayılır, gelişimsel olarak erken olur.
+function ogrenciEtkinlikHavuzu(ogrenciSinif, kademeTahmin) {
+  const sinifNoMatch = (ogrenciSinif || "").match(/\d+/);
+  if (!sinifNoMatch) return [];
+  const sinif = parseInt(sinifNoMatch[0], 10);
+  const kademe = kademeTahmin || (sinif <= 4 ? "ilkokul" : sinif <= 8 ? "ortaokul" : "lise");
+  const kademeBaslangic = kademe === "ilkokul" ? 1 : kademe === "ortaokul" ? 5 : 9;
+  const havuz = [];
+  for (let s = kademeBaslangic; s <= sinif; s++) {
+    const sStr = String(s);
+    const cilt1 = kazanimVeriKaynagi(kademe, "1", sStr) || [];
+    const cilt2 = kazanimVeriKaynagi(kademe, "2", sStr) || [];
+    [...cilt1, ...cilt2].forEach(k => havuz.push({ etkinlik: k.etkinlik, kazanim: k.kazanim, alan: k.alan, yeterlik: k.yeterlik, sinif: s }));
+  }
+  return havuz;
+}
 function KazanimlarSekmesi({ kademe }) {
   const aktifKademe = KADEME_SINIF_LISTESI[kademe] ? kademe : "ortaokul";
   const sinifListesi = KADEME_SINIF_LISTESI[aktifKademe];
@@ -5800,6 +5827,10 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
       ? "Risk: " + ogrRisk.map(r => r.riskTuru).join(", ")
       : "";
     const deneme = denemeAvg ? `Deneme Ortalaması: ${denemeAvg}/90` : "";
+    const etkinlikHavuzu = ogrenciEtkinlikHavuzu(ogrenciSinif, kademe);
+    const etkinlikMetni = etkinlikHavuzu.length > 0
+      ? etkinlikHavuzu.map(e => `- [${e.sinif}. Sınıf] "${e.etkinlik}" (Alan: ${e.alan}, Yeterlik: ${e.yeterlik}) — Kazanım: ${e.kazanim}`).join("\n")
+      : "";
 
     const apiKey = pdrGetApiKey();
     if (!apiKey) { setHazirlikAiLoading(false); return; }
@@ -5809,7 +5840,7 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
       body: JSON.stringify({
         action: "seans_hazirlik",
         apiKey,
-        data: { ogrenci, gorusmeler, mudahaleBolum, risk, deneme },
+        data: { ogrenci, gorusmeler, mudahaleBolum, risk, deneme, etkinlikMetni },
       }),
     });
     const data = await res.json();
