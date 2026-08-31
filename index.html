@@ -9251,8 +9251,9 @@ function ProfilMerkez({
 }
 
 // ── Sınıf Profili Bileşeni ────────────────────────────────────────────────────
-function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYil, sinifListesi, setSinifListesi, denemeler, sinavTuru, onSinifSilTumVeri, kademe, setTab, setAktifOgrenci }) {
+function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYil, sinifListesi, setSinifListesi, denemeler, sinavTuru, onSinifSilTumVeri, kademe, setTab, setAktifOgrenci, profiles, profiles2, onRaporAc }) {
   const [seciliSinif, setSeciliSinif] = useState(null);
+  const [seciliSinifDuzeyi, setSeciliSinifDuzeyi] = useState(null);
   const [listeYukleAcik, setListeYukleAcik] = useState(false);
   const [listeMetni, setListeMetni] = useState("");
   const [listeSonuc, setListeSonuc] = useState(null);
@@ -9329,6 +9330,27 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
   // Gösterilecek sınıflar: elle eklenen sınıflar + öğrencisi olan tüm sınıflar (birleşim)
   const ogrenciSiniflari = [...new Set(yilOgrencileri.map(o => (o.className||"").trim()).filter(Boolean))];
   const gosterilecekSubeler = [...new Set([...(sinifListesi||[]).filter(s => pdrKademeUyumlu(s, kademe)), ...ogrenciSiniflari])].sort((a,b)=>a.localeCompare(b,"tr"));
+
+  // Sınıf düzeyi (5,6,7,8 gibi) gruplandırması — sadece navigasyon katmanı,
+  // veriler (öğrenci/görüşme/deneme) hiçbir şekilde birbirine karışmaz. Her
+  // düzeyin kendi şubeleri ve verisi tamamen bağımsız kalır; bir düzeyi
+  // görüntülemek diğerini gizlemez, sadece o an odaklanılan düzeyi filtreler.
+  const KADEME_SINIF_DUZEYLERI = { ilkokul: [1,2,3,4], ortaokul: [5,6,7,8], lise: [9,10,11,12] };
+  const sinifDuzeyleri = KADEME_SINIF_DUZEYLERI[kademe] || KADEME_SINIF_DUZEYLERI.ortaokul;
+  function subelerDuzeyde(duzey) {
+    return gosterilecekSubeler.filter(s => (s.match(/\d+/)||[])[0] === String(duzey));
+  }
+  function sinifDuzeyiIstatistik(duzey) {
+    const subeler = subelerDuzeyde(duzey);
+    let toplamOgrenci = 0, toplamGorusme = 0, toplamRisk = 0;
+    subeler.forEach(sube => {
+      const st = subeIstatistik(sube);
+      toplamOgrenci += st.ogr.length;
+      toplamGorusme += st.gorusmeler.length;
+      toplamRisk += st.riskler.length;
+    });
+    return { subeSayisi: subeler.length, toplamOgrenci, toplamGorusme, toplamRisk };
+  }
 
   async function handleSinifEkle() {
     const ad = yeniSinifAdi.trim();
@@ -9612,8 +9634,14 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
                   {devamsizlikSayisi > 0 && <span title="Devamsızlık" style={{background:"#FFF4E5",color:"#B5651D",borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>🗓 {devamsizlikSayisi}g</span>}
                   {olaySayisi > 0 && <span title="Olay/Tutanak Kaydı" style={{background:"#FDECEA",color:"#8E2A20",borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>📋 {olaySayisi} olay</span>}
                   <span style={{background:ACCENT_LIGHT,color:ACCENT,borderRadius:8,padding:"1px 7px",fontSize:9,fontWeight:700}}>{gSayisi} görüşme</span>
-                  {setTab && setAktifOgrenci && (
-                    <button onClick={()=>{ setAktifOgrenci({ name:o.studentName, className:o.className }); setTab("profil_merkez"); }} style={{background:"#EEF2FF",color:BLUE,border:"none",borderRadius:8,padding:"1px 7px",fontSize:9,fontWeight:700,cursor:"pointer"}}>📋 Profil</button>
+                  {gSayisi > 0 && onRaporAc && (
+                    <button onClick={()=>{
+                      const ogrGorusmeler = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className, r.numara, o.numara));
+                      const ogrP1 = (profiles||[]).find(p => pdrAyniOgrenci(p.studentName, p.className, o.studentName, o.className, p.numara, o.numara)) || null;
+                      const ogrP2 = (profiles2||[]).find(p => pdrAyniOgrenci(p.studentName, p.className, o.studentName, o.className, p.numara, o.numara)) || null;
+                      const ogrDeneme = pdrSozlukOku(denemeler, o.studentName, o.className, o.numara) || {};
+                      onRaporAc({ ogrenci:o.studentName, ogrenciSinif:o.className, profil1:ogrP1, profil2:ogrP2, gorusmeler:ogrGorusmeler, denemeler:ogrDeneme, kaynastirma:o.kaynastirma||[] });
+                    }} style={{background:"#EEF2FF",color:BLUE,border:"none",borderRadius:8,padding:"1px 7px",fontSize:9,fontWeight:700,cursor:"pointer"}}>📄 Rapor</button>
                   )}
                   <button onClick={()=>setKaynastirmaAcikId(kaynastirmaAcik?null:ogrKey)} style={{background:"none",border:`1px solid ${BORDER}`,color:MUTED,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700,cursor:"pointer"}}>🧩 {kaynastirmaAcik?"Kapat":"Tanı Düzenle"}</button>
                 </div>
@@ -9644,29 +9672,62 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
     );
   }
 
+  // Sınıf düzeyi seçilmemişse — önce 5/6/7/8 (kademeye göre) düzey kartlarını göster.
+  if (!seciliSinifDuzeyi) {
+    return (
+      <div>
+        <div style={{background:"#EEF2FF",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:13,color:BLUE,fontWeight:600}}>
+          🏫 {aktifYil} — Sınıf Düzeyi Seç
+        </div>
+        <RiskOzetKartlari ogrenciler={yilOgrencileri} baslik="📊 Tüm Okul — Geçmiş Dönem Risk Dağılımı" />
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          {sinifDuzeyleri.map(duzey => {
+            const dst = sinifDuzeyiIstatistik(duzey);
+            const riskVar = dst.toplamRisk > 0;
+            return (
+              <div key={duzey} onClick={()=>setSeciliSinifDuzeyi(duzey)} style={{
+                background:CARD, border:`2px solid ${riskVar?"#F28B82":dst.subeSayisi>0?ACCENT_LIGHT:BORDER}`,
+                borderRadius:14, padding:"16px 12px", cursor:"pointer", textAlign:"center"
+              }}>
+                <div style={{fontSize:26,fontWeight:900,color:riskVar?"#C0392B":dst.subeSayisi>0?ACCENT:MUTED,marginBottom:6}}>{duzey}. Sınıflar</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center"}}>
+                  <span style={{background:BG,color:MUTED,borderRadius:10,padding:"2px 8px",fontSize:10.5,fontWeight:700}}>{dst.subeSayisi} şube</span>
+                  {dst.toplamOgrenci > 0 && <span style={{background:ACCENT_LIGHT,color:ACCENT,borderRadius:10,padding:"2px 8px",fontSize:10.5,fontWeight:700}}>👤 {dst.toplamOgrenci}</span>}
+                  {dst.toplamGorusme > 0 && <span style={{background:"#EEF2FF",color:BLUE,borderRadius:10,padding:"2px 8px",fontSize:10.5,fontWeight:700}}>💬 {dst.toplamGorusme}</span>}
+                  {riskVar && <span style={{background:"#FDECEA",color:"#C0392B",borderRadius:10,padding:"2px 8px",fontSize:10.5,fontWeight:700}}>⚠ {dst.toplamRisk}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   // Ana ekran — şube kartları
   return (
     <div>
-      <div style={{background:"#EEF2FF",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:13,color:BLUE,fontWeight:600}}>
-        🏫 {aktifYil} — Sınıf & Şube Haritası
+      <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:14}}>
+        <button onClick={()=>setSeciliSinifDuzeyi(null)} style={{background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, padding:"6px 10px", fontSize:12, fontWeight:700, cursor:"pointer"}}>◀ Düzeyler</button>
+        <div style={{background:"#EEF2FF",borderRadius:10,padding:"10px 14px",fontSize:13,color:BLUE,fontWeight:600,flex:1}}>
+          🏫 {aktifYil} — {seciliSinifDuzeyi}. Sınıflar
+        </div>
       </div>
-
-      <RiskOzetKartlari ogrenciler={yilOgrencileri} baslik="📊 Tüm Okul — Geçmiş Dönem Risk Dağılımı" />
 
       {/* Sınıf ekle */}
       <div style={{display:"flex", gap:8, marginBottom:14}}>
         <input value={yeniSinifAdi} onChange={e=>setYeniSinifAdi(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSinifEkle()}
-          placeholder="Yeni sınıf adı (örn. 8-P)"
+          placeholder={`Yeni şube adı (örn. ${seciliSinifDuzeyi}-P)`}
           style={{ flex:1, padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, boxSizing:"border-box" }} />
         <button onClick={handleSinifEkle} disabled={!yeniSinifAdi.trim()} style={{
           padding:"9px 16px", background:yeniSinifAdi.trim()?ACCENT:BORDER, color:yeniSinifAdi.trim()?"#fff":MUTED,
           border:"none", borderRadius:9, fontSize:13, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap"
-        }}>+ Sınıf Ekle</button>
+        }}>+ Şube Ekle</button>
       </div>
 
       {/* Şube kartları grid */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        {gosterilecekSubeler.map(sube => {
+        {subelerDuzeyde(seciliSinifDuzeyi).map(sube => {
           const st = subeIstatistik(sube);
           const riskVar = st.riskler.length > 0;
           const gorusmeli = st.gorusmeler.length > 0;
@@ -11331,6 +11392,9 @@ export default function App() {
             kademe={kademe}
             setTab={setTab}
             setAktifOgrenci={setAktifOgrenci}
+            profiles={profiles}
+            profiles2={profiles2}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari }))}
           />
         )}
 
