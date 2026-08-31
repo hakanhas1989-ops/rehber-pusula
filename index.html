@@ -4823,26 +4823,424 @@ const LGS_KONU_HARITASI = {
 };
 const LGS_KONU_HARITASI_DERSLER = Object.keys(LGS_KONU_HARITASI);
 
-// Bir öğrencinin bir dersteki işaretli konu sayısına göre tamamlanma yüzdesini
-// hesaplar. checkedMap: { [konu]: true } — sadece LGS_KONU_HARITASI'nda o ders
-// için gerçekten var olan konular sayılır (eski/silinmiş bir konu kalıntısı
-// yüzdeyi bozmasın diye).
-function konuHaritasiYuzdeHesapla(ders, checkedMap) {
-  const konular = LGS_KONU_HARITASI[ders] || [];
+const TYT_KONU_HARITASI = {
+  "Matematik": [
+    { konu: "Temel Kavramlar", gecmisSoru: 21 },
+    { konu: "Sayı Basamakları", gecmisSoru: 11 },
+    { konu: "Bölünebilme Kuralları", gecmisSoru: 7 },
+    { konu: "OBEB-OKEK", gecmisSoru: 1 },
+    { konu: "Rasyonel Sayılar", gecmisSoru: 11 },
+    { konu: "Basit Eşitsizlikler", gecmisSoru: 8 },
+    { konu: "Mutlak Değer", gecmisSoru: 9 },
+    { konu: "Üslü Sayılar", gecmisSoru: 7 },
+    { konu: "Köklü Sayılar", gecmisSoru: 8 },
+    { konu: "Çarpanlara Ayırma", gecmisSoru: 1 },
+    { konu: "Oran-Orantı", gecmisSoru: 4 },
+    { konu: "Denklem Çözme", gecmisSoru: 8 },
+    { konu: "Problemler", gecmisSoru: 93 },
+    { konu: "Kümeler-Kartezyen Çarpım", gecmisSoru: 9 },
+    { konu: "Mantık", gecmisSoru: 5 },
+    { konu: "Fonksiyonlar", gecmisSoru: 10 },
+    { konu: "Polinomlar", gecmisSoru: 2 },
+    { konu: "Permütasyon-Kombinasyon", gecmisSoru: 9 },
+    { konu: "Olasılık", gecmisSoru: 9 },
+    { konu: "Veri-İstatistik", gecmisSoru: 6 },
+  ],
+  "Türkçe": [
+    { konu: "Sözcükte Anlam", gecmisSoru: 29 },
+    { konu: "Cümlede Anlam", gecmisSoru: 25 },
+    { konu: "Paragrafın Yapısı", gecmisSoru: 35 },
+    { konu: "Paragrafta Anlam", gecmisSoru: 164 },
+    { konu: "Biçim Bilgisi", gecmisSoru: 6 },
+    { konu: "Ses Bilgisi", gecmisSoru: 4 },
+    { konu: "Yazım Kuralları", gecmisSoru: 16 },
+    { konu: "Noktalama İşaretleri", gecmisSoru: 16 },
+    { konu: "İsim Soylu Sözcükler", gecmisSoru: 9 },
+    { konu: "Fiiller", gecmisSoru: 3 },
+    { konu: "Cümlenin Öğeleri", gecmisSoru: 11 },
+    { konu: "Cümle Türleri", gecmisSoru: 1 },
+    { konu: "Anlatım Bozukluğu", gecmisSoru: 1 },
+  ],
+  "Geometri": [
+    { konu: "Üçgenlerde Temel Kavramlar", gecmisSoru: 16 },
+    { konu: "Üçgenlerde Eşlik ve Benzerlik", gecmisSoru: 7 },
+    { konu: "Dik Üçgen ve Trigonometri", gecmisSoru: 11 },
+    { konu: "Üçgenin Alanı", gecmisSoru: 2 },
+    { konu: "Çokgenler ve Dörtgenler", gecmisSoru: 8 },
+    { konu: "Özel Dörtgenler", gecmisSoru: 18 },
+    { konu: "Çember ve Daire", gecmisSoru: 3 },
+    { konu: "Katı Cisimler", gecmisSoru: 16 },
+  ],
+  "Tarih": [
+    { konu: "İlk ve Orta Çağlarda Türk Dünyası", gecmisSoru: 8 },
+    { konu: "Türklerin İslamiyet'i Kabulü ve İlk Türk İslam Devletleri", gecmisSoru: 6 },
+    { konu: "Yerleşme ve Devletleşme Sürecinde Selçuklu Türkiyesi", gecmisSoru: 2 },
+    { konu: "Beylikten Devlete Osmanlı Siyaseti (1302-1453)", gecmisSoru: 2 },
+    { konu: "Sultan ve Osmanlı Merkez Teşkilatı", gecmisSoru: 2 },
+    { konu: "Değişen Dünya Dengeleri Karşısında Osmanlı Siyaseti (1595-1774)", gecmisSoru: 1 },
+    { konu: "Uluslararası İlişkilerde Denge Stratejisi (1774-1914)", gecmisSoru: 2 },
+    { konu: "XIX ve XX. Yüzyılda Değişen Sosyoekonomik Hayat", gecmisSoru: 1 },
+    { konu: "Millî Mücadele", gecmisSoru: 13 },
+    { konu: "Atatürkçülük ve Türk İnkılabı", gecmisSoru: 3 },
+  ],
+  "Coğrafya": [
+    { konu: "Doğa ve İnsan Etkileşimi", gecmisSoru: 0 },
+    { konu: "Coğrafya Bilimi ve Bölümlenmesi", gecmisSoru: 3 },
+    { konu: "Dünya'nın Şekli ve Hareketleri", gecmisSoru: 1 },
+    { konu: "Coğrafi Koordinat Sistemi", gecmisSoru: 0 },
+    { konu: "Harita Okuryazarlığı", gecmisSoru: 1 },
+    { konu: "Atmosfer ve İklim Bilgisi", gecmisSoru: 7 },
+    { konu: "Dünya'nın Yapısı ve Oluşum Süreci", gecmisSoru: 2 },
+    { konu: "Su Kaynakları", gecmisSoru: 1 },
+    { konu: "Topraklar", gecmisSoru: 0 },
+    { konu: "Bitkiler", gecmisSoru: 3 },
+    { konu: "Yerleşmeler", gecmisSoru: 0 },
+    { konu: "Nüfus ve Göç", gecmisSoru: 8 },
+    { konu: "Ekonomik Faaliyetler", gecmisSoru: 1 },
+    { konu: "Bölgeler", gecmisSoru: 5 },
+    { konu: "Uluslararası Ulaşım Hatları", gecmisSoru: 0 },
+    { konu: "Afetler", gecmisSoru: 8 },
+  ],
+  "Felsefe": [
+    { konu: "Felsefenin Konusu", gecmisSoru: 7 },
+    { konu: "Bilgi Felsefesi", gecmisSoru: 12 },
+    { konu: "Bilim Felsefesi", gecmisSoru: 2 },
+    { konu: "Varlık Felsefesi", gecmisSoru: 5 },
+    { konu: "Ahlak Felsefesi", gecmisSoru: 8 },
+    { konu: "Siyaset Felsefesi", gecmisSoru: 2 },
+    { konu: "Din Felsefesi", gecmisSoru: 3 },
+    { konu: "Sanat Felsefesi", gecmisSoru: 1 },
+  ],
+  "Din Kültürü ve Ahlak Bilgisi": [
+    { konu: "Bilgi ve İnanç", gecmisSoru: 5 },
+    { konu: "Din ve İslam", gecmisSoru: 4 },
+    { konu: "İslam ve İbadet", gecmisSoru: 4 },
+    { konu: "Gençlik ve Değerler", gecmisSoru: 1 },
+    { konu: "Gönül Coğrafyamız", gecmisSoru: 1 },
+    { konu: "Allah-İnsan İlişkisi", gecmisSoru: 6 },
+    { konu: "Hz. Muhammed ve Gençlik", gecmisSoru: 3 },
+    { konu: "Din ve Hayat", gecmisSoru: 2 },
+    { konu: "Ahlaki Tutum ve Davranışlar", gecmisSoru: 3 },
+    { konu: "İslam Düşüncesinde İtikadi, Siyasi ve Fıkhi Yorumlar", gecmisSoru: 1 },
+    { konu: "Dünya ve Ahiret", gecmisSoru: 1 },
+    { konu: "Kur'an'a Göre Hz. Muhammed", gecmisSoru: 5 },
+    { konu: "Güncel Dinî Meseleler", gecmisSoru: 1 },
+    { konu: "Anadolu'da İslam", gecmisSoru: 1 },
+    { konu: "İslam Düşüncesinde Tasavvufi Yorumlar", gecmisSoru: 2 },
+  ],
+  "Kimya": [
+    { konu: "Kimya Bilimi (9)", gecmisSoru: 8 },
+    { konu: "Atom ve Periyodik Sistem (9)", gecmisSoru: 9 },
+    { konu: "Kimyasal Türler Arası Etkileşimler (9)", gecmisSoru: 8 },
+    { konu: "Maddenin Halleri (9)", gecmisSoru: 8 },
+    { konu: "Kimyanın Temel Kanunları ve Kimyasal Hesaplamalar (10)", gecmisSoru: 7 },
+    { konu: "Karışımlar (10)", gecmisSoru: 7 },
+    { konu: "Asitler, Bazlar ve Tuzlar (10)", gecmisSoru: 7 },
+    { konu: "Kimya Her Yerde (10)", gecmisSoru: 2 },
+  ],
+  "Biyoloji": [
+    { konu: "Canlıların Ortak Özellikleri (9)", gecmisSoru: 1 },
+    { konu: "Canlıların Temel Bileşenleri (9)", gecmisSoru: 7 },
+    { konu: "Hücre (9)", gecmisSoru: 8 },
+    { konu: "Canlıların Çeşitliliği ve Sınıflandırılması (9)", gecmisSoru: 8 },
+    { konu: "Hücre Bölünmeleri (10)", gecmisSoru: 8 },
+    { konu: "Kalıtım ve Biyolojik Çeşitlilik (10)", gecmisSoru: 8 },
+    { konu: "Ekosistem Ekolojisi (10)", gecmisSoru: 8 },
+  ],
+  "Fizik": [
+    { konu: "Fizik Bilimine Giriş (9)", gecmisSoru: 2 },
+    { konu: "Madde ve Özellikleri (9)", gecmisSoru: 5 },
+    { konu: "Hareket ve Kuvvet (9)", gecmisSoru: 9 },
+    { konu: "Enerji (9)", gecmisSoru: 2 },
+    { konu: "Isı, Sıcaklık ve Genleşme (9)", gecmisSoru: 7 },
+    { konu: "Elektrostatik (9)", gecmisSoru: 3 },
+    { konu: "Elektrik ve Manyetizma (10)", gecmisSoru: 5 },
+    { konu: "Basınç (10)", gecmisSoru: 3 },
+    { konu: "Kaldırma Kuvveti (10)", gecmisSoru: 4 },
+    { konu: "Dalgalar (10)", gecmisSoru: 5 },
+    { konu: "Optik (10)", gecmisSoru: 11 },
+  ],
+};
+const TYT_KONU_HARITASI_DERSLER = Object.keys(TYT_KONU_HARITASI);
+
+const AYT_KONU_HARITASI = {
+  "Matematik": [
+    { konu: "Temel Kavramlar", gecmisSoru: 37 },
+    { konu: "Mantık", gecmisSoru: 10 },
+    { konu: "Kümeler ve Kartezyen Çarpım", gecmisSoru: 9 },
+    { konu: "Fonksiyonlar", gecmisSoru: 9 },
+    { konu: "Fonksiyonlarda Uygulamalar", gecmisSoru: 13 },
+    { konu: "Polinomlar", gecmisSoru: 11 },
+    { konu: "2. Dereceden Denklemler", gecmisSoru: 17 },
+    { konu: "Permütasyon, Kombinasyon", gecmisSoru: 8 },
+    { konu: "Binom", gecmisSoru: 6 },
+    { konu: "Olasılık", gecmisSoru: 8 },
+    { konu: "Trigonometri", gecmisSoru: 34 },
+    { konu: "Logaritma", gecmisSoru: 19 },
+    { konu: "Diziler", gecmisSoru: 10 },
+    { konu: "Limit", gecmisSoru: 12 },
+    { konu: "Türev", gecmisSoru: 21 },
+    { konu: "İntegral", gecmisSoru: 22 },
+  ],
+  "Geometri": [
+    { konu: "Doğruda ve Üçgende Açı", gecmisSoru: 5 },
+    { konu: "Özel Üçgenler", gecmisSoru: 4 },
+    { konu: "Açı Kenar Bağıntıları", gecmisSoru: 1 },
+    { konu: "Açıortay ve Kenarortay", gecmisSoru: 0 },
+    { konu: "Üçgende Alan ve Benzerlik", gecmisSoru: 2 },
+    { konu: "Çokgenler", gecmisSoru: 5 },
+    { konu: "Özel Dörtgenler", gecmisSoru: 2 },
+    { konu: "Çember ve Daire", gecmisSoru: 14 },
+    { konu: "Noktanın Analitiği", gecmisSoru: 7 },
+    { konu: "Doğrunun Analitiği", gecmisSoru: 12 },
+    { konu: "Dönüşüm Geometrisi", gecmisSoru: 6 },
+    { konu: "Katı Cisimler", gecmisSoru: 9 },
+    { konu: "Çemberin Analitiği", gecmisSoru: 7 },
+  ],
+  "Fizik": [
+    { konu: "Vektörler", gecmisSoru: 1 },
+    { konu: "Bağıl Hareket", gecmisSoru: 3 },
+    { konu: "Newton'ın Hareket Yasaları", gecmisSoru: 7 },
+    { konu: "Bir Boyutta Sabit İvmeli Hareket", gecmisSoru: 4 },
+    { konu: "İki Boyutta Hareket - Atışlar", gecmisSoru: 5 },
+    { konu: "Enerji ve Hareket", gecmisSoru: 2 },
+    { konu: "İtme ve Çizgisel Momentum", gecmisSoru: 6 },
+    { konu: "Kuvvet, Tork ve Denge", gecmisSoru: 4 },
+    { konu: "Basit Makineler", gecmisSoru: 2 },
+    { konu: "Elektrik Alan ve Potansiyel", gecmisSoru: 5 },
+    { konu: "Düzgün Elektrik Alan ve Sığa", gecmisSoru: 3 },
+    { konu: "Manyetizma ve Elektromanyetik İndüklenme", gecmisSoru: 8 },
+    { konu: "Alternatif Akım ve Transformatörler", gecmisSoru: 9 },
+    { konu: "Düzgün Çembersel Hareket", gecmisSoru: 9 },
+    { konu: "Dönme, Yuvarlanma ve Açısal Momentum", gecmisSoru: 3 },
+    { konu: "Kütle Çekim Kuvveti ve Kepler Yasaları", gecmisSoru: 6 },
+    { konu: "Basit Harmonik Hareket", gecmisSoru: 8 },
+    { konu: "Dalga Mekaniği ve Elektromanyetik Dalgalar", gecmisSoru: 10 },
+    { konu: "Atom Fiziğine Giriş ve Radyoaktivite", gecmisSoru: 6 },
+    { konu: "Modern Fizik", gecmisSoru: 6 },
+    { konu: "Modern Fiziğin Teknolojideki Uygulamaları", gecmisSoru: 5 },
+  ],
+  "Kimya": [
+    { konu: "Modern Atom Teorisi", gecmisSoru: 10 },
+    { konu: "Gazlar", gecmisSoru: 10 },
+    { konu: "Sıvı Çözeltiler ve Çözünürlük", gecmisSoru: 13 },
+    { konu: "Kimyasal Tepkimelerde Enerji", gecmisSoru: 8 },
+    { konu: "Kimyasal Tepkimelerde Hız", gecmisSoru: 8 },
+    { konu: "Kimyasal Tepkimelerde Denge", gecmisSoru: 15 },
+    { konu: "Kimya ve Elektrik", gecmisSoru: 18 },
+    { konu: "Karbon Kimyasına Giriş", gecmisSoru: 10 },
+    { konu: "Organik Bileşikler", gecmisSoru: 12 },
+  ],
+  "Biyoloji": [
+    { konu: "Sinir Sistemi", gecmisSoru: 3 },
+    { konu: "Endokrin Sistem", gecmisSoru: 6 },
+    { konu: "Duyu Organları", gecmisSoru: 2 },
+    { konu: "Destek ve Hareket Sistemi", gecmisSoru: 3 },
+    { konu: "Sindirim Sistemi", gecmisSoru: 5 },
+    { konu: "Dolaşım Sistemi", gecmisSoru: 8 },
+    { konu: "Solunum Sistemi", gecmisSoru: 6 },
+    { konu: "Üriner Sistem", gecmisSoru: 6 },
+    { konu: "Üreme Sistemi ve Embriyonik Gelişim", gecmisSoru: 2 },
+    { konu: "Komünite ve Popülasyon Ekolojisi", gecmisSoru: 13 },
+    { konu: "Nükleik Asitler", gecmisSoru: 8 },
+    { konu: "Genetik Şifre ve Protein Sentezi", gecmisSoru: 9 },
+    { konu: "Canlılık ve Enerji", gecmisSoru: 1 },
+    { konu: "Fotosentez ve Kemosentez", gecmisSoru: 7 },
+    { konu: "Hücresel Solunum", gecmisSoru: 8 },
+    { konu: "Bitki Biyolojisi", gecmisSoru: 13 },
+    { konu: "Canlılar ve Çevre", gecmisSoru: 4 },
+  ],
+  "Türk Dili ve Edebiyatı": [
+    { konu: "Sözcükte Anlam", gecmisSoru: 8 },
+    { konu: "Cümlede Anlam", gecmisSoru: 8 },
+    { konu: "Paragrafta Anlam", gecmisSoru: 27 },
+    { konu: "Şiir Bilgisi", gecmisSoru: 17 },
+    { konu: "Söz Sanatları", gecmisSoru: 10 },
+    { konu: "Nesir Bilgisi", gecmisSoru: 14 },
+    { konu: "İslamiyet Öncesi ve Geçiş Dönemi Türk Edebiyatı", gecmisSoru: 4 },
+    { konu: "Halk Edebiyatı", gecmisSoru: 6 },
+    { konu: "Divan Edebiyatı", gecmisSoru: 29 },
+    { konu: "Tanzimat Dönemi Türk Edebiyatı", gecmisSoru: 10 },
+    { konu: "Servetifünun ve Fecriati Dönemi Türk Edebiyatı", gecmisSoru: 9 },
+    { konu: "Millî Edebiyat Dönemi Türk Edebiyatı", gecmisSoru: 5 },
+    { konu: "Cumhuriyet Dönemi Türk Edebiyatı", gecmisSoru: 25 },
+    { konu: "Geleneksel Türk Tiyatrosu", gecmisSoru: 4 },
+    { konu: "Masal/Fabl/Destan/Halk Hikâyesi", gecmisSoru: 8 },
+    { konu: "Edebî Akımlar", gecmisSoru: 8 },
+  ],
+  "Tarih-1": [
+    { konu: "Tarih ve Zaman", gecmisSoru: 1 },
+    { konu: "İnsanlığın İlk Dönemleri", gecmisSoru: 7 },
+    { konu: "İlk ve Orta Çağlarda Türk Dünyası", gecmisSoru: 8 },
+    { konu: "İslam Medeniyetinin Doğuşu", gecmisSoru: 10 },
+    { konu: "Türklerin İslamiyet'i Kabulü ve İlk Türk İslam Devletleri", gecmisSoru: 3 },
+    { konu: "Yerleşme ve Devletleşme Sürecinde Selçuklu Türkiyesi", gecmisSoru: 3 },
+    { konu: "Beylikten Devlete Osmanlı Siyaseti (1302-1453)", gecmisSoru: 4 },
+    { konu: "Devletleşme Sürecinde Savaşçılar ve Askerler", gecmisSoru: 2 },
+    { konu: "Dünya Gücü Osmanlı (1453-1595)", gecmisSoru: 2 },
+    { konu: "Sultan ve Osmanlı Merkez Teşkilatı", gecmisSoru: 1 },
+    { konu: "Değişim Çağında Avrupa ve Osmanlı", gecmisSoru: 1 },
+    { konu: "Devrimler Çağında Değişen Devlet-Toplum İlişkileri", gecmisSoru: 1 },
+    { konu: "Uluslararası İlişkilerde Denge Stratejisi (1774-1914)", gecmisSoru: 3 },
+    { konu: "XIX. ve XX. Yüzyılda Değişen Sosyoekonomik Hayat", gecmisSoru: 2 },
+    { konu: "20. Yüzyıl Başlarında Osmanlı Devleti ve Dünya", gecmisSoru: 7 },
+    { konu: "Millî Mücadele", gecmisSoru: 18 },
+    { konu: "Atatürkçülük ve Türk İnkılabı", gecmisSoru: 5 },
+    { konu: "İki Savaş Arasındaki Dönemde Türkiye ve Dünya", gecmisSoru: 1 },
+    { konu: "II. Dünya Savaşı Sürecinde Türkiye ve Dünya", gecmisSoru: 1 },
+  ],
+  "Tarih-2": [
+    { konu: "Tarih ve Zaman", gecmisSoru: 7 },
+    { konu: "İnsanlığın İlk Dönemleri", gecmisSoru: 1 },
+    { konu: "İlk ve Orta Çağlarda Türk Dünyası", gecmisSoru: 8 },
+    { konu: "Türklerin İslamiyet'i Kabulü ve İlk Türk İslam Devletleri", gecmisSoru: 6 },
+    { konu: "Yerleşme ve Devletleşme Sürecinde Selçuklu Türkiyesi", gecmisSoru: 1 },
+    { konu: "Beylikten Devlete Osmanlı Siyaseti (1302-1453)", gecmisSoru: 5 },
+    { konu: "Devletleşme Sürecinde Savaşçılar ve Askerler", gecmisSoru: 2 },
+    { konu: "Beylikten Devlete Osmanlı Medeniyeti", gecmisSoru: 1 },
+    { konu: "Dünya Gücü Osmanlı (1453-1595)", gecmisSoru: 5 },
+    { konu: "Sultan ve Osmanlı Merkez Teşkilatı", gecmisSoru: 1 },
+    { konu: "Klasik Çağ'da Osmanlı Toplum Düzeni", gecmisSoru: 2 },
+    { konu: "Değişen Dünya Dengeleri Karşısında Osmanlı Siyaseti (1595-1774)", gecmisSoru: 1 },
+    { konu: "Değişim Çağında Avrupa ve Osmanlı", gecmisSoru: 4 },
+    { konu: "Devrimler Çağında Değişen Devlet-Toplum İlişkileri", gecmisSoru: 3 },
+    { konu: "Uluslararası İlişkilerde Denge Stratejisi (1774-1914)", gecmisSoru: 6 },
+    { konu: "20. Yüzyıl Başlarında Osmanlı Devleti ve Dünya", gecmisSoru: 6 },
+    { konu: "Millî Mücadele", gecmisSoru: 16 },
+    { konu: "Atatürkçülük ve Türk İnkılabı", gecmisSoru: 8 },
+    { konu: "II. Dünya Savaşı Sürecinde Türkiye ve Dünya", gecmisSoru: 2 },
+    { konu: "II. Dünya Savaşı Sonrasında Türkiye ve Dünya", gecmisSoru: 1 },
+    { konu: "Toplumsal Devrim Çağında Dünya ve Türkiye", gecmisSoru: 1 },
+    { konu: "21. Yüzyılın Eşiğinde Türkiye ve Dünya", gecmisSoru: 1 },
+  ],
+  "Coğrafya-1": [
+    { konu: "Ekosistemlerin Özellikleri ve İşleyişi", gecmisSoru: 3 },
+    { konu: "Ekstrem Doğa Olayları", gecmisSoru: 5 },
+    { konu: "Küresel İklim Değişikliği ve Doğa Olaylarının Geleceği", gecmisSoru: 1 },
+    { konu: "Nüfus Politikaları ve Projeksiyonları", gecmisSoru: 2 },
+    { konu: "Şehirler ve Kırsal Yerleşmeler", gecmisSoru: 5 },
+    { konu: "Dünyada Doğal Kaynak ve Ekonomi", gecmisSoru: 1 },
+    { konu: "Türkiye'de Tarım, Sanayi, Maden ve Enerji Kaynakları", gecmisSoru: 4 },
+    { konu: "Ekonomi, Şehirleşme ve Göç", gecmisSoru: 3 },
+    { konu: "İşlevsel Bölge ve Kalkınma Projeleri", gecmisSoru: 1 },
+    { konu: "Hizmet Sektörünün Ekonomideki Yeri ve Ulaşım", gecmisSoru: 1 },
+    { konu: "Türkiye'de ve Dünyada Ticaret", gecmisSoru: 1 },
+    { konu: "Türkiye'de Turizm", gecmisSoru: 3 },
+    { konu: "Kültür Bölgeleri ve Türk Kültürü", gecmisSoru: 3 },
+    { konu: "Küreselleşen Dünya", gecmisSoru: 1 },
+    { konu: "Uluslararası Örgütler", gecmisSoru: 3 },
+    { konu: "Ülkeler Arası Etkileşim", gecmisSoru: 2 },
+    { konu: "Jeopolitik Konum", gecmisSoru: 1 },
+    { konu: "Çevre Sorunları ve Geri Dönüşüm", gecmisSoru: 7 },
+    { konu: "Çevre Sorunlarının Çözümüne Yönelik Yaklaşımlar", gecmisSoru: 1 },
+  ],
+  "Coğrafya-2": [
+    { konu: "Ekosistemlerin Özellikleri ve İşleyişi", gecmisSoru: 9 },
+    { konu: "Ekstrem Doğa Olayları", gecmisSoru: 4 },
+    { konu: "Küresel İklim Değişikliği ve Doğa Olaylarının Geleceği", gecmisSoru: 5 },
+    { konu: "Nüfus Politikaları ve Projeksiyonları", gecmisSoru: 4 },
+    { konu: "Şehirler ve Kırsal Yerleşmeler", gecmisSoru: 5 },
+    { konu: "Dünyada Doğal Kaynak ve Ekonomi", gecmisSoru: 5 },
+    { konu: "Türkiye'de Tarım, Sanayi, Maden ve Enerji Kaynakları", gecmisSoru: 7 },
+    { konu: "Ekonomi, Şehirleşme ve Göç", gecmisSoru: 6 },
+    { konu: "İşlevsel Bölge ve Kalkınma Projeleri", gecmisSoru: 6 },
+    { konu: "Hizmet Sektörünün Ekonomideki Yeri ve Ulaşım", gecmisSoru: 1 },
+    { konu: "Türkiye'de ve Dünyada Ticaret", gecmisSoru: 0 },
+    { konu: "Türkiye'de Turizm", gecmisSoru: 6 },
+    { konu: "Kültür Bölgeleri ve Türk Kültürü", gecmisSoru: 4 },
+    { konu: "Küreselleşen Dünya", gecmisSoru: 6 },
+    { konu: "Uluslararası Örgütler", gecmisSoru: 3 },
+    { konu: "Ülkeler Arası Etkileşim", gecmisSoru: 2 },
+    { konu: "Jeopolitik Konum", gecmisSoru: 2 },
+    { konu: "Çevre Sorunları ve Geri Dönüşüm", gecmisSoru: 9 },
+    { konu: "Çevre Sorunlarının Çözümüne Yönelik Yaklaşımlar", gecmisSoru: 4 },
+  ],
+  "Din Kültürü ve Ahlak Bilgisi": [
+    { konu: "Gönül Coğrafyamız", gecmisSoru: 1 },
+    { konu: "İslam ve İbadet", gecmisSoru: 4 },
+    { konu: "Allah İnsan İlişkisi", gecmisSoru: 4 },
+    { konu: "Hz. Muhammed ve Gençlik", gecmisSoru: 2 },
+    { konu: "Din ve Hayat", gecmisSoru: 2 },
+    { konu: "Ahlaki Tutum ve Davranışlar", gecmisSoru: 2 },
+    { konu: "İslam Düşüncesinde İtikadi, Siyasi ve Fıkhi Yorumlar", gecmisSoru: 2 },
+    { konu: "Dünya ve Ahiret", gecmisSoru: 1 },
+    { konu: "Kur'an'a Göre Hz. Muhammed", gecmisSoru: 6 },
+    { konu: "Kur'an'da Bazı Kavramlar", gecmisSoru: 1 },
+    { konu: "İnançla İlgili Meseleler", gecmisSoru: 4 },
+    { konu: "Yahudilik ve Hristiyanlık", gecmisSoru: 2 },
+    { konu: "İslam ve Bilim", gecmisSoru: 7 },
+    { konu: "Anadolu'da İslam", gecmisSoru: 2 },
+    { konu: "İslam Düşüncesinde Tasavvufi Yorumlar", gecmisSoru: 3 },
+    { konu: "Güncel Dinî Meseleler", gecmisSoru: 3 },
+    { konu: "Hint ve Çin Dinleri", gecmisSoru: 2 },
+  ],
+  "Felsefe Grubu": [
+    { konu: "Felsefeyi Tanıma", gecmisSoru: 2 },
+    { konu: "Bilgi Felsefesi", gecmisSoru: 7 },
+    { konu: "Varlık Felsefesi", gecmisSoru: 4 },
+    { konu: "Ahlak Felsefesi", gecmisSoru: 3 },
+    { konu: "Din Felsefesi", gecmisSoru: 2 },
+    { konu: "Sanat Felsefesi", gecmisSoru: 1 },
+    { konu: "20. yy Felsefesi", gecmisSoru: 5 },
+    { konu: "Psikoloji Bilimini Tanıyalım", gecmisSoru: 6 },
+    { konu: "Psikolojinin Temel Süreçleri", gecmisSoru: 6 },
+    { konu: "Öğrenme Bellek Düşünme", gecmisSoru: 8 },
+    { konu: "Ruh Sağlığının Temelleri", gecmisSoru: 4 },
+    { konu: "Sosyolojiye Giriş", gecmisSoru: 6 },
+    { konu: "Birey ve Toplum", gecmisSoru: 5 },
+    { konu: "Toplumsal Yapı", gecmisSoru: 3 },
+    { konu: "Toplumsal Değişme ve Gelişme", gecmisSoru: 5 },
+    { konu: "Toplum ve Kültür", gecmisSoru: 3 },
+    { konu: "Toplumsal Kurumlar", gecmisSoru: 2 },
+    { konu: "Mantığa Giriş", gecmisSoru: 8 },
+    { konu: "Klasik Mantık", gecmisSoru: 11 },
+    { konu: "Mantık ve Dil", gecmisSoru: 5 },
+  ],
+};
+const AYT_KONU_HARITASI_DERSLER = Object.keys(AYT_KONU_HARITASI);
+
+// Bir konunun tamamlanma değerini okur — yeni veri 0/25/50/75/100 gibi bir
+// yüzde sayısıdır; eski veri (bu özellik yüzdeye geçmeden önce kaydedilmiş)
+// sadece true/false (tik/tik değil) idi — geriye dönük uyumluluk için true
+// otomatik %100 sayılır, false/boş %0 sayılır. Hiçbir eski kayıt kaybolmaz.
+function konuDegeriAl(checkedMap, konu) {
+  const v = checkedMap && checkedMap[konu];
+  if (v === true) return 100;
+  if (typeof v === "number") return v;
+  return 0;
+}
+// Bir öğrencinin bir dersteki konuların ORTALAMA tamamlanma yüzdesini
+// hesaplar (her konu 0/25/50/75/100 olabilir, tam bitmiş/bitmemiş değil).
+// konuKaynagi verilmezse LGS_KONU_HARITASI kullanılır (geriye dönük uyum);
+// TYT/AYT için TYT_KONU_HARITASI/AYT_KONU_HARITASI geçilir. Sadece kaynakta
+// o ders için gerçekten var olan konular sayılır (eski/silinmiş bir konu
+// kalıntısı yüzdeyi bozmasın diye).
+function konuHaritasiYuzdeHesapla(ders, checkedMap, konuKaynagi) {
+  const konular = (konuKaynagi || LGS_KONU_HARITASI)[ders] || [];
   if (konular.length === 0) return 0;
-  const isaretli = konular.filter(k => checkedMap && checkedMap[k.konu]).length;
-  return Math.round((isaretli / konular.length) * 100);
+  const toplamYuzde = konular.reduce((s, k) => s + konuDegeriAl(checkedMap, k.konu), 0);
+  return Math.round(toplamYuzde / konular.length);
 }
 
-function KonuHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, konuHaritasiVerisi, setKonuHaritasiVerisi }) {
+function KonuHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, konuHaritasiVerisi, setKonuHaritasiVerisi, kademe }) {
   const [seciliAd, setSeciliAd] = useState(aktifOgrenci?.name || "");
   const [ogrenciArama, setOgrenciArama] = useState("");
   const [acikDers, setAcikDers] = useState(null);
+  const [sinavTip, setSinavTip] = useState("tyt"); // sadece kademe==="lise" iken kullanılır
 
   useEffect(() => {
     if (aktifOgrenci?.name) setSeciliAd(aktifOgrenci.name);
     else setSeciliAd("");
   }, [aktifOgrenci?.name]);
+
+  const liseMi = kademe === "lise";
+  // Lise'de TYT ve AYT'nin aynı adı taşıyan dersleri (örn. ikisinde de
+  // "Matematik") birbirine karışmasın diye kayıt anahtarı sınav tipiyle
+  // öneklenir (TYT-Matematik / AYT-Matematik) — LGS'de (ortaokul) eski
+  // kayıtlarla uyum için ders adı çıplak kalır.
+  const konuKaynagi = liseMi ? (sinavTip === "ayt" ? AYT_KONU_HARITASI : TYT_KONU_HARITASI) : LGS_KONU_HARITASI;
+  const dersListesi = liseMi ? (sinavTip === "ayt" ? AYT_KONU_HARITASI_DERSLER : TYT_KONU_HARITASI_DERSLER) : LGS_KONU_HARITASI_DERSLER;
+  function dersAnahtari(ders) { return liseMi ? `${sinavTip.toUpperCase()}-${ders}` : ders; }
 
   const seciliOgr = kayitliListesi.find(o => o.name === seciliAd);
   const seciliSinif = seciliOgr?.className || aktifOgrenci?.className || "";
@@ -4850,23 +5248,39 @@ function KonuHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, kon
   const ogrAnahtar = seciliAd ? pdrOgrAnahtar(seciliAd, seciliSinif, seciliNumara) : null;
   const ogrVerisi = (ogrAnahtar && konuHaritasiVerisi[ogrAnahtar]) || {};
 
-  async function konuToggle(ders, konu) {
+  async function konuYuzdeAyarla(ders, konu, yuzde) {
     if (!ogrAnahtar) return;
-    const mevcutDers = ogrVerisi[ders] || {};
-    const yeniDers = { ...mevcutDers, [konu]: !mevcutDers[konu] };
-    const yeni = { ...konuHaritasiVerisi, [ogrAnahtar]: { ...ogrVerisi, [ders]: yeniDers } };
+    const anahtar = dersAnahtari(ders);
+    const mevcutDers = ogrVerisi[anahtar] || {};
+    const mevcutYuzde = konuDegeriAl(mevcutDers, konu);
+    // Zaten seçili olan yüzdeye tekrar basılırsa işareti kaldır (0'a döner)
+    const yeniYuzde = mevcutYuzde === yuzde ? 0 : yuzde;
+    const yeniDers = { ...mevcutDers, [konu]: yeniYuzde };
+    const yeni = { ...konuHaritasiVerisi, [ogrAnahtar]: { ...ogrVerisi, [anahtar]: yeniDers } };
     setKonuHaritasiVerisi(yeni);
     await saveKonuHaritasi(yeni);
   }
 
   const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`, borderRadius:9, fontSize:13, boxSizing:"border-box" };
+  const KONU_TAMAMLAMA_SECENEKLER = [25, 50, 75, 100];
 
   return (
     <div style={{ padding: 16, maxWidth: 640 }}>
-      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4, color:PURPLE }}>📚 Konu Haritası <span style={{fontSize:12, fontWeight:700, background:PURPLE_LIGHT, color:PURPLE, borderRadius:8, padding:"2px 8px", marginLeft:4}}>LGS</span></div>
-      <div style={{ fontSize: 12, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
-        Görüşme sırasında öğrencinin "bitirdim" dediği konuları işaretle — ders başlığındaki yüzde otomatik hesaplanır. Konunun yanındaki sayı, o konudan son 7 yılda (2020-2026) LGS'de kaç soru çıktığını gösterir; henüz işaretlenmemiş ama sık çıkan konulara öncelik verilebilir.
+      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4, color:PURPLE }}>📚 Konu Haritası <span style={{fontSize:12, fontWeight:700, background:PURPLE_LIGHT, color:PURPLE, borderRadius:8, padding:"2px 8px", marginLeft:4}}>{liseMi ? sinavTip.toUpperCase() : "LGS"}</span></div>
+      <div style={{ fontSize: 12, color: MUTED, marginBottom: liseMi?10:16, lineHeight: 1.5 }}>
+        Görüşme sırasında öğrencinin ne kadarını bitirdiğini işaretle (%25/%50/%75/%100) — ders başlığındaki yüzde, konuların ortalamasına göre otomatik hesaplanır. Konunun yanındaki sayı, o konudan son 8 yılda (2018-2025) {liseMi ? sinavTip.toUpperCase() : "LGS"}'de kaç soru çıktığını gösterir; henüz bitmemiş ama sık çıkan konulara öncelik verilebilir.
       </div>
+
+      {liseMi && (
+        <div style={{ display:"flex", gap:6, marginBottom:16 }}>
+          {["tyt","ayt"].map(t => (
+            <button key={t} onClick={()=>{ setSinavTip(t); setAcikDers(null); }} style={{
+              flex:1, padding:"8px", borderRadius:9, border:`2px solid ${sinavTip===t?PURPLE:BORDER}`,
+              background:sinavTip===t?PURPLE:"#fff", color:sinavTip===t?"#fff":MUTED, fontSize:13, fontWeight:800, cursor:"pointer"
+            }}>{t.toUpperCase()}</button>
+          ))}
+        </div>
+      )}
 
       {/* Öğrenci seçimi */}
       {seciliAd ? (
@@ -4897,9 +5311,10 @@ function KonuHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, kon
       {/* Ders listesi */}
       {seciliAd && (
         <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-          {LGS_KONU_HARITASI_DERSLER.map(ders => {
+          {dersListesi.map(ders => {
             const acik = acikDers === ders;
-            const yuzde = konuHaritasiYuzdeHesapla(ders, ogrVerisi[ders]);
+            const anahtar = dersAnahtari(ders);
+            const yuzde = konuHaritasiYuzdeHesapla(ders, ogrVerisi[anahtar], konuKaynagi);
             const renk = yuzde >= 75 ? "#1A8C5B" : yuzde >= 40 ? "#B07D1A" : "#C0392B";
             return (
               <div key={ders} style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, overflow:"hidden" }}>
@@ -4915,14 +5330,23 @@ function KonuHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, kon
                 </button>
                 {acik && (
                   <div style={{ borderTop:`1px solid ${BORDER}`, padding:"6px 14px 12px" }}>
-                    {LGS_KONU_HARITASI[ders].map(k => {
-                      const isaretli = !!(ogrVerisi[ders] && ogrVerisi[ders][k.konu]);
+                    {konuKaynagi[ders].map(k => {
+                      const konuYuzde = konuDegeriAl(ogrVerisi[anahtar], k.konu);
                       return (
-                        <label key={k.konu} style={{ display:"flex", alignItems:"center", gap:9, padding:"7px 0", borderBottom:`1px solid ${BG}`, cursor:"pointer" }}>
-                          <input type="checkbox" checked={isaretli} onChange={()=>konuToggle(ders, k.konu)} style={{ width:16, height:16, flexShrink:0, cursor:"pointer" }} />
-                          <span style={{ flex:1, fontSize:13, color: isaretli ? MUTED : TEXT, textDecoration: isaretli ? "line-through" : "none" }}>{k.konu}</span>
-                          <span style={{ fontSize:10, color:MUTED, background:BG, borderRadius:8, padding:"2px 7px", flexShrink:0 }}>{k.gecmisSoru} soru</span>
-                        </label>
+                        <div key={k.konu} style={{ padding:"8px 0", borderBottom:`1px solid ${BG}` }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:5 }}>
+                            <span style={{ flex:1, fontSize:13, color: konuYuzde>=100 ? MUTED : TEXT, textDecoration: konuYuzde>=100 ? "line-through" : "none" }}>{k.konu}</span>
+                            <span style={{ fontSize:10, color:MUTED, background:BG, borderRadius:8, padding:"2px 7px", flexShrink:0 }}>{k.gecmisSoru} soru</span>
+                          </div>
+                          <div style={{ display:"flex", gap:4 }}>
+                            {KONU_TAMAMLAMA_SECENEKLER.map(y => (
+                              <button key={y} onClick={()=>konuYuzdeAyarla(ders, k.konu, y)} style={{
+                                flex:1, padding:"4px 0", borderRadius:5, border:`1px solid ${konuYuzde===y?ACCENT:BORDER}`,
+                                background:konuYuzde===y?ACCENT:"#fff", color:konuYuzde===y?"#fff":MUTED, fontSize:10, fontWeight:700, cursor:"pointer"
+                              }}>%{y}</button>
+                            ))}
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
@@ -4955,9 +5379,27 @@ const TYT_AYT_SORU_DAGILIMI = `TYT (120 soru, 165 dk): Türkçe 40, Temel Matema
 AYT (160 soru, 180 dk, alana göre ilgili testler): Matematik 40 · Fen Bilimleri 40 (Fizik 14, Kimya 13, Biyoloji 13) · Türk Dili ve Edebiyatı-Sosyal Bilimler-1 40 (Edebiyat 24, Tarih-1 10, Coğrafya-1 6) · Sosyal Bilimler-2 40 (Tarih-2 11, Coğrafya-2 11, Felsefe Grubu 12, Din Kültürü ve Ahlak Bilgisi 6).
 Alan bazında sorumluluk: Sayısal → TYT + AYT Matematik + AYT Fen Bilimleri; Eşit Ağırlık → TYT + AYT Matematik + AYT Türk Dili ve Edebiyatı-Sosyal Bilimler-1; Sözel → TYT + AYT Türk Dili ve Edebiyatı-Sosyal Bilimler-1 + AYT Sosyal Bilimler-2.`;
 
+// Her ders için en sık çıkan (gecmisSoru en yüksek) birkaç konuyu özetler —
+// Net Haritası'nda AI'a "hangi zayıf konuya öncelik verilmeli" bağlamını konu
+// düzeyinde de vermek için. Tüm konu listesini değil, sadece en önemli birkaç
+// tanesini içerir (token tasarrufu) — TYT/AYT karışmasın diye önekli.
+function konuHaritasiOzetMetni() {
+  const parcalar = [];
+  Object.entries(TYT_KONU_HARITASI).forEach(([ders, konular]) => {
+    const enSik = [...konular].sort((a,b)=>b.gecmisSoru-a.gecmisSoru).slice(0,4);
+    parcalar.push(`TYT ${ders}: ${enSik.map(k=>`${k.konu} (${k.gecmisSoru})`).join(", ")}`);
+  });
+  Object.entries(AYT_KONU_HARITASI).forEach(([ders, konular]) => {
+    const enSik = [...konular].sort((a,b)=>b.gecmisSoru-a.gecmisSoru).slice(0,4);
+    parcalar.push(`AYT ${ders}: ${enSik.map(k=>`${k.konu} (${k.gecmisSoru})`).join(", ")}`);
+  });
+  return parcalar.join("\n");
+}
+
 function netHaritasiSinavBaglami(kademe) {
   if (kademe === "lise") {
-    return { sinavAdi: "TYT/AYT (YKS)", ekBaglam: TYT_AYT_SORU_DAGILIMI, ornekDeneme: "3D TYT Genel Deneme-4" };
+    const ekBaglam = `${TYT_AYT_SORU_DAGILIMI}\n\nDers içi konu bazlı son 8 yıl (2018-2025) soru sıklığı — her ders için en sık çıkan birkaç konu, parantez içinde geçmiş soru sayısı:\n${konuHaritasiOzetMetni()}\n\nÖncelik listesini oluştururken, mümkün olduğunca bu dağılımı da göz önünde bulundur: sınavda soru sayısı daha yüksek olan derslerdeki (örn. Matematik, Fen Bilimleri) VE o ders içinde sık çıkan konulardaki tekrar eden zayıf noktalara biraz daha ağırlık verebilirsin — ama tek ölçüt bu olmasın, asıl belirleyici veri, öğrencinin kendi tekrarlayan hatalarıdır.`;
+    return { sinavAdi: "TYT/AYT (YKS)", ekBaglam, ornekDeneme: "3D TYT Genel Deneme-4" };
   }
   if (kademe === "ortaokul") {
     return { sinavAdi: "LGS", ekBaglam: "", ornekDeneme: "ARI 8. Sınıf SDS-2" };
@@ -10728,14 +11170,12 @@ export default function App() {
   }, [ogrenciler, records, profiles, profiles2, kademe]);
 
   const pdrIsAdmin = window.pdrAuth?.currentUser?.email === window.PDR_ADMIN_EMAIL;
-  // Deneme/Net Haritası sekmeleri LGS/YKS tarzı sınav takibi içindir — ilkokul
-  // kademesinde anlamı yok, o yüzden kademe "ilkokul" iken sekme listesinden
-  // ve dolayısıyla arama/seçim listelerinden çıkarılır.
-  const ILKOKULDA_GIZLENECEK_SEKMELER = ["net_haritasi", "deneme"];
-  // Konu Haritası şu an sadece LGS (ortaokul) konu/soru verisiyle dolu; kademe
-  // "ilkokul" ya da "lise" iken (o kademeler için henüz veri olmadığından)
-  // gizlenir. kademe boşsa (henüz seçilmemişse) gösterilmeye devam eder.
-  const SADECE_ORTAOKULDA_GORUNEN_SEKMELER = ["konu_haritasi"];
+  // Deneme/Net Haritası/Konu Haritası sekmeleri LGS/YKS tarzı sınav takibi
+  // içindir — ilkokul kademesinde anlamı yok, o yüzden kademe "ilkokul" iken
+  // sekme listesinden ve dolayısıyla arama/seçim listelerinden çıkarılır.
+  // Konu Haritası artık hem LGS (ortaokul) hem TYT/AYT (lise) konu/soru
+  // verisiyle dolu — sadece ilkokulda gizlenir.
+  const ILKOKULDA_GIZLENECEK_SEKMELER = ["net_haritasi", "deneme", "konu_haritasi"];
   const TABS_TUMU = [
     { key: "ogrenciler", label: "👥 Öğrenciler" },
     { key: "profil_merkez", label: "📋 Profil" },
@@ -10756,15 +11196,13 @@ export default function App() {
     ...(pdrIsAdmin ? [{ key: "onaylar", label: "🛠 Onaylar" }] : []),
   ];
   const TABS = TABS_TUMU.filter(t =>
-    !(kademe === "ilkokul" && ILKOKULDA_GIZLENECEK_SEKMELER.includes(t.key)) &&
-    !(kademe && kademe !== "ortaokul" && SADECE_ORTAOKULDA_GORUNEN_SEKMELER.includes(t.key))
+    !(kademe === "ilkokul" && ILKOKULDA_GIZLENECEK_SEKMELER.includes(t.key))
   );
 
   // Kademe değiştiğinde, o an açık olan sekme yeni kademede gizlenen
   // sekmelerden biriyse boş ekranda kalmamak için Öğrenciler'e yönlendir.
   useEffect(() => {
     if (kademe === "ilkokul" && ILKOKULDA_GIZLENECEK_SEKMELER.includes(tab)) setTab("ogrenciler");
-    if (kademe && kademe !== "ortaokul" && SADECE_ORTAOKULDA_GORUNEN_SEKMELER.includes(tab)) setTab("ogrenciler");
   }, [kademe]);
 
   return (
@@ -11373,6 +11811,7 @@ export default function App() {
             setAktifOgrenci={setAktifOgrenci}
             konuHaritasiVerisi={konuHaritasiVerisi}
             setKonuHaritasiVerisi={setKonuHaritasiVerisi}
+            kademe={kademe}
           />
         )}
 
