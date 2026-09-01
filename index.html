@@ -7316,6 +7316,11 @@ function OgrenciYonetim({
   const [aramaMetni, setAramaMetni] = useState("");
   const [aramaDebounce, setAramaDebounce] = useState("");
   const [seciliOgrenci, setSeciliOgrenci] = useState(aktifOgrenci?.name || null);
+  // Kademe değişince (Ayarlar'dan İlkokul/Ortaokul/Lise değiştirilince), açık
+  // olan öğrenci detay ekranı eski kademedeki bir öğrenciyi göstermeye devam
+  // edebiliyordu (yanlış/eski veriyle) — artık kademe değişince otomatik
+  // olarak listeye dönülür, "Geri" butonuna basmaya gerek kalmaz.
+  useEffect(() => { setSeciliOgrenci(null); }, [kademe]);
   const [excelPanelAcik, setExcelPanelAcik] = useState(false);
   const [sinifGuncelleAcik, setSinifGuncelleAcik] = useState(false);
   const [yeniSinifDegeri, setYeniSinifDegeri] = useState("");
@@ -10660,6 +10665,10 @@ export default function App() {
   async function setKademe(k) {
     setKademeState(k);
     await saveKademe(k);
+    // Kademe değişince, önceki kademedeki bir öğrenci "aktif" kalmaya devam
+    // edip diğer ekranlarda (Deneme, Konu Haritası vb.) eski/yanlış veriyle
+    // görünmesin diye aktif öğrenci sıfırlanır.
+    setAktifOgrenci({ name: "", className: "" });
   }
   const [rehberGoster, setRehberGoster] = useState(false);
   const [belgelerAltSekme, setBelgelerAltSekme] = useState("sevk"); // "sevk" | "meb_rapor" | "veli_mektubu"
