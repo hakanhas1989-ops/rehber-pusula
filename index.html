@@ -6474,9 +6474,14 @@ function YilSecimEkrani({ yillar, setYillar, aktifYil, setAktifYil, ogrenciler, 
 }
 
 // ── Özet Kartı Bileşeni (Seans Öncesi Hazırlık) ─────────────────────────────
-function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denemeGirilen, denemeAvg, mudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, setTab, kademe, olayKayitlari, onOlayEkle }) {
+function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denemeGirilen, denemeAvg, mudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, setTab, devamsizlikGecmisi, onDevamsizlikGuncelle, kademe, olayKayitlari, onOlayEkle }) {
   const [hazirlikAiLoading, setHazirlikAiLoading] = useState(false);
   const [aktifPanel, setAktifPanel] = useState("ozet"); // ozet | hazirlik | ilerleme
+  const [devGuncelleAcik, setDevGuncelleAcik] = useState(false);
+  const devSirali = [...(devamsizlikGecmisi||[])].sort((a,b) => new Date(a.tarih.split(".").reverse().join("-")) - new Date(b.tarih.split(".").reverse().join("-")));
+  const devSonKayit = devSirali[devSirali.length - 1];
+  const [devInput, setDevInput] = useState(devSonKayit?.gun || 0);
+  const [devTarihInput, setDevTarihInput] = useState(today());
   const [olayFormAcik, setOlayFormAcik] = useState(false);
   const [olayForm, setOlayForm] = useState({ tur: "Kavga", islem: "Tutanak Tutuldu", not: "", tarih: today() });
   const olaySirali = [...(olayKayitlari||[])].sort((a,b) => pdrTarihMs(a.tarih) - pdrTarihMs(b.tarih));
@@ -6566,6 +6571,55 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
               </div>
             ))}
           </div>
+
+          {/* Devamsızlık */}
+          {(() => {
+            const gun = devSonKayit?.gun || 0;
+            const durum = gun >= 10
+              ? { label: "🚨 Kritik (Resmi Sınır)", color: "#C0392B", bg: "#FDECEA", border: "#F28B82" }
+              : gun >= 7
+              ? { label: "⚠️ Anlamlı — Yakın Takip", color: "#B7791F", bg: "#FEF3E2", border: "#F5C77E" }
+              : gun >= 4
+              ? { label: "👀 Takip Edilmeli", color: "#B07D1A", bg: "#FDF6E3", border: "#E9D18B" }
+              : { label: "✅ Anlamsız", color: "#1A8C5B", bg: "#E6F5EE", border: "#A8D9C3" };
+            return (
+              <div style={{marginBottom:12}}>
+                <div onClick={() => { setDevInput(gun); setDevGuncelleAcik(a => !a); }}
+                  style={{background:durum.bg, border:`1px solid ${durum.border}`, borderRadius:14, padding:"12px 14px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer"}}>
+                  <div>
+                    <div style={{fontSize:10,color:MUTED,fontWeight:700,letterSpacing:0.3}}>DEVAMSIZLIK{devSonKayit?` · ${devSonKayit.tarih}`:""}</div>
+                    <div style={{fontSize:20,fontWeight:900,color:durum.color}}>{gun} gün</div>
+                  </div>
+                  <span style={{background:durum.color,color:"#fff",borderRadius:12,padding:"5px 11px",fontSize:11,fontWeight:700}}>{durum.label}</span>
+                </div>
+                {devGuncelleAcik && (
+                  <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:10,padding:10,marginTop:6}}>
+                    <div style={{fontSize:11,color:MUTED,marginBottom:8,lineHeight:1.5}}>E-okul'dan kontrol ettiğin güncel devamsızlık gününü gir — üzerine yazmaz, tarihli yeni bir kayıt olarak eklenir, böylece artış hızı takip edilebilir. Bu kayıt, Devamsızlık sekmesi ve Sınıf sekmesindeki rozetle aynı veriyi paylaşır — buradan girdiğin an her ikisi de otomatik güncellenir.</div>
+                    <div style={{display:"flex",gap:8,marginBottom:8}}>
+                      <input type="number" min="0" value={devInput} onChange={e=>setDevInput(e.target.value)}
+                        style={{flex:1,padding:"8px 10px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:14,boxSizing:"border-box"}} />
+                      <input value={devTarihInput} onChange={e=>setDevTarihInput(e.target.value)} placeholder="GG.AA.YYYY"
+                        style={{width:100,padding:"8px 8px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:12,boxSizing:"border-box"}} />
+                    </div>
+                    <div style={{display:"flex",marginBottom:devSirali.length>0?10:0}}>
+                      <button onClick={() => { onDevamsizlikGuncelle(parseInt(devInput)||0, devTarihInput); setDevGuncelleAcik(false); setDevTarihInput(today()); }}
+                        style={{width:"100%",padding:"8px 16px",background:ACCENT,color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>Kaydet</button>
+                    </div>
+                    {devSirali.length > 0 && (
+                      <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:8}}>
+                        <div style={{fontSize:10,fontWeight:700,color:MUTED,marginBottom:4}}>GEÇMİŞ</div>
+                        {devSirali.slice(-5).reverse().map((d,i) => (
+                          <div key={i} style={{fontSize:12,color:TEXT,display:"flex",justifyContent:"space-between",padding:"2px 0"}}>
+                            <span>{d.tarih}</span><span style={{fontWeight:700}}>{d.gun} gün</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Olay / Tutanak Kaydı — sadece Ortaokul/Lise'de anlamlı, ilkokulda bu süreç yok */}
           {kademe !== "ilkokul" && (
@@ -8056,6 +8110,15 @@ function OgrenciYonetim({
               ilerlemeNotlari={ilerlemeNotlari}
               setIlerlemeNotlari={setIlerlemeNotlari}
               setTab={setTab}
+              devamsizlikGecmisi={tumOgrenciler.find(x => x.studentName === seciliOgrenci)?.devamsizlikGecmisi || []}
+              onDevamsizlikGuncelle={async (yeniDeger, tarih) => {
+                const hedefOgr = tumOgrenciler.find(x => x.studentName === seciliOgrenci);
+                const eskiGecmis = hedefOgr?.devamsizlikGecmisi || [];
+                const yeniGecmis = [...eskiGecmis, { tarih: tarih || today(), gun: yeniDeger }];
+                const updated = ogrenciler.map(o => pdrAyniOgrenci(o.studentName, o.className, seciliOgrenci, seciliOgrenciSinif, o.numara, seciliOgrenciNumara) ? { ...o, devamsizlikGecmisi: yeniGecmis } : o);
+                setOgrenciler(updated);
+                await saveOgrenciler(updated);
+              }}
               kademe={kademe}
               olayKayitlari={tumOgrenciler.find(x => x.studentName === seciliOgrenci)?.olayKayitlari || []}
               onOlayEkle={async (yeniOlay) => {
