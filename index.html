@@ -1215,9 +1215,6 @@ function ogrenciEtkinlikHavuzu(ogrenciSinif, kademeTahmin) {
 function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab, setAktifOgrenci }) {
   const [excelYukleniyor, setExcelYukleniyor] = useState(false);
   const [excelTarihi, setExcelTarihi] = useState(today());
-  const [aiYukleniyor, setAiYukleniyor] = useState(false);
-  const [aiTarihi, setAiTarihi] = useState(today());
-  const [aiOneri, setAiOneri] = useState(null);
   const [sonuc, setSonuc] = useState(null);
 
   const yilOgrencileri = ogrenciler.filter(o => (!o.yil || o.yil === aktifYil) && pdrKademeUyumlu(o.className, kademe));
@@ -1285,65 +1282,15 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
     e.target.value = "";
   }
 
-  async function handlePdfFotografYukle(file) {
-    if (!file) return;
-    setAiYukleniyor(true);
-    setAiOneri(null);
-    try {
-      const apiKey = pdrGetApiKey();
-      if (!apiKey) throw new Error("Önce Ayarlar'dan API anahtarını gir.");
-      const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = e => resolve(e.target.result.split(",")[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      const mediaType = file.type || (file.name.toLocaleLowerCase("tr").endsWith(".pdf") ? "application/pdf" : "image/jpeg");
-      const res = await fetch(PDR_AI_WORKER_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "devamsizlik_cikar", apiKey, data: { dosyaBase64: base64, mediaType } }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      const text = data.content?.[0]?.text || "{}";
-      const temiz = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(temiz);
-      setAiOneri((parsed.ogrenciler || []).map(o => ({ ...o, dahil: true })));
-    } catch (e) {
-      alert("Belge okunamadı: " + e.message);
-    }
-    setAiYukleniyor(false);
-  }
-
-  async function handleAiOneriOnayla() {
-    if (!aiOneri) return;
-    const secilenler = aiOneri.filter(o => o.dahil);
-    const yeniOgrenciler = [...ogrenciler];
-    let islenen = 0;
-    const eslesmeyen = [];
-    secilenler.forEach(o => {
-      const idx = yeniOgrenciler.findIndex(x => pdrAyniOgrenci(x.studentName, x.className, o.ad, o.sinif || ""));
-      if (idx < 0) { eslesmeyen.push(o.ad); return; }
-      const eskiGecmis = yeniOgrenciler[idx].devamsizlikGecmisi || [];
-      yeniOgrenciler[idx] = { ...yeniOgrenciler[idx], devamsizlikGecmisi: [...eskiGecmis, { tarih: aiTarihi || today(), gun: o.gun }] };
-      islenen++;
-    });
-    setOgrenciler(yeniOgrenciler);
-    await saveOgrenciler(yeniOgrenciler);
-    setSonuc({ islenen, eslesmeyen });
-    setAiOneri(null);
-  }
-
   return (
     <div style={{ padding: 16, maxWidth: 640 }}>
       <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4, color:"#C0392B" }}>📅 Devamsızlık</div>
       <div style={{ fontSize: 12, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
-        E-okul'dan aldığın devamsızlık raporunu toplu yükle — Excel ya da PDF/fotoğraf (AI okur). Her yükleme, öğrencinin devamsızlık geçmişine yeni bir tarihli kayıt olarak eklenir, üzerine yazmaz.
+        E-okul'dan aldığın devamsızlık raporunu Excel ile toplu yükle. Her yükleme, öğrencinin devamsızlık geçmişine yeni bir tarihli kayıt olarak eklenir, üzerine yazmaz.
       </div>
 
       {/* Excel toplu yükleme */}
-      <div style={{ background:CARD, border:`2px solid #C0392B`, borderRadius:12, padding:14, marginBottom:14 }}>
+      <div style={{ background:CARD, border:`2px solid #C0392B`, borderRadius:12, padding:14, marginBottom:16 }}>
         <div style={{ fontSize:13, fontWeight:800, color:"#C0392B", marginBottom:8 }}>📊 Excel ile Toplu Yükle</div>
         <div style={{ fontSize:11, color:MUTED, marginBottom:10, lineHeight:1.5 }}>Excel'de "Ad Soyad" (zorunlu), varsa "Sınıf"/"Numara" ve "Devamsızlık" (ya da "Gün") sütunları olmalı.</div>
         <label style={{ fontSize:11, fontWeight:700, color:MUTED, display:"block", marginBottom:4 }}>RAPOR TARİHİ</label>
@@ -1353,38 +1300,6 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
           {excelYukleniyor ? "⏳ İşleniyor…" : "📂 Excel Dosyası Seç (.xlsx)"}
           <input type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelYukle} style={{ display:"none" }} disabled={excelYukleniyor} />
         </label>
-      </div>
-
-      {/* PDF/Fotoğraf — AI ile oku */}
-      <div style={{ background:"#F3EEFB", border:`1px solid ${PURPLE}`, borderRadius:12, padding:14, marginBottom:16 }}>
-        <div style={{ fontSize:13, fontWeight:800, color:PURPLE, marginBottom:8 }}>✦ PDF/Fotoğraf — AI ile Oku</div>
-        <div style={{ fontSize:11, color:MUTED, marginBottom:10, lineHeight:1.5 }}>Excel'in yoksa, e-okul çıktısının PDF'ini ya da fotoğrafını yükle — AI öğrenci ve gün sayısını okur, kaydetmeden önce onaylarsın.</div>
-        <label style={{ fontSize:11, fontWeight:700, color:MUTED, display:"block", marginBottom:4 }}>RAPOR TARİHİ</label>
-        <input value={aiTarihi} onChange={e=>setAiTarihi(e.target.value)} placeholder="GG.AA.YYYY"
-          style={{ width:"100%", padding:"7px 10px", border:`1px solid ${BORDER}`, borderRadius:8, fontSize:12, boxSizing:"border-box", marginBottom:10 }} />
-        <label style={{ display:"block", width:"100%", padding:14, background:"#fff", border:`2px dashed ${PURPLE}`, borderRadius:12, textAlign:"center", color:PURPLE, fontWeight:700, cursor:"pointer", boxSizing:"border-box" }}>
-          {aiYukleniyor ? "⏳ Okunuyor…" : "📄 PDF ya da Fotoğraf Seç"}
-          <input type="file" accept=".pdf,image/*" onChange={e=>handlePdfFotografYukle(e.target.files[0])} style={{ display:"none" }} disabled={aiYukleniyor} />
-        </label>
-        {aiOneri && (
-          <div style={{ marginTop:12 }}>
-            <div style={{ fontSize:11.5, fontWeight:700, color:PURPLE, marginBottom:8 }}>AI'ın okuduğu {aiOneri.length} öğrenci — onaylamadan önce kontrol et, gerekirse işareti kaldır:</div>
-            <div style={{ display:"flex", flexDirection:"column", gap:5, marginBottom:10, maxHeight:280, overflowY:"auto" }}>
-              {aiOneri.map((o,i) => (
-                <label key={i} style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, background:"#fff", borderRadius:8, padding:"6px 9px", cursor:"pointer" }}>
-                  <input type="checkbox" checked={o.dahil} onChange={()=>setAiOneri(prev=>prev.map((x,j)=>j===i?{...x,dahil:!x.dahil}:x))} />
-                  <span style={{ flex:1, fontWeight:700, color:TEXT }}>{o.ad}</span>
-                  <span style={{ fontSize:10.5, color:MUTED }}>{o.sinif}</span>
-                  <span style={{ fontSize:11.5, fontWeight:800, color:"#C0392B" }}>{o.gun} gün</span>
-                </label>
-              ))}
-            </div>
-            <div style={{ display:"flex", gap:8 }}>
-              <button onClick={handleAiOneriOnayla} style={{ flex:1, padding:"8px", background:PURPLE, color:"#fff", border:"none", borderRadius:8, fontSize:12.5, fontWeight:700, cursor:"pointer" }}>✓ Seçilenleri Kaydet</button>
-              <button onClick={()=>setAiOneri(null)} style={{ padding:"8px 14px", background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, fontSize:12.5, fontWeight:700, cursor:"pointer" }}>Yoksay</button>
-            </div>
-          </div>
-        )}
       </div>
 
       {sonuc && (
@@ -1404,7 +1319,7 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
         <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
           {devamsizOgrenciler.map(o => (
             <div key={pdrOgrAnahtar(o.studentName, o.className, o.numara)}
-              onClick={()=>{ setAktifOgrenci({ name:o.studentName, className:o.className||"" }); setTab("profil_merkez"); }}
+              onClick={()=>{ setAktifOgrenci({ name:o.studentName, className:o.className||"" }); setTab("ogrenciler"); }}
               style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 12px", background:CARD, border:`1px solid ${BORDER}`, borderRadius:10, cursor:"pointer" }}>
               <div>
                 <div style={{ fontSize:13, fontWeight:700, color:TEXT }}>{o.studentName}</div>
@@ -10036,8 +9951,13 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
     });
 
     // Devamsızlık — öğrenci öğrenci, çoktan aza sıralı
+    // NOT: eskiden "o.devamsizlik" (tekil, hiç dolmayan bir alan) okunuyordu —
+    // gerçek kaynak devamsizlikGecmisi dizisindeki en güncel kayıt.
     const devamsizlikListesi = ogr
-      .map(o => ({ ad: o.studentName, sinif: o.className, numara: o.numara, devamsizlik: parseInt(o.devamsizlik)||0 }))
+      .map(o => {
+        const gecmisSirali = [...(o.devamsizlikGecmisi||[])].sort((a,b) => pdrTarihMs(b.tarih) - pdrTarihMs(a.tarih));
+        return { ad: o.studentName, sinif: o.className, numara: o.numara, devamsizlik: gecmisSirali[0]?.gun || 0 };
+      })
       .sort((a,b) => b.devamsizlik - a.devamsizlik);
 
     // Kaynaştırma/tanı özeti — kaç öğrenci, hangi tanı(lar)dan kaçar tane
@@ -10262,7 +10182,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
             {st.devamsizlikListesi.filter(d=>d.devamsizlik>0).map(d => (
               <div key={pdrOgrAnahtar(d.ad,d.sinif,d.numara)} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${BORDER}`,fontSize:12}}>
                 <span>{d.ad}</span>
-                <span style={{fontWeight:700,color: d.devamsizlik>=10 ? "#C0392B" : "#E76F51"}}>{d.devamsizlik} gün</span>
+                <span style={{fontWeight:700,color: d.devamsizlik>=7 ? "#C0392B" : "#E76F51"}}>{d.devamsizlik} gün</span>
               </div>
             ))}
           </div>
@@ -10330,7 +10250,11 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
             const denemeGirisleri = Object.entries(denemeSozluk).filter(([k]) => k !== "7sinif").sort((a,b) => Number(a[0]) - Number(b[0]));
             const dersler = aktifDersler(sinavTuru);
             const denemeNetleri = denemeGirisleri.map(([idx,nets]) => ({ idx, net: pdrToplamNetHesapla(nets, dersler) }));
-            const devamsizlikSayisi = parseInt(o.devamsizlik) || 0;
+            // NOT: eskiden burada "o.devamsizlik" (tekil, hiç dolmayan bir alan)
+            // okunuyordu — hiçbir zaman gerçek veriyi yansıtmıyordu. Gerçek kaynak
+            // devamsizlikGecmisi dizisindeki EN GÜNCEL (tarihçe içindeki en son) kayıt.
+            const devGecmisiSirali = [...(o.devamsizlikGecmisi||[])].sort((a,b) => pdrTarihMs(b.tarih) - pdrTarihMs(a.tarih));
+            const devamsizlikSayisi = devGecmisiSirali[0]?.gun || 0;
             const olaySayisi = (o.olayKayitlari || []).length;
             const ogrKey = pdrOgrAnahtar(o.studentName, o.className, o.numara);
             const kaynastirmaTanilari = o.kaynastirma || [];
@@ -10354,7 +10278,13 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
                   {denemeNetleri.map(d => (
                     <span key={d.idx} title={`Deneme ${d.idx} — Net`} style={{background:"#EDEAFB",color:PURPLE,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>D{d.idx} {d.net.toFixed(1)}</span>
                   ))}
-                  {devamsizlikSayisi > 0 && <span title="Devamsızlık" style={{background:"#FFF4E5",color:"#B5651D",borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>🗓 {devamsizlikSayisi}g</span>}
+                  {devamsizlikSayisi > 0 && (() => {
+                    const devRenk = devamsizlikSayisi >= 10 ? { bg:"#FDECEA", fg:"#C0392B" }
+                      : devamsizlikSayisi >= 7 ? { bg:"#FEF3E2", fg:"#B7791F" }
+                      : devamsizlikSayisi >= 4 ? { bg:"#FDF6E3", fg:"#B07D1A" }
+                      : { bg:"#E6F5EE", fg:"#1A8C5B" };
+                    return <span title={`Devamsızlık${devamsizlikSayisi>=7?" — Anlamlı":""}`} style={{background:devRenk.bg,color:devRenk.fg,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>🗓 {devamsizlikSayisi}g</span>;
+                  })()}
                   {olaySayisi > 0 && <span title="Olay/Tutanak Kaydı" style={{background:"#FDECEA",color:"#8E2A20",borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>📋 {olaySayisi} olay</span>}
                   <span style={{background:ACCENT_LIGHT,color:ACCENT,borderRadius:8,padding:"1px 7px",fontSize:9,fontWeight:700}}>{gSayisi} görüşme</span>
                   {gSayisi > 0 && onRaporAc && (
