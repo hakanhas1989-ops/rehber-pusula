@@ -5199,15 +5199,26 @@ const AYT_KONU_HARITASI = {
 };
 const AYT_KONU_HARITASI_DERSLER = Object.keys(AYT_KONU_HARITASI);
 
-// Bir konunun tamamlanma değerini okur — yeni veri 0/25/50/75/100 gibi bir
-// yüzde sayısıdır; eski veri (bu özellik yüzdeye geçmeden önce kaydedilmiş)
-// sadece true/false (tik/tik değil) idi — geriye dönük uyumluluk için true
-// otomatik %100 sayılır, false/boş %0 sayılır. Hiçbir eski kayıt kaybolmaz.
+// Bir konunun tamamlanma değerini okur — üç olası biçimi de destekler:
+// 1) en yeni: {yuzde, tarih} nesnesi (tarih takibiyle)
+// 2) ara dönem: düz 0/25/50/75/100 sayısı (tarihsiz, yüzde takibi eklendiğinde)
+// 3) en eski: true/false (tik/tik değil) — true otomatik %100 sayılır.
+// Hiçbir eski kayıt kaybolmaz, sadece tarihi bilinmez (aşağıdaki
+// konuTarihiAl bu durumda null döner).
 function konuDegeriAl(checkedMap, konu) {
   const v = checkedMap && checkedMap[konu];
   if (v === true) return 100;
   if (typeof v === "number") return v;
+  if (v && typeof v === "object" && typeof v.yuzde === "number") return v.yuzde;
   return 0;
+}
+// O konunun EN SON hangi tarihte güncellendiğini döner — sadece yeni
+// {yuzde, tarih} formatında saklanan kayıtlar için bilinir, eski düz sayı ya
+// da true/false kayıtlarında tarih hiç tutulmadığı için null döner.
+function konuTarihiAl(checkedMap, konu) {
+  const v = checkedMap && checkedMap[konu];
+  if (v && typeof v === "object" && v.tarih) return v.tarih;
+  return null;
 }
 // Bir öğrencinin bir dersteki konuların ORTALAMA tamamlanma yüzdesini
 // hesaplar (her konu 0/25/50/75/100 olabilir, tam bitmiş/bitmemiş değil).
@@ -5255,7 +5266,9 @@ function KonuHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, kon
     const mevcutYuzde = konuDegeriAl(mevcutDers, konu);
     // Zaten seçili olan yüzdeye tekrar basılırsa işareti kaldır (0'a döner)
     const yeniYuzde = mevcutYuzde === yuzde ? 0 : yuzde;
-    const yeniDers = { ...mevcutDers, [konu]: yeniYuzde };
+    // {yuzde, tarih} olarak saklanır — "O Gün Neler Girildi" özetinin bu
+    // güncellemeyi doğru tarihte gösterebilmesi için.
+    const yeniDers = { ...mevcutDers, [konu]: { yuzde: yeniYuzde, tarih: today() } };
     const yeni = { ...konuHaritasiVerisi, [ogrAnahtar]: { ...ogrVerisi, [anahtar]: yeniDers } };
     setKonuHaritasiVerisi(yeni);
     await saveKonuHaritasi(yeni);
@@ -7309,7 +7322,7 @@ function OgrenciYonetim({
   kayitliListesi, mudahalePlan, aktifYil, onYilEkrani,
   hazirlikNotlari, setHazirlikNotlari,
   ilerlemeNotlari, setIlerlemeNotlari,
-  onRaporAc, setAktifOgrenci, aktifOgrenci, setTab, onSinifGuncelle, onOgrenciSil, onSinifSil, sinifListesi, sinavTuru, sevkler, testKayitlari, kademe,
+  onRaporAc, setAktifOgrenci, aktifOgrenci, setTab, onSinifGuncelle, onOgrenciSil, onSinifSil, sinifListesi, sinavTuru, sevkler, testKayitlari, kademe, konuHaritasiVerisi,
 }) {
   const dersler = aktifDersler(sinavTuru);
 
@@ -7964,6 +7977,32 @@ function OgrenciYonetim({
                               <>
                                 {r.raw&&<div style={{fontSize:11,color:MUTED,fontStyle:"italic",marginBottom:4,background:"#fafafa",borderRadius:5,padding:"3px 7px"}}>{r.raw}</div>}
                                 <div style={{fontSize:12,color:TEXT,lineHeight:1.7,marginBottom:6}}>{r.summary}</div>
+                                {(() => {
+                                  // "O Gün Neler Girildi" — bu görüşmeyle AYNI tarihte (r.date),
+                                  // aynı öğrenci için Risk/Deneme/Konu Haritası sekmelerinden
+                                  // girilmiş kayıtları tek bakışta gösterir.
+                                  const ayniGun = (item) => item.tarih === r.date && pdrAyniOgrenci(item.studentName, item.className, r.studentName, r.className, item.numara, r.numara);
+                                  const gunRisk = (riskListesi||[]).filter(ayniGun);
+                                  const ogrDenemeler = pdrSozlukOku(denemeler, r.studentName, r.className, r.numara) || {};
+                                  const gunDenemeler = Object.entries(ogrDenemeler).filter(([,nets]) => nets && nets.girisTarihi === r.date);
+                                  const ogrKonuVerisi = (konuHaritasiVerisi && konuHaritasiVerisi[pdrOgrAnahtar(r.studentName, r.className, r.numara)]) || {};
+                                  const gunKonuGuncellemeleri = [];
+                                  Object.entries(ogrKonuVerisi).forEach(([ders, konular]) => {
+                                    Object.entries(konular || {}).forEach(([konu, deger]) => {
+                                      if (deger && typeof deger === "object" && deger.tarih === r.date) gunKonuGuncellemeleri.push({ ders, konu, yuzde: deger.yuzde });
+                                    });
+                                  });
+                                  const toplam = gunRisk.length + gunDenemeler.length + gunKonuGuncellemeleri.length;
+                                  if (toplam === 0) return null;
+                                  return (
+                                    <div style={{ background:"#F3EEFB", border:`1px solid ${PURPLE}`, borderRadius:10, padding:"8px 10px", marginBottom:8 }}>
+                                      <div style={{ fontSize:10.5, fontWeight:800, color:PURPLE, marginBottom:4 }}>📌 O Gün ({r.date}) Ayrıca Girilenler</div>
+                                      {gunRisk.length > 0 && <div style={{ fontSize:10.5, color:TEXT, marginBottom:3, lineHeight:1.4 }}>⚠ Risk: {gunRisk.map(x=>x.riskTuru).join(", ")}</div>}
+                                      {gunDenemeler.length > 0 && <div style={{ fontSize:10.5, color:TEXT, marginBottom:3 }}>📊 Deneme Girişi: {gunDenemeler.map(([no])=>`Deneme ${no}`).join(", ")}</div>}
+                                      {gunKonuGuncellemeleri.length > 0 && <div style={{ fontSize:10.5, color:TEXT, lineHeight:1.4 }}>📚 Konu Haritası: {gunKonuGuncellemeleri.map(k=>`${k.konu} (%${k.yuzde})`).join(", ")}</div>}
+                                    </div>
+                                  );
+                                })()}
                                 <div style={{display:"flex",gap:6}}>
                                   <button onClick={()=>{setDuzenlemeId(r.id);setDuzenleForm({meetingType:r.meetingType||"Öğrenci",topic:r.topic||"",raw:r.raw||"",summary:r.summary||""});}} style={{padding:"5px 10px",background:ACCENT_LIGHT,color:ACCENT,border:"none",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer"}}>✎ Düzenle</button>
                                   <button onClick={()=>{ if(window.confirm("Bu görüşme notunu silmek istediğinize emin misiniz?")) handleGorusmeSil(r.id); }} style={{padding:"5px 10px",background:"none",border:"1px solid #F28B82",color:"#C5221F",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer"}}>🗑 Sil</button>
@@ -8555,6 +8594,11 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
       const { _topluNet, ...dersNetleri } = mevcutNets || {};
       return { turkce: "", mat: "", fen: "", sosyal: "", ingilizce: "", din: "", ...dersNetleri };
     });
+    // Bu denemenin GERÇEKTE hangi tarihte girildiğini (o öğrenciyle hangi
+    // görüşmede ele alındığını) ayrı takip eder — "O Gün Neler Girildi"
+    // özetinin doğru çalışması için önemli. Var olan bir kaydı düzenlerken
+    // orijinal giriş tarihi korunur, ilk kayıtta bugüne varsayılır.
+    const [girisTarihi, setGirisTarihi] = useState(mevcutNets?.girisTarihi || today());
     const toplam = toplamNet(nets);
     return (
       <div style={{ background: CARD, border: `2px solid ${ACCENT}`, borderRadius: 12, padding: 14, marginBottom: 12 }}>
@@ -8584,9 +8628,14 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
           <span style={{ fontSize: 13, fontWeight: 700, color: ACCENT }}>Toplam Net</span>
           <span style={{ fontSize: 22, fontWeight: 900, color: ACCENT }}>{isNaN(toplam) ? "—" : toplam.toFixed(2)}</span>
         </div>
+        <div style={{ marginBottom: 10 }}>
+          <label style={{ fontSize: 10, fontWeight: 700, color: MUTED, display: "block", marginBottom: 3 }}>GİRİŞ TARİHİ (hangi görüşmede ele alındıysa)</label>
+          <input value={girisTarihi} onChange={e=>setGirisTarihi(e.target.value)} placeholder="GG.AA.YYYY"
+            style={{ width: "100%", padding: "7px 10px", border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 12, boxSizing: "border-box" }} />
+        </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={onIptal} style={{ flex: 1, padding: "9px", background: CARD, color: MUTED, border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>İptal</button>
-          <button onClick={() => onKaydet(nets)} style={{ flex: 2, padding: "9px", background: ACCENT, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: "pointer" }}>Kaydet</button>
+          <button onClick={() => onKaydet({ ...nets, girisTarihi })} style={{ flex: 2, padding: "9px", background: ACCENT, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: "pointer" }}>Kaydet</button>
         </div>
       </div>
     );
@@ -11650,6 +11699,7 @@ export default function App() {
             sevkler={sevkler}
             testKayitlari={testKayitlari}
             kademe={kademe}
+            konuHaritasiVerisi={konuHaritasiVerisi}
             onYilEkrani={() => setYilEkrani(true)}
             hazirlikNotlari={hazirlikNotlari}
             setHazirlikNotlari={setHazirlikNotlari}
