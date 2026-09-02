@@ -1216,6 +1216,14 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
   const [excelYukleniyor, setExcelYukleniyor] = useState(false);
   const [excelTarihi, setExcelTarihi] = useState(today());
   const [sonuc, setSonuc] = useState(null);
+  // Tek öğrenci manuel güncelleme — Öğrenciler sekmesindeki eski kart
+  // kaldırıldığı için devamsızlık artık SADECE buradan (toplu ya da tek tek)
+  // güncelleniyor. Hepsi aynı devamsizlikGecmisi dizisine yazdığı için Sınıf
+  // rozeti, buradaki liste ve kutucuklar otomatik olarak senkron kalır.
+  const [manuelArama, setManuelArama] = useState("");
+  const [manuelSecili, setManuelSecili] = useState(null);
+  const [manuelGun, setManuelGun] = useState("");
+  const [manuelTarih, setManuelTarih] = useState(today());
 
   const yilOgrencileri = ogrenciler.filter(o => (!o.yil || o.yil === aktifYil) && pdrKademeUyumlu(o.className, kademe));
   const devamsizOgrenciler = yilOgrencileri
@@ -1226,6 +1234,21 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
     })
     .filter(Boolean)
     .sort((a,b) => b.gun - a.gun);
+
+  async function handleManuelKaydet() {
+    if (!manuelSecili || manuelGun === "") return;
+    const idx = ogrenciler.findIndex(o => pdrAyniOgrenci(o.studentName, o.className, manuelSecili.studentName, manuelSecili.className, o.numara, manuelSecili.numara));
+    if (idx < 0) return;
+    const yeniOgrenciler = [...ogrenciler];
+    const eskiGecmis = yeniOgrenciler[idx].devamsizlikGecmisi || [];
+    yeniOgrenciler[idx] = { ...yeniOgrenciler[idx], devamsizlikGecmisi: [...eskiGecmis, { tarih: manuelTarih || today(), gun: parseInt(manuelGun) || 0 }] };
+    setOgrenciler(yeniOgrenciler);
+    await saveOgrenciler(yeniOgrenciler);
+    setManuelSecili(null);
+    setManuelArama("");
+    setManuelGun("");
+    setManuelTarih(today());
+  }
 
   function handleExcelYukle(e) {
     const file = e.target.files[0];
@@ -1286,7 +1309,51 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
     <div style={{ padding: 16, maxWidth: 640 }}>
       <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4, color:"#C0392B" }}>📅 Devamsızlık</div>
       <div style={{ fontSize: 12, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
-        E-okul'dan aldığın devamsızlık raporunu Excel ile toplu yükle. Her yükleme, öğrencinin devamsızlık geçmişine yeni bir tarihli kayıt olarak eklenir, üzerine yazmaz.
+        E-okul'dan aldığın devamsızlık raporunu Excel ile toplu yükle, ya da tek bir öğrencinin gününü aşağıdan elle gir. Her ikisi de aynı geçmişe tarihli kayıt olarak eklenir, üzerine yazmaz — Sınıf sekmesindeki rozet ve aşağıdaki dağılım kutucukları otomatik güncellenir.
+      </div>
+
+      {/* Tek öğrenci manuel güncelleme */}
+      <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, padding:14, marginBottom:14 }}>
+        <div style={{ fontSize:13, fontWeight:800, color:TEXT, marginBottom:8 }}>🔍 Tek Öğrenci Güncelle</div>
+        {manuelSecili ? (
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#FFF4E5", borderRadius:8, padding:"7px 10px", marginBottom:10 }}>
+            <span style={{ fontSize:12.5, fontWeight:700, color:TEXT }}>👤 {manuelSecili.studentName} <span style={{color:MUTED,fontWeight:500}}>({manuelSecili.className})</span></span>
+            <button onClick={()=>{ setManuelSecili(null); setManuelArama(""); }} style={{ background:"none", border:"none", color:MUTED, fontSize:13, cursor:"pointer" }}>✕</button>
+          </div>
+        ) : (
+          <>
+            <input value={manuelArama} onChange={e=>setManuelArama(e.target.value)} placeholder="Öğrenci ara…"
+              style={{ width:"100%", padding:"8px 10px", border:`1px solid ${BORDER}`, borderRadius:8, fontSize:12.5, boxSizing:"border-box", marginBottom:8 }} />
+            {manuelArama.trim().length >= 2 && (
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10, maxHeight:150, overflowY:"auto" }}>
+                {yilOgrencileri.filter(o => o.studentName.toLocaleLowerCase("tr").includes(manuelArama.toLocaleLowerCase("tr"))).slice(0,15).map(o => (
+                  <button key={pdrOgrAnahtar(o.studentName,o.className,o.numara)} onClick={()=>{ setManuelSecili(o); setManuelArama(""); }} style={{
+                    padding:"5px 11px", borderRadius:16, border:`1px solid ${BORDER}`, background:"#fff", color:MUTED, fontSize:11.5, cursor:"pointer"
+                  }}>{o.studentName} <span style={{fontSize:10}}>({o.className})</span></button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+        {manuelSecili && (
+          <>
+            <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+              <div style={{ flex:1 }}>
+                <label style={{ fontSize:10, fontWeight:700, color:MUTED, display:"block", marginBottom:3 }}>GÜN SAYISI</label>
+                <input type="number" min="0" value={manuelGun} onChange={e=>setManuelGun(e.target.value)}
+                  style={{ width:"100%", padding:"7px 10px", border:`1px solid ${BORDER}`, borderRadius:8, fontSize:13, boxSizing:"border-box" }} />
+              </div>
+              <div style={{ flex:1 }}>
+                <label style={{ fontSize:10, fontWeight:700, color:MUTED, display:"block", marginBottom:3 }}>TARİH</label>
+                <input value={manuelTarih} onChange={e=>setManuelTarih(e.target.value)} placeholder="GG.AA.YYYY"
+                  style={{ width:"100%", padding:"7px 10px", border:`1px solid ${BORDER}`, borderRadius:8, fontSize:12, boxSizing:"border-box" }} />
+              </div>
+            </div>
+            <button onClick={handleManuelKaydet} disabled={manuelGun===""} style={{
+              width:"100%", padding:"9px", background:manuelGun===""?BORDER:"#C0392B", color:manuelGun===""?MUTED:"#fff", border:"none", borderRadius:8, fontSize:12.5, fontWeight:700, cursor:"pointer"
+            }}>Kaydet</button>
+          </>
+        )}
       </div>
 
       {/* Excel toplu yükleme */}
@@ -1312,6 +1379,41 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
       )}
 
       {/* Devamsız öğrenciler listesi */}
+      {/* Devamsızlık Dağılımı — kategori ve sayı, Risk Dağılımı kutucuklarıyla aynı stil */}
+      {devamsizOgrenciler.length > 0 && (() => {
+        const anlamsiz = devamsizOgrenciler.filter(o => o.gun <= 3).length;
+        const takip = devamsizOgrenciler.filter(o => o.gun >= 4 && o.gun <= 6).length;
+        const anlamli = devamsizOgrenciler.filter(o => o.gun >= 7 && o.gun <= 9).length;
+        const kritik = devamsizOgrenciler.filter(o => o.gun >= 10).length;
+        return (
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:MUTED, marginBottom:6 }}>Devamsızlık Dağılımı</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+              <div style={{ background:"#E6F5EE", borderRadius:8, padding:"8px", textAlign:"center" }}>
+                <div style={{ fontSize:18, fontWeight:900, color:"#1A8C5B" }}>{anlamsiz}</div>
+                <div style={{ fontSize:9.5, color:"#1A8C5B", fontWeight:700 }}>✅ Anlamsız</div>
+                <div style={{ fontSize:8.5, color:"#1A8C5B" }}>0-3 gün</div>
+              </div>
+              <div style={{ background:"#FDF6E3", borderRadius:8, padding:"8px", textAlign:"center" }}>
+                <div style={{ fontSize:18, fontWeight:900, color:"#B07D1A" }}>{takip}</div>
+                <div style={{ fontSize:9.5, color:"#B07D1A", fontWeight:700 }}>👀 Takip Edilmeli</div>
+                <div style={{ fontSize:8.5, color:"#B07D1A" }}>4-6 gün</div>
+              </div>
+              <div style={{ background:"#FEF3E2", borderRadius:8, padding:"8px", textAlign:"center" }}>
+                <div style={{ fontSize:18, fontWeight:900, color:"#B7791F" }}>{anlamli}</div>
+                <div style={{ fontSize:9.5, color:"#B7791F", fontWeight:700 }}>⚠️ Anlamlı</div>
+                <div style={{ fontSize:8.5, color:"#B7791F" }}>7-9 gün</div>
+              </div>
+              <div style={{ background:"#FDECEA", borderRadius:8, padding:"8px", textAlign:"center" }}>
+                <div style={{ fontSize:18, fontWeight:900, color:"#C0392B" }}>{kritik}</div>
+                <div style={{ fontSize:9.5, color:"#C0392B", fontWeight:700 }}>🚨 Kritik</div>
+                <div style={{ fontSize:8.5, color:"#C0392B" }}>10+ gün (Resmi Sınır)</div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <div style={{ fontSize:13, fontWeight:800, color:TEXT, marginBottom:8 }}>Devamsız Öğrenciler ({devamsizOgrenciler.length})</div>
       {devamsizOgrenciler.length === 0 ? (
         <div style={{ textAlign:"center", color:MUTED, fontSize:12.5, padding:"20px 0" }}>Henüz devamsızlık kaydı girilmemiş.</div>
@@ -6372,14 +6474,9 @@ function YilSecimEkrani({ yillar, setYillar, aktifYil, setAktifYil, ogrenciler, 
 }
 
 // ── Özet Kartı Bileşeni (Seans Öncesi Hazırlık) ─────────────────────────────
-function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denemeGirilen, denemeAvg, mudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, setTab, devamsizlikGecmisi, onDevamsizlikGuncelle, kademe, olayKayitlari, onOlayEkle }) {
+function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denemeGirilen, denemeAvg, mudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, setTab, kademe, olayKayitlari, onOlayEkle }) {
   const [hazirlikAiLoading, setHazirlikAiLoading] = useState(false);
   const [aktifPanel, setAktifPanel] = useState("ozet"); // ozet | hazirlik | ilerleme
-  const [devGuncelleAcik, setDevGuncelleAcik] = useState(false);
-  const devSirali = [...(devamsizlikGecmisi||[])].sort((a,b) => new Date(a.tarih.split(".").reverse().join("-")) - new Date(b.tarih.split(".").reverse().join("-")));
-  const devSonKayit = devSirali[devSirali.length - 1];
-  const [devInput, setDevInput] = useState(devSonKayit?.gun || 0);
-  const [devTarihInput, setDevTarihInput] = useState(today());
   const [olayFormAcik, setOlayFormAcik] = useState(false);
   const [olayForm, setOlayForm] = useState({ tur: "Kavga", islem: "Tutanak Tutuldu", not: "", tarih: today() });
   const olaySirali = [...(olayKayitlari||[])].sort((a,b) => pdrTarihMs(a.tarih) - pdrTarihMs(b.tarih));
@@ -6469,55 +6566,6 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
               </div>
             ))}
           </div>
-
-          {/* Devamsızlık */}
-          {(() => {
-            const gun = devSonKayit?.gun || 0;
-            const durum = gun >= 10
-              ? { label: "🚨 Kritik (Resmi Sınır)", color: "#C0392B", bg: "#FDECEA", border: "#F28B82" }
-              : gun >= 7
-              ? { label: "⚠️ Anlamlı — Yakın Takip", color: "#B7791F", bg: "#FEF3E2", border: "#F5C77E" }
-              : gun >= 4
-              ? { label: "👀 Takip Edilmeli", color: "#B07D1A", bg: "#FDF6E3", border: "#E9D18B" }
-              : { label: "✅ Anlamsız", color: "#1A8C5B", bg: "#E6F5EE", border: "#A8D9C3" };
-            return (
-              <div style={{marginBottom:12}}>
-                <div onClick={() => { setDevInput(gun); setDevGuncelleAcik(a => !a); }}
-                  style={{background:durum.bg, border:`1px solid ${durum.border}`, borderRadius:14, padding:"12px 14px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer"}}>
-                  <div>
-                    <div style={{fontSize:10,color:MUTED,fontWeight:700,letterSpacing:0.3}}>DEVAMSIZLIK{devSonKayit?` · ${devSonKayit.tarih}`:""}</div>
-                    <div style={{fontSize:20,fontWeight:900,color:durum.color}}>{gun} gün</div>
-                  </div>
-                  <span style={{background:durum.color,color:"#fff",borderRadius:12,padding:"5px 11px",fontSize:11,fontWeight:700}}>{durum.label}</span>
-                </div>
-                {devGuncelleAcik && (
-                  <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:10,padding:10,marginTop:6}}>
-                    <div style={{fontSize:11,color:MUTED,marginBottom:8,lineHeight:1.5}}>E-okul'dan kontrol ettiğin güncel devamsızlık gününü gir — üzerine yazmaz, tarihli yeni bir kayıt olarak eklenir, böylece artış hızı takip edilebilir.</div>
-                    <div style={{display:"flex",gap:8,marginBottom:8}}>
-                      <input type="number" min="0" value={devInput} onChange={e=>setDevInput(e.target.value)}
-                        style={{flex:1,padding:"8px 10px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:14,boxSizing:"border-box"}} />
-                      <input value={devTarihInput} onChange={e=>setDevTarihInput(e.target.value)} placeholder="GG.AA.YYYY"
-                        style={{width:100,padding:"8px 8px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:12,boxSizing:"border-box"}} />
-                    </div>
-                    <div style={{display:"flex",marginBottom:devSirali.length>0?10:0}}>
-                      <button onClick={() => { onDevamsizlikGuncelle(parseInt(devInput)||0, devTarihInput); setDevGuncelleAcik(false); setDevTarihInput(today()); }}
-                        style={{width:"100%",padding:"8px 16px",background:ACCENT,color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>Kaydet</button>
-                    </div>
-                    {devSirali.length > 0 && (
-                      <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:8}}>
-                        <div style={{fontSize:10,fontWeight:700,color:MUTED,marginBottom:4}}>GEÇMİŞ</div>
-                        {devSirali.slice(-5).reverse().map((d,i) => (
-                          <div key={i} style={{fontSize:12,color:TEXT,display:"flex",justifyContent:"space-between",padding:"2px 0"}}>
-                            <span>{d.tarih}</span><span style={{fontWeight:700}}>{d.gun} gün</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
 
           {/* Olay / Tutanak Kaydı — sadece Ortaokul/Lise'de anlamlı, ilkokulda bu süreç yok */}
           {kademe !== "ilkokul" && (
@@ -8008,15 +8056,6 @@ function OgrenciYonetim({
               ilerlemeNotlari={ilerlemeNotlari}
               setIlerlemeNotlari={setIlerlemeNotlari}
               setTab={setTab}
-              devamsizlikGecmisi={tumOgrenciler.find(x => x.studentName === seciliOgrenci)?.devamsizlikGecmisi || []}
-              onDevamsizlikGuncelle={async (yeniDeger, tarih) => {
-                const hedefOgr = tumOgrenciler.find(x => x.studentName === seciliOgrenci);
-                const eskiGecmis = hedefOgr?.devamsizlikGecmisi || [];
-                const yeniGecmis = [...eskiGecmis, { tarih: tarih || today(), gun: yeniDeger }];
-                const updated = ogrenciler.map(o => pdrAyniOgrenci(o.studentName, o.className, seciliOgrenci, seciliOgrenciSinif, o.numara, seciliOgrenciNumara) ? { ...o, devamsizlik: yeniDeger, devamsizlikGecmisi: yeniGecmis } : o);
-                setOgrenciler(updated);
-                await saveOgrenciler(updated);
-              }}
               kademe={kademe}
               olayKayitlari={tumOgrenciler.find(x => x.studentName === seciliOgrenci)?.olayKayitlari || []}
               onOlayEkle={async (yeniOlay) => {
