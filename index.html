@@ -1207,6 +1207,218 @@ function ogrenciEtkinlikHavuzu(ogrenciSinif, kademeTahmin) {
   }
   return havuz;
 }
+// Devamsızlık sekmesi — toplu yükleme (Excel ya da AI ile PDF/fotoğraf) +
+// devamsız öğrenciler listesi + tıklayınca öğrencinin kendi profiline gitme.
+// Devamsızlık verisi her zaman "yeni bir kayıt olarak eklenir" mantığıyla
+// çalışır (üzerine yazmaz) — böylece OzetKarti'ndeki "artış hızı" takibi ve
+// "O Gün Neler Girildi" ile tam uyumlu kalır.
+function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab, setAktifOgrenci }) {
+  const [excelYukleniyor, setExcelYukleniyor] = useState(false);
+  const [excelTarihi, setExcelTarihi] = useState(today());
+  const [aiYukleniyor, setAiYukleniyor] = useState(false);
+  const [aiTarihi, setAiTarihi] = useState(today());
+  const [aiOneri, setAiOneri] = useState(null);
+  const [sonuc, setSonuc] = useState(null);
+
+  const yilOgrencileri = ogrenciler.filter(o => (!o.yil || o.yil === aktifYil) && pdrKademeUyumlu(o.className, kademe));
+  const devamsizOgrenciler = yilOgrencileri
+    .map(o => {
+      const gecmis = [...(o.devamsizlikGecmisi||[])].sort((a,b) => pdrTarihMs(b.tarih) - pdrTarihMs(a.tarih));
+      const son = gecmis[0];
+      return (son && son.gun > 0) ? { studentName: o.studentName, className: o.className, numara: o.numara, gun: son.gun, tarih: son.tarih } : null;
+    })
+    .filter(Boolean)
+    .sort((a,b) => b.gun - a.gun);
+
+  function handleExcelYukle(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setExcelYukleniyor(true);
+    setSonuc(null);
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const wb = XLSX.read(evt.target.result, { type: "binary" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+        if (rows.length < 2) throw new Error("Dosyada veri satırı bulunamadı.");
+        function trNormalize(s) {
+          return String(s || "").toUpperCase()
+            .replace(/İ/g,"I").replace(/I/g,"I").replace(/Ş/g,"S").replace(/Ğ/g,"G")
+            .replace(/Ü/g,"U").replace(/Ö/g,"O").replace(/Ç/g,"C")
+            .replace(/\s+/g," ").trim();
+        }
+        const headers = rows[0].map(trNormalize);
+        const colAd = headers.findIndex(h => h.includes("AD SOYAD") || h.includes("ADI SOYADI") || h.includes("ISIM"));
+        const colSinif = headers.findIndex(h => h.includes("SINIF") || h.includes("SUBE"));
+        const colNumara = headers.findIndex(h => h.includes("NUMARA") || h === "NO" || h.includes("OKUL NO"));
+        const colGun = headers.findIndex(h => h.includes("DEVAMSIZLIK") || h.includes("GUN"));
+        if (colAd < 0) throw new Error('"Ad Soyad" sütunu bulunamadı.');
+        if (colGun < 0) throw new Error('"Devamsızlık" ya da "Gün" sütunu bulunamadı.');
+
+        const yeniOgrenciler = [...ogrenciler];
+        let islenen = 0;
+        const eslesmeyen = [];
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          const adSoyad = String(row[colAd] || "").trim();
+          if (!adSoyad) continue;
+          const sinif = colSinif >= 0 ? String(row[colSinif] || "").trim() : "";
+          const numara = colNumara >= 0 ? String(row[colNumara] || "").trim() : "";
+          const gun = parseInt(String(row[colGun] ?? "").trim());
+          if (isNaN(gun)) { eslesmeyen.push(adSoyad); continue; }
+          const idx = yeniOgrenciler.findIndex(o => pdrAyniOgrenci(o.studentName, o.className, adSoyad, sinif, o.numara, numara));
+          if (idx < 0) { eslesmeyen.push(adSoyad + " (öğrenci bulunamadı)"); continue; }
+          const eskiGecmis = yeniOgrenciler[idx].devamsizlikGecmisi || [];
+          yeniOgrenciler[idx] = { ...yeniOgrenciler[idx], devamsizlikGecmisi: [...eskiGecmis, { tarih: excelTarihi || today(), gun }] };
+          islenen++;
+        }
+        setOgrenciler(yeniOgrenciler);
+        await saveOgrenciler(yeniOgrenciler);
+        setSonuc({ islenen, eslesmeyen });
+      } catch (err) {
+        alert("Dosya okunamadı: " + err.message);
+      }
+      setExcelYukleniyor(false);
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = "";
+  }
+
+  async function handlePdfFotografYukle(file) {
+    if (!file) return;
+    setAiYukleniyor(true);
+    setAiOneri(null);
+    try {
+      const apiKey = pdrGetApiKey();
+      if (!apiKey) throw new Error("Önce Ayarlar'dan API anahtarını gir.");
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result.split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const mediaType = file.type || (file.name.toLocaleLowerCase("tr").endsWith(".pdf") ? "application/pdf" : "image/jpeg");
+      const res = await fetch(PDR_AI_WORKER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "devamsizlik_cikar", apiKey, data: { dosyaBase64: base64, mediaType } }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const text = data.content?.[0]?.text || "{}";
+      const temiz = text.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(temiz);
+      setAiOneri((parsed.ogrenciler || []).map(o => ({ ...o, dahil: true })));
+    } catch (e) {
+      alert("Belge okunamadı: " + e.message);
+    }
+    setAiYukleniyor(false);
+  }
+
+  async function handleAiOneriOnayla() {
+    if (!aiOneri) return;
+    const secilenler = aiOneri.filter(o => o.dahil);
+    const yeniOgrenciler = [...ogrenciler];
+    let islenen = 0;
+    const eslesmeyen = [];
+    secilenler.forEach(o => {
+      const idx = yeniOgrenciler.findIndex(x => pdrAyniOgrenci(x.studentName, x.className, o.ad, o.sinif || ""));
+      if (idx < 0) { eslesmeyen.push(o.ad); return; }
+      const eskiGecmis = yeniOgrenciler[idx].devamsizlikGecmisi || [];
+      yeniOgrenciler[idx] = { ...yeniOgrenciler[idx], devamsizlikGecmisi: [...eskiGecmis, { tarih: aiTarihi || today(), gun: o.gun }] };
+      islenen++;
+    });
+    setOgrenciler(yeniOgrenciler);
+    await saveOgrenciler(yeniOgrenciler);
+    setSonuc({ islenen, eslesmeyen });
+    setAiOneri(null);
+  }
+
+  return (
+    <div style={{ padding: 16, maxWidth: 640 }}>
+      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4, color:"#C0392B" }}>📅 Devamsızlık</div>
+      <div style={{ fontSize: 12, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
+        E-okul'dan aldığın devamsızlık raporunu toplu yükle — Excel ya da PDF/fotoğraf (AI okur). Her yükleme, öğrencinin devamsızlık geçmişine yeni bir tarihli kayıt olarak eklenir, üzerine yazmaz.
+      </div>
+
+      {/* Excel toplu yükleme */}
+      <div style={{ background:CARD, border:`2px solid #C0392B`, borderRadius:12, padding:14, marginBottom:14 }}>
+        <div style={{ fontSize:13, fontWeight:800, color:"#C0392B", marginBottom:8 }}>📊 Excel ile Toplu Yükle</div>
+        <div style={{ fontSize:11, color:MUTED, marginBottom:10, lineHeight:1.5 }}>Excel'de "Ad Soyad" (zorunlu), varsa "Sınıf"/"Numara" ve "Devamsızlık" (ya da "Gün") sütunları olmalı.</div>
+        <label style={{ fontSize:11, fontWeight:700, color:MUTED, display:"block", marginBottom:4 }}>RAPOR TARİHİ</label>
+        <input value={excelTarihi} onChange={e=>setExcelTarihi(e.target.value)} placeholder="GG.AA.YYYY"
+          style={{ width:"100%", padding:"7px 10px", border:`1px solid ${BORDER}`, borderRadius:8, fontSize:12, boxSizing:"border-box", marginBottom:10 }} />
+        <label style={{ display:"block", width:"100%", padding:14, background:"#fff", border:"2px dashed #C0392B", borderRadius:12, textAlign:"center", color:"#C0392B", fontWeight:700, cursor:"pointer", boxSizing:"border-box" }}>
+          {excelYukleniyor ? "⏳ İşleniyor…" : "📂 Excel Dosyası Seç (.xlsx)"}
+          <input type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelYukle} style={{ display:"none" }} disabled={excelYukleniyor} />
+        </label>
+      </div>
+
+      {/* PDF/Fotoğraf — AI ile oku */}
+      <div style={{ background:"#F3EEFB", border:`1px solid ${PURPLE}`, borderRadius:12, padding:14, marginBottom:16 }}>
+        <div style={{ fontSize:13, fontWeight:800, color:PURPLE, marginBottom:8 }}>✦ PDF/Fotoğraf — AI ile Oku</div>
+        <div style={{ fontSize:11, color:MUTED, marginBottom:10, lineHeight:1.5 }}>Excel'in yoksa, e-okul çıktısının PDF'ini ya da fotoğrafını yükle — AI öğrenci ve gün sayısını okur, kaydetmeden önce onaylarsın.</div>
+        <label style={{ fontSize:11, fontWeight:700, color:MUTED, display:"block", marginBottom:4 }}>RAPOR TARİHİ</label>
+        <input value={aiTarihi} onChange={e=>setAiTarihi(e.target.value)} placeholder="GG.AA.YYYY"
+          style={{ width:"100%", padding:"7px 10px", border:`1px solid ${BORDER}`, borderRadius:8, fontSize:12, boxSizing:"border-box", marginBottom:10 }} />
+        <label style={{ display:"block", width:"100%", padding:14, background:"#fff", border:`2px dashed ${PURPLE}`, borderRadius:12, textAlign:"center", color:PURPLE, fontWeight:700, cursor:"pointer", boxSizing:"border-box" }}>
+          {aiYukleniyor ? "⏳ Okunuyor…" : "📄 PDF ya da Fotoğraf Seç"}
+          <input type="file" accept=".pdf,image/*" onChange={e=>handlePdfFotografYukle(e.target.files[0])} style={{ display:"none" }} disabled={aiYukleniyor} />
+        </label>
+        {aiOneri && (
+          <div style={{ marginTop:12 }}>
+            <div style={{ fontSize:11.5, fontWeight:700, color:PURPLE, marginBottom:8 }}>AI'ın okuduğu {aiOneri.length} öğrenci — onaylamadan önce kontrol et, gerekirse işareti kaldır:</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:5, marginBottom:10, maxHeight:280, overflowY:"auto" }}>
+              {aiOneri.map((o,i) => (
+                <label key={i} style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, background:"#fff", borderRadius:8, padding:"6px 9px", cursor:"pointer" }}>
+                  <input type="checkbox" checked={o.dahil} onChange={()=>setAiOneri(prev=>prev.map((x,j)=>j===i?{...x,dahil:!x.dahil}:x))} />
+                  <span style={{ flex:1, fontWeight:700, color:TEXT }}>{o.ad}</span>
+                  <span style={{ fontSize:10.5, color:MUTED }}>{o.sinif}</span>
+                  <span style={{ fontSize:11.5, fontWeight:800, color:"#C0392B" }}>{o.gun} gün</span>
+                </label>
+              ))}
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={handleAiOneriOnayla} style={{ flex:1, padding:"8px", background:PURPLE, color:"#fff", border:"none", borderRadius:8, fontSize:12.5, fontWeight:700, cursor:"pointer" }}>✓ Seçilenleri Kaydet</button>
+              <button onClick={()=>setAiOneri(null)} style={{ padding:"8px 14px", background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, fontSize:12.5, fontWeight:700, cursor:"pointer" }}>Yoksay</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {sonuc && (
+        <div style={{ background:"#E6F5EE", borderRadius:8, padding:10, marginBottom:16 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:"#1A8C5B" }}>✓ {sonuc.islenen} öğrenci işlendi.</div>
+          {sonuc.eslesmeyen.length > 0 && (
+            <div style={{ fontSize:11, color:"#B07D1A", marginTop:6, lineHeight:1.5 }}>⚠️ {sonuc.eslesmeyen.length} satır işlenemedi: {sonuc.eslesmeyen.slice(0,5).join(", ")}{sonuc.eslesmeyen.length>5?"...":""}</div>
+          )}
+        </div>
+      )}
+
+      {/* Devamsız öğrenciler listesi */}
+      <div style={{ fontSize:13, fontWeight:800, color:TEXT, marginBottom:8 }}>Devamsız Öğrenciler ({devamsizOgrenciler.length})</div>
+      {devamsizOgrenciler.length === 0 ? (
+        <div style={{ textAlign:"center", color:MUTED, fontSize:12.5, padding:"20px 0" }}>Henüz devamsızlık kaydı girilmemiş.</div>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+          {devamsizOgrenciler.map(o => (
+            <div key={pdrOgrAnahtar(o.studentName, o.className, o.numara)}
+              onClick={()=>{ setAktifOgrenci({ name:o.studentName, className:o.className||"" }); setTab("profil_merkez"); }}
+              style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 12px", background:CARD, border:`1px solid ${BORDER}`, borderRadius:10, cursor:"pointer" }}>
+              <div>
+                <div style={{ fontSize:13, fontWeight:700, color:TEXT }}>{o.studentName}</div>
+                <div style={{ fontSize:10.5, color:MUTED, marginTop:1 }}>{o.className} — son güncelleme: {o.tarih}</div>
+              </div>
+              <div style={{ fontSize:16, fontWeight:900, color: o.gun >= 10 ? "#C0392B" : o.gun >= 5 ? "#B07D1A" : MUTED }}>{o.gun} gün</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function KazanimlarSekmesi({ kademe }) {
   const aktifKademe = KADEME_SINIF_LISTESI[kademe] ? kademe : "ortaokul";
   const sinifListesi = KADEME_SINIF_LISTESI[aktifKademe];
@@ -11223,6 +11435,24 @@ export default function App() {
     .filter(o => o.gunFarki >= TAKIP_ESIK_GUN)
     .sort((a, b) => b.gunFarki - a.gunFarki);
 
+  // Yıl Sonu Kapsam Takibi: aktif yıldaki TÜM öğrenciler arasında BİR KEZ
+  // BİLE görüşülmemiş olanları bulur — takipListesi'nden farkı, o sadece
+  // "daha önce görüşülmüş ama üzerinden vakit geçmiş" olanları kapsıyordu.
+  // Amaç: yıl sonuna kadar hiç konuşulmamış öğrenciyi kimse atlamasın.
+  const kapsamYilOgrencileri = ogrenciler.filter(o => (!o.yil || o.yil === aktifYil) && pdrKademeUyumlu(o.className, kademe));
+  const kapsamGorusulenAnahtarlar = new Set(records.map(r => pdrOgrAnahtar(r.studentName, r.className, r.numara)));
+  const kapsamHicGorusulmemis = kapsamYilOgrencileri
+    .filter(o => !kapsamGorusulenAnahtarlar.has(pdrOgrAnahtar(o.studentName, o.className, o.numara)))
+    .sort((a,b) => (a.className||"").localeCompare(b.className||"","tr") || a.studentName.localeCompare(b.studentName,"tr"));
+  const kapsamSinifOzeti = {};
+  kapsamYilOgrencileri.forEach(o => {
+    const sinif = o.className || "Belirtilmemiş";
+    if (!kapsamSinifOzeti[sinif]) kapsamSinifOzeti[sinif] = { toplam: 0, gorusulen: 0 };
+    kapsamSinifOzeti[sinif].toplam++;
+    if (kapsamGorusulenAnahtarlar.has(pdrOgrAnahtar(o.studentName, o.className, o.numara))) kapsamSinifOzeti[sinif].gorusulen++;
+  });
+  const kapsamSinifListesi = Object.entries(kapsamSinifOzeti).map(([sinif, v]) => ({ sinif, ...v })).sort((a,b)=>a.sinif.localeCompare(b.sinif,"tr"));
+
 
   // Tüm kaynaklardan benzersiz öğrenci listesi
   const kayitliListesi = useMemo(() => {
@@ -11259,6 +11489,7 @@ export default function App() {
     { key: "profil_merkez", label: "📋 Profil" },
     { key: "mudahale", label: "🎯 Müdahale" },
     { key: "sinif_profili", label: "🏫 Sınıf" },
+    { key: "devamsizlik", label: "📅 Devamsızlık" },
     { key: "risk", label: "⚠ Risk" },
     { key: "deneme", label: "📊 Deneme" },
     { key: "net_haritasi", label: "🎯 Net Haritası" },
@@ -11927,6 +12158,18 @@ export default function App() {
           />
         )}
 
+        {/* ── DEVAMSIZLIK ──────────────────────────────────────────── */}
+        {tab === "devamsizlik" && (
+          <DevamsizlikEkrani
+            ogrenciler={ogrenciler}
+            setOgrenciler={setOgrenciler}
+            kademe={kademe}
+            aktifYil={aktifYil}
+            setTab={setTab}
+            setAktifOgrenci={setAktifOgrenci}
+          />
+        )}
+
         {/* ── RİSK LİSTESİ ─────────────────────────────────────────── */}
         {tab === "risk" && (
           <div>
@@ -12242,6 +12485,40 @@ export default function App() {
                 </div>
               </div>
             )}
+            {/* Yıl Sonu Kapsam Takibi — bu yıl bir kez bile görüşülmemiş öğrenciler */}
+            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: ACCENT, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>🎯 Yıl Sonu Kapsam Takibi</div>
+              <div style={{ fontSize: 11, color: MUTED, marginBottom: 12, lineHeight: 1.5 }}>{aktifYil} yılında sorumlu olduğun {kapsamYilOgrencileri.length} öğrenciden {kapsamYilOgrencileri.length - kapsamHicGorusulmemis.length} tanesiyle en az bir kez görüştün. Aşağıda hiç görüşülmemiş olanlar listeleniyor.</div>
+              {kapsamSinifListesi.length > 0 && (
+                <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>
+                  {kapsamSinifListesi.map(s => {
+                    const tamam = s.gorusulen === s.toplam;
+                    return (
+                      <span key={s.sinif} style={{ fontSize:10.5, fontWeight:700, padding:"3px 9px", borderRadius:10, background: tamam ? "#E6F5EE" : "#FFF8E7", color: tamam ? ACCENT : "#B07D1A" }}>
+                        {s.sinif}: {s.gorusulen}/{s.toplam}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+              {kapsamHicGorusulmemis.length === 0 ? (
+                <div style={{ textAlign:"center", color:ACCENT, fontSize:12.5, fontWeight:700, padding:"10px 0" }}>✓ Bu yıl herkesle en az bir kez görüşülmüş</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {kapsamHicGorusulmemis.map(o => (
+                    <div key={pdrOgrAnahtar(o.studentName, o.className, o.numara)}
+                      onClick={()=>{ setAktifOgrenci({ name:o.studentName, className:o.className||"" }); setTab("yeni"); }}
+                      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 10px", background: "#FFF8E7", borderRadius: 8, cursor:"pointer" }}>
+                      <div>
+                        <span style={{ fontSize: 12.5, fontWeight: 700, color: TEXT }}>{o.studentName}</span>
+                        <span style={{ fontSize: 11, color: MUTED, marginLeft: 6 }}>{o.className}</span>
+                      </div>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, color: "#B07D1A" }}>Hiç görüşülmedi →</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             {topTopics.length > 0 && (
               <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: ACCENT, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 14 }}>Konulara Göre</div>
