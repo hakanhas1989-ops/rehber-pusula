@@ -4469,7 +4469,7 @@ function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mud
       body: JSON.stringify({
         action: "mudahale_plani",
         apiKey,
-        data: { studentName: seciliAd, notlar, kademeMetni, kutuphaneBaglam, kademe, kutuphaneVarMi: kutuphane?.length > 0 },
+        data: { studentName: seciliAd, className: seciliSinif, numara: kayitliListesi.find(o => o.name === seciliAd)?.numara, notlar, kademeMetni, kutuphaneBaglam, kademe, kutuphaneVarMi: kutuphane?.length > 0 },
       }),
     });
     const data = await res.json();
