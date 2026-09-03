@@ -1226,10 +1226,15 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
   const [manuelTarih, setManuelTarih] = useState(today());
 
   const yilOgrencileri = ogrenciler.filter(o => (!o.yil || o.yil === aktifYil) && pdrKademeUyumlu(o.className, kademe));
+  // NOT: en güncel kaydı tarihe göre sıralayıp bulmak yerine, dizinin SON
+  // elemanı kullanılıyor — çünkü kayıtlar her zaman sona eklenir (append), bu
+  // yüzden en son girilen her zaman dizinin son elemanıdır. Aynı tarihte
+  // birden fazla kayıt olduğunda tarihe göre sıralama tutarsız sonuç
+  // verebiliyordu (bkz. OzetKarti'ndeki aynı düzeltme).
   const devamsizOgrenciler = yilOgrencileri
     .map(o => {
-      const gecmis = [...(o.devamsizlikGecmisi||[])].sort((a,b) => pdrTarihMs(b.tarih) - pdrTarihMs(a.tarih));
-      const son = gecmis[0];
+      const gecmis = o.devamsizlikGecmisi || [];
+      const son = gecmis[gecmis.length - 1];
       return (son && son.gun > 0) ? { studentName: o.studentName, className: o.className, numara: o.numara, gun: son.gun, tarih: son.tarih } : null;
     })
     .filter(Boolean)
@@ -6478,7 +6483,15 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
   const [hazirlikAiLoading, setHazirlikAiLoading] = useState(false);
   const [aktifPanel, setAktifPanel] = useState("ozet"); // ozet | hazirlik | ilerleme
   const [devGuncelleAcik, setDevGuncelleAcik] = useState(false);
-  const devSirali = [...(devamsizlikGecmisi||[])].sort((a,b) => new Date(a.tarih.split(".").reverse().join("-")) - new Date(b.tarih.split(".").reverse().join("-")));
+  // NOT: "en güncel" kaydı TARİHE göre sıralayıp bulmak, aynı tarihte birden
+  // fazla kayıt varsa (örn. Excel'den 6 gün, sonra aynı gün manuel 0 gün)
+  // tutarsız sonuç veriyordu — çünkü farklı ekranlar "artan sırala+son al" ve
+  // "azalan sırala+ilk al" gibi FARKLI yöntemler kullanıyordu ve eşit tarihte
+  // stabil sıralama orijinal ekleme sırasını koruduğu için ikisi FARKLI kayda
+  // düşebiliyordu. Çözüm: dizi her zaman sona eklenerek (append) büyüdüğü
+  // için, en son girilen kayıt HER ZAMAN dizinin son elemanıdır — tarihe göre
+  // sıralamaya hiç gerek yok, tüm ekranlarda aynı mantık kullanılmalı.
+  const devSirali = devamsizlikGecmisi || [];
   const devSonKayit = devSirali[devSirali.length - 1];
   const [devInput, setDevInput] = useState(devSonKayit?.gun || 0);
   const [devTarihInput, setDevTarihInput] = useState(today());
@@ -6597,9 +6610,9 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
                     <div style={{fontSize:11,color:MUTED,marginBottom:8,lineHeight:1.5}}>E-okul'dan kontrol ettiğin güncel devamsızlık gününü gir — üzerine yazmaz, tarihli yeni bir kayıt olarak eklenir, böylece artış hızı takip edilebilir. Bu kayıt, Devamsızlık sekmesi ve Sınıf sekmesindeki rozetle aynı veriyi paylaşır — buradan girdiğin an her ikisi de otomatik güncellenir.</div>
                     <div style={{display:"flex",gap:8,marginBottom:8}}>
                       <input type="number" min="0" value={devInput} onChange={e=>setDevInput(e.target.value)}
-                        style={{flex:1,padding:"8px 10px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:14,boxSizing:"border-box"}} />
+                        style={{flex:1,minWidth:0,padding:"8px 10px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:14,boxSizing:"border-box"}} />
                       <input value={devTarihInput} onChange={e=>setDevTarihInput(e.target.value)} placeholder="GG.AA.YYYY"
-                        style={{width:100,padding:"8px 8px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:12,boxSizing:"border-box"}} />
+                        style={{flex:1,minWidth:0,padding:"8px 8px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:12,boxSizing:"border-box"}} />
                     </div>
                     <div style={{display:"flex",marginBottom:devSirali.length>0?10:0}}>
                       <button onClick={() => { onDevamsizlikGuncelle(parseInt(devInput)||0, devTarihInput); setDevGuncelleAcik(false); setDevTarihInput(today()); }}
@@ -10053,12 +10066,14 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
     });
 
     // Devamsızlık — öğrenci öğrenci, çoktan aza sıralı
-    // NOT: eskiden "o.devamsizlik" (tekil, hiç dolmayan bir alan) okunuyordu —
-    // gerçek kaynak devamsizlikGecmisi dizisindeki en güncel kayıt.
+    // NOT: en güncel kaydı tarihe göre sıralayıp bulmak yerine, dizinin SON
+    // elemanı kullanılıyor — kayıtlar her zaman sona eklendiği (append) için
+    // en son girilen her zaman dizinin son elemanıdır. Aynı tarihte birden
+    // fazla kayıt varsa tarihe göre sıralama tutarsız sonuç verebiliyordu.
     const devamsizlikListesi = ogr
       .map(o => {
-        const gecmisSirali = [...(o.devamsizlikGecmisi||[])].sort((a,b) => pdrTarihMs(b.tarih) - pdrTarihMs(a.tarih));
-        return { ad: o.studentName, sinif: o.className, numara: o.numara, devamsizlik: gecmisSirali[0]?.gun || 0 };
+        const gecmis = o.devamsizlikGecmisi || [];
+        return { ad: o.studentName, sinif: o.className, numara: o.numara, devamsizlik: gecmis[gecmis.length-1]?.gun || 0 };
       })
       .sort((a,b) => b.devamsizlik - a.devamsizlik);
 
@@ -10352,11 +10367,13 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
             const denemeGirisleri = Object.entries(denemeSozluk).filter(([k]) => k !== "7sinif").sort((a,b) => Number(a[0]) - Number(b[0]));
             const dersler = aktifDersler(sinavTuru);
             const denemeNetleri = denemeGirisleri.map(([idx,nets]) => ({ idx, net: pdrToplamNetHesapla(nets, dersler) }));
-            // NOT: eskiden burada "o.devamsizlik" (tekil, hiç dolmayan bir alan)
-            // okunuyordu — hiçbir zaman gerçek veriyi yansıtmıyordu. Gerçek kaynak
-            // devamsizlikGecmisi dizisindeki EN GÜNCEL (tarihçe içindeki en son) kayıt.
-            const devGecmisiSirali = [...(o.devamsizlikGecmisi||[])].sort((a,b) => pdrTarihMs(b.tarih) - pdrTarihMs(a.tarih));
-            const devamsizlikSayisi = devGecmisiSirali[0]?.gun || 0;
+            // NOT: en güncel kaydı tarihe göre sıralayıp bulmak yerine, dizinin
+            // SON elemanı kullanılıyor — kayıtlar her zaman sona eklendiği için
+            // (append) en son girilen her zaman dizinin son elemanıdır. Aynı
+            // tarihte birden fazla kayıt varsa tarihe göre sıralama tutarsız
+            // sonuç verebiliyordu (bkz. OzetKarti'ndeki aynı düzeltme).
+            const devGecmisi = o.devamsizlikGecmisi || [];
+            const devamsizlikSayisi = devGecmisi[devGecmisi.length-1]?.gun || 0;
             const olaySayisi = (o.olayKayitlari || []).length;
             const ogrKey = pdrOgrAnahtar(o.studentName, o.className, o.numara);
             const kaynastirmaTanilari = o.kaynastirma || [];
