@@ -1713,7 +1713,7 @@ async function getRiskAnalizi(riskForm, gorusmeler, profil1, kutuphaneOzetleri =
   return data.content?.[0]?.text || "";
 }
 
-async function getDenemeAnalizi(studentName, gorusmeler, denemeGirilen, kutuphaneOzetleri = [], sinavTuru = "lgs") {
+async function getDenemeAnalizi(studentName, className, numara, gorusmeler, denemeGirilen, kutuphaneOzetleri = [], sinavTuru = "lgs") {
   const dersListesi = aktifDersler(sinavTuru);
   const toplamSoru = dersListesi.reduce((s,d)=>s+d.maks, 0);
   const sinavAdi = (SINAV_TURLERI[sinavTuru] || SINAV_TURLERI.lgs).ad;
@@ -1751,7 +1751,7 @@ async function getDenemeAnalizi(studentName, gorusmeler, denemeGirilen, kutuphan
       action: "deneme_analizi",
       apiKey,
       data: {
-        studentName,
+        studentName, className, numara,
         avg: avg ? `${avg}/${toplamSoru}` : null,
         trend: trend ? `${parseFloat(trend)>=0?"+":""}${trend} net (ilk denemeden son denemeye)` : null,
         dersSiraliText: dersSirali.length > 0 ? dersSirali.map(([k,v])=>`${k}: ${v}`).join(", ") : null,
@@ -1786,7 +1786,7 @@ async function getScoresFromNotes(studentName, notlar) {
   } catch { return { ...EMPTY_SCORES }; }
 }
 
-async function getP2Analiz({ studentName, className, sinavlar, d2, ilgiler, kariyer_hedef, aile_notu, gorusmeler, denemeGirilen, sinavTuru = "lgs" }) {
+async function getP2Analiz({ studentName, className, numara, sinavlar, d2, ilgiler, kariyer_hedef, aile_notu, gorusmeler, denemeGirilen, sinavTuru = "lgs" }) {
   const dersListesi = aktifDersler(sinavTuru);
   const toplamSoru = dersListesi.reduce((s,d)=>s+d.maks, 0);
   const dersMetni = DERSLER.map(d => {
@@ -1817,7 +1817,7 @@ async function getP2Analiz({ studentName, className, sinavlar, d2, ilgiler, kari
     body: JSON.stringify({
       action: "p2_analiz",
       apiKey,
-      data: { studentName, className, gorusmeler, dersMetni, d2Metni, denemeBolum, avg, ilgiler: ilgiler?.join(", "), kariyer_hedef, aile_notu },
+      data: { studentName, className, numara, gorusmeler, dersMetni, d2Metni, denemeBolum, avg, ilgiler: ilgiler?.join(", "), kariyer_hedef, aile_notu },
     }),
   });
   const data = await res.json();
@@ -1840,7 +1840,7 @@ async function getAISummary(rawText) {
   return data.content?.[0]?.text || "";
 }
 
-async function getProfileAnalysis(studentName, className, scores, notes, kutuphaneOzetleri = []) {
+async function getProfileAnalysis(studentName, className, numara, scores, notes, kutuphaneOzetleri = []) {
   const boyutlar = DIMENSIONS.map(d => `${d.label}: ${scores[d.key] || 0}/5`).join(", ");
   const kutuphaneBaglam = pdrKutuphaneBaglam(kutuphaneOzetleri);
   const onerilerNot = kutuphaneOzetleri.length > 0 ? ", kütüphane referanslarından yararlan" : "";
@@ -1849,7 +1849,7 @@ async function getProfileAnalysis(studentName, className, scores, notes, kutupha
   const res = await fetch(PDR_AI_WORKER_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "profil_analiz", apiKey, data: { studentName, className, boyutlar, notes, kutuphaneBaglam, onerilerNot } }),
+    body: JSON.stringify({ action: "profil_analiz", apiKey, data: { studentName, className, numara, boyutlar, notes, kutuphaneBaglam, onerilerNot } }),
   });
   const data = await res.json();
   if (data.error) throw new Error(data.error);
@@ -2197,7 +2197,7 @@ async function pdfMetinCikar(file) {
   });
 }
 
-async function getDegerlendirmeAnalysis(studentName, className, cevaplar, notlar) {
+async function getDegerlendirmeAnalysis(studentName, className, numara, cevaplar, notlar) {
   const boyutMetni = DEG_SORULAR.map(b => {
     const bC = cevaplar[b.key] || {};
     const sorular = b.sorular.map((s, i) => `  - ${s}: ${bC[i] !== undefined ? DEG_SECENEKLER.find(x => x.val === bC[i])?.label : "Yanıtlanmadı"}`).join("\n");
@@ -2212,7 +2212,7 @@ async function getDegerlendirmeAnalysis(studentName, className, cevaplar, notlar
   const res = await fetch(PDR_AI_WORKER_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "degerlendirme_analiz", apiKey, data: { studentName, className, puanOzet, boyutMetni } }),
+    body: JSON.stringify({ action: "degerlendirme_analiz", apiKey, data: { studentName, className, numara, puanOzet, boyutMetni } }),
   });
   const data = await res.json();
   if (data.error) throw new Error(data.error);
@@ -2222,10 +2222,10 @@ async function getDegerlendirmeAnalysis(studentName, className, cevaplar, notlar
 // ── Değerlendirme Bileşeni ────────────────────────────────────────────────────
 function DegerlendirmeEkrani({ onTransfer, onClose, records, profiles, profiles2, kayitliListesi, aktifOgrenci, setAktifOgrenci }) {
   const [adim, setAdim] = useState("giris"); // giris | sorular | sonuc
-  const [ogrenci, setOgrenci] = useState({ ad: aktifOgrenci?.name || "", sinif: aktifOgrenci?.className || "" });
+  const [ogrenci, setOgrenci] = useState({ ad: aktifOgrenci?.name || "", sinif: aktifOgrenci?.className || "", numara: aktifOgrenci?.numara || "" });
   const [degOgrenciArama, setDegOgrenciArama] = useState("");
   useEffect(() => {
-    if (aktifOgrenci?.name) setOgrenci({ ad: aktifOgrenci.name, sinif: aktifOgrenci.className || "" });
+    if (aktifOgrenci?.name) setOgrenci({ ad: aktifOgrenci.name, sinif: aktifOgrenci.className || "", numara: aktifOgrenci.numara || "" });
   }, [aktifOgrenci?.name]);
   const [aktif, setAktif] = useState(0);
   const [cevaplar, setCevaplar] = useState({});
@@ -2244,7 +2244,7 @@ function DegerlendirmeEkrani({ onTransfer, onClose, records, profiles, profiles2
 
   async function analizYap() {
     setYukleniyor(true);
-    const sonuc = await getDegerlendirmeAnalysis(ogrenci.ad, ogrenci.sinif, cevaplar, notlar);
+    const sonuc = await getDegerlendirmeAnalysis(ogrenci.ad, ogrenci.sinif, ogrenci.numara, cevaplar, notlar);
     setAnaliz(sonuc);
     setYukleniyor(false);
     setAdim("sonuc");
@@ -2296,7 +2296,7 @@ function DegerlendirmeEkrani({ onTransfer, onClose, records, profiles, profiles2
                       o.className?.toLocaleLowerCase("tr").includes(degOgrenciArama.toLocaleLowerCase("tr")) ||
                       o.numara?.includes(degOgrenciArama)
                     ).slice(0, 20).map(o => (
-                      <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => { setOgrenci({ ad: o.name, sinif: o.className || "" }); setAktifOgrenci({ name: o.name, className: o.className || "" }); setDegOgrenciArama(""); }} style={{
+                      <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => { setOgrenci({ ad: o.name, sinif: o.className || "", numara: o.numara || "" }); setAktifOgrenci({ name: o.name, className: o.className || "" }); setDegOgrenciArama(""); }} style={{
                         padding: "6px 12px", borderRadius: 20, border: "2px solid #E2E1DC", background: "#fff", color: "#5A5A7A", fontSize: 12, fontWeight: 500, cursor: "pointer"
                       }}>{o.name}{o.className ? ` · ${o.className}` : ""}</button>
                     ))}
@@ -9556,7 +9556,7 @@ function ProfilMerkez({
       ? "DENEME NETLERI: " + denemeGirilen.map(d=>`D${d.no}: ${d.toplam.toFixed(1)}`).join(", ")
       : "";
     const notlar = [gorusmeBolum, profForm.notes, denemeOzeti].filter(Boolean).join("\n\n");
-    const analysis = await getProfileAnalysis(seciliAd, seciliSinif, profForm.scores, notlar, kutuphane);
+    const analysis = await getProfileAnalysis(seciliAd, seciliSinif, seciliNumara, profForm.scores, notlar, kutuphane);
     setProfForm(f => ({ ...f, analysis }));
     setProfAiLoading(false);
   }
@@ -9568,7 +9568,7 @@ function ProfilMerkez({
       ? "GÖRÜŞME NOTLARI:\n" + ogrRec.map((r,i)=>`Görüşme ${i+1} (${r.date}): ${r.summary}`).join("\n\n")
       : "";
     const analiz = await getP2Analiz({
-      studentName: seciliAd, className: seciliSinif,
+      studentName: seciliAd, className: seciliSinif, numara: seciliNumara,
       ...prof2Form,
       gorusmeler: gorusmeBolum,
       denemeGirilen: denemeGirilen
@@ -11226,7 +11226,7 @@ export default function App() {
           }).join(", ")
       : "";
     const notlarVeDeneme = [profForm.notes, denemeOzeti].filter(Boolean).join("\n");
-    const analysis = await getProfileAnalysis(profForm.studentName, profForm.className, profForm.scores, notlarVeDeneme, kutuphane);
+    const analysis = await getProfileAnalysis(profForm.studentName, profForm.className, profForm.numara, profForm.scores, notlarVeDeneme, kutuphane);
     setProfForm(f => ({ ...f, analysis }));
     setProfAiLoading(false);
   }
@@ -11426,7 +11426,7 @@ export default function App() {
       no:parseInt(no), nets, toplam: aktifDenemeDersleri.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
     }));
     setDenemeAiLoading(true);
-    const analiz = await getDenemeAnalizi(studentName, gorusmeler, girilen, kutuphane, sinavTuru);
+    const analiz = await getDenemeAnalizi(studentName, className, numara, gorusmeler, girilen, kutuphane, sinavTuru);
     setDenemeAnaliz(prev => pdrSozlukYaz(prev, studentName, className, analiz, numara));
     setDenemeAiLoading(false);
   }
@@ -11458,7 +11458,7 @@ export default function App() {
     const girilen2 = Object.entries(ogrDen2).sort((a,b)=>a[0]-b[0]).map(([no,nets])=>({
       no:parseInt(no), nets, toplam: aktifDenemeDersleri.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
     }));
-    const analiz = await getP2Analiz({ ...prof2Form, studentName: seciliAd, className: seciliSinif, gorusmeler: gorusmeBolum2, denemeGirilen: girilen2, sinavTuru });
+    const analiz = await getP2Analiz({ ...prof2Form, studentName: seciliAd, className: seciliSinif, numara: seciliNumara, gorusmeler: gorusmeBolum2, denemeGirilen: girilen2, sinavTuru });
     setProf2Analiz(analiz);
     setProf2AiLoading(false);
   }
