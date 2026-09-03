@@ -1212,7 +1212,18 @@ function ogrenciEtkinlikHavuzu(ogrenciSinif, kademeTahmin) {
 // Devamsızlık verisi her zaman "yeni bir kayıt olarak eklenir" mantığıyla
 // çalışır (üzerine yazmaz) — böylece OzetKarti'ndeki "artış hızı" takibi ve
 // "O Gün Neler Girildi" ile tam uyumlu kalır.
-function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab, setAktifOgrenci }) {
+// Devamsızlık nedeni kategorileri — hem manuel girişte hem Excel'de opsiyonel,
+// zorunlu değil. Amaç, "kaç gün" bilgisinin yanına "neden" ipucu ekleyerek
+// önlem tasarlamayı kolaylaştırmak (nedeni bilinmeden önlem üretilemez).
+const DEVAMSIZLIK_NEDENLERI = ["Bilinmiyor", "Sağlık", "Aile", "Motivasyon", "Diğer"];
+// Devamsızlık gün sayısı ilk kez "Takip Edilmeli" eşiğine (4+ gün) girdiğinde
+// true döner — otomatik hatırlatma oluşturmak için kullanılır. Zaten 4+ olan
+// bir öğrenci tekrar tekrar hatırlatma almasın diye SADECE eşiğin YENİ
+// geçildiği an tetiklenir (önceki kayıt 4'ün altındaysa).
+function devamsizlikEsikYeniGecisMi(eskiGun, yeniGun) {
+  return (eskiGun === undefined || eskiGun === null || eskiGun < 4) && yeniGun >= 4;
+}
+function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab, setAktifOgrenci, hatirlatmalar, setHatirlatmalar, setRiskForm }) {
   const [excelYukleniyor, setExcelYukleniyor] = useState(false);
   const [excelTarihi, setExcelTarihi] = useState(today());
   const [sonuc, setSonuc] = useState(null);
@@ -1224,6 +1235,7 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
   const [manuelSecili, setManuelSecili] = useState(null);
   const [manuelGun, setManuelGun] = useState("");
   const [manuelTarih, setManuelTarih] = useState(today());
+  const [manuelNeden, setManuelNeden] = useState("Bilinmiyor");
 
   const yilOgrencileri = ogrenciler.filter(o => (!o.yil || o.yil === aktifYil) && pdrKademeUyumlu(o.className, kademe));
   // NOT: en güncel kaydı tarihe göre sıralayıp bulmak yerine, dizinin SON
@@ -1235,10 +1247,46 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
     .map(o => {
       const gecmis = o.devamsizlikGecmisi || [];
       const son = gecmis[gecmis.length - 1];
-      return (son && son.gun > 0) ? { studentName: o.studentName, className: o.className, numara: o.numara, gun: son.gun, tarih: son.tarih } : null;
+      const onceki = gecmis[gecmis.length - 2];
+      // Hızlı artış: son iki kayıt arasında 30 günden kısa sürede 3+ gün
+      // artış varsa işaretlenir — aynı mantık uygulamanın başka yerinde
+      // (aniDegisimHesapla) kullanılan "devamsızlık artış hızı" sinyaliyle
+      // tutarlı.
+      let hizliArtis = false;
+      if (son && onceki) {
+        const gunFarki = son.gun - onceki.gun;
+        const gecenGun = Math.max(1, (pdrTarihMs(son.tarih) - pdrTarihMs(onceki.tarih)) / 86400000);
+        hizliArtis = gunFarki >= 3 && gecenGun <= 30;
+      }
+      return (son && son.gun > 0) ? { studentName: o.studentName, className: o.className, numara: o.numara, gun: son.gun, tarih: son.tarih, neden: son.neden, hizliArtis } : null;
     })
     .filter(Boolean)
     .sort((a,b) => b.gun - a.gun);
+
+  // Eşik yeni geçildiyse "Hatırlatıcı"ya otomatik bir kayıt düşer — danışman
+  // fark etmeden atlamasın diye. kaynak:"otomatik_devamsizlik" ile
+  // işaretlenir, manuel eklenenlerden ayırt edilebilir.
+  async function otomatikHatirlatmaEkleGerekirse(ogr, eskiGun, yeniGun, yeniTarih) {
+    if (!devamsizlikEsikYeniGecisMi(eskiGun, yeniGun)) return;
+    const yeni = {
+      id: uid(), studentName: ogr.studentName, className: ogr.className, numara: ogr.numara,
+      metin: `Devamsızlık ${yeniGun} güne ulaştı (Takip Edilmeli eşiği) — veliyle görüşmeyi değerlendir.`,
+      tarih: yeniTarih, tur: "genel", ramTarihi: "", kaynak: "otomatik_devamsizlik", olusturmaTarihi: today(), tamamlandi: false,
+    };
+    const guncel = [yeni, ...(hatirlatmalar||[])];
+    setHatirlatmalar(guncel);
+    await saveHatirlatmalar(guncel);
+  }
+
+  function handleRiskKaydiAc(o) {
+    setRiskForm({
+      studentName: o.studentName, className: o.className, numara: o.numara || "",
+      riskTuru: "Devamsızlık", aciklama: `Devamsızlık: ${o.gun} gün (${o.tarih} itibarıyla)${o.neden && o.neden !== "Bilinmiyor" ? " — Neden: " + o.neden : ""}`,
+      oncelik: o.gun >= 10 ? "Yüksek" : "Orta", tarih: today(),
+    });
+    setAktifOgrenci({ name: o.studentName, className: o.className || "" });
+    setTab("risk");
+  }
 
   async function handleManuelKaydet() {
     if (!manuelSecili || manuelGun === "") return;
@@ -1246,13 +1294,18 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
     if (idx < 0) return;
     const yeniOgrenciler = [...ogrenciler];
     const eskiGecmis = yeniOgrenciler[idx].devamsizlikGecmisi || [];
-    yeniOgrenciler[idx] = { ...yeniOgrenciler[idx], devamsizlikGecmisi: [...eskiGecmis, { tarih: manuelTarih || today(), gun: parseInt(manuelGun) || 0 }] };
+    const eskiSon = eskiGecmis[eskiGecmis.length - 1];
+    const yeniGun = parseInt(manuelGun) || 0;
+    const yeniTarih = manuelTarih || today();
+    yeniOgrenciler[idx] = { ...yeniOgrenciler[idx], devamsizlikGecmisi: [...eskiGecmis, { tarih: yeniTarih, gun: yeniGun, neden: manuelNeden }] };
     setOgrenciler(yeniOgrenciler);
     await saveOgrenciler(yeniOgrenciler);
+    await otomatikHatirlatmaEkleGerekirse(yeniOgrenciler[idx], eskiSon?.gun, yeniGun, yeniTarih);
     setManuelSecili(null);
     setManuelArama("");
     setManuelGun("");
     setManuelTarih(today());
+    setManuelNeden("Bilinmiyor");
   }
 
   function handleExcelYukle(e) {
@@ -1278,12 +1331,14 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
         const colSinif = headers.findIndex(h => h.includes("SINIF") || h.includes("SUBE"));
         const colNumara = headers.findIndex(h => h.includes("NUMARA") || h === "NO" || h.includes("OKUL NO"));
         const colGun = headers.findIndex(h => h.includes("DEVAMSIZLIK") || h.includes("GUN"));
+        const colNeden = headers.findIndex(h => h.includes("NEDEN") || h.includes("SEBEP"));
         if (colAd < 0) throw new Error('"Ad Soyad" sütunu bulunamadı.');
         if (colGun < 0) throw new Error('"Devamsızlık" ya da "Gün" sütunu bulunamadı.');
 
         const yeniOgrenciler = [...ogrenciler];
         let islenen = 0;
         const eslesmeyen = [];
+        const esikGecenler = []; // otomatik hatırlatma için toplanır
         for (let i = 1; i < rows.length; i++) {
           const row = rows[i];
           const adSoyad = String(row[colAd] || "").trim();
@@ -1291,16 +1346,30 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
           const sinif = colSinif >= 0 ? String(row[colSinif] || "").trim() : "";
           const numara = colNumara >= 0 ? String(row[colNumara] || "").trim() : "";
           const gun = parseInt(String(row[colGun] ?? "").trim());
+          const neden = colNeden >= 0 ? String(row[colNeden] || "").trim() : "";
           if (isNaN(gun)) { eslesmeyen.push(adSoyad); continue; }
           const idx = yeniOgrenciler.findIndex(o => pdrAyniOgrenci(o.studentName, o.className, adSoyad, sinif, o.numara, numara));
           if (idx < 0) { eslesmeyen.push(adSoyad + " (öğrenci bulunamadı)"); continue; }
           const eskiGecmis = yeniOgrenciler[idx].devamsizlikGecmisi || [];
-          yeniOgrenciler[idx] = { ...yeniOgrenciler[idx], devamsizlikGecmisi: [...eskiGecmis, { tarih: excelTarihi || today(), gun }] };
+          const eskiSon = eskiGecmis[eskiGecmis.length - 1];
+          const yeniTarih = excelTarihi || today();
+          yeniOgrenciler[idx] = { ...yeniOgrenciler[idx], devamsizlikGecmisi: [...eskiGecmis, { tarih: yeniTarih, gun, neden: neden || undefined }] };
+          if (devamsizlikEsikYeniGecisMi(eskiSon?.gun, gun)) esikGecenler.push({ ogr: yeniOgrenciler[idx], gun, tarih: yeniTarih });
           islenen++;
         }
         setOgrenciler(yeniOgrenciler);
         await saveOgrenciler(yeniOgrenciler);
-        setSonuc({ islenen, eslesmeyen });
+        if (esikGecenler.length > 0) {
+          const yeniHatirlatmalar = esikGecenler.map(({ogr, gun, tarih}) => ({
+            id: uid(), studentName: ogr.studentName, className: ogr.className, numara: ogr.numara,
+            metin: `Devamsızlık ${gun} güne ulaştı (Takip Edilmeli eşiği) — veliyle görüşmeyi değerlendir.`,
+            tarih, tur: "genel", ramTarihi: "", kaynak: "otomatik_devamsizlik", olusturmaTarihi: today(), tamamlandi: false,
+          }));
+          const guncelHatirlatmalar = [...yeniHatirlatmalar, ...(hatirlatmalar||[])];
+          setHatirlatmalar(guncelHatirlatmalar);
+          await saveHatirlatmalar(guncelHatirlatmalar);
+        }
+        setSonuc({ islenen, eslesmeyen, esikGecenSayisi: esikGecenler.length });
       } catch (err) {
         alert("Dosya okunamadı: " + err.message);
       }
@@ -1354,6 +1423,17 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
                   style={{ width:"100%", padding:"7px 10px", border:`1px solid ${BORDER}`, borderRadius:8, fontSize:12, boxSizing:"border-box" }} />
               </div>
             </div>
+            <div style={{ marginBottom:10 }}>
+              <label style={{ fontSize:10, fontWeight:700, color:MUTED, display:"block", marginBottom:3 }}>NEDEN (opsiyonel)</label>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+                {DEVAMSIZLIK_NEDENLERI.map(n => (
+                  <button key={n} onClick={()=>setManuelNeden(n)} style={{
+                    padding:"5px 10px", borderRadius:14, border:`1.5px solid ${manuelNeden===n?"#C0392B":BORDER}`,
+                    background:manuelNeden===n?"#C0392B":"#fff", color:manuelNeden===n?"#fff":MUTED, fontSize:10.5, fontWeight:700, cursor:"pointer"
+                  }}>{n}</button>
+                ))}
+              </div>
+            </div>
             <button onClick={handleManuelKaydet} disabled={manuelGun===""} style={{
               width:"100%", padding:"9px", background:manuelGun===""?BORDER:"#C0392B", color:manuelGun===""?MUTED:"#fff", border:"none", borderRadius:8, fontSize:12.5, fontWeight:700, cursor:"pointer"
             }}>Kaydet</button>
@@ -1364,7 +1444,7 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
       {/* Excel toplu yükleme */}
       <div style={{ background:CARD, border:`2px solid #C0392B`, borderRadius:12, padding:14, marginBottom:16 }}>
         <div style={{ fontSize:13, fontWeight:800, color:"#C0392B", marginBottom:8 }}>📊 Excel ile Toplu Yükle</div>
-        <div style={{ fontSize:11, color:MUTED, marginBottom:10, lineHeight:1.5 }}>Excel'de "Ad Soyad" (zorunlu), varsa "Sınıf"/"Numara" ve "Devamsızlık" (ya da "Gün") sütunları olmalı.</div>
+        <div style={{ fontSize:11, color:MUTED, marginBottom:10, lineHeight:1.5 }}>Excel'de "Ad Soyad" (zorunlu), varsa "Sınıf"/"Numara"/"Neden" ve "Devamsızlık" (ya da "Gün") sütunları olmalı.</div>
         <label style={{ fontSize:11, fontWeight:700, color:MUTED, display:"block", marginBottom:4 }}>RAPOR TARİHİ</label>
         <input value={excelTarihi} onChange={e=>setExcelTarihi(e.target.value)} placeholder="GG.AA.YYYY"
           style={{ width:"100%", padding:"7px 10px", border:`1px solid ${BORDER}`, borderRadius:8, fontSize:12, boxSizing:"border-box", marginBottom:10 }} />
@@ -1377,6 +1457,9 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
       {sonuc && (
         <div style={{ background:"#E6F5EE", borderRadius:8, padding:10, marginBottom:16 }}>
           <div style={{ fontSize:12, fontWeight:700, color:"#1A8C5B" }}>✓ {sonuc.islenen} öğrenci işlendi.</div>
+          {sonuc.esikGecenSayisi > 0 && (
+            <div style={{ fontSize:11, color:"#B07D1A", marginTop:4, fontWeight:600 }}>🔔 {sonuc.esikGecenSayisi} öğrenci "Takip Edilmeli" eşiğine yeni girdi — Hatırlatıcı'ya otomatik eklendi.</div>
+          )}
           {sonuc.eslesmeyen.length > 0 && (
             <div style={{ fontSize:11, color:"#B07D1A", marginTop:6, lineHeight:1.5 }}>⚠️ {sonuc.eslesmeyen.length} satır işlenemedi: {sonuc.eslesmeyen.slice(0,5).join(", ")}{sonuc.eslesmeyen.length>5?"...":""}</div>
           )}
@@ -1426,13 +1509,26 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
         <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
           {devamsizOgrenciler.map(o => (
             <div key={pdrOgrAnahtar(o.studentName, o.className, o.numara)}
-              onClick={()=>{ setAktifOgrenci({ name:o.studentName, className:o.className||"" }); setTab("ogrenciler"); }}
-              style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 12px", background:CARD, border:`1px solid ${BORDER}`, borderRadius:10, cursor:"pointer" }}>
-              <div>
-                <div style={{ fontSize:13, fontWeight:700, color:TEXT }}>{o.studentName}</div>
-                <div style={{ fontSize:10.5, color:MUTED, marginTop:1 }}>{o.className} — son güncelleme: {o.tarih}</div>
+              style={{ display:"flex", flexDirection:"column", padding:"9px 12px", background:CARD, border:`1px solid ${BORDER}`, borderRadius:10 }}>
+              <div onClick={()=>{ setAktifOgrenci({ name:o.studentName, className:o.className||"" }); setTab("ogrenciler"); }}
+                style={{ display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer" }}>
+                <div>
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <span style={{ fontSize:13, fontWeight:700, color:TEXT }}>{o.studentName}</span>
+                    {o.hizliArtis && <span title="Kısa sürede hızlı artış" style={{ fontSize:9, fontWeight:700, color:"#C0392B", background:"#FDECEA", borderRadius:8, padding:"1px 6px" }}>🚀 Hızlı artış</span>}
+                  </div>
+                  <div style={{ fontSize:10.5, color:MUTED, marginTop:1 }}>
+                    {o.className} — son güncelleme: {o.tarih}
+                    {o.neden && o.neden !== "Bilinmiyor" && <span> — Neden: {o.neden}</span>}
+                  </div>
+                </div>
+                <div style={{ fontSize:16, fontWeight:900, color: o.gun >= 10 ? "#C0392B" : o.gun >= 5 ? "#B07D1A" : MUTED }}>{o.gun} gün</div>
               </div>
-              <div style={{ fontSize:16, fontWeight:900, color: o.gun >= 10 ? "#C0392B" : o.gun >= 5 ? "#B07D1A" : MUTED }}>{o.gun} gün</div>
+              {o.gun >= 4 && (
+                <button onClick={()=>handleRiskKaydiAc(o)} style={{
+                  alignSelf:"flex-start", marginTop:7, padding:"4px 10px", background:"none", border:"1px solid #C0392B", color:"#C0392B", borderRadius:8, fontSize:10.5, fontWeight:700, cursor:"pointer"
+                }}>⚠ Risk Kaydı Aç</button>
+              )}
             </div>
           ))}
         </div>
@@ -2850,6 +2946,42 @@ async function raporIndir(elementId, dosyaAdi) {
 
 
 // ── PDF Rapor Verisi ─────────────────────────────────────────────────────────
+// Basit, statik (interaktif olmayan) bir SVG çizgi grafik üretir — PDF
+// Rapor'un yazdırılabilir/print HTML'i içinde çalışacak şekilde, harici bir
+// grafik kütüphanesine ihtiyaç duymadan. noktalar: [{x, y, etiket}], x
+// değerleri eşit aralıklı kabul edilir (deneme no, hafta no gibi sıralı
+// değerler için tasarlandı).
+function raporCizgiGrafik(noktalar, { genislik = 460, yukseklik = 130, renk = "#1FA971", birim = "", minY = null, maxY = null } = {}) {
+  if (!noktalar || noktalar.length === 0) return null;
+  const solPad = 34, altPad = 22, ustPad = 14, sagPad = 12;
+  const cizimGenislik = genislik - solPad - sagPad;
+  const cizimYukseklik = yukseklik - ustPad - altPad;
+  const yDegerler = noktalar.map(n => n.y);
+  const yMin = minY !== null ? minY : Math.min(...yDegerler);
+  const yMax = maxY !== null ? maxY : Math.max(...yDegerler);
+  const yAralik = (yMax - yMin) || 1;
+  const xAdimi = noktalar.length > 1 ? cizimGenislik / (noktalar.length - 1) : 0;
+  const nx = i => solPad + i * xAdimi;
+  const ny = y => ustPad + cizimYukseklik - ((y - yMin) / yAralik) * cizimYukseklik;
+  const yoldata = noktalar.map((n, i) => `${i === 0 ? "M" : "L"} ${nx(i).toFixed(1)} ${ny(n.y).toFixed(1)}`).join(" ");
+  return (
+    <svg viewBox={`0 0 ${genislik} ${yukseklik}`} style={{ width: "100%", height: yukseklik, display: "block" }}>
+      <line x1={solPad} y1={ustPad} x2={solPad} y2={ustPad + cizimYukseklik} stroke="#ddd" strokeWidth="1" />
+      <line x1={solPad} y1={ustPad + cizimYukseklik} x2={genislik - sagPad} y2={ustPad + cizimYukseklik} stroke="#ddd" strokeWidth="1" />
+      <text x={solPad - 4} y={ustPad + 4} fontSize="8" fill="#999" textAnchor="end">{Math.round(yMax)}{birim}</text>
+      <text x={solPad - 4} y={ustPad + cizimYukseklik} fontSize="8" fill="#999" textAnchor="end">{Math.round(yMin)}{birim}</text>
+      <path d={yoldata} fill="none" stroke={renk} strokeWidth="2" />
+      {noktalar.map((n, i) => (
+        <g key={i}>
+          <circle cx={nx(i)} cy={ny(n.y)} r="2.6" fill={renk} />
+          <text x={nx(i)} y={ny(n.y) - 6} fontSize="7.5" fill="#555" textAnchor="middle">{n.y}{birim}</text>
+          <text x={nx(i)} y={yukseklik - 4} fontSize="7.5" fill="#999" textAnchor="middle">{n.etiket}</text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
 function raporVerisiOlustur({ ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler, mudahalePlan, riskListesi, sinavTuru, testKayitlari, kaynastirma, oogDegerlendirmeler, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }) {
   return { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: denemeler || {}, mudahalePlan: mudahalePlan || {}, riskListesi: riskListesi || [], sinavTuru, testKayitlari: testKayitlari || [], kaynastirma: kaynastirma || [], oogDegerlendirmeler: oogDegerlendirmeler || [], hazirlikNotlari: hazirlikNotlari || {}, ilerlemeNotlari: ilerlemeNotlari || {}, sevkler: sevkler || [], ogrenciler: ogrenciler || [], tarih: new Date().toLocaleDateString("tr-TR") };
 }
@@ -3240,6 +3372,13 @@ function RaporModal({ rapor, onKapat }) {
                         </div>
                       ))}
                     </div>
+                    {/* Net Trendi — X: deneme no, Y: toplam net */}
+                    {girilen.length > 1 && (
+                      <div style={{ marginBottom: 12, pageBreakInside:"avoid" }}>
+                        <div style={{ fontSize:9, fontWeight:700, color:"#888", textTransform:"uppercase", marginBottom:3 }}>Net Trendi</div>
+                        {raporCizgiGrafik(girilen.map(d => ({ x: d.no, y: Math.round(d.toplam*10)/10, etiket: `D${d.no}` })), { renk: ACCENT })}
+                      </div>
+                    )}
                     {/* Deneme listesi */}
                     <div style={{display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:4, marginBottom:10}}>
                       {girilen.map(d => {
@@ -12310,6 +12449,9 @@ export default function App() {
             aktifYil={aktifYil}
             setTab={setTab}
             setAktifOgrenci={setAktifOgrenci}
+            hatirlatmalar={hatirlatmalar}
+            setHatirlatmalar={setHatirlatmalar}
+            setRiskForm={setRiskForm}
           />
         )}
 
