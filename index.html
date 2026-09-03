@@ -2850,8 +2850,8 @@ async function raporIndir(elementId, dosyaAdi) {
 
 
 // ── PDF Rapor Verisi ─────────────────────────────────────────────────────────
-function raporVerisiOlustur({ ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler, mudahalePlan, riskListesi, sinavTuru, testKayitlari, kaynastirma }) {
-  return { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: denemeler || {}, mudahalePlan: mudahalePlan || {}, riskListesi: riskListesi || [], sinavTuru, testKayitlari: testKayitlari || [], kaynastirma: kaynastirma || [], tarih: new Date().toLocaleDateString("tr-TR") };
+function raporVerisiOlustur({ ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler, mudahalePlan, riskListesi, sinavTuru, testKayitlari, kaynastirma, oogDegerlendirmeler }) {
+  return { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: denemeler || {}, mudahalePlan: mudahalePlan || {}, riskListesi: riskListesi || [], sinavTuru, testKayitlari: testKayitlari || [], kaynastirma: kaynastirma || [], oogDegerlendirmeler: oogDegerlendirmeler || [], tarih: new Date().toLocaleDateString("tr-TR") };
 }
 
 // ── PDF Rapor Bileşeni ────────────────────────────────────────────────────────
@@ -2981,6 +2981,31 @@ function RaporModal({ rapor, onKapat }) {
                 </div>
               </div>
             )}
+
+            {/* ÖÖG (Özel Öğrenme Güçlüğü) Ön-Tarama — bu bir tarama aracıdır,
+                tanı koymaz; sadece doldurulmuşsa gösterilir. */}
+            {(() => {
+              const oogKayit = (rapor.oogDegerlendirmeler||[]).find(o => pdrAyniOgrenci(o.studentName, o.className, ogrenci, ogrenciSinif));
+              if (!oogKayit || !oogKayit.cevaplar || Object.keys(oogKayit.cevaplar).length === 0) return null;
+              const sonuc = oogSonucHesapla(oogKayit.cevaplar);
+              return (
+                <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
+                  <div style={{ ...S.bolumBaslik2 }}>ÖÖG Ön-Tarama (Tanı Değil — Yalnızca Tarama)</div>
+                  <div style={S.bolumIcerik2}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                      <span style={{ fontSize:16, fontWeight:900, color:sonuc.seviye.color }}>%{sonuc.yuzde}</span>
+                      <span style={{ fontSize:10.5, fontWeight:700, color:sonuc.seviye.color, background:sonuc.seviye.bg, borderRadius:8, padding:"2px 8px" }}>{sonuc.seviye.label}</span>
+                      <span style={{ fontSize:9, color:"#888" }}>({oogKayit.date})</span>
+                    </div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                      {OOG_KATEGORILER.filter(k => sonuc.kategoriPuan[k.key] !== null && sonuc.kategoriPuan[k.key] !== undefined).map(k => (
+                        <span key={k.key} style={{ fontSize:9.5, background:"#f5f5f5", borderRadius:4, padding:"2px 7px" }}>{k.label}: %{sonuc.kategoriPuan[k.key]}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Sağ */}
@@ -11352,7 +11377,7 @@ export default function App() {
         const parse = d => { const [g, ay, y] = (d||"").split("."); return new Date(`${y}-${ay}-${g}`); };
         return parse(a.date) - parse(b.date);
       });
-    setRaporVerisi(raporVerisiOlustur({ ogrenci: ogrenciAdi, ogrenciSinif: profil1.className, profil1, profil2, gorusmeler, denemeler: pdrSozlukOku(denemeler, ogrenciAdi, profil1.className, profil1.numara) || {}, mudahalePlan, riskListesi, sinavTuru, testKayitlari }));
+    setRaporVerisi(raporVerisiOlustur({ ogrenci: ogrenciAdi, ogrenciSinif: profil1.className, profil1, profil2, gorusmeler, denemeler: pdrSozlukOku(denemeler, ogrenciAdi, profil1.className, profil1.numara) || {}, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler }));
   }
 
   async function handleProf2Analiz() {
@@ -11857,7 +11882,7 @@ export default function App() {
             records={records}
             kutuphane={kutuphane}
             sinavTuru={sinavTuru}
-            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari }))}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler }))}
             onDegerlendirmeAc={() => setDegerlendirmeAcik(true)}
           />
         )}
@@ -12009,7 +12034,7 @@ export default function App() {
             setHazirlikNotlari={setHazirlikNotlari}
             ilerlemeNotlari={ilerlemeNotlari}
             setIlerlemeNotlari={setIlerlemeNotlari}
-            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari }))}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler }))}
             onSinifGuncelle={async (eskiAd, eskiSinif, eskiNumara, yeniAd, yeniSinif) => {
               const ayniMi = (ad, sinif, no) => pdrAyniOgrenci(eskiAd, eskiSinif, ad, sinif, eskiNumara, no);
 
@@ -12203,7 +12228,7 @@ export default function App() {
             setAktifOgrenci={setAktifOgrenci}
             profiles={profiles}
             profiles2={profiles2}
-            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari }))}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler }))}
           />
         )}
 
