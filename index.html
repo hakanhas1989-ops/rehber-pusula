@@ -9165,7 +9165,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
         📊 {SINAV_TURLERI[sinavTuru || "lgs"].ad} Deneme Takibi — {DENEME_SAYISI} deneme, {dersler.length} ders, {dersToplami} soru
       </div>
 
-      <RiskOzetKartlari ogrenciler={(ogrenciler||[]).filter(o => !o.yil || o.yil === aktifYil)} baslik="📊 Tüm Okul — Geçmiş Dönem Risk Dağılımı" />
+      <RiskOzetKartlari ogrenciler={(ogrenciler||[]).filter(o => !o.yil || o.yil === aktifYil)} baslik="📊 Tüm Okul — Geçmiş Dönem Deneme Risk Dağılımı" />
 
       <DenemeBazliRiskGosterimi denemeler={denemeler} kayitliListesi={kayitliListesi} dersler={dersler} />
 
@@ -10471,7 +10471,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
           <div style={{ fontSize:10, color:MUTED, marginTop:-8, marginBottom:14, textAlign:"right" }}>Deneme ortalaması {st.denemeKapsam}/{st.ogr.length} öğrenciden hesaplandı</div>
         )}
 
-        <RiskOzetKartlari ogrenciler={st.ogr} kompakt baslik="📊 Geçmiş Dönem Risk Dağılımı" />
+        <RiskOzetKartlari ogrenciler={st.ogr} kompakt baslik="📊 Geçmiş Dönem Deneme Risk Dağılımı" />
 
         {/* Görüşme Konuları */}
         {st.konuSirali.length > 0 && (
@@ -10696,7 +10696,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
         <div style={{background:"#EEF2FF",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:13,color:BLUE,fontWeight:600}}>
           🏫 {aktifYil} — Sınıf Düzeyi Seç
         </div>
-        <RiskOzetKartlari ogrenciler={yilOgrencileri} baslik="📊 Tüm Okul — Geçmiş Dönem Risk Dağılımı" />
+        <RiskOzetKartlari ogrenciler={yilOgrencileri} baslik="📊 Tüm Okul — Geçmiş Dönem Deneme Risk Dağılımı" />
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           {sinifDuzeyleri.map(duzey => {
             const dst = sinifDuzeyiIstatistik(duzey);
