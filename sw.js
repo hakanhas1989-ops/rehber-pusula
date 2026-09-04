@@ -1,4 +1,24 @@
-const CACHE_NAME = "pdr-v9";
+const CACHE_NAME = "pdr-v10";
+
+// Push bildirimi (FCM) — uygulama kapalıyken/arka plandayken gelen
+// bildirimleri göstermek için Firebase Messaging bu service worker
+// içinde de başlatılıyor. Ana firebaseConfig ile birebir aynı olmalı.
+importScripts("https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js");
+firebase.initializeApp({
+  apiKey: "AIzaSyAhS-sfwpZa2zb8GKSqcvihLdrBMtPOCTQ",
+  authDomain: "rehber-pusula.firebaseapp.com",
+  projectId: "rehber-pusula",
+  storageBucket: "rehber-pusula.firebasestorage.app",
+  messagingSenderId: "880787609777",
+  appId: "1:880787609777:web:2987584e47fc78a2fc2a90",
+});
+const pdrSwMessaging = firebase.messaging();
+pdrSwMessaging.onBackgroundMessage((payload) => {
+  const baslik = (payload.notification && payload.notification.title) || "Rehber Pusula";
+  const govde = (payload.notification && payload.notification.body) || "";
+  self.registration.showNotification(baslik, { body: govde, icon: "./icon.png" });
+});
 
 const CACHE_URLS = [
   "./manifest.json",
