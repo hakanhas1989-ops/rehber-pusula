@@ -121,18 +121,17 @@ body {
 }
 /* iOS dokunma gecikmesi kaldır */
 * { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-/* Yükleme ekranı — yıldız ve pusulanın merkezde buluşması */
+/* Yükleme ekranı — beyin ve nöronlar arası elektriksel sinyal aktarımı */
 #splash {
   position: fixed; inset: 0; overflow: hidden;
   background: radial-gradient(circle at 50% 45%, #1f4d3a 0%, #163b2c 50%, #071510 100%);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   color: white; font-size: 18px; font-weight: 700; gap: 16px; z-index: 9999;
-  perspective: 1100px;
 }
 #splash.hide { display: none; }
 
 .pdr-splash-particle {
-  position:absolute; border-radius:50%; background:rgba(255,255,255,0.5);
+  position:absolute; border-radius:50%; background:rgba(154,224,255,0.55);
   animation: pdrFloatUp linear infinite;
 }
 @keyframes pdrFloatUp {
@@ -142,135 +141,31 @@ body {
 }
 #pdr-splash-vignette {
   position:absolute; inset:0; pointer-events:none; z-index:2;
-  background: radial-gradient(circle at 50% 45%, transparent 0%, transparent 40%, rgba(0,0,0,0.55) 100%);
-  animation: pdrVignettePulse 4.6s ease-in-out infinite;
+  background: radial-gradient(circle at 50% 45%, transparent 0%, transparent 45%, rgba(0,0,0,0.5) 100%);
 }
-@keyframes pdrVignettePulse {
-  0%, 44% { opacity:1; } 50% { opacity:0.25; } 58% { opacity:1; } 100% { opacity:1; }
+
+#pdr-brain-wrap { position:relative; width:230px; height:180px; z-index:3; }
+#pdr-brain-wrap svg { width:100%; height:100%; overflow:visible; }
+.pdr-brain-outline {
+  fill:none; stroke:rgba(190,230,210,0.55); stroke-width:2; stroke-linecap:round;
+  filter:drop-shadow(0 0 8px rgba(120,220,180,0.4));
+  animation: pdrBrainBreathe 3.6s ease-in-out infinite;
 }
-#pdr-splash-cam { position:relative; width:320px; height:320px; animation: pdrCamShake 4.6s linear infinite; }
-@keyframes pdrCamShake {
-  0%, 49.5%  { transform: translate(0,0); }
-  50%   { transform: translate(3px,-2px); }
-  50.4% { transform: translate(-4px,2px); }
-  50.8% { transform: translate(3px,1px); }
-  51.2% { transform: translate(-2px,-2px); }
-  51.6%, 100% { transform: translate(0,0); }
+@keyframes pdrBrainBreathe {
+  0%, 100% { opacity:0.65; }
+  50%      { opacity:1; }
 }
-#pdr-splash-scene {
-  position:relative; width:100%; height:100%; transform-style:preserve-3d;
-  animation: pdrZoomPunch 4.6s cubic-bezier(0.4,0,0.2,1) infinite;
+.pdr-synapse-line { fill:none; stroke:rgba(180,255,230,0.2); stroke-width:1.2; }
+.pdr-neuron {
+  fill:#eafff5; filter:drop-shadow(0 0 5px rgba(160,255,220,0.9));
+  transform-box: fill-box; transform-origin:center;
+  animation: pdrNeuronPulse 2.2s ease-in-out infinite;
 }
-@keyframes pdrZoomPunch {
-  0%, 48.5% { transform: scale(1); } 50.5% { transform: scale(1.09); }
-  56% { transform: scale(0.97); } 62%, 100% { transform: scale(1); }
+@keyframes pdrNeuronPulse {
+  0%, 100% { opacity:0.5; transform:scale(0.85); }
+  50%      { opacity:1;   transform:scale(1.2); }
 }
-.pdr-splash-star {
-  position:absolute; top:50%; left:50%; width:44px; height:44px; margin:-22px 0 0 -22px;
-  animation: pdrStarTravel 4.6s cubic-bezier(0.5,0,0.15,1) infinite;
-}
-.pdr-splash-star svg { width:100%; height:100%; }
-.pdr-splash-star.l0 { animation-delay: 0s;     filter: drop-shadow(0 0 6px #cfe0ff) drop-shadow(0 0 18px #16284d); z-index:6; }
-.pdr-splash-star.l1 { animation-delay: -0.045s; opacity:0.55; filter:blur(1.5px); z-index:5; }
-.pdr-splash-star.l2 { animation-delay: -0.09s;  opacity:0.38; filter:blur(3px);   z-index:4; }
-.pdr-splash-star.l3 { animation-delay: -0.135s; opacity:0.24; filter:blur(4.5px); z-index:3; }
-.pdr-splash-star.l4 { animation-delay: -0.18s;  opacity:0.13; filter:blur(6px);   z-index:2; }
-.pdr-splash-star.l5 { animation-delay: -0.225s; opacity:0.06; filter:blur(8px);   z-index:1; }
-@keyframes pdrStarTravel {
-  0%   { transform: translate3d(-170px,-125px,-320px) rotate3d(1,1,0,0deg) scale(0.35); opacity:0; }
-  9%   { opacity:1; }
-  48%  { transform: translate3d(0,0,0) rotate3d(0.6,1,0.2,780deg) scale(1.25); }
-  50.5%{ opacity:1; }
-  54%  { transform: translate3d(0,0,0) scale(0.12); opacity:0; }
-  100% { opacity:0; }
-}
-.pdr-splash-compass {
-  position:absolute; top:50%; left:50%; width:56px; height:56px; margin:-28px 0 0 -28px;
-  animation: pdrCompassTravel 4.6s cubic-bezier(0.5,0,0.15,1) infinite;
-}
-.pdr-splash-compass svg { width:100%; height:100%; }
-.pdr-splash-compass.l0 { animation-delay: 0s;     filter: drop-shadow(0 0 16px rgba(120,180,255,0.7)); z-index:6; }
-.pdr-splash-compass.l1 { animation-delay: -0.02s; opacity:0.3;  filter:blur(0.5px); z-index:5; }
-.pdr-splash-compass.l2 { animation-delay: -0.04s;  opacity:0.16; filter:blur(1px);   z-index:4; }
-.pdr-splash-compass.l3 { animation-delay: -0.06s; opacity:0.08;  filter:blur(1.5px); z-index:3; }
-.pdr-splash-compass.l4 { animation-delay: -0.08s;  opacity:0.04;  filter:blur(2px);   z-index:2; }
-.pdr-splash-compass.l5 { animation-delay: -0.1s; opacity:0.02; filter:blur(2.5px);   z-index:1; }
-@keyframes pdrCompassTravel {
-  0%   { transform: translate3d(175px,135px,-320px) rotate(-380deg) scale(0.35); opacity:0; }
-  9%   { opacity:1; }
-  40%  { transform: translate3d(0,0,0) rotate(-15deg) scale(1.2); }
-  48%  { transform: translate3d(0,0,0) rotate(0deg) scale(1.2); opacity:1; }
-  50.5%{ opacity:1; }
-  54%  { transform: translate3d(0,0,0) scale(0.12); opacity:0; }
-  100% { opacity:0; }
-}
-#pdr-splash-rays {
-  position:absolute; top:50%; left:50%; width:260px; height:260px; margin:-130px 0 0 -130px;
-  background: conic-gradient(from 0deg,
-    transparent 0deg, rgba(251,146,60,0.9) 4deg, transparent 10deg,
-    transparent 30deg, rgba(255,255,255,0.8) 34deg, transparent 40deg,
-    transparent 62deg, rgba(251,146,60,0.7) 66deg, transparent 72deg,
-    transparent 95deg, rgba(255,255,255,0.6) 99deg, transparent 105deg,
-    transparent 130deg, rgba(251,146,60,0.8) 134deg, transparent 140deg,
-    transparent 165deg, rgba(255,255,255,0.7) 169deg, transparent 175deg,
-    transparent 200deg, rgba(251,146,60,0.9) 204deg, transparent 210deg,
-    transparent 235deg, rgba(255,255,255,0.6) 239deg, transparent 245deg,
-    transparent 270deg, rgba(251,146,60,0.7) 274deg, transparent 280deg,
-    transparent 305deg, rgba(255,255,255,0.8) 309deg, transparent 315deg,
-    transparent 340deg, rgba(251,146,60,0.9) 344deg, transparent 350deg);
-  border-radius:50%; opacity:0; z-index:5;
-  animation: pdrRaysBurst 4.6s cubic-bezier(0.1,0.7,0.2,1) infinite;
-}
-@keyframes pdrRaysBurst {
-  0%, 49% { opacity:0; transform:scale(0.2) rotate(0deg); }
-  51%     { opacity:1; transform:scale(0.5) rotate(20deg); }
-  68%     { opacity:0; transform:scale(1.6) rotate(90deg); }
-  100%    { opacity:0; }
-}
-.pdr-splash-shock {
-  position:absolute; top:50%; left:50%; width:18px; height:18px; margin:-9px 0 0 -9px;
-  border-radius:50%; opacity:0; border:2px solid transparent; z-index:5;
-  animation: pdrShockOut 4.6s cubic-bezier(0.1,0.7,0.25,1) infinite;
-}
-.pdr-splash-shock.s1 { border-color:#ffffff; animation-delay:0s; }
-.pdr-splash-shock.s2 { border-color:#2C5282; animation-delay:0.08s; }
-.pdr-splash-shock.s3 { border-color:#74C69D; animation-delay:0.16s; }
-.pdr-splash-shock.s4 { border-color:#2C5282; animation-delay:0.26s; }
-@keyframes pdrShockOut {
-  0%, 47.5% { opacity:0; transform:scale(0.3); }
-  50.5%     { opacity:1; transform:scale(0.6); }
-  72%       { opacity:0; transform:scale(9.5); }
-  100%      { opacity:0; }
-}
-.pdr-splash-chroma {
-  position:absolute; top:50%; left:50%; width:20px; height:20px; margin:-10px 0 0 -10px;
-  border-radius:50%; z-index:6; opacity:0; mix-blend-mode:screen;
-}
-.pdr-splash-chroma.red  { background:radial-gradient(circle, #ff4d4d 0%, transparent 70%); animation: pdrChromaRed 4.6s cubic-bezier(0.2,0.8,0.2,1) infinite; }
-.pdr-splash-chroma.cyan { background:radial-gradient(circle, #4dd9ff 0%, transparent 70%); animation: pdrChromaCyan 4.6s cubic-bezier(0.2,0.8,0.2,1) infinite; }
-@keyframes pdrChromaRed {
-  0%, 49% { opacity:0; transform:translate(0,0) scale(0.5); }
-  51%     { opacity:0.85; transform:translate(-6px,-3px) scale(2.4); }
-  60%     { opacity:0; transform:translate(0,0) scale(0.6); }
-  100%    { opacity:0; }
-}
-@keyframes pdrChromaCyan {
-  0%, 49% { opacity:0; transform:translate(0,0) scale(0.5); }
-  51%     { opacity:0.85; transform:translate(6px,3px) scale(2.4); }
-  60%     { opacity:0; transform:translate(0,0) scale(0.6); }
-  100%    { opacity:0; }
-}
-#pdr-splash-flash {
-  position:absolute; top:50%; left:50%; width:14px; height:14px; margin:-7px 0 0 -7px;
-  border-radius:50%; background:radial-gradient(circle, #fff 0%, #2C5282 45%, transparent 75%);
-  opacity:0; z-index:7; animation: pdrFlashPulse 4.6s ease-in-out infinite;
-}
-@keyframes pdrFlashPulse {
-  0%, 49% { opacity:0; transform:scale(0.4); }
-  51%     { opacity:1; transform:scale(3.2); }
-  60%     { opacity:0; transform:scale(0.6); }
-  100%    { opacity:0; }
-}
+.pdr-signal { fill:#ffffff; filter: drop-shadow(0 0 5px #9affea) drop-shadow(0 0 10px #4de3c0); }
 /* Giriş ekranı */
 #pdr-login-overlay {
   position: fixed; inset: 0;
@@ -343,51 +238,51 @@ body {
 
 <div id="splash">
   <div id="pdr-splash-vignette"></div>
-  <div id="pdr-splash-cam">
-    <div id="pdr-splash-scene">
-      <div class="pdr-splash-star l5"><svg viewBox="0 0 100 100">
-        <defs>
-          <linearGradient id="pdrStarGlass" x1="20%" y1="0%" x2="80%" y2="100%">
-            <stop offset="0%" stop-color="#8fb8ff" stop-opacity="0.9"/>
-            <stop offset="50%" stop-color="#16284d" stop-opacity="0.6"/>
-            <stop offset="100%" stop-color="#080f22" stop-opacity="0.65"/>
-          </linearGradient>
-        </defs>
-        <polygon points="50,4 61,38 97,38 68,59 79,94 50,73 21,94 32,59 3,38 39,38" fill="url(#pdrStarGlass)" stroke="rgba(255,255,255,0.45)" stroke-width="1"/></svg></div>
-      <div class="pdr-splash-star l4"><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,73 21,94 32,59 3,38 39,38" fill="url(#pdrStarGlass)" stroke="rgba(255,255,255,0.45)" stroke-width="1"/></svg></div>
-      <div class="pdr-splash-star l3"><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,73 21,94 32,59 3,38 39,38" fill="url(#pdrStarGlass)" stroke="rgba(255,255,255,0.45)" stroke-width="1"/></svg></div>
-      <div class="pdr-splash-star l2"><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,73 21,94 32,59 3,38 39,38" fill="url(#pdrStarGlass)" stroke="rgba(255,255,255,0.45)" stroke-width="1"/></svg></div>
-      <div class="pdr-splash-star l1"><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,73 21,94 32,59 3,38 39,38" fill="url(#pdrStarGlass)" stroke="rgba(255,255,255,0.45)" stroke-width="1"/></svg></div>
-      <div class="pdr-splash-star l0"><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,73 21,94 32,59 3,38 39,38" fill="url(#pdrStarGlass)" stroke="rgba(255,255,255,0.45)" stroke-width="1"/></svg></div>
+  <div id="pdr-brain-wrap">
+    <svg viewBox="0 0 200 150">
+      <path id="syn-1-2" class="pdr-synapse-line" d="M40,45 L58,32"/>
+      <path id="syn-1-3" class="pdr-synapse-line" d="M40,45 L28,68"/>
+      <path id="syn-3-4" class="pdr-synapse-line" d="M28,68 L50,88"/>
+      <path id="syn-4-5" class="pdr-synapse-line" d="M50,88 L42,112"/>
+      <path id="syn-2-4" class="pdr-synapse-line" d="M58,32 L50,88"/>
+      <path id="syn-6-7" class="pdr-synapse-line" d="M160,45 L142,32"/>
+      <path id="syn-6-8" class="pdr-synapse-line" d="M160,45 L172,68"/>
+      <path id="syn-8-9" class="pdr-synapse-line" d="M172,68 L150,88"/>
+      <path id="syn-9-10" class="pdr-synapse-line" d="M150,88 L158,112"/>
+      <path id="syn-7-9" class="pdr-synapse-line" d="M142,32 L150,88"/>
+      <path id="syn-1-6" class="pdr-synapse-line" d="M40,45 L160,45"/>
+      <path id="syn-4-9" class="pdr-synapse-line" d="M50,88 L150,88"/>
 
-      <div class="pdr-splash-compass l5"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="#8d9194"/><polygon points="50,16 58,50 50,58 42,50" fill="#C0392B"/><polygon points="50,84 58,50 50,42 42,50" fill="#ececeb"/></svg></div>
-      <div class="pdr-splash-compass l4"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="#8d9194"/><polygon points="50,16 58,50 50,58 42,50" fill="#C0392B"/><polygon points="50,84 58,50 50,42 42,50" fill="#ececeb"/></svg></div>
-      <div class="pdr-splash-compass l3"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="#8d9194"/><polygon points="50,16 58,50 50,58 42,50" fill="#C0392B"/><polygon points="50,84 58,50 50,42 42,50" fill="#ececeb"/></svg></div>
-      <div class="pdr-splash-compass l2"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="#8d9194"/><polygon points="50,16 58,50 50,58 42,50" fill="#C0392B"/><polygon points="50,84 58,50 50,42 42,50" fill="#ececeb"/></svg></div>
-      <div class="pdr-splash-compass l1"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="#8d9194"/><polygon points="50,16 58,50 50,58 42,50" fill="#C0392B"/><polygon points="50,84 58,50 50,42 42,50" fill="#ececeb"/></svg></div>
-      <div class="pdr-splash-compass l0">
-        <svg viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="47" fill="url(#pdrCompassG)" stroke="#cfd2d4" stroke-width="2"/>
-          <defs><radialGradient id="pdrCompassG" cx="35%" cy="30%" r="75%">
-            <stop offset="0%" stop-color="#f5f5f5"/><stop offset="100%" stop-color="#8d9194"/>
-          </radialGradient></defs>
-          <polygon points="50,16 58,50 50,58 42,50" fill="#C0392B"/>
-          <polygon points="50,84 58,50 50,42 42,50" fill="#ececeb" stroke="#999" stroke-width="0.6"/>
-          <circle cx="50" cy="50" r="5" fill="#3a3d40"/>
-        </svg>
-      </div>
+      <path class="pdr-brain-outline" d="M100,15 C75,2 40,10 25,35 C8,42 2,65 15,82 C5,98 15,120 38,126 C52,136 78,130 95,118 L100,124 Z"/>
+      <path class="pdr-brain-outline" d="M100,15 C125,2 160,10 175,35 C192,42 198,65 185,82 C195,98 185,120 162,126 C148,136 122,130 105,118 L100,124 Z"/>
+      <path class="pdr-brain-outline" d="M100,15 C97,40 103,60 98,85 C102,100 97,112 100,124" stroke-dasharray="2,3"/>
 
-      <div id="pdr-splash-rays"></div>
-      <div class="pdr-splash-shock s1"></div>
-      <div class="pdr-splash-shock s2"></div>
-      <div class="pdr-splash-shock s3"></div>
-      <div class="pdr-splash-shock s4"></div>
-      <div class="pdr-splash-chroma red"></div>
-      <div class="pdr-splash-chroma cyan"></div>
-      <div id="pdr-splash-flash"></div>
-    </div>
+      <circle class="pdr-neuron" cx="40" cy="45" r="3" style="animation-delay:0s"/>
+      <circle class="pdr-neuron" cx="58" cy="32" r="3" style="animation-delay:0.3s"/>
+      <circle class="pdr-neuron" cx="28" cy="68" r="3" style="animation-delay:0.6s"/>
+      <circle class="pdr-neuron" cx="50" cy="88" r="3" style="animation-delay:0.9s"/>
+      <circle class="pdr-neuron" cx="42" cy="112" r="3" style="animation-delay:1.2s"/>
+      <circle class="pdr-neuron" cx="160" cy="45" r="3" style="animation-delay:0.15s"/>
+      <circle class="pdr-neuron" cx="142" cy="32" r="3" style="animation-delay:0.45s"/>
+      <circle class="pdr-neuron" cx="172" cy="68" r="3" style="animation-delay:0.75s"/>
+      <circle class="pdr-neuron" cx="150" cy="88" r="3" style="animation-delay:1.05s"/>
+      <circle class="pdr-neuron" cx="158" cy="112" r="3" style="animation-delay:1.35s"/>
+
+      <circle class="pdr-signal" r="2.2"><animateMotion dur="1.3s" repeatCount="indefinite" begin="0s"><mpath href="#syn-1-2"/></animateMotion></circle>
+      <circle class="pdr-signal" r="2.2"><animateMotion dur="1.5s" repeatCount="indefinite" begin="0.2s"><mpath href="#syn-1-3"/></animateMotion></circle>
+      <circle class="pdr-signal" r="2.2"><animateMotion dur="1.4s" repeatCount="indefinite" begin="0.4s"><mpath href="#syn-3-4"/></animateMotion></circle>
+      <circle class="pdr-signal" r="2.2"><animateMotion dur="1.6s" repeatCount="indefinite" begin="0.6s"><mpath href="#syn-4-5"/></animateMotion></circle>
+      <circle class="pdr-signal" r="2.2"><animateMotion dur="1.3s" repeatCount="indefinite" begin="0.8s"><mpath href="#syn-2-4"/></animateMotion></circle>
+      <circle class="pdr-signal" r="2.2"><animateMotion dur="1.3s" repeatCount="indefinite" begin="0.1s"><mpath href="#syn-6-7"/></animateMotion></circle>
+      <circle class="pdr-signal" r="2.2"><animateMotion dur="1.5s" repeatCount="indefinite" begin="0.3s"><mpath href="#syn-6-8"/></animateMotion></circle>
+      <circle class="pdr-signal" r="2.2"><animateMotion dur="1.4s" repeatCount="indefinite" begin="0.5s"><mpath href="#syn-8-9"/></animateMotion></circle>
+      <circle class="pdr-signal" r="2.2"><animateMotion dur="1.6s" repeatCount="indefinite" begin="0.7s"><mpath href="#syn-9-10"/></animateMotion></circle>
+      <circle class="pdr-signal" r="2.2"><animateMotion dur="1.3s" repeatCount="indefinite" begin="0.9s"><mpath href="#syn-7-9"/></animateMotion></circle>
+      <circle class="pdr-signal" r="2.6"><animateMotion dur="2.2s" repeatCount="indefinite" begin="0s"><mpath href="#syn-1-6"/></animateMotion></circle>
+      <circle class="pdr-signal" r="2.6"><animateMotion dur="2.4s" repeatCount="indefinite" begin="1s"><mpath href="#syn-4-9"/></animateMotion></circle>
+    </svg>
   </div>
-  <div style="margin-top:8px;position:relative;z-index:3;">🧭 Rehber Pusula</div>
+  <div style="margin-top:8px;position:relative;z-index:3;">PDR Program</div>
   <div style="font-size:13px;opacity:0.7;font-weight:400;position:relative;z-index:3;">Yükleniyor...</div>
 </div>
 <script>
