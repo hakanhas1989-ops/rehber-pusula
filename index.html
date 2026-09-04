@@ -98,7 +98,7 @@ setTimeout(function() {
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow-x: hidden; }
-body { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; overscroll-behavior: none; background: linear-gradient(160deg, #CFEBDA 0%, #D9CFF0 100%); background-attachment: fixed; }
+body { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; overscroll-behavior: none; background: linear-gradient(160deg, #BFE5CE 0%, #C9B7EC 100%); background-attachment: fixed; }
 input, textarea, button, select { font-family: inherit; }
 input[type=range] { cursor: pointer; }
 /* Kartlara genel derinlik/gölge: satır içi stilleri hedefleyen öznitelik seçicisi */
@@ -1166,14 +1166,14 @@ const XLSX = window.XLSX;
 const ACCENT = "#127C56";
 const ACCENT_LIGHT = "#D7EEE1";
 const BG = "#F7F5F0";
-const CARD = "#FFFFFF";
+const CARD = "#FBF3E3";
 const TEXT = "#1C2B24";
 const MUTED = "#6E8579";
 const BORDER = "#B9CFBE";
 const ORANGE = "#E76F51";
 const BLUE = "#457B9D";
 const PURPLE = "#9B87F0";
-const PURPLE_LIGHT = "#EDEAFB";
+const PURPLE_LIGHT = "#DFCEF5";
 
 
 // ── ORTAOKUL REHBERLİK KAZANIMLARI (Konak RAM Yıllık Çalışma Planı) ──────────
@@ -8111,11 +8111,13 @@ function OgrenciYonetim({
             <button onClick={() => setGorunumModu("liste")} style={{
               flex:1, padding:"7px", borderRadius:9, border:`1px solid ${gorunumModu==="liste"?ACCENT:BORDER}`,
               background:gorunumModu==="liste"?ACCENT_LIGHT:CARD, color:gorunumModu==="liste"?ACCENT:MUTED,
+              boxShadow:"0 2px 6px rgba(20,40,32,0.10)",
               fontSize:12, fontWeight:700, cursor:"pointer"
             }}>📋 Liste</button>
             <button onClick={() => setGorunumModu("aylik")} style={{
               flex:1, padding:"7px", borderRadius:9, border:`1px solid ${gorunumModu==="aylik"?ACCENT:BORDER}`,
               background:gorunumModu==="aylik"?ACCENT_LIGHT:CARD, color:gorunumModu==="aylik"?ACCENT:MUTED,
+              boxShadow:"0 2px 6px rgba(20,40,32,0.10)",
               fontSize:12, fontWeight:700, cursor:"pointer"
             }}>📅 Aylara Göre</button>
           </div>
@@ -8183,6 +8185,7 @@ function OgrenciYonetim({
                   flexShrink:0, padding:"4px 10px", borderRadius:14,
                   border:`1px solid ${sinifFiltre===s ? ACCENT : BORDER}`,
                   background:sinifFiltre===s ? ACCENT_LIGHT : CARD,
+                  boxShadow:"0 2px 6px rgba(20,40,32,0.10)",
                   color:sinifFiltre===s ? ACCENT : MUTED,
                   fontSize:11, fontWeight:sinifFiltre===s ? 700 : 500, cursor:"pointer"
                 }}>{s}</button>
@@ -11888,7 +11891,7 @@ export default function App() {
   }, [kademe]);
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #CFEBDA 0%, #D9CFF0 100%)", backgroundAttachment: "fixed", fontFamily: "'Segoe UI', system-ui, sans-serif", color: TEXT }}>
+    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #BFE5CE 0%, #C9B7EC 100%)", backgroundAttachment: "fixed", fontFamily: "'Segoe UI', system-ui, sans-serif", color: TEXT }}>
 
       <RaporModal rapor={raporVerisi} onKapat={() => setRaporVerisi(null)} />
       {rehberGoster && <BaslarkenRehberi onKapat={async () => { setRehberGoster(false); await saveRehberGorunduMu(); }} />}
@@ -11965,7 +11968,7 @@ export default function App() {
       })()}
 
       {/* Tabs */}
-      <div style={{ display: "flex", background: CARD, borderBottom: `1px solid ${BORDER}`, overflowX: "auto", boxShadow: "0 3px 8px rgba(0,0,0,0.06)", position: "sticky", top: 0, zIndex: 8 }}>
+      <div style={{ display: "flex", background: CARD, borderBottom: `1px solid ${BORDER}`, overflowX: "auto", boxShadow: "0 4px 10px rgba(20,40,32,0.14)", position: "sticky", top: 0, zIndex: 8 }}>
         {TABS.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             flexShrink: 0, padding: "11px 10px", border: "none", background: "none",
