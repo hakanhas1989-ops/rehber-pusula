@@ -3420,6 +3420,7 @@ function RaporModal({ rapor, onKapat }) {
             {/* Deneme Sonuçları */}
             {raporDenemeler && Object.keys(raporDenemeler).length > 0 && (() => {
               const girilen = Object.entries(raporDenemeler)
+                .filter(([k])=>k!=="7sinif")
                 .sort((a,b) => a[0]-b[0])
                 .map(([no, nets]) => {
                   // pdrToplamNetHesapla, toplu Excel yüklemesiyle girilmiş
@@ -9685,7 +9686,7 @@ function ProfilMerkez({
   const ogrRec = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, seciliAd, seciliSinif, r.numara, seciliNumara));
   const ogrRec2 = ogrRec; // alias for P2 context
   const ogrDeneme = pdrSozlukOku(denemeler, seciliAd, seciliSinif, seciliNumara) || {};
-  const denemeGirilen = Object.entries(ogrDeneme).sort((a,b)=>a[0]-b[0]).map(([no,nets])=>({
+  const denemeGirilen = Object.entries(ogrDeneme).filter(([k])=>k!=="7sinif").sort((a,b)=>a[0]-b[0]).map(([no,nets])=>({
     no:parseInt(no), nets, toplam: dersler.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
   }));
 
@@ -11446,8 +11447,9 @@ export default function App() {
     setProfAiLoading(true);
     // Öğrencinin deneme verilerini de bağlama ekle
     const ogrenciDenemeler = pdrSozlukOku(denemeler, profForm.studentName, profForm.className) || {};
-    const denemeOzeti = Object.entries(ogrenciDenemeler).length > 0
+    const denemeOzeti = Object.entries(ogrenciDenemeler).filter(([k])=>k!=="7sinif").length > 0
       ? "DENEME SONUÇLARI: " + Object.entries(ogrenciDenemeler)
+          .filter(([k])=>k!=="7sinif")
           .sort((a,b) => a[0]-b[0])
           .map(([no, nets]) => {
             const toplam = aktifDenemeDersleri.reduce((s,d) => s+(parseFloat(nets[d.key])||0), 0);
@@ -11651,7 +11653,7 @@ export default function App() {
     const ad = studentName.toLocaleLowerCase("tr").trim();
     const gorusmeler = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, studentName, className, r.numara, numara));
     const ogrDeneme = pdrSozlukOku(denemeler, studentName, className, numara) || {};
-    const girilen = Object.entries(ogrDeneme).sort((a,b)=>a[0]-b[0]).map(([no,nets])=>({
+    const girilen = Object.entries(ogrDeneme).filter(([k])=>k!=="7sinif").sort((a,b)=>a[0]-b[0]).map(([no,nets])=>({
       no:parseInt(no), nets, toplam: aktifDenemeDersleri.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
     }));
     setDenemeAiLoading(true);
