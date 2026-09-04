@@ -98,7 +98,7 @@ setTimeout(function() {
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow-x: hidden; }
-body { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; overscroll-behavior: none; background: linear-gradient(150deg, #E4F2E8 0%, #F1EFEE 45%, #ECE5F6 100%); background-attachment: fixed; }
+body { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; overscroll-behavior: none; background: linear-gradient(150deg, #DCEEE2 0%, #EFEDEC 45%, #E3D9F2 100%); background-attachment: fixed; }
 input, textarea, button, select { font-family: inherit; }
 input[type=range] { cursor: pointer; }
 /* Kartlara genel derinlik/gölge: satır içi stilleri hedefleyen öznitelik seçicisi */
@@ -11854,7 +11854,7 @@ export default function App() {
   }, [kademe]);
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(150deg, #E4F2E8 0%, #F1EFEE 45%, #ECE5F6 100%)", fontFamily: "'Segoe UI', system-ui, sans-serif", color: TEXT }}>
+    <div style={{ minHeight: "100vh", background: "linear-gradient(150deg, #DCEEE2 0%, #EFEDEC 45%, #E3D9F2 100%)", backgroundAttachment: "fixed", fontFamily: "'Segoe UI', system-ui, sans-serif", color: TEXT }}>
 
       <RaporModal rapor={raporVerisi} onKapat={() => setRaporVerisi(null)} />
       {rehberGoster && <BaslarkenRehberi onKapat={async () => { setRehberGoster(false); await saveRehberGorunduMu(); }} />}
