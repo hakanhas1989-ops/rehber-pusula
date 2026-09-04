@@ -1169,7 +1169,7 @@ const BG = "#F7F5F0";
 const CARD = "#FFFFFF";
 const TEXT = "#1C2B24";
 const MUTED = "#6E8579";
-const BORDER = "#DDE6DE";
+const BORDER = "#B9CFBE";
 const ORANGE = "#E76F51";
 const BLUE = "#457B9D";
 const PURPLE = "#9B87F0";
@@ -1430,7 +1430,7 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
       </div>
 
       {/* Tek öğrenci manuel güncelleme */}
-      <div style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:12, padding:14, marginBottom:14 }}>
+      <div style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:12, padding:14, marginBottom:14 }}>
         <div style={{ fontSize:13, fontWeight:800, color:TEXT, marginBottom:8 }}>🔍 Tek Öğrenci Güncelle</div>
         {manuelSecili ? (
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#FFF4E5", borderRadius:8, padding:"7px 10px", marginBottom:10 }}>
@@ -1440,12 +1440,12 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
         ) : (
           <>
             <input value={manuelArama} onChange={e=>setManuelArama(e.target.value)} placeholder="Öğrenci ara…"
-              style={{ width:"100%", padding:"8px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:8, fontSize:12.5, boxSizing:"border-box", marginBottom:8 }} />
+              style={{ width:"100%", padding:"8px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, fontSize:12.5, boxSizing:"border-box", marginBottom:8 }} />
             {manuelArama.trim().length >= 2 && (
               <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10, maxHeight:150, overflowY:"auto" }}>
                 {yilOgrencileri.filter(o => o.studentName.toLocaleLowerCase("tr").includes(manuelArama.toLocaleLowerCase("tr"))).slice(0,15).map(o => (
                   <button key={pdrOgrAnahtar(o.studentName,o.className,o.numara)} onClick={()=>{ setManuelSecili(o); setManuelArama(""); }} style={{
-                    padding:"5px 11px", borderRadius:16, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", background:"#fff", color:MUTED, fontSize:11.5, cursor:"pointer"
+                    padding:"5px 11px", borderRadius:16, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", background:"#fff", color:MUTED, fontSize:11.5, cursor:"pointer"
                   }}>{o.studentName} <span style={{fontSize:10}}>({o.className})</span></button>
                 ))}
               </div>
@@ -1458,12 +1458,12 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
               <div style={{ flex:1 }}>
                 <label style={{ fontSize:10, fontWeight:700, color:MUTED, display:"block", marginBottom:3 }}>GÜN SAYISI</label>
                 <input type="number" min="0" value={manuelGun} onChange={e=>setManuelGun(e.target.value)}
-                  style={{ width:"100%", padding:"7px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:8, fontSize:13, boxSizing:"border-box" }} />
+                  style={{ width:"100%", padding:"7px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, fontSize:13, boxSizing:"border-box" }} />
               </div>
               <div style={{ flex:1 }}>
                 <label style={{ fontSize:10, fontWeight:700, color:MUTED, display:"block", marginBottom:3 }}>TARİH</label>
                 <input value={manuelTarih} onChange={e=>setManuelTarih(e.target.value)} placeholder="GG.AA.YYYY"
-                  style={{ width:"100%", padding:"7px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:8, fontSize:12, boxSizing:"border-box" }} />
+                  style={{ width:"100%", padding:"7px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, fontSize:12, boxSizing:"border-box" }} />
               </div>
             </div>
             <div style={{ marginBottom:10 }}>
@@ -1490,7 +1490,7 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
         <div style={{ fontSize:11, color:MUTED, marginBottom:10, lineHeight:1.5 }}>Excel'de "Ad Soyad" (zorunlu), varsa "Sınıf"/"Numara"/"Neden" ve "Devamsızlık" (ya da "Gün") sütunları olmalı.</div>
         <label style={{ fontSize:11, fontWeight:700, color:MUTED, display:"block", marginBottom:4 }}>RAPOR TARİHİ</label>
         <input value={excelTarihi} onChange={e=>setExcelTarihi(e.target.value)} placeholder="GG.AA.YYYY"
-          style={{ width:"100%", padding:"7px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:8, fontSize:12, boxSizing:"border-box", marginBottom:10 }} />
+          style={{ width:"100%", padding:"7px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, fontSize:12, boxSizing:"border-box", marginBottom:10 }} />
         <label style={{ display:"block", width:"100%", padding:14, background:"#fff", border:"2px dashed #C0392B", borderRadius:12, textAlign:"center", color:"#C0392B", fontWeight:700, cursor:"pointer", boxSizing:"border-box" }}>
           {excelYukleniyor ? "⏳ İşleniyor…" : "📂 Excel Dosyası Seç (.xlsx)"}
           <input type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelYukle} style={{ display:"none" }} disabled={excelYukleniyor} />
@@ -1552,7 +1552,7 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
         <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
           {devamsizOgrenciler.map(o => (
             <div key={pdrOgrAnahtar(o.studentName, o.className, o.numara)}
-              style={{ display:"flex", flexDirection:"column", padding:"9px 12px", background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:10 }}>
+              style={{ display:"flex", flexDirection:"column", padding:"9px 12px", background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10 }}>
               <div onClick={()=>{ setAktifOgrenci({ name:o.studentName, className:o.className||"" }); setTab("ogrenciler"); }}
                 style={{ display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer" }}>
                 <div>
@@ -1604,7 +1604,7 @@ function KazanimlarSekmesi({ kademe }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           {sinifListesi.map(s => (
             <button key={s} onClick={() => { setSinif(s); setAcikAylar({}); }} style={{
-              padding: "20px 0", background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 12,
+              padding: "20px 0", background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 12,
               fontSize: 20, fontWeight: 800, color: ACCENT, cursor: "pointer"
             }}>{s}. Sınıf</button>
           ))}
@@ -1643,7 +1643,7 @@ function KazanimlarSekmesi({ kademe }) {
         const acik = !!acikAylar[ay];
         const ayKayitlari = veri.filter(k => k.ay === ay);
         return (
-          <div key={ay} style={{ marginBottom: 10, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 12, overflow: "hidden" }}>
+          <div key={ay} style={{ marginBottom: 10, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 12, overflow: "hidden" }}>
             <button onClick={() => toggleAy(ay)} style={{
               width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
               padding: "12px 14px", background: acik ? ACCENT_LIGHT : CARD, border: "none", cursor: "pointer"
@@ -1659,7 +1659,7 @@ function KazanimlarSekmesi({ kademe }) {
                   const pdfSayfa = pdfRawUrl ? k.sayfa : null;
                   return (
                     <div key={i} onClick={pdfSayfa ? () => window.open(`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(pdfRawUrl)}#page=${pdfSayfa}`, "_blank") : undefined}
-                      style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderLeft: stil ? `4px solid ${stil.renk}` : `1px solid ${BORDER}`, borderRadius: 10, padding: "10px 12px", marginBottom: 8, cursor: pdfSayfa ? "pointer" : "default" }}>
+                      style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderLeft: stil ? `4px solid ${stil.renk}` : `1px solid ${BORDER}`, borderRadius: 10, padding: "10px 12px", marginBottom: 8, cursor: pdfSayfa ? "pointer" : "default" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
                         <div style={{ fontWeight: 700, fontSize: 13, color: TEXT }}>{k.etkinlik}</div>
                         {stil && <span style={{ flexShrink: 0, fontSize: 9, fontWeight: 800, color: stil.renk, background: stil.bg, borderRadius: 6, padding: "2px 6px" }}>{stil.kisaltma}</span>}
@@ -2551,7 +2551,7 @@ function DegerlendirmeEkrani({ onTransfer, onClose, records, profiles, profiles2
 
         <div style={{ display: "flex", gap: 8 }}>
           {aktif > 0 && (
-            <button onClick={() => setAktif(a => a - 1)} style={{ flex: 1, padding: 11, background: CARD, color: INK, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>← Önceki</button>
+            <button onClick={() => setAktif(a => a - 1)} style={{ flex: 1, padding: 11, background: CARD, color: INK, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>← Önceki</button>
           )}
           {aktif < DEG_SORULAR.length - 1 ? (
             <button onClick={() => setAktif(a => a + 1)} style={{ flex: 2, padding: 11, background: dim?.color || ACCENT, color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: "pointer" }}>Sonraki →</button>
@@ -2582,7 +2582,7 @@ function DegerlendirmeEkrani({ onTransfer, onClose, records, profiles, profiles2
         <RadarChart scores={DIMENSIONS.reduce((acc, d) => { acc[d.key] = degBoyutPuan(cevaplar, d.key) || 3; return acc; }, {})} size={280} glass />
       </div>
 
-      <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 12, padding: 14, marginBottom: 14 }}>
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 12, padding: 14, marginBottom: 14 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Boyut Puanları</div>
         {DIMENSIONS.map(d => {
           const p = degBoyutPuan(cevaplar, d.key);
@@ -2609,7 +2609,7 @@ function DegerlendirmeEkrani({ onTransfer, onClose, records, profiles, profiles2
 
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button onClick={() => { setAdim("sorular"); setAktif(0); }} style={{ flex: 1, padding: 11, background: CARD, color: TEXT, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer", minWidth: 80 }}>← Düzenle</button>
+        <button onClick={() => { setAdim("sorular"); setAktif(0); }} style={{ flex: 1, padding: 11, background: CARD, color: TEXT, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer", minWidth: 80 }}>← Düzenle</button>
         <button onClick={aktarVeKaydet} style={{ flex: 2, padding: 11, background: ACCENT, color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: "pointer", minWidth: 120 }}>✓ Profil 1'e Aktar</button>
       </div>
       {analiz && (
@@ -2622,7 +2622,7 @@ function DegerlendirmeEkrani({ onTransfer, onClose, records, profiles, profiles2
 }
 
 const dLbl = { fontSize: 11, fontWeight: 600, color: MUTED, display: "block", marginBottom: 4, letterSpacing: 0.3, textTransform: "uppercase" };
-const dInp = { width: "100%", padding: "9px 11px", border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 9, fontSize: 13, background: CARD, color: TEXT, outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
+const dInp = { width: "100%", padding: "9px 11px", border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 9, fontSize: 13, background: CARD, color: TEXT, outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
 
 // ── Ders & İlgi Sabitleri ─────────────────────────────────────────────────────
 const DERSLER = [
@@ -3710,7 +3710,7 @@ function ScoreSlider({ dim, value, onChange }) {
 function ProfileCard({ profile, onDelete, onReport }) {
   const [open, setOpen] = useState(false);
   return (
-    <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 12, marginBottom: 10, overflow: "hidden" }}>
+    <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 12, marginBottom: 10, overflow: "hidden" }}>
       <div onClick={() => setOpen(o => !o)} style={{
         display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", cursor: "pointer",
         borderBottom: open ? `1px solid ${BORDER}` : "none"
@@ -3784,7 +3784,7 @@ function Profile2Card({ p, onDelete }) {
   };
   const ort = dersOrtalama();
   return (
-    <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 12, marginBottom: 10, overflow: "hidden" }}>
+    <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 12, marginBottom: 10, overflow: "hidden" }}>
       <div onClick={() => setOpen(o => !o)} style={{
         display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", cursor: "pointer",
         borderBottom: open ? `1px solid ${BORDER}` : "none"
@@ -4210,7 +4210,7 @@ function TestZamanCizelgesi({ kayitlar }) {
           const yon = son.skor > ilk.skor ? "▲" : son.skor < ilk.skor ? "▼" : "▬";
           const yonRenk = son.skor > ilk.skor ? "#1A8C5B" : son.skor < ilk.skor ? "#C0392B" : MUTED;
           return (
-            <div key={g.testAdi} style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 10, overflow: "hidden" }}>
+            <div key={g.testAdi} style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 10, overflow: "hidden" }}>
               <button onClick={() => setAcikTest(acik ? null : g.testAdi)} style={{
                 width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px",
                 background: "none", border: "none", cursor: "pointer", textAlign: "left"
@@ -4326,7 +4326,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
     setBeierYukleniyor(false);
   }
 
-  const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:9, fontSize:13, boxSizing:"border-box" };
+  const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, boxSizing:"border-box" };
   const lbl = { fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:3 };
 
   return (
@@ -4385,7 +4385,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                   <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                     {TEST_LISTESI[kategori].map(t => (
                       <button key={t.ad} onClick={()=>{ setSeciliTest(t); setForm({ ...TEST_FORM_BOS }); }} style={{
-                        textAlign:"left", padding:"10px 12px", borderRadius:10, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", background:CARD, color:TEXT, fontSize:13, fontWeight:600, cursor:"pointer"
+                        textAlign:"left", padding:"10px 12px", borderRadius:10, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", background:CARD, color:TEXT, fontSize:13, fontWeight:600, cursor:"pointer"
                       }}>{t.ad}</button>
                     ))}
                   </div>
@@ -4396,7 +4396,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
 
           {/* Sonuç giriş formu — teste özel alanlar */}
           {seciliTest && (
-            <div style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:12, padding:14, marginBottom:16 }}>
+            <div style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:12, padding:14, marginBottom:16 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                 <div style={{ fontSize:14, fontWeight:800, color:TEXT }}>{seciliTest.ad}</div>
                 <button onClick={()=>setSeciliTest(null)} style={{ background:"none", border:"none", color:MUTED, fontSize:16, cursor:"pointer" }}>✕</button>
@@ -4513,7 +4513,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                     <div style={{ fontSize:11, color:MUTED, marginBottom:8 }}>
                       Yüklemeden önce ya da sonra, aşağıdaki 56 maddeyi kağıtla karşılaştırıp cevabı/puanı düzeltebilirsin.
                     </div>
-                    <div style={{ maxHeight:360, overflowY:"auto", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:10, padding:8, marginBottom:12 }}>
+                    <div style={{ maxHeight:360, overflowY:"auto", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:8, marginBottom:12 }}>
                       {BEIER_FORM_A_MADDELER.map((stem, i) => {
                         const no = i + 1;
                         const m = getMadde(no);
@@ -4525,7 +4525,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                             </div>
                             <div style={{ display:"flex", gap:6, alignItems:"center" }}>
                               <input value={m.cevap} onChange={e=>updateMadde(no, { cevap: e.target.value })} placeholder="öğrenci cevabı…"
-                                style={{ flex:1, padding:"5px 8px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:6, fontSize:11.5 }} />
+                                style={{ flex:1, padding:"5px 8px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:6, fontSize:11.5 }} />
                               {["+","0","-"].map(p => (
                                 <button key={p} onClick={()=>updateMadde(no, { puan: p })} style={{
                                   width:28, height:28, borderRadius:6, border:`2px solid ${m.puan===p?puanRenk[p]:BORDER}`,
@@ -4568,7 +4568,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                   const beierMi = k.tip === "beier_form_a";
                   const detayAcik = acikTestId === k.id;
                   return (
-                  <div key={k.id} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:10, padding:"10px 12px" }}>
+                  <div key={k.id} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:"10px 12px" }}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8, cursor: beierMi?"pointer":"default" }} onClick={()=>{ if(beierMi) setAcikTestId(detayAcik?null:k.id); }}>
                       <div>
                         <div style={{ fontSize:13, fontWeight:700, color:TEXT }}>
@@ -4686,7 +4686,7 @@ function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mud
     await saveMudahalePlan(updated);
   }
 
-  const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:9, fontSize:13, background:CARD, color:TEXT, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
+  const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, background:CARD, color:TEXT, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
   const lbl = { fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4, textTransform:"uppercase" };
   const durumRenk = { "Devam Ediyor":["#1A8C5B","#E6F5EE"], "Tamamlandı":["#457B9D","#EEF2FF"], "Askıda":["#B07D1A","#FDF6E3"] };
 
@@ -4708,11 +4708,11 @@ function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mud
       {seciliAd && (
         <>
           {/* Yeni plan formu */}
-          <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:14}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
               <div style={{fontSize:12,fontWeight:700,color:TEXT}}>Yeni Müdahale Planı — {seciliAd}</div>
               <button onClick={()=>{ setSeciliAd(""); if(setAktifOgrenci) setAktifOgrenci({ name:"", className:"" }); }} style={{
-                background:"none", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", color:MUTED, borderRadius:8, padding:"4px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
+                background:"none", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", color:MUTED, borderRadius:8, padding:"4px 9px", fontSize:11, fontWeight:600, cursor:"pointer"
               }}>✕ Değiştir</button>
             </div>
 
@@ -4758,7 +4758,7 @@ function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mud
               {ogrPlanlar.map(p => {
                 const [rc,rbg] = durumRenk[p.durum]||["#888","#eee"];
                 return (
-                  <div key={p.id} style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderLeft:`4px solid ${rc}`,borderRadius:10,padding:12,marginBottom:10}}>
+                  <div key={p.id} style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderLeft:`4px solid ${rc}`,borderRadius:10,padding:12,marginBottom:10}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
                       <div style={{fontSize:13,fontWeight:700,color:TEXT,flex:1}}>{p.hedef}</div>
                       <span style={{background:rbg,color:rc,borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0,marginLeft:8}}>{p.durum}</span>
@@ -5013,7 +5013,7 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
     await saveHatirlatmalar(guncel);
   }
 
-  const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:9, fontSize:13, boxSizing:"border-box" };
+  const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, boxSizing:"border-box" };
   const MOR = PURPLE, MOR_ACIK = PURPLE_LIGHT;
 
   return (
@@ -5029,7 +5029,7 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
           width:"100%", padding:"12px", background:MOR, color:"#fff", border:"none", borderRadius:12, fontSize:14, fontWeight:800, cursor:"pointer", marginBottom:16
         }}>+ Yeni Hatırlatma Ekle</button>
       ) : (
-        <div style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:12, padding:14, marginBottom:16 }}>
+        <div style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:12, padding:14, marginBottom:16 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
             <div style={{ fontSize:13, fontWeight:800 }}>{duzenlenenId ? "✏️ Hatırlatmayı Düzenle" : "Yeni Hatırlatma"}</div>
             <button onClick={handleFormKapat} style={{ background:"none", border:"none", color:MUTED, fontSize:16, cursor:"pointer" }}>✕</button>
@@ -5143,7 +5143,7 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
           <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:8 }}>TAMAMLANANLAR ({tamamlananlar.length})</label>
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
             {tamamlananlar.slice(0,10).map(h => (
-              <div key={h.id} style={{ fontSize:12, color:MUTED, padding:"6px 10px", background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:8, textDecoration:"line-through" }}>
+              <div key={h.id} style={{ fontSize:12, color:MUTED, padding:"6px 10px", background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, textDecoration:"line-through" }}>
                 {h.studentName} — {h.metin}
               </div>
             ))}
@@ -5784,7 +5784,7 @@ function KonuHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, kon
     await saveKonuHaritasi(yeni);
   }
 
-  const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:9, fontSize:13, boxSizing:"border-box" };
+  const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, boxSizing:"border-box" };
   const KONU_TAMAMLAMA_SECENEKLER = [25, 50, 75, 100];
 
   return (
@@ -5840,7 +5840,7 @@ function KonuHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, kon
             const yuzde = konuHaritasiYuzdeHesapla(ders, ogrVerisi[anahtar], konuKaynagi);
             const renk = yuzde >= 75 ? "#1A8C5B" : yuzde >= 40 ? "#B07D1A" : "#C0392B";
             return (
-              <div key={ders} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:12, overflow:"hidden" }}>
+              <div key={ders} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:12, overflow:"hidden" }}>
                 <button onClick={()=>setAcikDers(acik?null:ders)} style={{
                   width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 14px",
                   background:"none", border:"none", cursor:"pointer", textAlign:"left"
@@ -6134,7 +6134,7 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
     setTimeout(() => document.body.removeChild(tempDiv), 3000);
   }
 
-  const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:9, fontSize:13, boxSizing:"border-box" };
+  const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, boxSizing:"border-box" };
 
   return (
     <div style={{ padding: 16, maxWidth: 640 }}>
@@ -6193,10 +6193,10 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
                 <div style={{ fontWeight:800, fontSize:13 }}>{ders.ders}</div>
                 <div style={{ fontSize:11, color:MUTED }}>Soru:
-                  <input type="number" value={ders.soru} onChange={e=>taslakSayiGuncelle(di,null,"soru",parseFloat(e.target.value)||0)} style={{ width:36, marginLeft:3, marginRight:6, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:4, fontSize:11 }} />
-                  D:<input type="number" value={ders.dogru} onChange={e=>taslakSayiGuncelle(di,null,"dogru",parseFloat(e.target.value)||0)} style={{ width:32, marginLeft:2, marginRight:6, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:4, fontSize:11 }} />
-                  Y:<input type="number" value={ders.yanlis} onChange={e=>taslakSayiGuncelle(di,null,"yanlis",parseFloat(e.target.value)||0)} style={{ width:32, marginLeft:2, marginRight:6, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:4, fontSize:11 }} />
-                  Net:<input type="number" value={ders.net} onChange={e=>taslakSayiGuncelle(di,null,"net",parseFloat(e.target.value)||0)} style={{ width:40, marginLeft:2, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:4, fontSize:11 }} />
+                  <input type="number" value={ders.soru} onChange={e=>taslakSayiGuncelle(di,null,"soru",parseFloat(e.target.value)||0)} style={{ width:36, marginLeft:3, marginRight:6, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:4, fontSize:11 }} />
+                  D:<input type="number" value={ders.dogru} onChange={e=>taslakSayiGuncelle(di,null,"dogru",parseFloat(e.target.value)||0)} style={{ width:32, marginLeft:2, marginRight:6, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:4, fontSize:11 }} />
+                  Y:<input type="number" value={ders.yanlis} onChange={e=>taslakSayiGuncelle(di,null,"yanlis",parseFloat(e.target.value)||0)} style={{ width:32, marginLeft:2, marginRight:6, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:4, fontSize:11 }} />
+                  Net:<input type="number" value={ders.net} onChange={e=>taslakSayiGuncelle(di,null,"net",parseFloat(e.target.value)||0)} style={{ width:40, marginLeft:2, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:4, fontSize:11 }} />
                 </div>
               </div>
               {(ders.konular||[]).filter(k => k.yanlis > 0).length > 0 && (
@@ -6216,7 +6216,7 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
           ))}
           <div style={{ display:"flex", gap:8, marginTop:10 }}>
             <button onClick={handleTaslakKaydet} style={{ flex:1, padding:11, background:PURPLE, color:"#fff", border:"none", borderRadius:10, fontWeight:800, fontSize:13, cursor:"pointer" }}>✓ Doğru, Kaydet</button>
-            <button onClick={()=>setTaslak(null)} style={{ padding:11, background:"none", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", color:MUTED, borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>İptal</button>
+            <button onClick={()=>setTaslak(null)} style={{ padding:11, background:"none", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", color:MUTED, borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>İptal</button>
           </div>
         </div>
       )}
@@ -6247,7 +6247,7 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
         const grafikHtml = netIlerlemeSVGOlustur(ogrKayitlar);
         if (!grafikHtml) return null;
         return (
-          <div style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:12, padding:14, marginBottom:20 }}>
+          <div style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:12, padding:14, marginBottom:20 }}>
             <div style={{ fontSize:13, fontWeight:800, marginBottom:6 }}>📈 Net İlerleme Grafiği</div>
             <div dangerouslySetInnerHTML={{ __html: grafikHtml }} />
           </div>
@@ -6263,7 +6263,7 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
               const acik = detayAcikId === k.id;
               const toplamYanlisKonu = (k.dersler||[]).reduce((s,d) => s + (d.konular||[]).filter(x=>x.yanlis>0).length, 0);
               return (
-                <div key={k.id} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:10, padding:"10px 12px" }}>
+                <div key={k.id} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:"10px 12px" }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer" }} onClick={()=>setDetayAcikId(acik?null:k.id)}>
                     <div>
                       <div style={{ fontSize:13, fontWeight:700 }}>{k.denemeAdi || "Deneme"} <span style={{ fontWeight:400, color:MUTED }}>· {k.tarih}</span></div>
@@ -6316,7 +6316,7 @@ function SevkTakipEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, sevkle
     else setForm(f=>({...f, studentName:"", className:""}));
   }, [aktifOgrenci?.name]);
 
-  const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:9, fontSize:13, background:CARD, color:TEXT, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
+  const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, background:CARD, color:TEXT, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
   const lbl = { fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4, textTransform:"uppercase" };
 
   async function handleKaydet() {
@@ -6347,7 +6347,7 @@ function SevkTakipEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, sevkle
       </div>
 
       {/* Yeni sevk formu */}
-      <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:12,padding:14,marginBottom:14}}>
+      <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:14}}>
         <div style={{fontSize:12,fontWeight:700,color:TEXT,marginBottom:10}}>Yeni Sevk Kaydı</div>
 
         {/* Öğrenci seç */}
@@ -6399,7 +6399,7 @@ function SevkTakipEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, sevkle
       {/* Sevk listesi */}
       {filtreli.length === 0 && <div style={{textAlign:"center",color:MUTED,marginTop:30,fontSize:13}}>Sevk kaydı yok</div>}
       {filtreli.map(s => (
-        <div key={s.id} style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderLeft:`4px solid ${s.sonucBekleniyor?"#B07D1A":"#1A8C5B"}`,borderRadius:10,padding:12,marginBottom:10}}>
+        <div key={s.id} style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderLeft:`4px solid ${s.sonucBekleniyor?"#B07D1A":"#1A8C5B"}`,borderRadius:10,padding:12,marginBottom:10}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
             <div>
               <div style={{fontSize:14,fontWeight:800,color:TEXT}}>{s.studentName}</div>
@@ -6482,10 +6482,10 @@ Risk Türleri: ${Object.entries(riskTurleri).map(([k,v])=>k+": "+v).join(", ")}
 
       {/* Dönem seç */}
       <div style={{display:"flex",gap:8,marginBottom:14}}>
-        <select value={donem} onChange={e=>setDonem(e.target.value)} style={{flex:1,padding:"9px 11px",border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:9,fontSize:13}}>
+        <select value={donem} onChange={e=>setDonem(e.target.value)} style={{flex:1,padding:"9px 11px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:9,fontSize:13}}>
           <option>1. Dönem</option><option>2. Dönem</option><option>Yıllık</option>
         </select>
-        <input value={yil} onChange={e=>setYil(e.target.value)} style={{width:80,padding:"9px",border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:9,fontSize:13,textAlign:"center"}} />
+        <input value={yil} onChange={e=>setYil(e.target.value)} style={{width:80,padding:"9px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:9,fontSize:13,textAlign:"center"}} />
       </div>
 
       {/* İstatistik kartları */}
@@ -6498,7 +6498,7 @@ Risk Türleri: ${Object.entries(riskTurleri).map(([k,v])=>k+": "+v).join(", ")}
           ["Aktif Risk",aktifRisk,"#C0392B"],
           ["Sevk",sevkler.length,"#B07D1A"],
         ].map(([l,v,c])=>(
-          <div key={l} style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:10,padding:"10px 6px",textAlign:"center"}}>
+          <div key={l} style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:10,padding:"10px 6px",textAlign:"center"}}>
             <div style={{fontSize:22,fontWeight:900,color:c}}>{v}</div>
             <div style={{fontSize:10,color:MUTED}}>{l}</div>
           </div>
@@ -6507,7 +6507,7 @@ Risk Türleri: ${Object.entries(riskTurleri).map(([k,v])=>k+": "+v).join(", ")}
 
       {/* Konu dağılımı */}
       {topKonular.length > 0 && (
-        <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:10,padding:12,marginBottom:14}}>
+        <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:10,padding:12,marginBottom:14}}>
           <div style={{fontSize:11,fontWeight:700,color:TEXT,textTransform:"uppercase",marginBottom:8}}>Başlıca Görüşme Konuları</div>
           {topKonular.map(([k,v])=>(
             <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
@@ -6530,7 +6530,7 @@ Risk Türleri: ${Object.entries(riskTurleri).map(([k,v])=>k+": "+v).join(", ")}
 
       {aiRapor && (
         <div>
-          <div id="meb-rapor-icerik" style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:12,padding:16,marginBottom:10}}>
+          <div id="meb-rapor-icerik" style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:16,marginBottom:10}}>
             <div style={{fontSize:14,fontWeight:800,color:TEXT,marginBottom:4}}>PDR Faaliyet Raporu</div>
             <div style={{fontSize:11,color:MUTED,marginBottom:12}}>{donem} {yil} · {new Date().toLocaleDateString("tr-TR")}</div>
             <div style={{fontSize:13,color:TEXT,lineHeight:1.8,whiteSpace:"pre-wrap"}}>{aiRapor}</div>
@@ -6589,7 +6589,7 @@ function VeliMektubu({ kayitliListesi, aktifOgrenci, records }) {
         ✉ Veli Bilgilendirme Mektubu — AI destekli resmi yazı
       </div>
 
-      <input placeholder="Öğrenci ara..." value={aramaMetni} onChange={e=>setAramaMetni(e.target.value)} style={{width:"100%",padding:"9px 11px",border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:9,fontSize:13,boxSizing:"border-box",marginBottom:8}} />
+      <input placeholder="Öğrenci ara..." value={aramaMetni} onChange={e=>setAramaMetni(e.target.value)} style={{width:"100%",padding:"9px 11px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:9,fontSize:13,boxSizing:"border-box",marginBottom:8}} />
       <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:12}}>
         {kayitliListesi.filter(o=>o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr"))).slice(0,12).map(o=>{
           const s=seciliAd===o.name;
@@ -6611,7 +6611,7 @@ function VeliMektubu({ kayitliListesi, aktifOgrenci, records }) {
       {mektup && (
         <div>
           <div id="veli-mektup-icerik">
-            <textarea value={mektup} onChange={e=>setMektup(e.target.value)} rows={20} style={{width:"100%",padding:"12px",border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:10,fontSize:13,lineHeight:1.8,fontFamily:"Arial,sans-serif",boxSizing:"border-box",resize:"vertical",marginBottom:8}} />
+            <textarea value={mektup} onChange={e=>setMektup(e.target.value)} rows={20} style={{width:"100%",padding:"12px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:10,fontSize:13,lineHeight:1.8,fontFamily:"Arial,sans-serif",boxSizing:"border-box",resize:"vertical",marginBottom:8}} />
           </div>
           <button onClick={()=>raporIndir("veli-mektup-icerik","Veli_Mektubu_"+seciliAd.replace(/\s+/g,"_"))} style={{width:"100%",padding:"10px",background:ACCENT,color:"#fff",border:"none",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer"}}>
             📄 Mektubu İndir
@@ -6705,7 +6705,7 @@ function YilSecimEkrani({ yillar, setYillar, aktifYil, setAktifYil, ogrenciler, 
                       {ogrSayisi} öğrenci silinecek!
                     </div>
                     <button onClick={()=>handleYilSil(yil)} style={{background:"#C0392B",color:"#fff",border:"none",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:800,cursor:"pointer"}}>Sil</button>
-                    <button onClick={()=>setSilOnayYil(null)} style={{background:BG,color:MUTED,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:8,padding:"6px 8px",fontSize:11,cursor:"pointer"}}>✕</button>
+                    <button onClick={()=>setSilOnayYil(null)} style={{background:BG,color:MUTED,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:8,padding:"6px 8px",fontSize:11,cursor:"pointer"}}>✕</button>
                   </div>
                 ) : sifirlaOnayYil === yil ? (
                   <div style={{display:"flex",gap:6,alignItems:"center"}}>
@@ -6713,11 +6713,11 @@ function YilSecimEkrani({ yillar, setYillar, aktifYil, setAktifYil, ogrenciler, 
                       {ogrSayisi} öğrenci ve ilişkili tüm veri silinecek, yıl kalacak!
                     </div>
                     <button onClick={()=>handleYilSifirla(yil)} disabled={sifirlaniyor} style={{background:"#B07D1A",color:"#fff",border:"none",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:800,cursor:"pointer"}}>{sifirlaniyor?"...":"Sıfırla"}</button>
-                    <button onClick={()=>setSifirlaOnayYil(null)} style={{background:BG,color:MUTED,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:8,padding:"6px 8px",fontSize:11,cursor:"pointer"}}>✕</button>
+                    <button onClick={()=>setSifirlaOnayYil(null)} style={{background:BG,color:MUTED,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:8,padding:"6px 8px",fontSize:11,cursor:"pointer"}}>✕</button>
                   </div>
                 ) : (
                   <div style={{display:"flex",gap:6}}>
-                    <button onClick={()=>setSifirlaOnayYil(yil)} title="Öğrenci listesini sıfırla, yılı silme" style={{background:"none",border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",color:MUTED,borderRadius:8,padding:"6px 10px",fontSize:12,cursor:"pointer"}}>🔄</button>
+                    <button onClick={()=>setSifirlaOnayYil(yil)} title="Öğrenci listesini sıfırla, yılı silme" style={{background:"none",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",color:MUTED,borderRadius:8,padding:"6px 10px",fontSize:12,cursor:"pointer"}}>🔄</button>
                     {yillar.length > 1 && (
                       <button onClick={()=>setSilOnayYil(yil)} style={{background:"none",border:"1px solid #F28B82",color:"#C5221F",borderRadius:8,padding:"6px 10px",fontSize:12,cursor:"pointer"}}>🗑</button>
                     )}
@@ -6730,7 +6730,7 @@ function YilSecimEkrani({ yillar, setYillar, aktifYil, setAktifYil, ogrenciler, 
       </div>
 
       {/* Yeni yıl ekle */}
-      <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:12,padding:14}}>
+      <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14}}>
         <div style={{fontSize:12,fontWeight:700,color:TEXT,marginBottom:10}}>Yeni Akademik Yıl Ekle</div>
         <div style={{display:"flex",gap:8}}>
           <input
@@ -6738,7 +6738,7 @@ function YilSecimEkrani({ yillar, setYillar, aktifYil, setAktifYil, ogrenciler, 
             value={yeniYil}
             onChange={e=>setYeniYil(e.target.value)}
             onKeyDown={e=>e.key==="Enter"&&handleYilEkle()}
-            style={{flex:1,padding:"10px 12px",border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:10,fontSize:14,outline:"none"}}
+            style={{flex:1,padding:"10px 12px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:10,fontSize:14,outline:"none"}}
           />
           <button onClick={handleYilEkle} disabled={!yeniYil.trim()} style={{
             padding:"10px 16px",background:yeniYil.trim()?ACCENT:BORDER,
@@ -6854,7 +6854,7 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
               {label:"Aktif Risk",val:ogrRisk.length>0?"⚠ Var":"✓",color:ogrRisk.length>0?"#C0392B":"#1A8C5B"},
               {label:"Müdahale",val:ogrMudahale.length>0?ogrMudahale.length+" aktif":"—",color:ogrMudahale.length>0?PURPLE:MUTED},
             ].map(c=>(
-              <div key={c.label} style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:14,padding:"16px 10px",textAlign:"center"}}>
+              <div key={c.label} style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:14,padding:"16px 10px",textAlign:"center"}}>
                 <div style={{fontSize:26,fontWeight:900,color:c.color,letterSpacing:-0.5}}>{c.val}</div>
                 <div style={{fontSize:11,color:MUTED,fontWeight:600,marginTop:2}}>{c.label}</div>
               </div>
@@ -6882,13 +6882,13 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
                   <span style={{background:durum.color,color:"#fff",borderRadius:12,padding:"5px 11px",fontSize:11,fontWeight:700}}>{durum.label}</span>
                 </div>
                 {devGuncelleAcik && (
-                  <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:10,padding:10,marginTop:6}}>
+                  <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:10,padding:10,marginTop:6}}>
                     <div style={{fontSize:11,color:MUTED,marginBottom:8,lineHeight:1.5}}>E-okul'dan kontrol ettiğin güncel devamsızlık gününü gir — üzerine yazmaz, tarihli yeni bir kayıt olarak eklenir, böylece artış hızı takip edilebilir. Bu kayıt, Devamsızlık sekmesi ve Sınıf sekmesindeki rozetle aynı veriyi paylaşır — buradan girdiğin an her ikisi de otomatik güncellenir.</div>
                     <div style={{display:"flex",gap:8,marginBottom:8}}>
                       <input type="number" min="0" value={devInput} onChange={e=>setDevInput(e.target.value)}
-                        style={{flex:1,minWidth:0,padding:"8px 10px",border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:8,fontSize:14,boxSizing:"border-box"}} />
+                        style={{flex:1,minWidth:0,padding:"8px 10px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:8,fontSize:14,boxSizing:"border-box"}} />
                       <input value={devTarihInput} onChange={e=>setDevTarihInput(e.target.value)} placeholder="GG.AA.YYYY"
-                        style={{flex:1,minWidth:0,padding:"8px 8px",border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:8,fontSize:12,boxSizing:"border-box"}} />
+                        style={{flex:1,minWidth:0,padding:"8px 8px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:8,fontSize:12,boxSizing:"border-box"}} />
                     </div>
                     <div style={{display:"flex",marginBottom:devSirali.length>0?10:0}}>
                       <button onClick={() => { onDevamsizlikGuncelle(parseInt(devInput)||0, devTarihInput); setDevGuncelleAcik(false); setDevTarihInput(today()); }}
@@ -6922,24 +6922,24 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
                 <span style={{background:"#9B87F0",color:"#fff",borderRadius:12,padding:"5px 11px",fontSize:11,fontWeight:700}}>+ Yeni Ekle</span>
               </div>
               {olayFormAcik && (
-                <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:10,padding:10,marginTop:6}}>
+                <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:10,padding:10,marginTop:6}}>
                   <div style={{fontSize:11,color:MUTED,marginBottom:8,lineHeight:1.5}}>Disiplin cezası uygulanmasa bile, olayın kendisini kaydeder — amaç ceza takibi değil, tekrarlayan olayları fark edebilmek.</div>
                   <label style={{fontSize:11,fontWeight:600,color:MUTED,display:"block",marginBottom:3}}>OLAY TÜRÜ</label>
                   <select value={olayForm.tur} onChange={e=>setOlayForm(f=>({...f,tur:e.target.value}))}
-                    style={{width:"100%",padding:"8px 10px",border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:8,fontSize:13,boxSizing:"border-box",marginBottom:8}}>
+                    style={{width:"100%",padding:"8px 10px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:8,fontSize:13,boxSizing:"border-box",marginBottom:8}}>
                     {["Kavga","Zorbalık / Akran Zorbalığı","Sözel Saldırganlık","Fiziksel Saldırganlık","Kurallara Uymama","Diğer"].map(t=><option key={t} value={t}>{t}</option>)}
                   </select>
                   <label style={{fontSize:11,fontWeight:600,color:MUTED,display:"block",marginBottom:3}}>İŞLEM (opsiyonel)</label>
                   <select value={olayForm.islem} onChange={e=>setOlayForm(f=>({...f,islem:e.target.value}))}
-                    style={{width:"100%",padding:"8px 10px",border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:8,fontSize:13,boxSizing:"border-box",marginBottom:8}}>
+                    style={{width:"100%",padding:"8px 10px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:8,fontSize:13,boxSizing:"border-box",marginBottom:8}}>
                     {["Tutanak Tutuldu","Veli Görüşmesi Yapıldı","Rehberliğe Yönlendirildi","Disiplin Kuruluna Sevk Edildi","İşlem Yapılmadı"].map(t=><option key={t} value={t}>{t}</option>)}
                   </select>
                   <label style={{fontSize:11,fontWeight:600,color:MUTED,display:"block",marginBottom:3}}>NOT (opsiyonel)</label>
                   <textarea rows={2} value={olayForm.not} onChange={e=>setOlayForm(f=>({...f,not:e.target.value}))}
-                    style={{width:"100%",padding:"8px 10px",border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:8,fontSize:13,boxSizing:"border-box",marginBottom:8,resize:"vertical"}} />
+                    style={{width:"100%",padding:"8px 10px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:8,fontSize:13,boxSizing:"border-box",marginBottom:8,resize:"vertical"}} />
                   <label style={{fontSize:11,fontWeight:600,color:MUTED,display:"block",marginBottom:3}}>TARİH</label>
                   <input value={olayForm.tarih} onChange={e=>setOlayForm(f=>({...f,tarih:e.target.value}))} placeholder="GG.AA.YYYY"
-                    style={{width:"100%",padding:"8px 10px",border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:8,fontSize:13,boxSizing:"border-box",marginBottom:8}} />
+                    style={{width:"100%",padding:"8px 10px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:8,fontSize:13,boxSizing:"border-box",marginBottom:8}} />
                   <button onClick={() => { onOlayEkle(olayForm); setOlayForm({ tur:"Kavga", islem:"Tutanak Tutuldu", not:"", tarih:today() }); setOlayFormAcik(false); }}
                     style={{width:"100%",padding:"8px 16px",background:"#9B87F0",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",marginBottom: olaySirali.length>0?10:0}}>Kaydet</button>
                   {olaySirali.length > 0 && (
@@ -6961,7 +6961,7 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
 
           {/* Son görüşme */}
           {sonGorusme && (
-            <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderLeft:`4px solid ${ACCENT}`,borderRadius:10,padding:12,marginBottom:10}}>
+            <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderLeft:`4px solid ${ACCENT}`,borderRadius:10,padding:12,marginBottom:10}}>
               <div style={{fontSize:10,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:4}}>Son Görüşme · {sonGorusme.date}</div>
               <div style={{fontSize:13,color:TEXT,lineHeight:1.7}}>{sonGorusme.summary}</div>
             </div>
@@ -6982,7 +6982,7 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
 
           {/* Profil özeti */}
           {ogrP1 && (
-            <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:10,padding:12,marginBottom:10}}>
+            <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:10,padding:12,marginBottom:10}}>
               <div style={{fontSize:10,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:8}}>Profil 1</div>
               {dusukBoyutlar.length > 0 && (
                 <div style={{marginBottom:6}}>
@@ -7017,7 +7017,7 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
 
           {/* Deneme netleri */}
           {denemeGirilen.length > 0 && (
-            <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:10,padding:12}}>
+            <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:10,padding:12}}>
               <div style={{fontSize:10,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:8}}>
                 Deneme Netleri {denemeGirilen.length > 1 && <span style={{color:denemeArtan?"#1A8C5B":"#C0392B",fontWeight:700}}>{denemeArtan?"↑ Artış":"↓ Düşüş"}</span>}
               </div>
@@ -7072,7 +7072,7 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
 
           {/* Görüşme sıklığı */}
           {ogrRec.length > 0 && (
-            <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:10,padding:12,marginBottom:10}}>
+            <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:10,padding:12,marginBottom:10}}>
               <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:8}}>Görüşme Süreci</div>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
                 <div style={{textAlign:"center"}}>
@@ -7105,7 +7105,7 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
 
           {/* Profil güçlü/zayıf */}
           {ogrP1 && (
-            <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:10,padding:12,marginBottom:10}}>
+            <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:10,padding:12,marginBottom:10}}>
               <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:10}}>Profil Analizi</div>
               {DIMENSIONS.map(d=>{
                 const val=profilPuanlar[d.key]||0;
@@ -7129,7 +7129,7 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
 
           {/* Deneme trendi */}
           {denemeGirilen.length > 1 && (
-            <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:10,padding:12}}>
+            <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:10,padding:12}}>
               <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:8}}>Deneme Trendi</div>
               <div style={{display:"flex",alignItems:"flex-end",gap:4,height:60,marginBottom:6}}>
                 {denemeGirilen.map((d,i)=>{
@@ -7326,7 +7326,7 @@ function KullaniciOnaylari() {
           {basvurular.map(b => {
             const durumStil = renkler[b.durum] || renkler.bekliyor;
             return (
-              <div key={b.uid} style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 10, padding: "12px 14px" }}>
+              <div key={b.uid} style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 10, padding: "12px 14px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 13, color: TEXT }}>{b.email}</div>
@@ -7372,14 +7372,14 @@ function KullaniciOnaylari() {
                     guncelle(b.uid, alanlar);
                   }} disabled={b.durum === "onayli"} style={{ padding: "6px 12px", background: b.durum === "onayli" ? BORDER : ACCENT, color: b.durum === "onayli" ? MUTED : "#fff", border: "none", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: b.durum === "onayli" ? "default" : "pointer" }}>✓ Onayla</button>
                   <button onClick={() => guncelle(b.uid, { durum: "reddedildi" })} disabled={b.durum === "reddedildi"} style={{ padding: "6px 12px", background: "none", border: "1px solid #F28B82", color: "#C5221F", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: b.durum === "reddedildi" ? "default" : "pointer" }}>🚫 Reddet</button>
-                  <button onClick={() => guncelle(b.uid, { durum: "bekliyor" })} disabled={b.durum === "bekliyor"} style={{ padding: "6px 12px", background: "none", border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", color: MUTED, borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: b.durum === "bekliyor" ? "default" : "pointer" }}>↺ Beklemeye Al</button>
+                  <button onClick={() => guncelle(b.uid, { durum: "bekliyor" })} disabled={b.durum === "bekliyor"} style={{ padding: "6px 12px", background: "none", border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", color: MUTED, borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: b.durum === "bekliyor" ? "default" : "pointer" }}>↺ Beklemeye Al</button>
                 </div>
                 <div style={{ display: "flex", gap: 18, flexWrap: "wrap", alignItems: "center", marginTop: 8, paddingTop: 8, borderTop: `1px solid ${BORDER}` }}>
                   <PdrToggle checked={!!b.odemeAlindi} onChange={v => guncelle(b.uid, { odemeAlindi: v })} color="#1A8C5B" label="💳 Ödeme Alındı" />
                   <PdrToggle checked={!!b.ucretsiz} onChange={v => guncelle(b.uid, { ucretsiz: v })} color={ACCENT} label="🎁 Ücretsiz kullanıcı" />
                   {b.durum === "onayli" && (
                     <button onClick={() => guncelle(b.uid, { onayTarihi: Date.now(), erisimBitis: pdrEgitimYiliBitisi(Date.now()), odemeAlindi: false, ucretsiz: false })} style={{
-                      padding: "5px 10px", background: "none", border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", color: MUTED, borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer"
+                      padding: "5px 10px", background: "none", border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", color: MUTED, borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer"
                     }}>🔄 Yeni Yıl İçin Yenile</button>
                   )}
                 </div>
@@ -7574,7 +7574,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={() => setGeriYuklemeOnay(null)} style={{
-                flex: 1, padding: 12, background: "none", border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", color: MUTED, borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer"
+                flex: 1, padding: 12, background: "none", border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", color: MUTED, borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer"
               }}>Vazgeç</button>
               <button onClick={handleGeriYuklemeOnayla} disabled={geriYukleniyor} style={{
                 flex: 1, padding: 12, background: "#C0392B", color: "#fff", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: "pointer", opacity: geriYukleniyor?0.6:1
@@ -8033,7 +8033,7 @@ function OgrenciYonetim({
           <div style={{ display:"flex", gap:8, marginBottom:10 }}>
             <input placeholder="Ad, sınıf veya numara ara…" value={aramaMetni}
               onChange={e => setAramaMetni(e.target.value)}
-              style={{ flex:1, padding:"9px 12px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:10, fontSize:13, background:CARD, color:TEXT, outline:"none", boxSizing:"border-box" }} />
+              style={{ flex:1, padding:"9px 12px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, fontSize:13, background:CARD, color:TEXT, outline:"none", boxSizing:"border-box" }} />
             <button onClick={() => setFormAcik(f=>!f)} style={{
               background:formAcik ? BORDER : ACCENT, color:formAcik ? MUTED : "#fff",
               border:"none", borderRadius:10, padding:"9px 14px", fontSize:12, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap"
@@ -8042,7 +8042,7 @@ function OgrenciYonetim({
 
           {/* Yeni öğrenci formu */}
           {formAcik && (
-            <div style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:12, padding:14, marginBottom:12 }}>
+            <div style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:12, padding:14, marginBottom:12 }}>
               <div style={{ fontSize:11, color:MUTED, background:BG, borderRadius:8, padding:"6px 10px", marginBottom:10, lineHeight:1.5 }}>
                 💡 İstersen gizlilik için soyadı kısaltabilirsin (örn. "Ahmet Y.") — sistem numarayla da eşleştirme yapabildiği için sorun olmaz.
               </div>
@@ -8051,20 +8051,20 @@ function OgrenciYonetim({
                   <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:3 }}>AD SOYAD</label>
                   <input placeholder="Ad Soyad" value={yeniForm.studentName}
                     onChange={e => setYeniForm(f=>({...f, studentName:e.target.value}))}
-                    style={{ width:"100%", padding:"8px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:8, fontSize:13, boxSizing:"border-box" }} />
+                    style={{ width:"100%", padding:"8px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, fontSize:13, boxSizing:"border-box" }} />
                 </div>
                 <div>
                   <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:3 }}>SINIF</label>
                   <input placeholder="8-A" value={yeniForm.className}
                     onChange={e => setYeniForm(f=>({...f, className:e.target.value}))}
-                    style={{ width:"100%", padding:"8px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:8, fontSize:13, boxSizing:"border-box" }} />
+                    style={{ width:"100%", padding:"8px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, fontSize:13, boxSizing:"border-box" }} />
                 </div>
               </div>
               <div style={{ marginBottom:10 }}>
                 <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:3 }}>ÖĞRENCİ NUMARASI</label>
                 <input placeholder="örn. 1234" value={yeniForm.numara}
                   onChange={e => setYeniForm(f=>({...f, numara:e.target.value}))}
-                  style={{ width:"100%", padding:"8px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:8, fontSize:13, boxSizing:"border-box" }} />
+                  style={{ width:"100%", padding:"8px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, fontSize:13, boxSizing:"border-box" }} />
               </div>
               <button onClick={handleOgrenciEkle} disabled={!yeniForm.studentName.trim()} style={{
                 width:"100%", padding:"10px", background:yeniForm.studentName ? ACCENT : BORDER,
@@ -8113,7 +8113,7 @@ function OgrenciYonetim({
                   {siraliAylar.map(([ay, veri]) => {
                     const acik = !!acikAylar[ay];
                     return (
-                    <div key={ay} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:12, overflow:"hidden" }}>
+                    <div key={ay} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:12, overflow:"hidden" }}>
                       <div onClick={() => setAcikAylar(a => ({ ...a, [ay]: !a[ay] }))}
                         style={{ fontSize:13, fontWeight:800, color:ACCENT, padding:"12px 14px", display:"flex", alignItems:"center", gap:6, cursor:"pointer", background:acik?ACCENT_LIGHT:CARD }}>
                         <span style={{ display:"inline-block", transform:acik?"rotate(90deg)":"rotate(0deg)", transition:"transform 0.15s ease", fontSize:11 }}>›</span>
@@ -8126,7 +8126,7 @@ function OgrenciYonetim({
                             .sort((a,b) => (a.date||"").localeCompare(b.date||""))
                             .map(k => (
                             <div key={k.id} onClick={() => { setSeciliOgrenci(k.studentName); if(setAktifOgrenci) setAktifOgrenci({ name:k.studentName, className:k.className||"" }); }}
-                              style={{ background:BG, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:10, padding:"9px 12px", display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
+                              style={{ background:BG, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:"9px 12px", display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
                               <span style={{ fontSize:11, color:MUTED, minWidth:44 }}>{k.date}</span>
                               <span style={{ flex:1, fontSize:13, fontWeight:700, color:TEXT }}>{k.studentName}</span>
                               <span style={{ fontSize:11, color:MUTED }}>{k.className}{k.numara ? ` · No: ${k.numara}` : ""}</span>
@@ -8172,7 +8172,7 @@ function OgrenciYonetim({
                   </div>
                   <div style={{display:"flex", gap:8}}>
                     <button onClick={() => setSinifSilAcik(false)} style={{
-                      flex:1, padding:"7px", background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:8,
+                      flex:1, padding:"7px", background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8,
                       fontSize:11, fontWeight:700, color:MUTED, cursor:"pointer"
                     }}>Vazgeç</button>
                     <button onClick={async () => {
@@ -8243,7 +8243,7 @@ function OgrenciYonetim({
               const oAniDegisim = aniDegisimHesapla(o, records, riskListesi, sevkler, denemeler, testKayitlari, dersler, profiles);
 
               return (
-                <div key={pdrOgrAnahtar(o.studentName, o.className, o.numara)} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:12, padding:"10px 14px", display:"flex", flexDirection:"column", gap:6 }}>
+                <div key={pdrOgrAnahtar(o.studentName, o.className, o.numara)} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:12, padding:"10px 14px", display:"flex", flexDirection:"column", gap:6 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                     {/* Tıklanabilir alan: avatar + isim/sınıf/no */}
                     <div onClick={() => { setSeciliOgrenci(o.studentName); if(setAktifOgrenci) setAktifOgrenci({ name: o.studentName, className: o.className || "" }); }}
@@ -8293,7 +8293,7 @@ function OgrenciYonetim({
           {/* Geri + Başlık */}
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, flexWrap:"wrap", rowGap:8 }}>
             <button onClick={() => { setSeciliOgrenci(null); setAktifSekme("ozet"); setAktifOgrenci({ name: "", className: "" }); }} style={{
-              background:BG, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:700, color:MUTED, cursor:"pointer"
+              background:BG, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:700, color:MUTED, cursor:"pointer"
             }}>← Geri</button>
             <button onClick={() => handleOgrenciSil(seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara)} style={{
               background:"none", border:"1px solid #F28B82", color:"#C5221F",
@@ -8328,12 +8328,12 @@ function OgrenciYonetim({
               </div>
               <label style={{ fontSize:10, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>AD SOYAD</label>
               <input value={yeniAdDegeri} onChange={e=>setYeniAdDegeri(e.target.value)} placeholder="Ad Soyad"
-                style={{ width:"100%", padding:"8px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:8, fontSize:13, boxSizing:"border-box", marginBottom:8 }} />
+                style={{ width:"100%", padding:"8px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, fontSize:13, boxSizing:"border-box", marginBottom:8 }} />
               <label style={{ fontSize:10, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>SINIF</label>
               <div style={{ display:"flex", gap:8 }}>
                 <input value={yeniSinifDegeri} onChange={e=>setYeniSinifDegeri(e.target.value)} placeholder="Yeni sınıf (örn. 8-A)"
-                  style={{ flex:1, padding:"8px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:8, fontSize:13, boxSizing:"border-box" }} />
-                <button onClick={() => { setSinifGuncelleAcik(false); }} style={{ padding:"8px 12px", background:BG, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:8, fontSize:12, fontWeight:700, color:MUTED, cursor:"pointer" }}>İptal</button>
+                  style={{ flex:1, padding:"8px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, fontSize:13, boxSizing:"border-box" }} />
+                <button onClick={() => { setSinifGuncelleAcik(false); }} style={{ padding:"8px 12px", background:BG, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, fontSize:12, fontWeight:700, color:MUTED, cursor:"pointer" }}>İptal</button>
                 <button onClick={async () => {
                   const yAd = yeniAdDegeri.trim(), yeSinif = yeniSinifDegeri.trim();
                   if (!yAd || !yeSinif || (yAd === seciliOgrenci && yeSinif === seciliOgrenciSinif)) { setSinifGuncelleAcik(false); return; }
@@ -8357,9 +8357,9 @@ function OgrenciYonetim({
             ) : (
               <>
                 <input type="number" step="0.1" value={gdoDegeri} onChange={e=>setGdoDegeri(e.target.value)} placeholder="örn. 24.5"
-                  style={{ width:80, padding:"5px 8px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:6, fontSize:12, boxSizing:"border-box" }} />
+                  style={{ width:80, padding:"5px 8px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:6, fontSize:12, boxSizing:"border-box" }} />
                 <button onClick={handleGdoManuelKaydet} disabled={!gdoDegeri.trim()} style={{ background:PURPLE, color:"#fff", border:"none", borderRadius:6, padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer" }}>Kaydet</button>
-                <button onClick={()=>setGdoDuzenleAcik(false)} style={{ background:"none", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", color:MUTED, borderRadius:6, padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer" }}>İptal</button>
+                <button onClick={()=>setGdoDuzenleAcik(false)} style={{ background:"none", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", color:MUTED, borderRadius:6, padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer" }}>İptal</button>
               </>
             )}
           </div>
@@ -8472,7 +8472,7 @@ function OgrenciYonetim({
                       return (
                         <div key={r.id} style={{marginBottom:14,position:"relative"}}>
                           <div style={{position:"absolute",left:-16,top:4,width:10,height:10,borderRadius:"50%",background:isVeli?ORANGE:ACCENT,border:"2px solid #fff",boxShadow:"0 0 0 2px "+(isVeli?ORANGE:ACCENT)}}/>
-                          <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:10,padding:"10px 12px"}}>
+                          <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:10,padding:"10px 12px"}}>
                             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4,flexWrap:"wrap",gap:4}}>
                               <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
                                 <span style={{fontSize:12,fontWeight:700,color:TEXT}}>{r.date}</span>
@@ -8490,19 +8490,19 @@ function OgrenciYonetim({
                                     <button key={t} onClick={()=>setDuzenleForm(f=>({...f,meetingType:t}))} style={{flex:1,padding:"6px",borderRadius:8,border:`2px solid ${duzenleForm?.meetingType===t?ACCENT:BORDER}`,background:duzenleForm?.meetingType===t?ACCENT_LIGHT:CARD,color:duzenleForm?.meetingType===t?ACCENT:MUTED,fontSize:11,fontWeight:700,cursor:"pointer"}}>{t}</button>
                                   ))}
                                 </div>
-                                <select value={duzenleForm?.topic||""} onChange={e=>setDuzenleForm(f=>({...f,topic:e.target.value}))} style={{width:"100%",padding:"7px 9px",border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:8,fontSize:12,marginBottom:6,boxSizing:"border-box",background:"#fff"}}>
+                                <select value={duzenleForm?.topic||""} onChange={e=>setDuzenleForm(f=>({...f,topic:e.target.value}))} style={{width:"100%",padding:"7px 9px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:8,fontSize:12,marginBottom:6,boxSizing:"border-box",background:"#fff"}}>
                                   <option value="">Konu seçilmedi</option>
                                   {KONU_LISTESI.map(k => <option key={k} value={k}>{k}</option>)}
                                 </select>
                                 <label style={{fontSize:10,fontWeight:600,color:MUTED,display:"block",marginBottom:2}}>HAM NOT</label>
-                                <textarea value={duzenleForm?.raw||""} onChange={e=>setDuzenleForm(f=>({...f,raw:e.target.value}))} rows={3} style={{width:"100%",padding:"7px 9px",border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:8,fontSize:12,resize:"vertical",boxSizing:"border-box",marginBottom:6}}/>
+                                <textarea value={duzenleForm?.raw||""} onChange={e=>setDuzenleForm(f=>({...f,raw:e.target.value}))} rows={3} style={{width:"100%",padding:"7px 9px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:8,fontSize:12,resize:"vertical",boxSizing:"border-box",marginBottom:6}}/>
                                 <button onClick={handleDuzenleAiOzetle} disabled={!duzenleForm?.raw?.trim()||duzenleAiLoading} style={{width:"100%",padding:"7px",background:duzenleForm?.raw?.trim()&&!duzenleAiLoading?PURPLE:BORDER,color:duzenleForm?.raw?.trim()&&!duzenleAiLoading?"#fff":MUTED,border:"none",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer",marginBottom:6}}>
                                   {duzenleAiLoading?"⏳ Özetleniyor...":"✦ AI ile Yeniden Özetle"}
                                 </button>
                                 <label style={{fontSize:10,fontWeight:600,color:MUTED,display:"block",marginBottom:2}}>ÖZET</label>
                                 <textarea value={duzenleForm?.summary||""} onChange={e=>setDuzenleForm(f=>({...f,summary:e.target.value}))} rows={4} style={{width:"100%",padding:"7px 9px",border:`1px solid ${ACCENT_LIGHT}`,borderRadius:8,fontSize:12,resize:"vertical",boxSizing:"border-box",background:"#F0FAF4",marginBottom:8}}/>
                                 <div style={{display:"flex",gap:8}}>
-                                  <button onClick={()=>{setDuzenlemeId(null);setDuzenleForm(null);}} style={{flex:1,padding:"8px",background:BG,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:8,fontSize:12,fontWeight:700,color:MUTED,cursor:"pointer"}}>İptal</button>
+                                  <button onClick={()=>{setDuzenlemeId(null);setDuzenleForm(null);}} style={{flex:1,padding:"8px",background:BG,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:8,fontSize:12,fontWeight:700,color:MUTED,cursor:"pointer"}}>İptal</button>
                                   <button onClick={()=>handleGorusmeGuncelle(r.id,duzenleForm)} disabled={!duzenleForm?.summary?.trim()} style={{flex:1,padding:"8px",background:duzenleForm?.summary?.trim()?ACCENT:BORDER,color:duzenleForm?.summary?.trim()?"#fff":MUTED,border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>💾 Kaydet</button>
                                 </div>
                               </div>
@@ -8556,7 +8556,7 @@ function OgrenciYonetim({
           {aktifSekme === "deneme" && (
             <div>
               {sinif7Data && (
-                <div style={{background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:12, padding:12, marginBottom:12}}>
+                <div style={{background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:12, padding:12, marginBottom:12}}>
                   <div style={{fontSize:11, fontWeight:700, color:MUTED, textTransform:"uppercase", marginBottom:8}}>📊 Geçmiş Dönem Deneme Geçmişi</div>
                   <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8}}>
                     <div style={{textAlign:"center"}}>
@@ -8596,7 +8596,7 @@ function OgrenciYonetim({
                       ["En Yüksek", Math.max(...denemeGirilen.map(d=>d.toplam)).toFixed(1), "#1A8C5B"],
                       ["En Düşük", Math.min(...denemeGirilen.map(d=>d.toplam)).toFixed(1), "#C0392B"],
                     ].map(([l,v,c]) => (
-                      <div key={l} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:8, padding:"8px", textAlign:"center" }}>
+                      <div key={l} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, padding:"8px", textAlign:"center" }}>
                         <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
                         <div style={{ fontSize:10, color:MUTED }}>{l}</div>
                       </div>
@@ -8606,7 +8606,7 @@ function OgrenciYonetim({
                     const c = d.toplam>=70?"#1A8C5B":d.toplam>=50?"#B07D1A":"#C0392B";
                     const bg = d.toplam>=70?"#E6F5EE":d.toplam>=50?"#FDF6E3":"#FDECEA";
                     return (
-                      <div key={d.no} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:10, padding:12, marginBottom:8 }}>
+                      <div key={d.no} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:12, marginBottom:8 }}>
                         <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
                           <span style={{ fontSize:13, fontWeight:700, color:TEXT }}>Deneme {d.no}</span>
                           <span style={{ fontSize:20, fontWeight:900, color:c }}>{d.toplam.toFixed(1)}</span>
@@ -8640,7 +8640,7 @@ function OgrenciYonetim({
             <div>
               {!ogrP1 && !ogrP2 && <div style={{ textAlign:"center", color:MUTED, marginTop:30, fontSize:13 }}>Profil kaydı yok.</div>}
               {ogrP1 && (
-                <div style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:10, padding:12, marginBottom:10 }}>
+                <div style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:12, marginBottom:10 }}>
                   <div style={{ fontSize:11, fontWeight:700, color:MUTED, marginBottom:10, textTransform:"uppercase" }}>Profil 1 — PDR Değerlendirmesi</div>
                   {DIMENSIONS.map(d => {
                     const val = ogrP1.scores?.[d.key] || 0;
@@ -8660,7 +8660,7 @@ function OgrenciYonetim({
                 </div>
               )}
               {ogrP2 && (
-                <div style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:10, padding:12 }}>
+                <div style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:12 }}>
                   <div style={{ fontSize:11, fontWeight:700, color:MUTED, marginBottom:8, textTransform:"uppercase" }}>Profil 2 — Akademik & İlgi</div>
                   {ogrP2.kariyer_hedef && <div style={{ fontSize:12, marginBottom:6 }}><b>Kariyer:</b> {ogrP2.kariyer_hedef}</div>}
                   {ogrP2.ilgiler?.length > 0 && (
@@ -8843,7 +8843,7 @@ function DenemeBazliRiskGosterimi({ denemeler, kayitliListesi, dersler }) {
         {veriler.map(v => {
           const acik = acikDeneme === v.no;
           return (
-            <div key={v.no} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:10, overflow:"hidden" }}>
+            <div key={v.no} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, overflow:"hidden" }}>
               <button onClick={()=>setAcikDeneme(acik?null:v.no)} style={{
                 width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px",
                 background:"none", border:"none", cursor:"pointer", textAlign:"left"
@@ -8963,7 +8963,7 @@ function DenemeGuncelYilTopluYukle({ denemeler, setDenemeler, onKapat }) {
       </div>
       <label style={{ fontSize:11, fontWeight:700, color:MUTED, display:"block", marginBottom:4 }}>HANGİ DENEME?</label>
       <select value={denemeNo} onChange={e=>setDenemeNo(parseInt(e.target.value))} style={{
-        width:"100%", padding:"8px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:8, fontSize:13, fontWeight:700, color:TEXT, background:"#fff", marginBottom:10
+        width:"100%", padding:"8px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, fontSize:13, fontWeight:700, color:TEXT, background:"#fff", marginBottom:10
       }}>
         {Array.from({length: DENEME_SAYISI}, (_,i)=>i+1).map(n => <option key={n} value={n}>Deneme {n}</option>)}
       </select>
@@ -9164,10 +9164,10 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
         <div style={{ marginBottom: 10 }}>
           <label style={{ fontSize: 10, fontWeight: 700, color: MUTED, display: "block", marginBottom: 3 }}>GİRİŞ TARİHİ (hangi görüşmede ele alındıysa)</label>
           <input value={girisTarihi} onChange={e=>setGirisTarihi(e.target.value)} placeholder="GG.AA.YYYY"
-            style={{ width: "100%", padding: "7px 10px", border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 8, fontSize: 12, boxSizing: "border-box" }} />
+            style={{ width: "100%", padding: "7px 10px", border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 8, fontSize: 12, boxSizing: "border-box" }} />
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={onIptal} style={{ flex: 1, padding: "9px", background: CARD, color: MUTED, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>İptal</button>
+          <button onClick={onIptal} style={{ flex: 1, padding: "9px", background: CARD, color: MUTED, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>İptal</button>
           <button onClick={() => onKaydet({ ...nets, girisTarihi })} style={{ flex: 2, padding: "9px", background: ACCENT, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: "pointer" }}>Kaydet</button>
         </div>
       </div>
@@ -9199,7 +9199,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
         <label style={{ fontSize: 11, fontWeight: 700, color: MUTED }}>SINAV TÜRÜ</label>
         <select value={sinavTuru || "lgs"} onChange={e => setSinavTuru(e.target.value)} style={{
-          padding: "6px 10px", borderRadius: 8, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", fontSize: 12, fontWeight: 700, color: TEXT, background: CARD, cursor: "pointer"
+          padding: "6px 10px", borderRadius: 8, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", fontSize: 12, fontWeight: 700, color: TEXT, background: CARD, cursor: "pointer"
         }}>
           {Object.entries(SINAV_TURLERI).map(([k, v]) => <option key={k} value={k}>{v.ad}</option>)}
         </select>
@@ -9255,7 +9255,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
       <div style={{ marginBottom: 14 }}>
         <input placeholder="Öğrenci ara…" value={aramaMetni}
           onChange={e => setAramaMetni(e.target.value)}
-          style={{ width: "100%", padding: "9px 12px", border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 10, fontSize: 13, background: CARD, color: TEXT, outline: "none", boxSizing: "border-box" }} />
+          style={{ width: "100%", padding: "9px 12px", border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 10, fontSize: 13, background: CARD, color: TEXT, outline: "none", boxSizing: "border-box" }} />
       </div>
 
       {kayitliListesi.length === 0 ? (
@@ -9299,7 +9299,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
           {seciliOgrenci && (
             <>
               {/* Seçili öğrenci başlığı */}
-              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:12, padding:"10px 14px" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:12, padding:"10px 14px" }}>
                 <div style={{ width:34, height:34, borderRadius:"50%", background:ACCENT_LIGHT, color:ACCENT, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:14, flexShrink:0 }}>
                   {seciliOgrenci.charAt(0).toUpperCase()}
                 </div>
@@ -9308,14 +9308,14 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
                   <div style={{ fontSize:11, color:MUTED }}>{seciliOgrenciSinif}{seciliOgrenciNumara ? ` · No: ${seciliOgrenciNumara}` : ""}</div>
                 </div>
                 <button onClick={() => { setSeciliOgrenci(""); if (setAktifOgrenci) setAktifOgrenci({ name: "", className: "" }); }} style={{
-                  background:"none", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", color:MUTED, borderRadius:8,
+                  background:"none", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", color:MUTED, borderRadius:8,
                   padding:"5px 10px", fontSize:11, fontWeight:600, cursor:"pointer", flexShrink:0
                 }}>Değiştir</button>
               </div>
               {/* Grafik */}
               {/* 7. Sınıf Özet */}
         {sinif7Data && (
-          <div style={{background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:12, padding:12, marginBottom:12}}>
+          <div style={{background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:12, padding:12, marginBottom:12}}>
             <div style={{fontSize:11, fontWeight:700, color:MUTED, textTransform:"uppercase", marginBottom:8}}>📊 Geçmiş Dönem Deneme Geçmişi</div>
             <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8}}>
               <div style={{textAlign:"center"}}>
@@ -9417,7 +9417,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
 
               {/* Özet tablo */}
               {girilenDenemeler.length > 0 && (
-                <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 12, padding: 14, marginTop: 14 }}>
+                <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 12, padding: 14, marginTop: 14 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: TEXT, marginBottom: 10 }}>Deneme Özeti</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
                     {[
@@ -9564,7 +9564,7 @@ function OOGPaneli({ seciliAd, seciliSinif, seciliNumara, oogDegerlendirmeler, s
           </div>
           <div style={{display:"flex", flexWrap:"wrap", gap:6, justifyContent:"center", marginTop:10}}>
             {OOG_KATEGORILER.map(k => (
-              <span key={k.key} style={{fontSize:10, fontWeight:700, padding:"3px 8px", borderRadius:10, background:"#fff", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", color:TEXT}}>
+              <span key={k.key} style={{fontSize:10, fontWeight:700, padding:"3px 8px", borderRadius:10, background:"#fff", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", color:TEXT}}>
                 {k.label.split(" ")[0]} {sonuc.kategoriPuan[k.key] === null ? "—" : `%${sonuc.kategoriPuan[k.key]}`}
               </span>
             ))}
@@ -9804,7 +9804,7 @@ function ProfilMerkez({
   }
 
   // Radar mini
-  const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:9, fontSize:13, background:CARD, color:TEXT, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
+  const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, background:CARD, color:TEXT, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
   const lbl = { fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4, textTransform:"uppercase" };
 
   return (
@@ -9850,11 +9850,11 @@ function ProfilMerkez({
             </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>{ setSeciliAd(""); if(setAktifOgrenci) setAktifOgrenci({ name:"", className:"" }); }} style={{
-                background:"none", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", color:MUTED, borderRadius:8, padding:"6px 10px", fontSize:12, fontWeight:600, cursor:"pointer"
+                background:"none", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", color:MUTED, borderRadius:8, padding:"6px 10px", fontSize:12, fontWeight:600, cursor:"pointer"
               }}>✕ Değiştir</button>
               <button onClick={()=>setMod(mod==="form"?"onizleme":"form")} style={{
                 background:mod==="onizleme"?ACCENT_LIGHT:BG, color:mod==="onizleme"?ACCENT:MUTED,
-                border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:700, cursor:"pointer"
+                border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:700, cursor:"pointer"
               }}>{mod==="form"?"👁 Önizle":"✏ Düzenle"}</button>
               <button onClick={()=>{
                 // Her zaman mevcut form state'ini kullan — kayıt bekleme
@@ -9919,7 +9919,7 @@ function ProfilMerkez({
                   }}>
                     <RadarChart scores={profForm.scores} size={240} glass />
                   </div>
-                  <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:12,padding:14,marginBottom:12}}>
+                  <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:12}}>
                     {onDegerlendirmeAc && (
                       <button onClick={onDegerlendirmeAc} style={{
                         width:"100%", padding:"10px", marginBottom:12, background:"#EEF2FF", border:"1px solid #3B4FD8",
@@ -9958,7 +9958,7 @@ function ProfilMerkez({
               {altSekme === "p2" && (
                 <div>
                   {/* Sınav puanları — 2 yazılı */}
-                  <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:12,padding:14,marginBottom:12}}>
+                  <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:12}}>
                     <div style={{fontSize:12,fontWeight:700,color:BLUE,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>Yazılı Sınav Puanları</div>
                     {DERSLER.map(d => {
                       const v1 = prof2Form.sinavlar?.[d.key+"1"]||"";
@@ -9993,7 +9993,7 @@ function ProfilMerkez({
                   </div>
 
                   {/* D2 */}
-                  <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:12,padding:14,marginBottom:12}}>
+                  <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:12}}>
                     <div style={{fontSize:12,fontWeight:700,color:PURPLE,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>D2 Dikkat Testi</div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
                       {[{key:"TN",label:"TN"},{key:"E1",label:"E1"},{key:"E2",label:"E2"},{key:"CP",label:"CP"},{key:"FR",label:"FR"},{key:"PR",label:"PR"}].map(f=>(
@@ -10035,7 +10035,7 @@ function ProfilMerkez({
                   </div>
 
                   {/* İlgi alanları */}
-                  <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:12,padding:14,marginBottom:12}}>
+                  <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:12}}>
                     <div style={{fontSize:12,fontWeight:700,color:"#92400E",textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>Kişisel Gelişim & İlgi Profili</div>
                     <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
                       {ILGI_ETIKETLERI.map(ilgi=>{
@@ -10129,7 +10129,7 @@ function ProfilMerkez({
 
               {/* Deneme */}
               {denemeGirilen.length > 0 && (
-                <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:12,padding:14,marginBottom:12}}>
+                <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:12}}>
                   <div style={{fontSize:12,fontWeight:700,color:BLUE,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>LGS Deneme Sonuçları</div>
                   <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
                     {denemeGirilen.map(d=>{
@@ -10151,7 +10151,7 @@ function ProfilMerkez({
 
               {/* D2 Tablo + Grafik */}
               {mevcutP2?.d2 && (mevcutP2.d2.TN||mevcutP2.d2.TN_E) && (
-                <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:12,padding:14,marginBottom:12}}>
+                <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:12}}>
                   <div style={{fontSize:12,fontWeight:700,color:PURPLE,textTransform:"uppercase",letterSpacing:0.5,marginBottom:12}}>D2 Dikkat Testi</div>
                   {/* Tablo */}
                   <div style={{overflowX:"auto",marginBottom:12}}>
@@ -10220,7 +10220,7 @@ function ProfilMerkez({
 
               {/* Sınav puanları — 2 yazılı */}
               {mevcutP2?.sinavlar && Object.values(mevcutP2.sinavlar).some(v=>v!=="") && (
-                <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:12,padding:14,marginBottom:12}}>
+                <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:12}}>
                   <div style={{fontSize:12,fontWeight:700,color:BLUE,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>Yazılı Sınav Puanları</div>
                   {DERSLER.map(d=>{
                     const v1=parseFloat(mevcutP2.sinavlar?.[d.key+"1"]);
@@ -10250,7 +10250,7 @@ function ProfilMerkez({
 
               {/* İlgi + Kariyer */}
               {mevcutP2 && (mevcutP2.ilgiler?.length>0 || mevcutP2.kariyer_hedef) && (
-                <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:12,padding:14,marginBottom:12}}>
+                <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:12}}>
                   {mevcutP2.kariyer_hedef && <div style={{fontSize:13,marginBottom:8}}><b style={{color:ACCENT}}>Kariyer Hedefi:</b> {mevcutP2.kariyer_hedef}</div>}
                   {mevcutP2.ilgiler?.length>0 && <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
                     {mevcutP2.ilgiler.map(i=><span key={i} style={{background:"#FEF9C3",color:"#92400E",borderRadius:12,padding:"2px 10px",fontSize:11,fontWeight:600}}>{i}</span>)}
@@ -10260,7 +10260,7 @@ function ProfilMerkez({
 
               {/* Görüşme özeti */}
               {ogrRec.length > 0 && (
-                <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:12,padding:14,marginBottom:12}}>
+                <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:12}}>
                   <div style={{fontSize:12,fontWeight:700,color:MUTED,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>Görüşme Geçmişi ({ogrRec.length})</div>
                   {ogrRec.slice(0,3).map(r=>(
                     <div key={r.id} style={{marginBottom:8,padding:8,background:BG,borderRadius:6,borderLeft:`3px solid ${ACCENT}`}}>
@@ -10463,7 +10463,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
       <div>
         {/* Geri butonu */}
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14, flexWrap:"wrap", rowGap:8}}>
-          <button onClick={()=>setSeciliSinif(null)} style={{background:BG,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:8,padding:"6px 12px",fontSize:12,fontWeight:700,color:MUTED,cursor:"pointer"}}>← Geri</button>
+          <button onClick={()=>setSeciliSinif(null)} style={{background:BG,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:8,padding:"6px 12px",fontSize:12,fontWeight:700,color:MUTED,cursor:"pointer"}}>← Geri</button>
           <div style={{fontSize:18,fontWeight:900,color:TEXT}}>{seciliSinif} Sınıfı</div>
           <span style={{fontSize:12,color:MUTED}}>· {aktifYil}</span>
           <button onClick={()=>{ setListeYukleAcik(a=>!a); setListeSonuc(null); }} style={{
@@ -10473,7 +10473,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
         </div>
 
         {listeYukleAcik && (
-          <div style={{background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:12, padding:14, marginBottom:14}}>
+          <div style={{background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:12, padding:14, marginBottom:14}}>
             <div style={{fontSize:12, fontWeight:700, color:TEXT, marginBottom:6}}>
               {seciliSinif} sınıfının tam öğrenci listesini buraya yapıştır
             </div>
@@ -10482,7 +10482,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
             </div>
             <textarea value={listeMetni} onChange={e=>setListeMetni(e.target.value)} rows={8}
               placeholder={"101  Ahmet Yılmaz\n102  Zeynep Kaya\n..."}
-              style={{width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:9, fontSize:13, boxSizing:"border-box", fontFamily:"monospace", resize:"vertical", marginBottom:8}} />
+              style={{width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, boxSizing:"border-box", fontFamily:"monospace", resize:"vertical", marginBottom:8}} />
             <button onClick={handleListeEkle} disabled={!listeMetni.trim()} style={{
               width:"100%", padding:"10px", background:listeMetni.trim()?ACCENT:BORDER, color:listeMetni.trim()?"#fff":MUTED,
               border:"none", borderRadius:10, fontSize:13, fontWeight:700, cursor:"pointer"
@@ -10504,7 +10504,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
             {label:"Görüşme",val:st.gorusmeler.length,color:BLUE},
             {label:"Deneme Ort.",val: st.denemeOrt!==null ? st.denemeOrt.toFixed(1) : "—", color:PURPLE},
           ].map(c=>(
-            <div key={c.label} style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:10,padding:"10px 6px",textAlign:"center"}}>
+            <div key={c.label} style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:10,padding:"10px 6px",textAlign:"center"}}>
               <div style={{fontSize:22,fontWeight:900,color:c.color}}>{c.val}</div>
               <div style={{fontSize:10,color:MUTED}}>{c.label}</div>
             </div>
@@ -10518,7 +10518,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
 
         {/* Görüşme Konuları */}
         {st.konuSirali.length > 0 && (
-          <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:14}}>
             <div style={{fontSize:12,fontWeight:700,color:PURPLE,textTransform:"uppercase",marginBottom:10}}>💬 Görüşme Konuları</div>
             {st.konuSirali.map(([konu,adet]) => (
               <div key={konu} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${BORDER}`,fontSize:12}}>
@@ -10530,7 +10530,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
         )}
 
         {/* Cinsiyet Dağılımı */}
-        <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:12,padding:14,marginBottom:14}}>
+        <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:14}}>
           <div style={{fontSize:12,fontWeight:700,color:ACCENT,textTransform:"uppercase",marginBottom:10}}>🚻 Cinsiyet Dağılımı</div>
           <div style={{display:"flex",gap:14,marginBottom: st.cinsiyetDagilim.Belirtilmemiş>0 ? 12 : 0}}>
             <div style={{fontSize:13}}>👧 Kız: <b>{st.cinsiyetDagilim.Kız}</b></div>
@@ -10545,8 +10545,8 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
                   <div key={pdrOgrAnahtar(o.studentName,o.className,o.numara)} style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                     <span style={{fontSize:12}}>{o.studentName}</span>
                     <div style={{display:"flex",gap:4}}>
-                      <button onClick={()=>handleCinsiyetGuncelle(o,"Kız")} style={{padding:"2px 8px",borderRadius:6,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",background:"#fff",fontSize:11,cursor:"pointer"}}>Kız</button>
-                      <button onClick={()=>handleCinsiyetGuncelle(o,"Erkek")} style={{padding:"2px 8px",borderRadius:6,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",background:"#fff",fontSize:11,cursor:"pointer"}}>Erkek</button>
+                      <button onClick={()=>handleCinsiyetGuncelle(o,"Kız")} style={{padding:"2px 8px",borderRadius:6,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",background:"#fff",fontSize:11,cursor:"pointer"}}>Kız</button>
+                      <button onClick={()=>handleCinsiyetGuncelle(o,"Erkek")} style={{padding:"2px 8px",borderRadius:6,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",background:"#fff",fontSize:11,cursor:"pointer"}}>Erkek</button>
                     </div>
                   </div>
                 ))}
@@ -10557,7 +10557,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
 
         {/* Kaynaştırma / Tanı Özeti */}
         {st.kaynastirmaOgrenciler.length > 0 && (
-          <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:14}}>
             <div style={{fontSize:12,fontWeight:700,color:"#8B5A00",textTransform:"uppercase",marginBottom:10}}>🧩 Kaynaştırma Öğrencileri ({st.kaynastirmaOgrenciler.length})</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
               {Object.entries(st.kaynastirmaDagilim).map(([tani,adet]) => (
@@ -10577,7 +10577,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
 
         {/* Devamsızlık — öğrenci öğrenci */}
         {st.devamsizlikListesi.some(d=>d.devamsizlik>0) && (
-          <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:12,padding:14,marginBottom:14}}>
+          <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:14}}>
             <div style={{fontSize:12,fontWeight:700,color:"#E76F51",textTransform:"uppercase",marginBottom:10}}>📅 Devamsızlık (Öğrenci Öğrenci)</div>
             {st.devamsizlikListesi.filter(d=>d.devamsizlik>0).map(d => (
               <div key={pdrOgrAnahtar(d.ad,d.sinif,d.numara)} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${BORDER}`,fontSize:12}}>
@@ -10589,7 +10589,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
         )}
 
         {/* Risk Haritası */}
-        <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:12,padding:14,marginBottom:14}}>
+        <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:14}}>
           <div style={{fontSize:12,fontWeight:700,color:"#C0392B",textTransform:"uppercase",marginBottom:10}}>⚠ Risk Haritası</div>
           {RISK_TURLERI.map(t => {
             // "Özel Öğrenme Güçlüğü" satırı risk kaydı yerine Sınıf sekmesinden
@@ -10636,7 +10636,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
         </div>
 
         {/* Öğrenci Listesi */}
-        <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:12,padding:14}}>
+        <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14}}>
           <div style={{fontSize:12,fontWeight:700,color:TEXT,textTransform:"uppercase",marginBottom:10}}>Öğrenci Listesi</div>
           {alfabetikOgrenciler.length === 0 && (
             <div style={{textAlign:"center",color:MUTED,fontSize:12}}>Bu sınıfta kayıtlı öğrenci yok</div>
@@ -10703,7 +10703,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
                       onRaporAc({ ogrenci:o.studentName, ogrenciSinif:o.className, profil1:ogrP1, profil2:ogrP2, gorusmeler:ogrGorusmeler, denemeler:ogrDeneme, kaynastirma:o.kaynastirma||[] });
                     }} style={{background:"#EEF2FF",color:BLUE,border:"none",borderRadius:8,padding:"1px 7px",fontSize:9,fontWeight:700,cursor:"pointer"}}>📄 Rapor</button>
                   )}
-                  <button onClick={()=>setKaynastirmaAcikId(kaynastirmaAcik?null:ogrKey)} style={{background:"none",border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",color:MUTED,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700,cursor:"pointer"}}>🧩 {kaynastirmaAcik?"Kapat":"Tanı Düzenle"}</button>
+                  <button onClick={()=>setKaynastirmaAcikId(kaynastirmaAcik?null:ogrKey)} style={{background:"none",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",color:MUTED,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700,cursor:"pointer"}}>🧩 {kaynastirmaAcik?"Kapat":"Tanı Düzenle"}</button>
                 </div>
                 {kaynastirmaAcik && (
                   <div style={{marginLeft:38,marginTop:6,padding:10,background:"#FFF8ED",border:"1px solid #F0D68A",borderRadius:8}}>
@@ -10768,7 +10768,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
   return (
     <div>
       <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:14}}>
-        <button onClick={()=>setSeciliSinifDuzeyi(null)} style={{background:"none", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", color:MUTED, borderRadius:8, padding:"6px 10px", fontSize:12, fontWeight:700, cursor:"pointer"}}>◀ Düzeyler</button>
+        <button onClick={()=>setSeciliSinifDuzeyi(null)} style={{background:"none", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", color:MUTED, borderRadius:8, padding:"6px 10px", fontSize:12, fontWeight:700, cursor:"pointer"}}>◀ Düzeyler</button>
         <div style={{background:"#EEF2FF",borderRadius:10,padding:"10px 14px",fontSize:13,color:BLUE,fontWeight:600,flex:1}}>
           🏫 {aktifYil} — {seciliSinifDuzeyi}. Sınıflar
         </div>
@@ -10778,7 +10778,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
       <div style={{display:"flex", gap:8, marginBottom:14}}>
         <input value={yeniSinifAdi} onChange={e=>setYeniSinifAdi(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSinifEkle()}
           placeholder={`Yeni şube adı (örn. ${seciliSinifDuzeyi}-P)`}
-          style={{ flex:1, padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:9, fontSize:13, boxSizing:"border-box" }} />
+          style={{ flex:1, padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, boxSizing:"border-box" }} />
         <button onClick={handleSinifEkle} disabled={!yeniSinifAdi.trim()} style={{
           padding:"9px 16px", background:yeniSinifAdi.trim()?ACCENT:BORDER, color:yeniSinifAdi.trim()?"#fff":MUTED,
           border:"none", borderRadius:9, fontSize:13, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap"
@@ -10804,7 +10804,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
                   </div>
                   <div style={{display:"flex", gap:4}}>
                     <button disabled={sinifSiliniyor} onClick={(e)=>{e.stopPropagation(); handleSinifSil(sube);}} style={{flex:1, background:"#C0392B",color:"#fff",border:"none",borderRadius:6,padding:"4px 7px",fontSize:10,fontWeight:800,cursor:sinifSiliniyor?"default":"pointer",opacity:sinifSiliniyor?0.6:1}}>{sinifSiliniyor?"Siliniyor…":"Evet, Sil"}</button>
-                    <button disabled={sinifSiliniyor} onClick={(e)=>{e.stopPropagation(); setSinifSilOnay(null);}} style={{flex:1, background:BG,color:MUTED,border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",borderRadius:6,padding:"4px 6px",fontSize:10,cursor:"pointer"}}>Vazgeç</button>
+                    <button disabled={sinifSiliniyor} onClick={(e)=>{e.stopPropagation(); setSinifSilOnay(null);}} style={{flex:1, background:BG,color:MUTED,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:6,padding:"4px 6px",fontSize:10,cursor:"pointer"}}>Vazgeç</button>
                   </div>
                 </div>
               ) : (
@@ -10866,7 +10866,7 @@ function KutuphaneEkle({ kutuphane, setKutuphane }) {
   const [yeniLink, setYeniLink] = useState("");
   const [yukleniyor, setYukleniyor] = useState(false);
 
-  const stl = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:9, fontSize:13, background:CARD, color:TEXT, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
+  const stl = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, background:CARD, color:TEXT, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
   const lbl = { fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4, textTransform:"uppercase" };
 
   async function aiOzetle(metin, baslik) {
@@ -10961,7 +10961,7 @@ function KutuphaneEkle({ kutuphane, setKutuphane }) {
   }
 
   return (
-    <div style={{background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:12, padding:16, marginBottom:16}}>
+    <div style={{background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:12, padding:16, marginBottom:16}}>
       <div style={{fontSize:12, fontWeight:700, color:TEXT, marginBottom:12}}>Kaynak Ekle</div>
       <div style={{display:"flex", gap:6, marginBottom:14}}>
         {[["dosya","📄 Dosya"],["link","🔗 Link"],["metin","📝 Metin"]].map(([k,l]) => (
@@ -11148,7 +11148,7 @@ function RecordCard({ rec, onDelete, onUpdate }) {
 
           <label style={{ fontSize: 11, fontWeight: 600, color: MUTED, display: "block", marginBottom: 4 }}>KONU</label>
           <select value={editForm.topic} onChange={e => setEditForm(f => ({ ...f, topic: e.target.value }))}
-            style={{ width: "100%", padding: "8px 10px", border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 8, fontSize: 13, marginBottom: 10, boxSizing: "border-box", fontFamily: "inherit", background:"#fff" }}>
+            style={{ width: "100%", padding: "8px 10px", border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 8, fontSize: 13, marginBottom: 10, boxSizing: "border-box", fontFamily: "inherit", background:"#fff" }}>
             <option value="">Konu seçilmedi</option>
             {KONU_LISTESI.map(k => <option key={k} value={k}>{k}</option>)}
           </select>
@@ -11156,7 +11156,7 @@ function RecordCard({ rec, onDelete, onUpdate }) {
           <label style={{ fontSize: 11, fontWeight: 600, color: MUTED, display: "block", marginBottom: 4 }}>HAM NOT / EK GÖRÜŞME</label>
           <textarea value={editForm.raw} onChange={e => setEditForm(f => ({ ...f, raw: e.target.value }))}
             placeholder="Yeni görüşme notlarını buraya ekleyin…"
-            rows={4} style={{ width: "100%", padding: "8px 10px", border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 8, fontSize: 13, resize: "vertical", marginBottom: 8, boxSizing: "border-box", fontFamily: "inherit", lineHeight: 1.6 }} />
+            rows={4} style={{ width: "100%", padding: "8px 10px", border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 8, fontSize: 13, resize: "vertical", marginBottom: 8, boxSizing: "border-box", fontFamily: "inherit", lineHeight: 1.6 }} />
 
           <button onClick={handleAiRewrite} disabled={!editForm.raw.trim() || aiLoading} style={{
             background: aiLoading ? BORDER : PURPLE, color: "#fff", border: "none",
@@ -11169,7 +11169,7 @@ function RecordCard({ rec, onDelete, onUpdate }) {
 
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => { setDuzenle(false); setEditForm({ summary: rec.summary, topic: rec.topic || "", raw: rec.raw || "" }); }} style={{
-              flex: 1, padding: "9px", background: CARD, color: MUTED, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer"
+              flex: 1, padding: "9px", background: CARD, color: MUTED, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer"
             }}>İptal</button>
             <button onClick={handleSave} style={{
               flex: 2, padding: "9px", background: ACCENT, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: "pointer"
@@ -11967,7 +11967,7 @@ export default function App() {
                 ) : (
                   <>
                     <input value={notOgrenciArama} onChange={e=>setNotOgrenciArama(e.target.value)} placeholder="Kayıtlı öğrenci ara… (en az 2 karakter)"
-                      style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:9, fontSize:13, boxSizing:"border-box", marginBottom:8 }} />
+                      style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, boxSizing:"border-box", marginBottom:8 }} />
                     {notOgrenciArama.trim().length >= 2 ? (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom:8 }}>
                         {kayitliListesi.filter(o =>
@@ -11983,7 +11983,7 @@ export default function App() {
                     )}
                   </>
                 )}
-                <input placeholder="veya ad yaz..." value={form.studentName} onChange={e=>setForm(f=>({...f,studentName:e.target.value}))} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:9, fontSize:13, boxSizing:"border-box" }} />
+                <input placeholder="veya ad yaz..." value={form.studentName} onChange={e=>setForm(f=>({...f,studentName:e.target.value}))} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, boxSizing:"border-box" }} />
               </div>
               {/* Görüşme türü */}
               <div style={{ display:"flex", gap:8, marginBottom:12 }}>
@@ -11995,16 +11995,16 @@ export default function App() {
                   tarihle kaydedebilirsin; "O Gün Neler Girildi" bu tarihe göre eşleşir. */}
               <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>GÖRÜŞME TARİHİ</label>
               <input value={form.tarih} onChange={e=>setForm(f=>({...f,tarih:e.target.value}))} placeholder="GG.AA.YYYY"
-                style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:9, fontSize:13, marginBottom:10, boxSizing:"border-box" }} />
+                style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, marginBottom:10, boxSizing:"border-box" }} />
               {/* Konu — standart liste, İstatistik ve Excel'de tutarlı gruplama için */}
               <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>KONU (İSTEĞE BAĞLI)</label>
-              <select value={form.topic} onChange={e=>setForm(f=>({...f,topic:e.target.value}))} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:9, fontSize:13, marginBottom:10, boxSizing:"border-box", background:"#fff" }}>
+              <select value={form.topic} onChange={e=>setForm(f=>({...f,topic:e.target.value}))} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, marginBottom:10, boxSizing:"border-box", background:"#fff" }}>
                 <option value="">Konu seçilmedi</option>
                 {KONU_LISTESI.map(k => <option key={k} value={k}>{k}</option>)}
               </select>
               {/* Ham not */}
               <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>GÖRÜŞME NOTU</label>
-              <textarea placeholder="Görüşme notlarını buraya yazın..." value={form.raw} onChange={e=>setForm(f=>({...f,raw:e.target.value}))} rows={5} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:9, fontSize:13, resize:"vertical", boxSizing:"border-box", marginBottom:10 }} />
+              <textarea placeholder="Görüşme notlarını buraya yazın..." value={form.raw} onChange={e=>setForm(f=>({...f,raw:e.target.value}))} rows={5} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, resize:"vertical", boxSizing:"border-box", marginBottom:10 }} />
               {/* Sesli giriş */}
               <div style={{ display:"flex", gap:8, marginBottom:10 }}>
                 <button onClick={listening?stopListening:startListening} style={{ flex:1, padding:"10px", background:listening?"#C0392B":PURPLE, color:"#fff", border:"none", borderRadius:10, fontSize:13, fontWeight:700, cursor:"pointer" }}>
@@ -12031,7 +12031,7 @@ export default function App() {
                     style={{ width:"100%", padding:"7px 9px", border:"1px solid #F0D68A", borderRadius:8, fontSize:12, marginBottom:8, boxSizing:"border-box", background:"#fff" }} />
                   <div style={{ display:"flex", gap:8 }}>
                     <button onClick={handleHatirlatmaOnayla} disabled={!form.studentName.trim()} style={{ flex:1, padding:"7px", background:"#B07D1A", color:"#fff", border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>✓ Hatırlatıcı'ya Ekle</button>
-                    <button onClick={()=>setOnerilenHatirlatma(null)} style={{ padding:"7px 14px", background:"none", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", color:MUTED, borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>Yoksay</button>
+                    <button onClick={()=>setOnerilenHatirlatma(null)} style={{ padding:"7px 14px", background:"none", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", color:MUTED, borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>Yoksay</button>
                   </div>
                 </div>
               )}
@@ -12583,7 +12583,7 @@ export default function App() {
             </div>
 
             {/* Yeni risk ekle */}
-            <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 12, padding: 14, marginBottom: 16 }}>
+            <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 12, padding: 14, marginBottom: 16 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: TEXT, marginBottom: 10 }}>+ Yeni Risk Kaydı</div>
 
               {riskForm.studentName && (
@@ -12599,7 +12599,7 @@ export default function App() {
                 <div style={{ marginBottom: 10 }}>
                   <label style={labelStyle}>KAYITLI ÖĞRENCİDEN SEÇ</label>
                   <input value={riskOgrenciArama} onChange={e=>setRiskOgrenciArama(e.target.value)} placeholder="İsim, sınıf veya numara ara… (en az 2 karakter)"
-                    style={{ width:"100%", padding:"8px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:8, fontSize:12, boxSizing:"border-box", marginBottom:8 }} />
+                    style={{ width:"100%", padding:"8px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, fontSize:12, boxSizing:"border-box", marginBottom:8 }} />
                   {riskOgrenciArama.trim().length >= 2 ? (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {kayitliListesi.filter(o =>
@@ -12775,7 +12775,7 @@ export default function App() {
                     <details style={{ marginTop:16 }}>
                       <summary style={{ fontSize:12, color:MUTED, cursor:"pointer", fontWeight:600 }}>Kapatılan kayıtlar ({kapali.length})</summary>
                       {kapali.map(r => (
-                        <div key={r.id} style={{ background:BG, border:`1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius:10, padding:10, marginTop:8, opacity:0.7 }}>
+                        <div key={r.id} style={{ background:BG, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:10, marginTop:8, opacity:0.7 }}>
                           <div style={{ display:"flex", justifyContent:"space-between" }}>
                             <div style={{ fontSize:12, fontWeight:700 }}>{r.studentName} · {r.riskTuru}</div>
                             <button onClick={() => handleRiskSil(r.id)} style={{ background:"none", border:"none", color:MUTED, cursor:"pointer", fontSize:11 }}>Sil</button>
@@ -12807,7 +12807,7 @@ export default function App() {
                 Henüz kaynak yüklenmedi.
               </div>
             ) : kutuphane.map(k => (
-              <div key={k.id} style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 12, marginBottom: 10, overflow: "hidden" }}>
+              <div key={k.id} style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 12, marginBottom: 10, overflow: "hidden" }}>
                 <div style={{ padding: "12px 16px", borderBottom: `1px solid ${BORDER}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div style={{ flex: 1 }}>
@@ -12851,7 +12851,7 @@ export default function App() {
                 { label: "Farklı Öğrenci", value: uniqueStudents, color: BLUE },
                 { label: "Profil Kaydı", value: profiles.length, color: PURPLE },
               ].map(c => (
-                <div key={c.label} style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 12, padding: "14px 16px", textAlign: "center" }}>
+                <div key={c.label} style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 12, padding: "14px 16px", textAlign: "center" }}>
                   <div style={{ fontSize: 28, fontWeight: 800, color: c.color }}>{c.value}</div>
                   <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>{c.label}</div>
                 </div>
@@ -12875,7 +12875,7 @@ export default function App() {
               </div>
             )}
             {/* Yıl Sonu Kapsam Takibi — bu yıl bir kez bile görüşülmemiş öğrenciler */}
-            <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+            <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: ACCENT, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>🎯 Yıl Sonu Kapsam Takibi</div>
               <div style={{ fontSize: 11, color: MUTED, marginBottom: 12, lineHeight: 1.5 }}>{aktifYil} yılında sorumlu olduğun {kapsamYilOgrencileri.length} öğrenciden {kapsamYilOgrencileri.length - kapsamHicGorusulmemis.length} tanesiyle en az bir kez görüştün. Bir sınıfa tıklayarak o sınıfta hiç görüşülmemiş öğrencileri görebilirsin.</div>
               {kapsamSinifListesi.length > 0 && (
@@ -12915,19 +12915,19 @@ export default function App() {
               )}
             </div>
             {topTopics.length > 0 && (
-              <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+              <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: ACCENT, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 14 }}>Konulara Göre</div>
                 {topTopics.map(([topic, count]) => <StatBar key={topic} label={topic} value={count} max={maxTopic} color={ACCENT} />)}
               </div>
             )}
             {Object.keys(monthCount).length > 0 && (
-              <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+              <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: ACCENT, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 14 }}>Aylara Göre</div>
                 {Object.entries(monthCount).map(([month, count]) => <StatBar key={month} label={month} value={count} max={maxMonth} color={BLUE} />)}
               </div>
             )}
             {aylikDetayListesi.length > 0 && (
-              <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+              <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: BLUE, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Aylara Göre — Farklı Öğrenci ve Sınıf Kırılımı</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {aylikDetayListesi.map(a => (
@@ -12944,7 +12944,7 @@ export default function App() {
               </div>
             )}
             {sinifGorusmeListesi.length > 0 && (
-              <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+              <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: PURPLE, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Sınıflara Göre Görüşme İstatistiği</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {sinifGorusmeListesi.map(s => (
@@ -12996,7 +12996,7 @@ export default function App() {
 }
 
 const inputStyle = {
-  width: "100%", padding: "10px 12px", border: `1px solid ${BORDER}`,boxShadow:"0 1px 3px rgba(20,40,32,0.05), 0 1px 1px rgba(20,40,32,0.03)",
+  width: "100%", padding: "10px 12px", border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",
   borderRadius: 10, fontSize: 14, background: CARD, color: TEXT,
   outline: "none", boxSizing: "border-box", fontFamily: "inherit"
 };
