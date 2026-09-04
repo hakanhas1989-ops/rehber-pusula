@@ -2759,6 +2759,38 @@ function aniDegisimHesapla(ogr, records, riskListesi, sevkler, denemeler, testKa
   return { sinyalSayisi: sinyaller.length, sinyaller };
 }
 
+// ── Takip Boşluğu Uyarısı ────────────────────────────────────────────────
+// AMAÇ: Açık bir risk kaydı varken üzerinden uzun süre geçmesine rağmen
+// öğrenciyle yeni bir görüşme yapılmamışsa danışmana hatırlatır — bir riskin
+// açık kalıp unutulması, takipteki en sık rastlanan aksama. Eşik 21 gün
+// (3 hafta) — kesin bir kural değil, sadece "buraya bak" uyarısı; danışman
+// gerekirse görmezden gelebilir.
+function pdrTakipBosluguGunu(risk, records) {
+  if (risk.kapandi) return null;
+  const eslesir = (r) => pdrAyniOgrenci(r.studentName, r.className, risk.studentName, risk.className, r.numara, risk.numara);
+  const riskTarihMs = pdrTarihMs(risk.tarih);
+  const sonrakiGorusmeler = (records||[])
+    .filter(eslesir).filter(r => r.meetingType !== "Veli")
+    .filter(r => pdrTarihMs(r.date) >= riskTarihMs)
+    .sort((a,b) => pdrTarihMs(b.date) - pdrTarihMs(a.date));
+  const sonAktiviteMs = sonrakiGorusmeler.length > 0 ? pdrTarihMs(sonrakiGorusmeler[0].date) : riskTarihMs;
+  return Math.floor((Date.now() - sonAktiviteMs) / 86400000);
+}
+
+// ── Veli Teması Dengesizliği ─────────────────────────────────────────────
+// AMAÇ: Öğrenciyle sık görüşülüp veliyle HİÇ görüşülmediği durumları
+// işaretler — aile bağlantısının hiç kurulmamış olması, tek başına bir
+// dikkat noktası kabul edilir. Eşik: 3+ öğrenci görüşmesi, 0 veli görüşmesi.
+// Kesin bir kural değil — bazı durumlarda (veliye ulaşılamıyor, ihtiyaç yok)
+// bu normal olabilir, danışman kararını kendi verir.
+function pdrVeliDengesizlikVar(ogr, records) {
+  const ad = ogr.studentName || ogr.name, sinif = ogr.className, no = ogr.numara;
+  const eslesir = (r) => pdrAyniOgrenci(r.studentName, r.className, ad, sinif, r.numara, no);
+  const ogrGorusme = (records||[]).filter(eslesir).filter(r => r.meetingType !== "Veli").length;
+  const veliGorusme = (records||[]).filter(eslesir).filter(r => r.meetingType === "Veli").length;
+  return ogrGorusme >= 3 && veliGorusme === 0;
+}
+
 
 // Eğitim yılı Eylül'de başlar — erişim kesin bitiş tarihi 31 Ağustos (yaz
 // boyunca kullanım kesilmez, yenileme sadece bir sonraki eğitim yılı
@@ -12712,6 +12744,12 @@ export default function App() {
                   {aktif.length === 0 && <div style={{ textAlign:"center", color:MUTED, marginTop:20, fontSize:14 }}>Aktif risk kaydı yok ✓</div>}
                   {aktif.map(r => {
                     const [rc, rbgGrad, rglow] = oncelikRenk[r.oncelik] || ["#888", "rgba(120,120,120,0.3)", "rgba(120,120,120,0.3)"];
+                    // Birleşik risk sinyali + takip boşluğu + veli dengesizliği —
+                    // açık risk kaydını yönetirken danışmana ek bağlam.
+                    const rOgrObj = { studentName: r.studentName, className: r.className, numara: r.numara, devamsizlikGecmisi: (ogrenciler.find(o => pdrAyniOgrenci(o.studentName, o.className, r.studentName, r.className, o.numara, r.numara))||{}).devamsizlikGecmisi };
+                    const rAniDegisim = aniDegisimHesapla(rOgrObj, records, riskListesi, sevkler, denemeler, testKayitlari, aktifDersler(sinavTuru), profiles);
+                    const rTakipGunu = pdrTakipBosluguGunu(r, records);
+                    const rVeliDengesiz = pdrVeliDengesizlikVar(r, records);
                     return (
                       <div key={r.id} style={{
                         background: rbgGrad, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
@@ -12729,6 +12767,19 @@ export default function App() {
                             {r.ikincilTur && <span title="İkincil etkilenen alan" style={{ background:"rgba(255,255,255,0.10)", color:"#fff", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:600, border:"1px dashed rgba(255,255,255,0.4)" }}>+ {r.ikincilTur}</span>}
                           </div>
                         </div>
+                        {(rAniDegisim.sinyalSayisi >= 2 || rTakipGunu >= 21 || rVeliDengesiz) && (
+                          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:6 }}>
+                            {rAniDegisim.sinyalSayisi >= 2 && (
+                              <span title={rAniDegisim.sinyaller.map(s=>`${s.tur}: ${s.detay}`).join(" · ")} style={{ background:"rgba(0,0,0,0.28)", color:"#FFD84A", borderRadius:20, padding:"3px 10px", fontSize:10.5, fontWeight:800 }}>🔶 Birleşik Sinyal ({rAniDegisim.sinyalSayisi})</span>
+                            )}
+                            {rTakipGunu >= 21 && (
+                              <span title="Bu risk açıldıktan sonra uzun süredir yeni bir görüşme girilmedi" style={{ background:"rgba(0,0,0,0.28)", color:"#FF9F7A", borderRadius:20, padding:"3px 10px", fontSize:10.5, fontWeight:800 }}>⏰ Takip Boşluğu ({rTakipGunu} gün)</span>
+                            )}
+                            {rVeliDengesiz && (
+                              <span title="Öğrenciyle birden çok kez görüşülmüş ama veliyle hiç görüşülmemiş" style={{ background:"rgba(0,0,0,0.28)", color:"#B9E4FF", borderRadius:20, padding:"3px 10px", fontSize:10.5, fontWeight:800 }}>👪 Veli Hiç Görüşülmedi</span>
+                            )}
+                          </div>
+                        )}
                         <div style={{ height:1, background:"rgba(255,255,255,0.25)", margin:"8px 0" }} />
                         {r.aciklama && <div style={{ fontSize:12, color:"rgba(255,255,255,0.92)", lineHeight:1.6, marginBottom:10 }}>{r.aciklama}</div>}
                         <div style={{ display:"flex", gap:8 }}>
