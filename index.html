@@ -11036,12 +11036,14 @@ function ProfilMerkez({
 // çizilir, gerisini danışman kendi seçer.
 const SINIF_GRAFIK_RENKLERI = ["#127C56","#9E78ED","#E67E22","#2980B9","#C0392B","#16A085","#8E44AD","#D4AC0D","#2C3E50","#E84393","#00A8A8","#6C5CE7"];
 
-function SinifDenemeGrafigi({ ogrenciler, denemeler, sinavTuru }) {
+function SinifDenemeGrafigi({ ogrenciler, denemeler, sinavTuru, vurgulananAd }) {
   const dersler = aktifDersler(sinavTuru);
   const maksNet = dersler.reduce((s,d)=>s+d.maks, 0);
 
-  // Her öğrencinin deneme serisi: [{no, toplam}]
-  const seriler = (ogrenciler||[]).map(o => {
+  // Her öğrencinin serisi: önce GDO (geçmiş dönem ortalaması), sonra D1..D10.
+  // GDO ayrı bir anahtarda ("7sinif") tutulduğu için x ekseninde 0 sırasına
+  // yerleştirilir; bu yıl girilen denemeler onu takip eder.
+  const tumSeriler = (ogrenciler||[]).map(o => {
     const d = pdrSozlukOku(denemeler, o.studentName, o.className, o.numara) || {};
     const noktalar = Object.entries(d)
       .filter(([k]) => k !== "7sinif")
@@ -11053,16 +11055,39 @@ function SinifDenemeGrafigi({ ogrenciler, denemeler, sinavTuru }) {
       })
       .filter(p => !isNaN(p.no))
       .sort((a,b)=>a.no-b.no);
+    const gdoHam = parseFloat(d["7sinif"]?.ortalama);
+    if (!isNaN(gdoHam)) noktalar.unshift({ no: 0, toplam: Math.round(gdoHam*10)/10 });
     return { ad: o.studentName, noktalar };
-  }).filter(s => s.noktalar.length > 0);
+  });
+  // Veri girilmemiş öğrenciler listede görünür ama seçilemez — "neden yok?"
+  // sorusunu ortadan kaldırmak için bilinçli olarak gizlenmiyorlar.
+  const seriler = tumSeriler.filter(s => s.noktalar.length > 0);
+  const verisizler = tumSeriler.filter(s => s.noktalar.length === 0);
 
   const [acikOgrenciler, setAcikOgrenciler] = useState(null);
-  const gorunen = acikOgrenciler === null ? seriler.slice(0,8).map(s=>s.ad) : acikOgrenciler;
+  // Sınıf değişince önceki sınıfın seçimleri taşınmasın diye sıfırlanır.
+  const sinifImza = (ogrenciler||[]).map(o=>o.studentName).join("|");
+  const oncekiImza = React.useRef(sinifImza);
+  React.useEffect(() => {
+    if (oncekiImza.current !== sinifImza) { oncekiImza.current = sinifImza; setAcikOgrenciler(null); }
+  }, [sinifImza]);
+
+  // Seçili öğrenci varsa, ilk 8'in dışında kalsa bile varsayılan olarak çizilir —
+  // "baktığım öğrenci sınıfın neresinde?" sorusunu cevapsız bırakmamak için.
+  const varsayilan = seriler.slice(0,8).map(s=>s.ad);
+  if (vurgulananAd && seriler.some(s=>s.ad===vurgulananAd) && !varsayilan.includes(vurgulananAd)) varsayilan.push(vurgulananAd);
+  const gorunen = acikOgrenciler === null ? varsayilan : acikOgrenciler;
   const cizilecek = seriler.filter(s => gorunen.includes(s.ad));
+  const vurguVar = !!vurgulananAd && cizilecek.some(s => s.ad === vurgulananAd);
 
   if (seriler.length === 0) return null;
 
-  const tumNolar = [...new Set(seriler.flatMap(s => s.noktalar.map(p=>p.no)))].sort((a,b)=>a-b);
+  // X ekseni: 0 = GDO, sonrası bu yılın denemeleri (en az 10 sütun gösterilir)
+  const veriNolari = [...new Set(seriler.flatMap(s => s.noktalar.map(p=>p.no)))];
+  const gdoVar = veriNolari.includes(0);
+  const enBuyuk = Math.max(10, ...veriNolari);
+  const tumNolar = [...(gdoVar ? [0] : []), ...Array.from({length: enBuyuk}, (_,i)=>i+1)];
+  const etiket = (no) => no === 0 ? "GDO" : "D"+no;
   const genislik = 460, yukseklik = 190;
   const solPad = 30, sagPad = 10, ustPad = 12, altPad = 26;
   const cg = genislik - solPad - sagPad, cy = yukseklik - ustPad - altPad;
@@ -11085,7 +11110,9 @@ function SinifDenemeGrafigi({ ogrenciler, denemeler, sinavTuru }) {
     <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14)",borderRadius:12,padding:14,marginBottom:14}}>
       <div style={{fontSize:13,fontWeight:800,color:TEXT,marginBottom:2}}>📈 Sınıf Deneme Net Grafiği</div>
       <div style={{fontSize:10.5,color:MUTED,marginBottom:10}}>
-        Her çizgi bir öğrenci. Aşağıdaki isimlere dokunarak çizgileri açıp kapatabilirsin.
+        Her çizgi bir öğrenci. Soldaki <b style={{color:PURPLE}}>GDO</b> geçmiş dönem ortalaması,
+        sonrası bu yılın denemeleri. Aşağıdaki isimlere dokunarak çizgileri açıp kapatabilirsin.
+        {vurguVar && <> Şu an <b style={{color:TEXT}}>{vurgulananAd}</b> öne çıkarılmış durumda.</>}
       </div>
 
       <svg viewBox={`0 0 ${genislik} ${yukseklik}`} style={{width:"100%",height:"auto",display:"block"}}>
@@ -11109,8 +11136,12 @@ function SinifDenemeGrafigi({ ogrenciler, denemeler, sinavTuru }) {
         {/* Ana dikey çizgiler + deneme etiketleri */}
         {tumNolar.map(no => (
           <g key={no}>
-            <line x1={nx(no)} y1={ustPad} x2={nx(no)} y2={ustPad+cy} stroke="#BBD3C6" strokeWidth="1" />
-            <text x={nx(no)} y={yukseklik-8} fontSize="8" fill="#7D9188" textAnchor="middle">D{no}</text>
+            <line x1={nx(no)} y1={ustPad} x2={nx(no)} y2={ustPad+cy}
+                  stroke={no===0 ? "#9E78ED" : "#BBD3C6"} strokeWidth={no===0 ? 1.4 : 1}
+                  strokeDasharray={no===0 ? "3,3" : undefined} />
+            <text x={nx(no)} y={yukseklik-8} fontSize={no===0 ? 8 : 7.5}
+                  fill={no===0 ? "#9E78ED" : "#7D9188"} fontWeight={no===0 ? 800 : 400}
+                  textAnchor="middle">{etiket(no)}</text>
           </g>
         ))}
         {/* Sınıf ortalaması — kesikli gri çizgi */}
@@ -11119,14 +11150,21 @@ function SinifDenemeGrafigi({ ogrenciler, denemeler, sinavTuru }) {
             fill="none" stroke="#7D9188" strokeWidth="1.6" strokeDasharray="5,4" opacity="0.8" />
         )}
         {/* Öğrenci çizgileri */}
-        {cizilecek.map((s, si) => {
+        {cizilecek.map((s) => {
           const renk = SINIF_GRAFIK_RENKLERI[seriler.findIndex(x=>x.ad===s.ad) % SINIF_GRAFIK_RENKLERI.length];
           const d = s.noktalar.map((p,i)=>`${i===0?"M":"L"} ${nx(p.no).toFixed(1)} ${ny(p.toplam).toFixed(1)}`).join(" ");
+          const bu = vurguVar && s.ad === vurgulananAd;
+          // Seçili öğrenci kalın ve tam opak; diğerleri soluklaşır ki karşılaştırma
+          // yapılabilsin ama odak kaybolmasın.
+          const solukluk = !vurguVar ? 1 : (bu ? 1 : 0.28);
           return (
-            <g key={s.ad}>
-              <path d={d} fill="none" stroke={renk} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            <g key={s.ad} opacity={solukluk}>
+              <path d={d} fill="none" stroke={renk} strokeWidth={bu ? 3.4 : 2} strokeLinejoin="round" strokeLinecap="round" />
               {s.noktalar.map(p => (
-                <circle key={p.no} cx={nx(p.no)} cy={ny(p.toplam)} r="3" fill="#fff" stroke={renk} strokeWidth="1.8" />
+                <circle key={p.no} cx={nx(p.no)} cy={ny(p.toplam)} r={bu ? 4.2 : 3} fill="#fff" stroke={renk} strokeWidth={bu ? 2.4 : 1.8} />
+              ))}
+              {bu && s.noktalar.map(p => (
+                <text key={"t"+p.no} x={nx(p.no)} y={ny(p.toplam)-9} fontSize="7.5" fontWeight="800" fill={renk} textAnchor="middle">{p.toplam}</text>
               ))}
             </g>
           );
@@ -11147,16 +11185,21 @@ function SinifDenemeGrafigi({ ogrenciler, denemeler, sinavTuru }) {
               opacity:acik?1:0.5, fontSize:9.5, fontWeight:700, color:acik?renk:MUTED, cursor:"pointer"
             }}>
               <span style={{width:9,height:9,borderRadius:"50%",background:acik?renk:"transparent",border:acik?"none":`1.5px solid ${MUTED}`,flexShrink:0}} />
-              {s.ad}
+              {s.ad}{vurguVar && s.ad===vurgulananAd ? " ●" : ""}
             </button>
           );
         })}
+        {verisizler.map(s => (
+          <span key={s.ad} title="Bu öğrenci için henüz deneme verisi girilmemiş"
+            style={{padding:"3px 8px",borderRadius:10,border:`1px dashed ${BORDER}`,background:BG,
+              fontSize:9.5,fontWeight:500,color:MUTED,opacity:0.65}}>{s.ad} · veri yok</span>
+        ))}
       </div>
     </div>
   );
 }
 
-function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYil, sinifListesi, setSinifListesi, denemeler, sinavTuru, onSinifSilTumVeri, kademe, setTab, setAktifOgrenci, profiles, profiles2, onRaporAc }) {
+function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYil, sinifListesi, setSinifListesi, denemeler, sinavTuru, onSinifSilTumVeri, kademe, setTab, setAktifOgrenci, aktifOgrenci, profiles, profiles2, onRaporAc }) {
   const [seciliSinif, setSeciliSinif] = useState(null);
   const [seciliSinifDuzeyi, setSeciliSinifDuzeyi] = useState(null);
   const [listeYukleAcik, setListeYukleAcik] = useState(false);
@@ -11396,7 +11439,7 @@ const RISK_TURLERI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygus
 
         <RiskOzetKartlari ogrenciler={st.ogr} kompakt baslik="📊 Geçmiş Dönem Deneme Risk Dağılımı" />
 
-        <SinifDenemeGrafigi ogrenciler={st.ogr} denemeler={denemeler} sinavTuru={sinavTuru} />
+        <SinifDenemeGrafigi ogrenciler={st.ogr} denemeler={denemeler} sinavTuru={sinavTuru} vurgulananAd={aktifOgrenci?.name} />
 
         {/* Görüşme Konuları */}
         {st.konuSirali.length > 0 && (
@@ -13534,6 +13577,7 @@ export default function App() {
             kademe={kademe}
             setTab={setTab}
             setAktifOgrenci={setAktifOgrenci}
+            aktifOgrenci={aktifOgrenci}
             profiles={profiles}
             profiles2={profiles2}
             onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
