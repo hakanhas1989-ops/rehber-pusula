@@ -2499,6 +2499,223 @@ function KrizMudahaleEkrani({ krizKayitlari, setKrizKayitlari, aktifYil, sinifla
   );
 }
 
+// ── Sosyometri / Akran İlişkileri ───────────────────────────────────────────
+// AMAÇ: İl/İlçe MEM'in 2026-2027 öncelikleri yazısı (md. 7) akran ilişkilerinin
+// güçlendirilmesini ve "öğrencilerin kendilerini okula ait hissettikleri olumlu
+// bir okul iklimi"ni istiyor; md. 2 ise dışlanma/zorbalık riski altındaki
+// öğrencilerin erken belirlenmesini. Bir sınıfta kimin hiç seçilmediğini
+// gözle fark etmek çok zordur — sosyometri bunu görünür kılar.
+// YÖNTEM: Her öğrenci, sınıfından birlikte çalışmak istediği en çok 3 arkadaşını
+// seçer. Program kimin kaç kez seçildiğini, karşılıklı seçimleri ve HİÇ
+// seçilmeyenleri hesaplar.
+async function loadSosyometri() {
+  try { const r = await window.storage.get("pdr-sosyometri"); return r ? JSON.parse(r.value) : []; } catch { return []; }
+}
+async function saveSosyometri(items) {
+  try { await window.storage.set("pdr-sosyometri", JSON.stringify(items)); } catch(e) { console.warn(e); }
+}
+
+function SosyometriEkrani({ sosyometri, setSosyometri, ogrenciler, aktifYil, siniflar, setRiskForm, setTab }) {
+  const [seciliSinif, setSeciliSinif] = useState("");
+
+  const sinifOgrencileri = (ogrenciler||[])
+    .filter(o => (!o.yil || o.yil === aktifYil) && (o.className||"").trim() === seciliSinif)
+    .sort((a,b) => (a.studentName||"").localeCompare(b.studentName||"", "tr"));
+
+  const kayit = (sosyometri||[]).find(s => s.yil === aktifYil && s.sinif === seciliSinif);
+  const secimler = kayit?.secimler || {};
+
+  // Kağıt üzerinden toplanan seçimleri hızlı girmek için: bir öğrencinin 3
+  // seçimi tek seferde (satır olarak) kaydedilir — tek tek tıklamak yerine
+  // klavyeyle Tab'layarak akıcı ilerlenir. 30 kişilik bir sınıfta pratikte
+  // fark yaratan kısım burası.
+  async function satirKaydet(ogrAd, ucluListe) {
+    const temiz = ucluListe.map(x => (x||"").trim()).filter(Boolean).slice(0,3);
+    const yeniSecimler = { ...secimler, [ogrAd]: temiz };
+    let yeni;
+    if (kayit) yeni = sosyometri.map(s => (s.yil===aktifYil && s.sinif===seciliSinif) ? { ...s, secimler:yeniSecimler, tarih:today() } : s);
+    else yeni = [...(sosyometri||[]), { id: uid(), yil: aktifYil, sinif: seciliSinif, tarih: today(), secimler: yeniSecimler }];
+    setSosyometri(yeni); await saveSosyometri(yeni);
+  }
+
+  // ── Analiz ──
+  const secilmeSayisi = {};
+  sinifOgrencileri.forEach(o => { secilmeSayisi[o.studentName] = 0; });
+  Object.values(secimler).forEach(list => (list||[]).forEach(ad => {
+    if (secilmeSayisi[ad] !== undefined) secilmeSayisi[ad] += 1;
+  }));
+
+  const secimYapanSayisi = Object.keys(secimler).filter(k => (secimler[k]||[]).length > 0).length;
+  const katilimOrani = sinifOgrencileri.length > 0 ? Math.round((secimYapanSayisi / sinifOgrencileri.length) * 100) : 0;
+
+  // Karşılıklı seçimler (iki öğrenci birbirini seçmiş)
+  const karsilikli = [];
+  sinifOgrencileri.forEach(a => {
+    (secimler[a.studentName]||[]).forEach(bAd => {
+      if ((secimler[bAd]||[]).includes(a.studentName) && a.studentName < bAd) karsilikli.push([a.studentName, bAd]);
+    });
+  });
+
+  const sirali = [...sinifOgrencileri].sort((a,b) => (secilmeSayisi[b.studentName]||0) - (secilmeSayisi[a.studentName]||0));
+  // Hiç seçilmeyenler yalnızca yeterli katılım varsa anlamlıdır.
+  const izoleler = secimYapanSayisi >= Math.max(5, sinifOgrencileri.length * 0.6)
+    ? sinifOgrencileri.filter(o => (secilmeSayisi[o.studentName]||0) === 0) : [];
+
+  function riskAc(o) {
+    setRiskForm({ studentName: o.studentName, className: o.className, numara: o.numara || "",
+      riskTuru: "Akran / Zorbalık", oncelik: "Orta", tarih: today(),
+      aciklama: `Sosyometri (${seciliSinif}, ${kayit?.tarih || today()}): sınıfta hiçbir arkadaşı tarafından seçilmedi. Akran ilişkileri açısından izlenmeli.` });
+    setTab("risk");
+  }
+
+  const kutuStil = { background:CARD, border:`1px solid ${BORDER}`, boxShadow:"0 4px 12px rgba(20,40,32,0.14)", borderRadius:14, padding:14, marginBottom:12 };
+
+  return (
+    <div>
+      <div style={{ fontSize:18, fontWeight:900, marginBottom:4, color:PURPLE }}>🤝 Sosyometri</div>
+      <div style={{ fontSize:12, color:MUTED, lineHeight:1.55, marginBottom:12 }}>
+        Her öğrenci sınıfından birlikte çalışmak istediği en çok 3 arkadaşını seçer. Program kimin kaç kez
+        seçildiğini, karşılıklı dostlukları ve hiç seçilmeyen öğrencileri gösterir.
+      </div>
+
+      <div style={{ display:"flex", gap:5, overflowX:"auto", marginBottom:12, paddingBottom:4 }}>
+        {(siniflar||[]).map(s => (
+          <button key={s} onClick={()=>{ setSeciliSinif(s); setAktifOgrenciAd(null); }} style={{
+            flexShrink:0, padding:"5px 12px", borderRadius:14,
+            border:`1px solid ${seciliSinif===s ? PURPLE : BORDER}`,
+            background:seciliSinif===s ? PURPLE_LIGHT : CARD,
+            boxShadow:"0 2px 6px rgba(20,40,32,0.10)",
+            color:seciliSinif===s ? PURPLE : MUTED, fontSize:12, fontWeight:seciliSinif===s?700:500, cursor:"pointer"
+          }}>{s}</button>
+        ))}
+      </div>
+
+      {!seciliSinif ? (
+        <div style={{ ...kutuStil, textAlign:"center", color:MUTED, fontSize:12.5, borderStyle:"dashed" }}>
+          Başlamak için yukarıdan bir sınıf seç.
+        </div>
+      ) : sinifOgrencileri.length === 0 ? (
+        <div style={{ ...kutuStil, textAlign:"center", color:MUTED, fontSize:12.5, borderStyle:"dashed" }}>
+          Bu sınıfta kayıtlı öğrenci yok.
+        </div>
+      ) : (
+        <>
+          <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+            <div style={{ flex:1, ...kutuStil, marginBottom:0, padding:"10px 12px", textAlign:"center" }}>
+              <div style={{ fontSize:19, fontWeight:900, color:PURPLE }}>{katilimOrani}%</div>
+              <div style={{ fontSize:10, color:MUTED, fontWeight:700 }}>Katılım</div>
+            </div>
+            <div style={{ flex:1, ...kutuStil, marginBottom:0, padding:"10px 12px", textAlign:"center" }}>
+              <div style={{ fontSize:19, fontWeight:900, color:ACCENT }}>{karsilikli.length}</div>
+              <div style={{ fontSize:10, color:MUTED, fontWeight:700 }}>Karşılıklı</div>
+            </div>
+            <div style={{ flex:1, ...kutuStil, marginBottom:0, padding:"10px 12px", textAlign:"center" }}>
+              <div style={{ fontSize:19, fontWeight:900, color: izoleler.length ? "#C0392B" : MUTED }}>{izoleler.length}</div>
+              <div style={{ fontSize:10, color:MUTED, fontWeight:700 }}>Seçilmeyen</div>
+            </div>
+          </div>
+
+          {izoleler.length > 0 && (
+            <div style={{ background:"#FDECEA", border:"1px solid #F5B7B1", borderRadius:12, padding:12, marginBottom:12 }}>
+              <div style={{ fontSize:12, fontWeight:800, color:"#C0392B", marginBottom:7 }}>
+                ⚠️ Hiçbir arkadaşı tarafından seçilmeyen öğrenciler
+              </div>
+              {izoleler.map(o => (
+                <div key={o.studentName} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
+                  <span style={{ fontSize:12.5, fontWeight:700, color:TEXT }}>{o.studentName}</span>
+                  <button onClick={()=>riskAc(o)} style={{ padding:"3px 10px", borderRadius:8, border:"1px solid #C0392B",
+                    background:CARD, color:"#C0392B", fontSize:10, fontWeight:700, cursor:"pointer" }}>Risk Kaydı Aç</button>
+                </div>
+              ))}
+              <div style={{ fontSize:10, color:"#7B241C", marginTop:7, lineHeight:1.5, fontStyle:"italic" }}>
+                Bu tek başına dışlanma kanıtı değildir — çekingenlik, yeni gelmiş olmak veya sınıf dışı
+                arkadaşlıklar da sebep olabilir. Gözlem ve görüşmeyle birlikte değerlendir.
+              </div>
+            </div>
+          )}
+
+          {secimYapanSayisi > 0 && secimYapanSayisi < Math.max(5, sinifOgrencileri.length * 0.6) && (
+            <div style={{ background:"#FEF5E7", border:"1px solid #F5CBA7", borderRadius:12, padding:"9px 12px", marginBottom:12, fontSize:11, color:"#7E5109", lineHeight:1.5 }}>
+              Katılım henüz düşük ({secimYapanSayisi}/{sinifOgrencileri.length}). "Hiç seçilmeyen" analizi,
+              sınıfın en az %60'ı seçim yaptıktan sonra gösterilir — erken yorum yanıltıcı olur.
+            </div>
+          )}
+
+          {karsilikli.length > 0 && (
+            <div style={kutuStil}>
+              <div style={{ fontSize:12, fontWeight:800, color:TEXT, marginBottom:7 }}>💚 Karşılıklı Seçimler</div>
+              <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                {karsilikli.map(([a,b]) => (
+                  <span key={a+b} style={{ background:ACCENT_LIGHT, color:ACCENT, borderRadius:12, padding:"3px 10px", fontSize:10.5, fontWeight:700 }}>{a} ↔ {b}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={kutuStil}>
+            <div style={{ fontSize:12, fontWeight:800, color:TEXT, marginBottom:4 }}>
+              📋 Hızlı Giriş — kağıttan toplanan seçimleri gir
+            </div>
+            <div style={{ fontSize:10.5, color:MUTED, lineHeight:1.5, marginBottom:10 }}>
+              Her satırda öğrencinin kağıda yazdığı 3 arkadaşını yaz — yazarken sınıf listesinden
+              öneri çıkar. Tab tuşuyla bir sonraki kutuya, sıradaki satıra geçebilirsin.
+            </div>
+            <datalist id="pdr-sosyo-siniflistesi">
+              {sinifOgrencileri.map(d => <option key={d.studentName} value={d.studentName} />)}
+            </datalist>
+            {sinifOgrencileri.map(o => {
+              const kendiSecimi = secimler[o.studentName] || [];
+              const kutular = [0,1,2].map(i => kendiSecimi[i] || "");
+              return (
+                <div key={o.studentName} style={{ display:"flex", alignItems:"center", gap:6, borderBottom:`1px solid ${BORDER}`, paddingBottom:8, marginBottom:8 }}>
+                  <div style={{ width:96, flexShrink:0 }}>
+                    <div style={{ fontSize:11.5, fontWeight:700, color:TEXT, lineHeight:1.3 }}>{o.studentName}</div>
+                    <div style={{ fontSize:9.5, color:ACCENT, fontWeight:700 }}>{secilmeSayisi[o.studentName]||0} seçim aldı</div>
+                  </div>
+                  <div style={{ display:"flex", gap:4, flex:1, minWidth:0 }}>
+                    {[0,1,2].map(i => (
+                      <input key={i} list="pdr-sosyo-siniflistesi" defaultValue={kutular[i]}
+                        placeholder={`${i+1}.`}
+                        onBlur={e => {
+                          const yeni = [...kutular]; yeni[i] = e.target.value;
+                          satirKaydet(o.studentName, yeni);
+                        }}
+                        style={{ width:0, flex:1, minWidth:0, padding:"6px 7px", borderRadius:7,
+                          border:`1px solid ${kutular[i] && !sinifOgrencileri.some(d=>d.studentName===kutular[i]) ? "#E67E22" : BORDER}`,
+                          fontSize:11, background:CARD, color:TEXT, boxSizing:"border-box" }} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {secimYapanSayisi > 0 && (
+            <div style={kutuStil}>
+              <div style={{ fontSize:12, fontWeight:800, color:TEXT, marginBottom:9 }}>📊 Seçilme Sıralaması</div>
+              {sirali.map(o => {
+                const s = secilmeSayisi[o.studentName]||0;
+                const enYuksek = Math.max(1, ...Object.values(secilmeSayisi));
+                return (
+                  <div key={o.studentName} style={{ marginBottom:6 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:10.5, marginBottom:2 }}>
+                      <span style={{ color: s===0 ? "#C0392B" : MUTED, fontWeight: s===0 ? 700 : 500 }}>{o.studentName}</span>
+                      <span style={{ fontWeight:800, color: s===0 ? "#C0392B" : ACCENT }}>{s}</span>
+                    </div>
+                    <div style={{ height:4, background:BORDER, borderRadius:2, overflow:"hidden" }}>
+                      <div style={{ width:`${(s/enYuksek)*100}%`, height:"100%", background: s===0 ? "#C0392B" : ACCENT, borderRadius:2 }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 async function loadSevkler() {
   try { const r = await window.storage.get("pdr-sevkler"); return r ? JSON.parse(r.value) : []; } catch { return []; }
 }
@@ -11756,6 +11973,7 @@ export default function App() {
   const [sevkler, setSevkler] = useState([]);
   const [grupCalismalari, setGrupCalismalari] = useState([]);
   const [krizKayitlari, setKrizKayitlari] = useState([]);
+  const [sosyometri, setSosyometri] = useState([]);
   const [hatirlatmalar, setHatirlatmalar] = useState([]);
   // Yıl Sonu Kapsam Takibi'nde hangi sınıfın hiç görüşülmemiş öğrencileri
   // açık — tıklanan sınıf tekrar tıklanırsa kapanır (null'a döner).
@@ -11791,6 +12009,7 @@ export default function App() {
     loadSevkler().then(setSevkler);
     loadGrupCalismalari().then(setGrupCalismalari);
     loadKrizKayitlari().then(setKrizKayitlari);
+    loadSosyometri().then(setSosyometri);
     loadHatirlatmalar().then(setHatirlatmalar);
     loadNetHaritasi().then(setNetHaritasiKayitlari);
     loadKonuHaritasi().then(setKonuHaritasiVerisi);
@@ -12305,6 +12524,7 @@ export default function App() {
     { key: "kazanimlar", label: "📘 Kazanımlar" },
     { key: "grup_calismalari", label: "👪 Grup Çalışmaları" },
     { key: "kriz", label: "🚨 Kriz Müdahale" },
+    { key: "sosyometri", label: "🤝 Sosyometri" },
     { key: "istatistik", label: "İstatistik" },
     { key: "ayarlar", label: "⚙️ Ayarlar" },
     ...(pdrIsAdmin ? [{ key: "onaylar", label: "🛠 Onaylar" }] : []),
@@ -12673,6 +12893,9 @@ export default function App() {
               const kalanKriz = (krizKayitlari||[]).filter(k => k.yil !== yil);
               setKrizKayitlari(kalanKriz); await saveKrizKayitlari(kalanKriz);
 
+              const kalanSosyo = (sosyometri||[]).filter(s => s.yil !== yil);
+              setSosyometri(kalanSosyo); await saveSosyometri(kalanSosyo);
+
               // Öğrenci silmede zaten temizlenen ama yıl silmede unutulmuş
               // diziler: hatırlatmalar, net haritası.
               const kalanHatirlatmalar = (hatirlatmalar||[]).filter(h => !silinecekMi(h.studentName, h.className, h.numara));
@@ -12749,6 +12972,9 @@ export default function App() {
 
               const kalanKriz = (krizKayitlari||[]).filter(k => k.yil !== yil);
               setKrizKayitlari(kalanKriz); await saveKrizKayitlari(kalanKriz);
+
+              const kalanSosyo = (sosyometri||[]).filter(s => s.yil !== yil);
+              setSosyometri(kalanSosyo); await saveSosyometri(kalanSosyo);
 
               const kalanHatirlatmalar2 = (hatirlatmalar||[]).filter(h => !silinecekMi(h.studentName, h.className, h.numara));
               setHatirlatmalar(kalanHatirlatmalar2); await saveHatirlatmalar(kalanHatirlatmalar2);
@@ -13360,6 +13586,18 @@ export default function App() {
             aktifYil={aktifYil}
             hatirlatmalar={hatirlatmalar}
             setHatirlatmalar={setHatirlatmalar}
+            siniflar={[...new Set([...(sinifListesi||[]), ...(ogrenciler||[]).map(o=>(o.className||"").trim())].filter(Boolean))].sort((a,b)=>a.localeCompare(b,"tr"))}
+          />
+        )}
+
+        {tab === "sosyometri" && (
+          <SosyometriEkrani
+            sosyometri={sosyometri}
+            setSosyometri={setSosyometri}
+            ogrenciler={ogrenciler}
+            aktifYil={aktifYil}
+            setRiskForm={setRiskForm}
+            setTab={setTab}
             siniflar={[...new Set([...(sinifListesi||[]), ...(ogrenciler||[]).map(o=>(o.className||"").trim())].filter(Boolean))].sort((a,b)=>a.localeCompare(b,"tr"))}
           />
         )}
