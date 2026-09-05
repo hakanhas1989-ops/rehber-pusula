@@ -98,7 +98,7 @@ setTimeout(function() {
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow-x: hidden; }
-body { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; overscroll-behavior: none; background: linear-gradient(160deg, #BFE5CE 0%, #C9B7EC 100%); background-attachment: fixed; }
+body { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; overscroll-behavior: none; background: linear-gradient(160deg, #C6F0DB 0%, #DCE6F0 48%, #D5C6F3 100%); background-attachment: fixed; }
 input, textarea, button, select { font-family: inherit; }
 input[type=range] { cursor: pointer; }
 /* Kartlara genel derinlik/gölge: satır içi stilleri hedefleyen öznitelik seçicisi */
@@ -299,7 +299,7 @@ body {
   window.pdrSplashGizle = function () {
     var s = document.getElementById('splash');
     if (!s) return;
-    var MIN = 3000; // ms — açılış ekranının en az kalma süresi
+    var MIN = 1500; // ms — açılış ekranının en az kalma süresi
     var kalan = MIN - (Date.now() - window.__pdrSplashBaslangic);
     if (kalan > 0) setTimeout(function () { s.className = 'hide'; }, kalan);
     else s.className = 'hide';
@@ -1081,13 +1081,15 @@ const XLSX = window.XLSX;
 const ACCENT = "#127C56";
 const ACCENT_LIGHT = "#D7EEE1";
 const BG = "#F7F5F0";
-const CARD = "#FBF3E3";
+const CARD = "#F9F7F2";
 const TEXT = "#1C2B24";
 const MUTED = "#6E8579";
 const BORDER = "#B9CFBE";
 const ORANGE = "#E76F51";
 const BLUE = "#457B9D";
-const PURPLE = "#9B87F0";
+// PURPLE, açılış ekranındaki beyin görselinin lila ucuyla aynı ton —
+// programın geçişleri o görselle uyumlu kalsın diye (yeşil ucu: #17C780).
+const PURPLE = "#9E78ED";
 const PURPLE_LIGHT = "#E9DFF6";
 
 
@@ -11806,12 +11808,12 @@ export default function App() {
   }, [kademe]);
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #BFE5CE 0%, #C9B7EC 100%)", backgroundAttachment: "fixed", fontFamily: "'Segoe UI', system-ui, sans-serif", color: TEXT }}>
+    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #C6F0DB 0%, #DCE6F0 48%, #D5C6F3 100%)", backgroundAttachment: "fixed", fontFamily: "'Segoe UI', system-ui, sans-serif", color: TEXT }}>
 
       <RaporModal rapor={raporVerisi} onKapat={() => setRaporVerisi(null)} />
       {rehberGoster && <BaslarkenRehberi onKapat={async () => { setRehberGoster(false); await saveRehberGorunduMu(); }} />}
       {/* Header */}
-      <div style={{ background: `linear-gradient(135deg, ${ACCENT} 0%, #164A35 100%)`, color: "#fff", padding: "16px 20px 12px", position: "sticky", top: 0, zIndex: 10, boxShadow: "0 4px 16px rgba(15,61,46,0.35)" }}>
+      <div style={{ background: "linear-gradient(135deg, #0E6E4C 0%, #2E5B6E 55%, #5B3F9E 100%)", color: "#fff", padding: "16px 20px 12px", position: "sticky", top: 0, zIndex: 10, boxShadow: "0 4px 16px rgba(15,61,46,0.35)" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1, opacity: 0.7, textTransform: "uppercase" }}>PDR Servisi</div>
@@ -11899,7 +11901,8 @@ export default function App() {
         ))}
       </div>
 
-      <div style={{ padding: "16px 16px 80px", background: PURPLE_LIGHT, minHeight: "calc(100vh - 200px)" }}>
+      <div style={{ padding: "16px 16px 80px", minHeight: "calc(100vh - 200px)",
+        background: "linear-gradient(160deg, rgba(23,199,128,0.16) 0%, rgba(158,120,237,0.10) 52%, rgba(158,120,237,0.22) 100%)" }}>
 
 
         {/* ── YENİ GÖRÜŞME NOTU ───────────────────────────────────── */}
