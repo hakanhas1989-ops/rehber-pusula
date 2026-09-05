@@ -140,9 +140,14 @@ body {
   mask-image: radial-gradient(ellipse 64% 60% at 50% 50%, #000 0%, rgba(0,0,0,0.94) 48%, rgba(0,0,0,0.38) 74%, transparent 89%);
   animation: pdrBrainGlow 4.2s ease-in-out infinite;
 }
+/* Hafif süzülme + yavaş, sağa-sola salınan dönüş. Tam tur döndürmek yerine
+   sınırlı bir açıyla salınıyor; beyin görseli yan profil olduğu için tam
+   dönüşte ters görünürdü. */
 @keyframes pdrBrainDrift {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50%      { transform: translateY(-6px) scale(1.015); }
+  0%, 100% { transform: translateY(0) scale(1) rotate(-2.5deg); }
+  25%      { transform: translateY(-4px) scale(1.01) rotate(0deg); }
+  50%      { transform: translateY(-6px) scale(1.015) rotate(2.5deg); }
+  75%      { transform: translateY(-4px) scale(1.01) rotate(0deg); }
 }
 @keyframes pdrBrainGlow {
   0%, 100% { filter: brightness(1.05) saturate(1.05); }
@@ -12829,21 +12834,11 @@ export default function App() {
 
     const ad = aktifOgrenci?.name, sinif = aktifOgrenci?.className;
     if (!ad) {
-      // Öğrenci seçili değil — yıl geneli
-      return {
-        ...okulDuzeyi,
-        yeni: yilinki(records),
-        profil_merkez: (profiles||[]).length > 0 || (profiles2||[]).length > 0,
-        mudahale: sozlukDolu(mudahalePlan),
-        devamsizlik: (ogrenciler||[]).some(o => (o.devamsizlikGecmisi||[]).length > 0),
-        risk: yilinki(riskListesi),
-        deneme: sozlukDolu(denemeler),
-        net_haritasi: (netHaritasiKayitlari||[]).length > 0,
-        konu_haritasi: sozlukDolu(konuHaritasiVerisi),
-        testler: sozlukDolu(testKayitlari),
-        hatirlatici: (hatirlatmalar||[]).length > 0,
-        belgeler: (sevkler||[]).length > 0,
-      };
+      // Öğrenci seçili DEĞİLSE, öğrenciye bağlı sekmelerde hiç işaret gösterilmez.
+      // Aksi halde okulda herhangi bir öğrencinin verisi olduğu için sekme dolu
+      // görünüyor, danışman ise "ben bu öğrenciye girmedim ki" diye şaşırıyordu.
+      // İşaretin anlamı net olsun diye: nokta = seçili öğrencinin durumu.
+      return okulDuzeyi;
     }
 
     // Öğrenci seçili — her şey o öğrenciye göre
