@@ -3609,24 +3609,30 @@ function raporCizgiGrafik(noktalar, { genislik = 460, yukseklik = 130, renk = "#
           <stop offset="100%" stopColor={renk} stopOpacity="0.03" />
         </linearGradient>
       </defs>
-      {/* Zemin */}
-      <rect x={solPad} y={ustPad} width={cizimGenislik} height={cizimYukseklik} fill="#FBFCFB" />
-      {/* Kare ızgara — yatay çizgiler ve Y değerleri */}
+      {/* Zemin — kareli defter görünümü: ince kareler + kalın ana çizgiler */}
+      <defs>
+        <pattern id={gid+"kare"} width="8" height="8" patternUnits="userSpaceOnUse">
+          <path d="M 8 0 L 0 0 0 8" fill="none" stroke="#DDE8E2" strokeWidth="0.5" />
+        </pattern>
+      </defs>
+      <rect x={solPad} y={ustPad} width={cizimGenislik} height={cizimYukseklik} fill="#FCFDFC" />
+      <rect x={solPad} y={ustPad} width={cizimGenislik} height={cizimYukseklik} fill={`url(#${gid}kare)`} />
+      {/* Ana yatay çizgiler ve Y değerleri */}
       {Array.from({length: yatayAdet+1}).map((_, i) => {
         const y = ustPad + (cizimYukseklik/yatayAdet)*i;
         const deger = yMax - (yAralik/yatayAdet)*i;
         return (
           <g key={"h"+i}>
-            <line x1={solPad} y1={y} x2={genislik-sagPad} y2={y} stroke="#E3EAE6" strokeWidth="0.8" />
-            <text x={solPad-4} y={y+3} fontSize="7.5" fill="#9AA8A1" textAnchor="end">{Math.round(deger)}{birim}</text>
+            <line x1={solPad} y1={y} x2={genislik-sagPad} y2={y} stroke="#BBD3C6" strokeWidth="1" />
+            <text x={solPad-4} y={y+3} fontSize="7.5" fill="#7D9188" fontWeight="600" textAnchor="end">{Math.round(deger)}{birim}</text>
           </g>
         );
       })}
-      {/* Kare ızgara — dikey çizgiler */}
+      {/* Ana dikey çizgiler — her deneme noktası hizasında */}
       {Array.from({length: dikeyAdet+1}).map((_, i) => (
         <line key={"v"+i} x1={solPad + (cizimGenislik/dikeyAdet)*i} y1={ustPad}
               x2={solPad + (cizimGenislik/dikeyAdet)*i} y2={ustPad+cizimYukseklik}
-              stroke="#E3EAE6" strokeWidth="0.8" />
+              stroke="#BBD3C6" strokeWidth="1" />
       ))}
       {/* Eksenler */}
       <line x1={solPad} y1={ustPad} x2={solPad} y2={ustPad + cizimYukseklik} stroke="#B9CFBE" strokeWidth="1.2" />
@@ -11021,6 +11027,135 @@ function ProfilMerkez({
 }
 
 // ── Sınıf Profili Bileşeni ────────────────────────────────────────────────────
+// ── Sınıf Deneme Net Grafiği ────────────────────────────────────────────────
+// AMAÇ: Bir sınıftaki tüm öğrencilerin deneme netlerini TEK grafikte, her
+// öğrenci farklı renkte göstermek. Böylece kimin yükseldiği, kimin düştüğü ve
+// sınıf ortalamasının nerede seyrettiği tek bakışta görülür.
+// NOT: Kalabalık sınıflarda 30 çizgi okunmaz hale geleceği için öğrenciler
+// listeden tek tek açılıp kapatılabiliyor; varsayılan olarak ilk 8 öğrenci
+// çizilir, gerisini danışman kendi seçer.
+const SINIF_GRAFIK_RENKLERI = ["#127C56","#9E78ED","#E67E22","#2980B9","#C0392B","#16A085","#8E44AD","#D4AC0D","#2C3E50","#E84393","#00A8A8","#6C5CE7"];
+
+function SinifDenemeGrafigi({ ogrenciler, denemeler, sinavTuru }) {
+  const dersler = aktifDersler(sinavTuru);
+  const maksNet = dersler.reduce((s,d)=>s+d.maks, 0);
+
+  // Her öğrencinin deneme serisi: [{no, toplam}]
+  const seriler = (ogrenciler||[]).map(o => {
+    const d = pdrSozlukOku(denemeler, o.studentName, o.className, o.numara) || {};
+    const noktalar = Object.entries(d)
+      .filter(([k]) => k !== "7sinif")
+      .map(([no, nets]) => {
+        const toplam = nets?._topluNet !== undefined && nets._topluNet !== ""
+          ? parseFloat(nets._topluNet) || 0
+          : dersler.reduce((s,x)=>s+(parseFloat(nets?.[x.key])||0), 0);
+        return { no: parseInt(no,10), toplam: Math.round(toplam*10)/10 };
+      })
+      .filter(p => !isNaN(p.no))
+      .sort((a,b)=>a.no-b.no);
+    return { ad: o.studentName, noktalar };
+  }).filter(s => s.noktalar.length > 0);
+
+  const [acikOgrenciler, setAcikOgrenciler] = useState(null);
+  const gorunen = acikOgrenciler === null ? seriler.slice(0,8).map(s=>s.ad) : acikOgrenciler;
+  const cizilecek = seriler.filter(s => gorunen.includes(s.ad));
+
+  if (seriler.length === 0) return null;
+
+  const tumNolar = [...new Set(seriler.flatMap(s => s.noktalar.map(p=>p.no)))].sort((a,b)=>a-b);
+  const genislik = 460, yukseklik = 190;
+  const solPad = 30, sagPad = 10, ustPad = 12, altPad = 26;
+  const cg = genislik - solPad - sagPad, cy = yukseklik - ustPad - altPad;
+  const xAdim = tumNolar.length > 1 ? cg/(tumNolar.length-1) : 0;
+  const nx = (no) => solPad + tumNolar.indexOf(no) * xAdim;
+  const ny = (v) => ustPad + cy - (v/maksNet)*cy;
+
+  // Sınıf ortalaması — her deneme için
+  const ortalamalar = tumNolar.map(no => {
+    const vals = seriler.map(s => s.noktalar.find(p=>p.no===no)?.toplam).filter(v => v !== undefined);
+    return { no, ort: vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null };
+  }).filter(o => o.ort !== null);
+
+  function cevir(ad) {
+    const su = acikOgrenciler === null ? seriler.slice(0,8).map(s=>s.ad) : acikOgrenciler;
+    setAcikOgrenciler(su.includes(ad) ? su.filter(x=>x!==ad) : [...su, ad]);
+  }
+
+  return (
+    <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14)",borderRadius:12,padding:14,marginBottom:14}}>
+      <div style={{fontSize:13,fontWeight:800,color:TEXT,marginBottom:2}}>📈 Sınıf Deneme Net Grafiği</div>
+      <div style={{fontSize:10.5,color:MUTED,marginBottom:10}}>
+        Her çizgi bir öğrenci. Aşağıdaki isimlere dokunarak çizgileri açıp kapatabilirsin.
+      </div>
+
+      <svg viewBox={`0 0 ${genislik} ${yukseklik}`} style={{width:"100%",height:"auto",display:"block"}}>
+        <defs>
+          <pattern id="sinifKare" width="8" height="8" patternUnits="userSpaceOnUse">
+            <path d="M 8 0 L 0 0 0 8" fill="none" stroke="#DDE8E2" strokeWidth="0.5" />
+          </pattern>
+        </defs>
+        <rect x={solPad} y={ustPad} width={cg} height={cy} fill="#FCFDFC" />
+        <rect x={solPad} y={ustPad} width={cg} height={cy} fill="url(#sinifKare)" />
+        {/* Ana yatay çizgiler */}
+        {[0,0.25,0.5,0.75,1].map((f,i) => {
+          const y = ustPad + cy*f;
+          return (
+            <g key={i}>
+              <line x1={solPad} y1={y} x2={genislik-sagPad} y2={y} stroke="#BBD3C6" strokeWidth="1" />
+              <text x={solPad-4} y={y+3} fontSize="7.5" fill="#7D9188" fontWeight="600" textAnchor="end">{Math.round(maksNet*(1-f))}</text>
+            </g>
+          );
+        })}
+        {/* Ana dikey çizgiler + deneme etiketleri */}
+        {tumNolar.map(no => (
+          <g key={no}>
+            <line x1={nx(no)} y1={ustPad} x2={nx(no)} y2={ustPad+cy} stroke="#BBD3C6" strokeWidth="1" />
+            <text x={nx(no)} y={yukseklik-8} fontSize="8" fill="#7D9188" textAnchor="middle">D{no}</text>
+          </g>
+        ))}
+        {/* Sınıf ortalaması — kesikli gri çizgi */}
+        {ortalamalar.length > 1 && (
+          <path d={ortalamalar.map((o,i)=>`${i===0?"M":"L"} ${nx(o.no).toFixed(1)} ${ny(o.ort).toFixed(1)}`).join(" ")}
+            fill="none" stroke="#7D9188" strokeWidth="1.6" strokeDasharray="5,4" opacity="0.8" />
+        )}
+        {/* Öğrenci çizgileri */}
+        {cizilecek.map((s, si) => {
+          const renk = SINIF_GRAFIK_RENKLERI[seriler.findIndex(x=>x.ad===s.ad) % SINIF_GRAFIK_RENKLERI.length];
+          const d = s.noktalar.map((p,i)=>`${i===0?"M":"L"} ${nx(p.no).toFixed(1)} ${ny(p.toplam).toFixed(1)}`).join(" ");
+          return (
+            <g key={s.ad}>
+              <path d={d} fill="none" stroke={renk} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+              {s.noktalar.map(p => (
+                <circle key={p.no} cx={nx(p.no)} cy={ny(p.toplam)} r="3" fill="#fff" stroke={renk} strokeWidth="1.8" />
+              ))}
+            </g>
+          );
+        })}
+      </svg>
+
+      <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:10}}>
+        <span style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:10,background:BG,fontSize:9.5,color:MUTED,fontWeight:700}}>
+          <span style={{width:14,height:0,borderTop:"2px dashed #7D9188",display:"inline-block"}} /> Sınıf ort.
+        </span>
+        {seriler.map((s,i) => {
+          const renk = SINIF_GRAFIK_RENKLERI[i % SINIF_GRAFIK_RENKLERI.length];
+          const acik = gorunen.includes(s.ad);
+          return (
+            <button key={s.ad} onClick={()=>cevir(s.ad)} style={{
+              display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:10,
+              border:`1px solid ${acik?renk:BORDER}`, background:acik?CARD:BG,
+              opacity:acik?1:0.5, fontSize:9.5, fontWeight:700, color:acik?renk:MUTED, cursor:"pointer"
+            }}>
+              <span style={{width:9,height:9,borderRadius:"50%",background:acik?renk:"transparent",border:acik?"none":`1.5px solid ${MUTED}`,flexShrink:0}} />
+              {s.ad}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYil, sinifListesi, setSinifListesi, denemeler, sinavTuru, onSinifSilTumVeri, kademe, setTab, setAktifOgrenci, profiles, profiles2, onRaporAc }) {
   const [seciliSinif, setSeciliSinif] = useState(null);
   const [seciliSinifDuzeyi, setSeciliSinifDuzeyi] = useState(null);
@@ -11260,6 +11395,8 @@ const RISK_TURLERI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygus
         )}
 
         <RiskOzetKartlari ogrenciler={st.ogr} kompakt baslik="📊 Geçmiş Dönem Deneme Risk Dağılımı" />
+
+        <SinifDenemeGrafigi ogrenciler={st.ogr} denemeler={denemeler} sinavTuru={sinavTuru} />
 
         {/* Görüşme Konuları */}
         {st.konuSirali.length > 0 && (
