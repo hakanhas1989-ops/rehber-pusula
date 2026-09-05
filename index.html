@@ -98,7 +98,7 @@ setTimeout(function() {
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow-x: hidden; }
-body { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; overscroll-behavior: none; background: linear-gradient(160deg, #C6F0DB 0%, #DCE6F0 48%, #D5C6F3 100%); background-attachment: fixed; }
+body { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; overscroll-behavior: none; background: linear-gradient(160deg, #C6F0DB 0%, #DCE6F0 48%, #C9B6EE 100%); background-attachment: fixed; }
 input, textarea, button, select { font-family: inherit; }
 input[type=range] { cursor: pointer; }
 /* Kartlara genel derinlik/gölge: satır içi stilleri hedefleyen öznitelik seçicisi */
@@ -1081,7 +1081,7 @@ const XLSX = window.XLSX;
 const ACCENT = "#127C56";
 const ACCENT_LIGHT = "#D7EEE1";
 const BG = "#F7F5F0";
-const CARD = "#F9F7F2";
+const CARD = "#FAFAF8";
 const TEXT = "#1C2B24";
 const MUTED = "#6E8579";
 const BORDER = "#B9CFBE";
@@ -11808,7 +11808,7 @@ export default function App() {
   }, [kademe]);
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #C6F0DB 0%, #DCE6F0 48%, #D5C6F3 100%)", backgroundAttachment: "fixed", fontFamily: "'Segoe UI', system-ui, sans-serif", color: TEXT }}>
+    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #C6F0DB 0%, #DCE6F0 48%, #C9B6EE 100%)", backgroundAttachment: "fixed", fontFamily: "'Segoe UI', system-ui, sans-serif", color: TEXT }}>
 
       <RaporModal rapor={raporVerisi} onKapat={() => setRaporVerisi(null)} />
       {rehberGoster && <BaslarkenRehberi onKapat={async () => { setRehberGoster(false); await saveRehberGorunduMu(); }} />}
@@ -11902,7 +11902,7 @@ export default function App() {
       </div>
 
       <div style={{ padding: "16px 16px 80px", minHeight: "calc(100vh - 200px)",
-        background: "linear-gradient(160deg, rgba(23,199,128,0.16) 0%, rgba(158,120,237,0.10) 52%, rgba(158,120,237,0.22) 100%)" }}>
+        background: "linear-gradient(160deg, rgba(23,199,128,0.16) 0%, rgba(158,120,237,0.10) 52%, rgba(158,120,237,0.30) 100%)" }}>
 
 
         {/* ── YENİ GÖRÜŞME NOTU ───────────────────────────────────── */}
