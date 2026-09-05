@@ -2285,6 +2285,220 @@ function GrupCalismalariEkrani({ grupCalismalari, setGrupCalismalari, aktifYil, 
   );
 }
 
+// ── Kriz / Psikososyal Müdahale ─────────────────────────────────────────────
+// AMAÇ: İl/İlçe MEM'in 2026-2027 öncelikleri yazısı (md. 5) ve Psikososyal
+// Koruma, Önleme ve Krize Müdahale Hizmetleri Yönergesi doğrultusunda; kriz
+// olaylarında "kriz öncesi, kriz anı ve kriz sonrası süreçlere ilişkin görev ve
+// sorumlulukların bilinmesi" isteniyor. Bu modül klinik değerlendirme yapmaz —
+// yalnızca SÜRECİ kayıt altına alır: ne oldu, kim görevlendirildi, hangi kurum
+// bilgilendirildi, izlem ne zaman. Böylece hem süreç unutulmaz hem de denetimde
+// belgelenebilir olur.
+async function loadKrizKayitlari() {
+  try { const r = await window.storage.get("pdr-kriz-kayitlari"); return r ? JSON.parse(r.value) : []; } catch { return []; }
+}
+async function saveKrizKayitlari(items) {
+  try { await window.storage.set("pdr-kriz-kayitlari", JSON.stringify(items)); } catch(e) { console.warn(e); }
+}
+
+const KRIZ_TURLERI = ["Kayıp ve Yas", "Şiddet Olayı", "İhmal / İstismar Şüphesi", "Ciddi Kaza / Yaralanma", "Doğal Afet", "Travmatik Olay", "Göç / Ani Yerinden Olma", "Diğer"];
+const KRIZ_ETKI_DUZEYI = ["Bireysel", "Sınıf Düzeyi", "Okul Geneli"];
+const KRIZ_BILDIRIM = ["Okul Müdürlüğü", "İlçe MEM", "RAM", "Aile / Veli", "Sağlık Kuruluşu", "Kolluk (155/112)", "Sosyal Hizmetler (183)"];
+// Yönergedeki üç aşamalı süreç — her aşamanın kendi kontrol listesi var.
+const KRIZ_ADIMLARI = {
+  "Kriz Anı": ["Güvenlik sağlandı", "İlk psikolojik yardım verildi", "Okul müdürü bilgilendirildi", "Aile bilgilendirildi", "Gerekli kurumlara bildirim yapıldı"],
+  "Kriz Sonrası": ["Etkilenen öğrenciler belirlendi", "Sınıf/grup çalışması yapıldı", "Öğretmen bilgilendirmesi yapıldı", "Veli bilgilendirmesi yapıldı", "İzlem takvimi oluşturuldu", "Gerekli yönlendirmeler yapıldı"],
+};
+
+function KrizMudahaleEkrani({ krizKayitlari, setKrizKayitlari, aktifYil, siniflar, setHatirlatmalar, hatirlatmalar }) {
+  const bosForm = { tur: KRIZ_TURLERI[0], tarih: today(), etkiDuzeyi: KRIZ_ETKI_DUZEYI[0], etkilenen: "",
+                    ekip: "", ozet: "", bildirimler: [], adimlar: [], izlemTarihi: "", durum: "Açık" };
+  const [form, setForm] = useState(bosForm);
+  const [formAcik, setFormAcik] = useState(false);
+  const [duzenlenen, setDuzenlenen] = useState(null);
+
+  const yilKayitlari = (krizKayitlari || []).filter(k => !k.yil || k.yil === aktifYil);
+  const sirali = [...yilKayitlari].sort((a,b) => pdrTarihMs(b.tarih) - pdrTarihMs(a.tarih));
+  const acikSayisi = yilKayitlari.filter(k => k.durum === "Açık").length;
+
+  function cevir(alan, deger) {
+    setForm(f => ({ ...f, [alan]: f[alan].includes(deger) ? f[alan].filter(x=>x!==deger) : [...f[alan], deger] }));
+  }
+
+  async function kaydet() {
+    if (!form.ozet.trim()) { alert("Kısa özet boş bırakılamaz."); return; }
+    let yeni;
+    if (duzenlenen) yeni = krizKayitlari.map(k => k.id === duzenlenen ? { ...k, ...form } : k);
+    else yeni = [...(krizKayitlari||[]), { id: uid(), yil: aktifYil, ...form }];
+    setKrizKayitlari(yeni); await saveKrizKayitlari(yeni);
+
+    // İzlem tarihi girildiyse Hatırlatıcı'ya otomatik kayıt düşer — kriz sonrası
+    // izlem, en kolay unutulan adım olduğu için bu bağlantı bilinçli kuruldu.
+    if (form.izlemTarihi && form.izlemTarihi.trim() && setHatirlatmalar) {
+      const h = { id: uid(), tarih: form.izlemTarihi.trim(), studentName: form.etkilenen || "Kriz izlemi",
+                  className: "", metin: `Kriz izlemi: ${form.tur} — ${form.ozet.slice(0,60)}`, tamamlandi: false, kaynak: "kriz" };
+      const yeniH = [...(hatirlatmalar||[]), h];
+      setHatirlatmalar(yeniH); await saveHatirlatmalar(yeniH);
+    }
+    setForm(bosForm); setFormAcik(false); setDuzenlenen(null);
+  }
+  async function sil(id) {
+    if (!confirm("Bu kriz kaydı silinsin mi?")) return;
+    const yeni = krizKayitlari.filter(k => k.id !== id);
+    setKrizKayitlari(yeni); await saveKrizKayitlari(yeni);
+  }
+  async function durumCevir(k) {
+    const yeni = krizKayitlari.map(x => x.id===k.id ? { ...x, durum: x.durum==="Açık" ? "Kapatıldı" : "Açık" } : x);
+    setKrizKayitlari(yeni); await saveKrizKayitlari(yeni);
+  }
+  function duzenle(k) {
+    setForm({ tur:k.tur, tarih:k.tarih, etkiDuzeyi:k.etkiDuzeyi, etkilenen:k.etkilenen, ekip:k.ekip,
+              ozet:k.ozet, bildirimler:k.bildirimler||[], adimlar:k.adimlar||[], izlemTarihi:"", durum:k.durum });
+    setDuzenlenen(k.id); setFormAcik(true);
+  }
+
+  const inputStil = { width:"100%", padding:"9px 11px", borderRadius:9, border:`1px solid ${BORDER}`, fontSize:13, boxSizing:"border-box", background:CARD, color:TEXT };
+  const etiketStil = { fontSize:11, fontWeight:700, color:MUTED, display:"block", marginBottom:4, marginTop:10 };
+  const cipStil = (secili) => ({ padding:"4px 10px", borderRadius:14, border:`1px solid ${secili?"#C0392B":BORDER}`,
+    background:secili?"#FDECEA":CARD, color:secili?"#C0392B":MUTED, fontSize:10.5, fontWeight:secili?700:500, cursor:"pointer" });
+
+  return (
+    <div>
+      <div style={{ fontSize:18, fontWeight:900, marginBottom:4, color:"#C0392B" }}>🚨 Kriz Müdahale</div>
+      <div style={{ fontSize:12, color:MUTED, lineHeight:1.55, marginBottom:12 }}>
+        Kayıp, şiddet, istismar şüphesi, afet gibi zorlu olaylarda yürütülen süreci kayıt altına alır:
+        ne yapıldı, kim bilgilendirildi, izlem ne zaman. Klinik değerlendirme yapmaz — süreç takibi içindir.
+      </div>
+
+      <div style={{ background:"#FEF5E7", border:"1px solid #F5CBA7", borderRadius:10, padding:"9px 12px", marginBottom:14, fontSize:11, color:"#7E5109", lineHeight:1.55 }}>
+        ⚠️ Acil ve hayati risk içeren durumlarda önce <b>112</b>'yi arayın. İhmal/istismar şüphesinde bildirim
+        yükümlülüğü yasaldır — okul müdürlüğü ve <b>183</b> Sosyal Destek Hattı üzerinden süreci başlatın.
+        Bu modül bildirim yerine geçmez, yalnızca yapılanları kayda alır.
+      </div>
+
+      {acikSayisi > 0 && (
+        <div style={{ background:"#FDECEA", border:"1px solid #F5B7B1", borderRadius:10, padding:"9px 12px", marginBottom:12, fontSize:12, color:"#C0392B", fontWeight:700 }}>
+          {acikSayisi} açık kriz süreci var — izlem adımlarını gözden geçir.
+        </div>
+      )}
+
+      <button onClick={() => { setFormAcik(!formAcik); setDuzenlenen(null); setForm(bosForm); }} style={{
+        width:"100%", padding:"11px", borderRadius:11, border:"none", background:"#C0392B", color:"#fff",
+        fontSize:14, fontWeight:800, cursor:"pointer", marginBottom:12
+      }}>{formAcik ? "✕ Kapat" : "+ Yeni Kriz Kaydı"}</button>
+
+      {formAcik && (
+        <div style={{ background:CARD, border:`1px solid ${BORDER}`, boxShadow:"0 4px 12px rgba(20,40,32,0.14)", borderRadius:14, padding:14, marginBottom:14 }}>
+          <label style={etiketStil}>Olay Türü</label>
+          <select value={form.tur} onChange={e=>setForm({...form, tur:e.target.value})} style={inputStil}>
+            {KRIZ_TURLERI.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+
+          <label style={etiketStil}>Tarih</label>
+          <input value={form.tarih} onChange={e=>setForm({...form, tarih:e.target.value})} placeholder="GG.AA.YYYY" style={inputStil} />
+
+          <label style={etiketStil}>Etki Düzeyi</label>
+          <div style={{ display:"flex", gap:6 }}>
+            {KRIZ_ETKI_DUZEYI.map(d => (
+              <button key={d} onClick={()=>setForm({...form, etkiDuzeyi:d})} style={{ ...cipStil(form.etkiDuzeyi===d), flex:1 }}>{d}</button>
+            ))}
+          </div>
+
+          <label style={etiketStil}>Etkilenen Kişi / Sınıf</label>
+          <input value={form.etkilenen} onChange={e=>setForm({...form, etkilenen:e.target.value})} placeholder="örn. 7-B / öğrenci adı / okul geneli" list="pdr-kriz-siniflar" style={inputStil} />
+          <datalist id="pdr-kriz-siniflar">{(siniflar||[]).map(s => <option key={s} value={s} />)}</datalist>
+
+          <label style={etiketStil}>Kriz Ekibi (görevliler)</label>
+          <input value={form.ekip} onChange={e=>setForm({...form, ekip:e.target.value})} placeholder="örn. Müdür Yrd., PDR, sınıf öğretmeni" style={inputStil} />
+
+          <label style={etiketStil}>Kısa Özet</label>
+          <textarea value={form.ozet} onChange={e=>setForm({...form, ozet:e.target.value})} rows={3} placeholder="Olayın kısa, olgusal özeti" style={{...inputStil, resize:"vertical"}} />
+
+          <label style={etiketStil}>Bilgilendirilen Kurumlar</label>
+          <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+            {KRIZ_BILDIRIM.map(b => (
+              <button key={b} onClick={()=>cevir("bildirimler", b)} style={cipStil(form.bildirimler.includes(b))}>{b}</button>
+            ))}
+          </div>
+
+          {Object.entries(KRIZ_ADIMLARI).map(([asama, adimlar]) => (
+            <div key={asama}>
+              <label style={etiketStil}>{asama} Adımları</label>
+              <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                {adimlar.map(a => (
+                  <button key={a} onClick={()=>cevir("adimlar", a)} style={cipStil(form.adimlar.includes(a))}>
+                    {form.adimlar.includes(a) ? "✓ " : ""}{a}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          <label style={etiketStil}>İzlem Tarihi (girilirse Hatırlatıcı'ya otomatik düşer)</label>
+          <input value={form.izlemTarihi} onChange={e=>setForm({...form, izlemTarihi:e.target.value})} placeholder="GG.AA.YYYY" style={inputStil} />
+
+          <button onClick={kaydet} style={{
+            width:"100%", padding:"11px", borderRadius:11, border:"none", background:ACCENT, color:"#fff",
+            fontSize:14, fontWeight:800, cursor:"pointer", marginTop:13
+          }}>{duzenlenen ? "Güncelle" : "Kaydet"}</button>
+        </div>
+      )}
+
+      {sirali.length === 0 ? (
+        <div style={{ background:CARD, border:`1px dashed ${BORDER}`, borderRadius:14, padding:22, textAlign:"center", color:MUTED, fontSize:12.5 }}>
+          Bu yıl için kriz kaydı yok.
+        </div>
+      ) : sirali.map(k => {
+        const tumAdimlar = Object.values(KRIZ_ADIMLARI).flat();
+        const tamamlanan = (k.adimlar||[]).length;
+        const oran = Math.round((tamamlanan / tumAdimlar.length) * 100);
+        const kapali = k.durum === "Kapatıldı";
+        return (
+          <div key={k.id} style={{ background:CARD, border:`1px solid ${BORDER}`, borderLeft:`4px solid ${kapali?ACCENT:"#C0392B"}`,
+            boxShadow:"0 4px 12px rgba(20,40,32,0.14)", borderRadius:14, padding:13, marginBottom:10, opacity:kapali?0.75:1 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:14, fontWeight:800, color:TEXT }}>{k.tur}</div>
+                <div style={{ fontSize:11, color:MUTED, marginTop:2 }}>
+                  {k.tarih} · {k.etkiDuzeyi}{k.etkilenen ? ` · ${k.etkilenen}` : ""}
+                </div>
+              </div>
+              <div style={{ display:"flex", gap:5, flexShrink:0 }}>
+                <button onClick={()=>duzenle(k)} title="Düzenle" style={{ padding:"3px 8px", borderRadius:8, border:`1px solid ${BORDER}`, background:CARD, fontSize:11, cursor:"pointer" }}>✏️</button>
+                <button onClick={()=>sil(k.id)} title="Sil" style={{ padding:"3px 8px", borderRadius:8, border:"1px solid #F5B7B1", background:CARD, fontSize:11, cursor:"pointer" }}>🗑️</button>
+              </div>
+            </div>
+
+            {k.ozet && <div style={{ fontSize:12, color:TEXT, lineHeight:1.6, marginTop:8, whiteSpace:"pre-wrap" }}>{k.ozet}</div>}
+            {k.ekip && <div style={{ fontSize:11, color:MUTED, marginTop:6 }}>👥 Ekip: {k.ekip}</div>}
+
+            {(k.bildirimler||[]).length > 0 && (
+              <div style={{ display:"flex", gap:4, flexWrap:"wrap", marginTop:8 }}>
+                {k.bildirimler.map(b => (
+                  <span key={b} style={{ background:ACCENT_LIGHT, color:ACCENT, borderRadius:10, padding:"2px 8px", fontSize:9.5, fontWeight:700 }}>✓ {b}</span>
+                ))}
+              </div>
+            )}
+
+            <div style={{ marginTop:9 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", fontSize:10.5, color:MUTED, marginBottom:3 }}>
+                <span>Süreç adımları</span><span style={{ fontWeight:800 }}>{tamamlanan}/{tumAdimlar.length}</span>
+              </div>
+              <div style={{ height:5, background:BORDER, borderRadius:3, overflow:"hidden" }}>
+                <div style={{ width:`${oran}%`, height:"100%", background: oran===100 ? ACCENT : "#E67E22", borderRadius:3 }} />
+              </div>
+            </div>
+
+            <button onClick={()=>durumCevir(k)} style={{ width:"100%", marginTop:9, padding:"6px", fontSize:10.5, fontWeight:700,
+              borderRadius:8, border:`1px solid ${kapali?BORDER:ACCENT}`, background:kapali?CARD:ACCENT_LIGHT, color:kapali?MUTED:ACCENT, cursor:"pointer" }}>
+              {kapali ? "↻ Yeniden Aç" : "✓ Süreci Kapat"}
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 async function loadSevkler() {
   try { const r = await window.storage.get("pdr-sevkler"); return r ? JSON.parse(r.value) : []; } catch { return []; }
 }
@@ -11541,6 +11755,7 @@ export default function App() {
   const [ilerlemeNotlari, setIlerlemeNotlari] = useState({});
   const [sevkler, setSevkler] = useState([]);
   const [grupCalismalari, setGrupCalismalari] = useState([]);
+  const [krizKayitlari, setKrizKayitlari] = useState([]);
   const [hatirlatmalar, setHatirlatmalar] = useState([]);
   // Yıl Sonu Kapsam Takibi'nde hangi sınıfın hiç görüşülmemiş öğrencileri
   // açık — tıklanan sınıf tekrar tıklanırsa kapanır (null'a döner).
@@ -11575,6 +11790,7 @@ export default function App() {
     loadIlerlemeNotlari().then(setIlerlemeNotlari);
     loadSevkler().then(setSevkler);
     loadGrupCalismalari().then(setGrupCalismalari);
+    loadKrizKayitlari().then(setKrizKayitlari);
     loadHatirlatmalar().then(setHatirlatmalar);
     loadNetHaritasi().then(setNetHaritasiKayitlari);
     loadKonuHaritasi().then(setKonuHaritasiVerisi);
@@ -12088,6 +12304,7 @@ export default function App() {
     { key: "kutuphane", label: "📚 Kütüphane" },
     { key: "kazanimlar", label: "📘 Kazanımlar" },
     { key: "grup_calismalari", label: "👪 Grup Çalışmaları" },
+    { key: "kriz", label: "🚨 Kriz Müdahale" },
     { key: "istatistik", label: "İstatistik" },
     { key: "ayarlar", label: "⚙️ Ayarlar" },
     ...(pdrIsAdmin ? [{ key: "onaylar", label: "🛠 Onaylar" }] : []),
@@ -12453,6 +12670,9 @@ export default function App() {
               const kalanGrup = (grupCalismalari||[]).filter(g => g.yil !== yil);
               setGrupCalismalari(kalanGrup); await saveGrupCalismalari(kalanGrup);
 
+              const kalanKriz = (krizKayitlari||[]).filter(k => k.yil !== yil);
+              setKrizKayitlari(kalanKriz); await saveKrizKayitlari(kalanKriz);
+
               // Öğrenci silmede zaten temizlenen ama yıl silmede unutulmuş
               // diziler: hatırlatmalar, net haritası.
               const kalanHatirlatmalar = (hatirlatmalar||[]).filter(h => !silinecekMi(h.studentName, h.className, h.numara));
@@ -12526,6 +12746,9 @@ export default function App() {
               // yılın kayıtları da temizlenmeli.
               const kalanGrup = (grupCalismalari||[]).filter(g => g.yil !== yil);
               setGrupCalismalari(kalanGrup); await saveGrupCalismalari(kalanGrup);
+
+              const kalanKriz = (krizKayitlari||[]).filter(k => k.yil !== yil);
+              setKrizKayitlari(kalanKriz); await saveKrizKayitlari(kalanKriz);
 
               const kalanHatirlatmalar2 = (hatirlatmalar||[]).filter(h => !silinecekMi(h.studentName, h.className, h.numara));
               setHatirlatmalar(kalanHatirlatmalar2); await saveHatirlatmalar(kalanHatirlatmalar2);
@@ -13126,6 +13349,17 @@ export default function App() {
             grupCalismalari={grupCalismalari}
             setGrupCalismalari={setGrupCalismalari}
             aktifYil={aktifYil}
+            siniflar={[...new Set([...(sinifListesi||[]), ...(ogrenciler||[]).map(o=>(o.className||"").trim())].filter(Boolean))].sort((a,b)=>a.localeCompare(b,"tr"))}
+          />
+        )}
+
+        {tab === "kriz" && (
+          <KrizMudahaleEkrani
+            krizKayitlari={krizKayitlari}
+            setKrizKayitlari={setKrizKayitlari}
+            aktifYil={aktifYil}
+            hatirlatmalar={hatirlatmalar}
+            setHatirlatmalar={setHatirlatmalar}
             siniflar={[...new Set([...(sinifListesi||[]), ...(ogrenciler||[]).map(o=>(o.className||"").trim())].filter(Boolean))].sort((a,b)=>a.localeCompare(b,"tr"))}
           />
         )}
