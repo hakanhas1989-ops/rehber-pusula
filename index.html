@@ -2580,7 +2580,7 @@ function SosyometriEkrani({ sosyometri, setSosyometri, ogrenciler, aktifYil, sin
 
       <div style={{ display:"flex", gap:5, overflowX:"auto", marginBottom:12, paddingBottom:4 }}>
         {(siniflar||[]).map(s => (
-          <button key={s} onClick={()=>{ setSeciliSinif(s); setAktifOgrenciAd(null); }} style={{
+          <button key={s} onClick={()=>setSeciliSinif(s)} style={{
             flexShrink:0, padding:"5px 12px", borderRadius:14,
             border:`1px solid ${seciliSinif===s ? PURPLE : BORDER}`,
             background:seciliSinif===s ? PURPLE_LIGHT : CARD,
@@ -4041,7 +4041,7 @@ function RaporModal({ rapor, onKapat }) {
                     {girilen.length > 1 && (
                       <div style={{ marginBottom: 12, pageBreakInside:"avoid" }}>
                         <div style={{ fontSize:9, fontWeight:700, color:"#888", textTransform:"uppercase", marginBottom:3 }}>Net Trendi</div>
-                        {raporCizgiGrafik(girilen.map(d => ({ x: d.no, y: Math.round(d.toplam*10)/10, etiket: `D${d.no}` })), { renk: ACCENT })}
+                        {raporCizgiGrafik(girilen.map(d => ({ x: d.no, y: Math.round(d.toplam*10)/10, etiket: `D${d.no}` })), { renk: ACCENT, minY: 0, maxY: dersler.reduce((s,x)=>s+x.maks,0) })}
                       </div>
                     )}
                     {/* Deneme listesi */}
@@ -12600,35 +12600,73 @@ export default function App() {
   ];
   // ── Sekme doluluk göstergesi ──────────────────────────────────────────────
   // AMAÇ: Hangi sekmeye veri girdiğini, hangisinin boş kaldığını tek bakışta
-  // görebilmek. Yalnızca VERİ GİRİLEN sekmeler işaretlenir; kütüphane, şema,
-  // ayarlar gibi salt görüntüleme/araç sekmeleri kapsam dışıdır.
-  // Yeşil nokta = bu yıl için en az bir kayıt var, boş halka = henüz yok.
+  // görebilmek. Yeşil dolu nokta = kayıt var, boş halka = henüz yok.
+  // ÖNEMLİ: Bir ÖĞRENCİ seçiliyse gösterge o öğrenciye göre hesaplanır —
+  // "bu öğrenci için hangi bilgileri girdim?" sorusunun cevabı. Öğrenci
+  // seçili değilse okul/yıl genelindeki doluluk gösterilir.
+  // Sınıf ve okul düzeyindeki sekmeler (grup çalışmaları, kriz, sosyometri)
+  // öğrenciye bağlı olmadığı için her zaman yıl geneline göre işaretlenir.
   const pdrSekmeDolulugu = React.useMemo(() => {
     const yilinki = (arr) => (arr||[]).filter(x => !x.yil || x.yil === aktifYil).length > 0;
     const sozlukDolu = (s) => s && Object.keys(s).some(k => {
       const v = s[k];
       return v && (Array.isArray(v) ? v.length > 0 : (typeof v === "object" ? Object.keys(v).length > 0 : true));
     });
-    return {
+
+    // Okul/sınıf düzeyi — öğrenci seçili olsa da değişmez
+    const okulDuzeyi = {
       ogrenciler: yilinki(ogrenciler),
-      yeni: yilinki(records),
-      profil_merkez: (profiles||[]).length > 0 || (profiles2||[]).length > 0,
-      mudahale: sozlukDolu(mudahalePlan),
-      devamsizlik: (ogrenciler||[]).some(o => (o.devamsizlikGecmisi||[]).length > 0),
-      risk: yilinki(riskListesi),
-      deneme: sozlukDolu(denemeler),
-      net_haritasi: (netHaritasiKayitlari||[]).length > 0,
-      konu_haritasi: sozlukDolu(konuHaritasiVerisi),
-      testler: sozlukDolu(testKayitlari),
-      hatirlatici: (hatirlatmalar||[]).length > 0,
-      belgeler: (sevkler||[]).length > 0,
       grup_calismalari: yilinki(grupCalismalari),
       kriz: yilinki(krizKayitlari),
       sosyometri: yilinki(sosyometri),
     };
+
+    const ad = aktifOgrenci?.name, sinif = aktifOgrenci?.className;
+    if (!ad) {
+      // Öğrenci seçili değil — yıl geneli
+      return {
+        ...okulDuzeyi,
+        yeni: yilinki(records),
+        profil_merkez: (profiles||[]).length > 0 || (profiles2||[]).length > 0,
+        mudahale: sozlukDolu(mudahalePlan),
+        devamsizlik: (ogrenciler||[]).some(o => (o.devamsizlikGecmisi||[]).length > 0),
+        risk: yilinki(riskListesi),
+        deneme: sozlukDolu(denemeler),
+        net_haritasi: (netHaritasiKayitlari||[]).length > 0,
+        konu_haritasi: sozlukDolu(konuHaritasiVerisi),
+        testler: sozlukDolu(testKayitlari),
+        hatirlatici: (hatirlatmalar||[]).length > 0,
+        belgeler: (sevkler||[]).length > 0,
+      };
+    }
+
+    // Öğrenci seçili — her şey o öğrenciye göre
+    const es = (x) => pdrAyniOgrenci(x.studentName, x.className, ad, sinif, x.numara, aktifOgrenci?.numara);
+    const varMi = (arr) => (arr||[]).some(es);
+    const sozlukVar = (s) => {
+      const v = pdrSozlukOku(s, ad, sinif, aktifOgrenci?.numara);
+      return !!v && (Array.isArray(v) ? v.length > 0 : Object.keys(v).length > 0);
+    };
+    const ogr = (ogrenciler||[]).find(o => pdrAyniOgrenci(o.studentName, o.className, ad, sinif, o.numara, aktifOgrenci?.numara));
+
+    return {
+      ...okulDuzeyi,
+      yeni: varMi(records),
+      profil_merkez: varMi(profiles) || varMi(profiles2),
+      mudahale: sozlukVar(mudahalePlan),
+      devamsizlik: (ogr?.devamsizlikGecmisi||[]).length > 0,
+      risk: varMi(riskListesi),
+      deneme: sozlukVar(denemeler),
+      net_haritasi: varMi(netHaritasiKayitlari),
+      konu_haritasi: sozlukVar(konuHaritasiVerisi),
+      testler: sozlukVar(testKayitlari),
+      hatirlatici: varMi(hatirlatmalar),
+      belgeler: varMi(sevkler),
+    };
   }, [ogrenciler, records, profiles, profiles2, mudahalePlan, riskListesi, denemeler,
       netHaritasiKayitlari, konuHaritasiVerisi, testKayitlari, hatirlatmalar, sevkler,
-      grupCalismalari, krizKayitlari, sosyometri, aktifYil]);
+      grupCalismalari, krizKayitlari, sosyometri, aktifYil,
+      aktifOgrenci?.name, aktifOgrenci?.className, aktifOgrenci?.numara]);
 
   const TABS = TABS_TUMU.filter(t =>
     !(kademe === "ilkokul" && ILKOKULDA_GIZLENECEK_SEKMELER.includes(t.key))
@@ -12722,7 +12760,7 @@ export default function App() {
         {TABS.map(t => {
           const dolu = pdrSekmeDolulugu[t.key];
           return (
-            <button key={t.key} onClick={() => setTab(t.key)} title={dolu === undefined ? undefined : (dolu ? "Bu yıl için kayıt var" : "Bu yıl için henüz kayıt yok")} style={{
+            <button key={t.key} onClick={() => setTab(t.key)} title={dolu === undefined ? undefined : (aktifOgrenci?.name ? `${aktifOgrenci.name}: ${dolu ? "kayıt var" : "henüz kayıt yok"}` : (dolu ? "Bu yıl için kayıt var" : "Bu yıl için henüz kayıt yok"))} style={{
               flexShrink: 0, padding: "11px 10px", border: "none", background: "none",
               fontWeight: tab === t.key ? 700 : 500,
               color: tab === t.key ? ACCENT : MUTED,
