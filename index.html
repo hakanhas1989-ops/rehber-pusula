@@ -4783,7 +4783,23 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
 }
 
 // ── Müdahale Planı Bileşeni ───────────────────────────────────────────────────
-function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mudahalePlan, setMudahalePlan, records, kutuphane, kademe }) {
+// ── Müdahale Etki Ölçümü ────────────────────────────────────────────────────
+// AMAÇ: İl/İlçe MEM'in 2026-2027 öncelikleri yazısı (md. 14) çalışmaların
+// "yalnızca faaliyet sayısı üzerinden değil, öğrencilerin gelişimine sağladığı
+// katkı açısından" değerlendirilmesini istiyor. Bu yüzden bir müdahale planı
+// açılırken öğrencinin o anki profil (P1) puanları fotoğraflanıyor; plan
+// tamamlandığında ikinci ölçüm alınıp fark gösteriliyor.
+// NOT: Bu bir etki KANITI değil, bir izleme aracıdır — puan değişimi müdahale
+// dışındaki etkenlerden de kaynaklanabilir; danışman yorumlamayı kendi yapar.
+function pdrSonProfilPuani(profiles, ad, sinif, numara) {
+  const eslesir = (p) => pdrAyniOgrenci(p.studentName, p.className, ad, sinif, p.numara, numara);
+  const list = (profiles||[]).filter(eslesir).sort((a,b) => pdrTarihMs(a.date) - pdrTarihMs(b.date));
+  if (list.length === 0) return null;
+  const son = list[list.length - 1];
+  return son.scores ? { ...EMPTY_SCORES, ...son.scores } : null;
+}
+
+function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mudahalePlan, setMudahalePlan, records, kutuphane, kademe, profiles }) {
   const [seciliAd, setSeciliAd] = useState(aktifOgrenci?.name || "");
   const [aramaMetni, setAramaMetni] = useState("");
   const [form, setForm] = useState({ hedef:"", adimlar:"", sorumlu:"pdr", sure:"", oncelik:"Orta", durum:"Devam Ediyor" });
@@ -4829,13 +4845,27 @@ function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mud
 
   async function handleKaydet() {
     if (!seciliAd || !form.hedef.trim()) return;
-    const yeni = { id: uid(), tarih: today(), ogrenci: seciliAd, ogrenciSinif: seciliSinif, ...form };
+    const baslangicPuan = pdrSonProfilPuani(profiles, seciliAd, seciliSinif);
+    const yeni = { id: uid(), tarih: today(), ogrenci: seciliAd, ogrenciSinif: seciliSinif, ...form,
+                   baslangicPuan, baslangicTarih: baslangicPuan ? today() : null };
     const mevcutPlanlar = pdrSozlukOku(mudahalePlan, seciliAd, seciliSinif) || [];
     const updated = pdrSozlukYaz(mudahalePlan, seciliAd, seciliSinif, [yeni, ...mevcutPlanlar]);
     setMudahalePlan(updated);
     await saveMudahalePlan(updated);
     setForm({ hedef:"", adimlar:"", sorumlu:"pdr", sure:"", oncelik:"Orta", durum:"Devam Ediyor" });
     setKaydedildi(true); setTimeout(() => setKaydedildi(false), 2000);
+  }
+
+// Planın bitişinde ikinci ölçümü alır; başlangıç fotoğrafıyla karşılaştırılır.
+  async function handleSonOlcum(p) {
+    const simdiki = pdrSonProfilPuani(profiles, p.ogrenci, p.ogrenciSinif);
+    if (!simdiki) { alert("Bu öğrenci için profil (P1) puanı bulunamadı. Önce Profil sekmesinden bir değerlendirme kaydet."); return; }
+    if (!p.baslangicPuan) { alert("Bu planda başlangıç ölçümü yok (plan, bu özellik eklenmeden önce açılmış olabilir). Karşılaştırma yapılamıyor."); return; }
+    const mevcutPlanlar = pdrSozlukOku(mudahalePlan, p.ogrenci, p.ogrenciSinif) || [];
+    const updated = pdrSozlukYaz(mudahalePlan, p.ogrenci, p.ogrenciSinif,
+      mevcutPlanlar.map(x => x.id===p.id ? { ...x, bitisPuan: simdiki, bitisTarih: today() } : x));
+    setMudahalePlan(updated);
+    await saveMudahalePlan(updated);
   }
 
   async function handleDurumGuncelle(ogrenci, ogrenciSinif, id, durum) {
@@ -4929,6 +4959,55 @@ function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mud
                         <button key={d} onClick={()=>handleDurumGuncelle(p.ogrenci,p.ogrenciSinif,p.id,d)} style={{flex:1,padding:"5px",fontSize:10,fontWeight:p.durum===d?700:500,borderRadius:7,border:`1px solid ${p.durum===d?rc:BORDER}`,background:p.durum===d?rbg:CARD,color:p.durum===d?rc:MUTED,cursor:"pointer"}}>{d}</button>
                       ))}
                     </div>
+                    {(() => {
+                      // Etki ölçümü: başlangıç fotoğrafı varsa göster; ikinci ölçüm
+                      // alındıysa boyut bazında farkı listele.
+                      if (!p.baslangicPuan) return null;
+                      if (!p.bitisPuan) {
+                        return (
+                          <div style={{marginTop:8,paddingTop:8,borderTop:`1px dashed ${BORDER}`}}>
+                            <div style={{fontSize:10.5,color:MUTED,marginBottom:6}}>
+                              📷 Başlangıç ölçümü alındı ({p.baslangicTarih}). Plan bittiğinde ikinci ölçümü alıp gelişimi görebilirsin.
+                            </div>
+                            <button onClick={()=>handleSonOlcum(p)} style={{width:"100%",padding:"6px",fontSize:10.5,fontWeight:700,borderRadius:7,border:`1px solid ${PURPLE}`,background:PURPLE_LIGHT,color:PURPLE,cursor:"pointer"}}>
+                              📈 Son Ölçümü Al ve Karşılaştır
+                            </button>
+                          </div>
+                        );
+                      }
+                      const farklar = Object.keys(EMPTY_SCORES).map(k => ({
+                        k, label: (DIMENSIONS.find(d=>d.key===k)||{}).label || k,
+                        onceki: p.baslangicPuan[k], sonraki: p.bitisPuan[k],
+                        fark: (p.bitisPuan[k]||0) - (p.baslangicPuan[k]||0)
+                      }));
+                      const degisenler = farklar.filter(f => f.fark !== 0);
+                      const netToplam = farklar.reduce((t,f)=>t+f.fark,0);
+                      return (
+                        <div style={{marginTop:8,paddingTop:8,borderTop:`1px dashed ${BORDER}`}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                            <span style={{fontSize:11,fontWeight:800,color:TEXT}}>📈 Etki Ölçümü</span>
+                            <span style={{fontSize:10,color:MUTED}}>{p.baslangicTarih} → {p.bitisTarih}</span>
+                          </div>
+                          {degisenler.length === 0 ? (
+                            <div style={{fontSize:11,color:MUTED}}>Profil puanlarında değişiklik yok.</div>
+                          ) : degisenler.map(f => (
+                            <div key={f.k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginBottom:3}}>
+                              <span style={{color:MUTED}}>{f.label}</span>
+                              <span style={{fontWeight:800,color:f.fark>0?ACCENT:"#C0392B"}}>
+                                {f.onceki} → {f.sonraki} ({f.fark>0?"+":""}{f.fark})
+                              </span>
+                            </div>
+                          ))}
+                          <div style={{fontSize:10,color:MUTED,marginTop:6,lineHeight:1.5,fontStyle:"italic"}}>
+                            Toplam değişim: {netToplam>0?"+":""}{netToplam} puan. Bu bir etki kanıtı değil, izleme verisidir —
+                            değişim müdahale dışı etkenlerden de kaynaklanabilir.
+                          </div>
+                          <button onClick={()=>handleSonOlcum(p)} style={{width:"100%",padding:"5px",fontSize:10,fontWeight:600,borderRadius:7,border:`1px solid ${BORDER}`,background:CARD,color:MUTED,cursor:"pointer",marginTop:7}}>
+                            ↻ Ölçümü Yenile
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
@@ -12236,6 +12315,7 @@ export default function App() {
             records={records}
             kutuphane={kutuphane}
             kademe={kademe}
+            profiles={profiles}
           />
         )}
 
