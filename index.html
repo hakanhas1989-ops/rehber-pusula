@@ -130,12 +130,10 @@ body {
 }
 #splash.hide { display: none; }
 
-/* perspective, rotateY'nin düz bir eğilme değil gerçek bir derinlik dönüşü
-   gibi görünmesini sağlar — görselin bir kenarı yaklaşır, diğeri uzaklaşır. */
-#pdr-brain-sahne { perspective: 1100px; perspective-origin: 50% 50%; z-index: 3; width: 620px; max-width: 97vw; }
+#pdr-brain-sahne { z-index: 3; width: 620px; max-width: 97vw; }
 #pdr-brain-wrap {
-  position: relative; width: 100%; transform-style: preserve-3d;
-  animation: pdrBrainDrift 11s ease-in-out infinite;
+  position: relative; width: 100%;
+  animation: pdrBrainDrift 6s ease-in-out infinite;
 }
 #pdr-brain-img {
   width: 100%; height: auto; display: block;
@@ -143,16 +141,11 @@ body {
   mask-image: radial-gradient(ellipse 64% 60% at 50% 50%, #000 0%, rgba(0,0,0,0.94) 48%, rgba(0,0,0,0.38) 74%, transparent 89%);
   animation: pdrBrainGlow 4.2s ease-in-out infinite;
 }
-/* Kendi dikey ekseni etrafında simetrik 3B dönüş: sola ve sağa eşit açıyla
-   döner, ortadan geçerken görsel tam karşıdan görünür. Tam tur atmıyor —
-   görsel yan profil bir beyin fotoğrafı olduğu için 90°'yi geçince kağıt gibi
-   incelip kaybolurdu; ±26° sınırı derinlik hissini veren ama görüntüyü
-   bozmayan aralık. */
+/* Dönüş yok — görsel yavaşça büyüyüp küçülerek "nefes alıyor" gibi genişler.
+   Yumuşak bir yaklaşma hissi verir, düz fotoğrafı bozmaz. */
 @keyframes pdrBrainDrift {
-  0%, 100% { transform: translateY(0) rotateY(-26deg); }
-  25%      { transform: translateY(-5px) rotateY(0deg); }
-  50%      { transform: translateY(-7px) rotateY(26deg); }
-  75%      { transform: translateY(-5px) rotateY(0deg); }
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.075); }
 }
 @keyframes pdrBrainGlow {
   0%, 100% { filter: brightness(1.05) saturate(1.05); }
