@@ -2076,6 +2076,215 @@ async function saveTestKayitlari(data) {
   try { await window.storage.set("pdr-test-kayitlari", JSON.stringify(data)); } catch(e) { console.warn(e); }
 }
 
+// ── Grup / Sınıf Düzeyi Çalışmalar ──────────────────────────────────────────
+// AMAÇ: Rehberlik hizmetinin yalnızca bireysel görüşmelerden ibaret olmadığını
+// kayıt altına almak — sınıf rehberliği, psikoeğitim, grup çalışması, veli
+// eğitimi, öğretmen bilgilendirme. İl/İlçe MEM'in 2026-2027 öncelikleri yazısı
+// (md. 11 ve 15) bunu açıkça istiyor; yıl sonu faaliyet raporunda da bu
+// sayılar soruluyor. Her kayıt bir MEB öncelik alanıyla etiketlenebiliyor,
+// böylece "hangi alanda ne kadar çalışma yapıldı" doğrudan raporlanabiliyor.
+async function loadGrupCalismalari() {
+  try { const r = await window.storage.get("pdr-grup-calismalari"); return r ? JSON.parse(r.value) : []; } catch { return []; }
+}
+async function saveGrupCalismalari(items) {
+  try { await window.storage.set("pdr-grup-calismalari", JSON.stringify(items)); } catch(e) { console.warn(e); }
+}
+
+const GRUP_TURLERI = ["Sınıf Rehberliği", "Psikoeğitim", "Grup Çalışması", "Veli Eğitimi", "Öğretmen Bilgilendirme", "Seminer / Konferans"];
+
+// İl/İlçe MEM'in 2026-2027 rehberlik öncelikleri yazısındaki 15 çalışma alanı.
+const MEB_CALISMA_ALANLARI = [
+  "Koruyucu ve Önleyici Rehberlik",
+  "Şiddetin Önlenmesi ve Güvenli Okul İklimi",
+  "Bağımlılıkla Mücadele",
+  "İntiharın Önlenmesi ve Kendine Zarar Verme",
+  "Psikososyal Koruma ve Krize Müdahale",
+  "Devamsızlığın Önlenmesi ve Okula Aidiyet",
+  "Akran Nezaketi ve Olumlu Okul İklimi",
+  "Risk Altındaki Çocuklar",
+  "Kadına Yönelik ve Cinsiyet Temelli Şiddetin Önlenmesi",
+  "Psikolojik Sağlamlık ve Sosyal-Duygusal Beceriler",
+  "Aile ve Öğretmen Katılımı",
+  "Dezavantajlı Öğrencilerin Desteklenmesi",
+  "İş Birliği ve Yönlendirme",
+  "Veri Temelli İzleme ve Değerlendirme",
+  "Eğitim Süreciyle Bütünleştirme",
+];
+
+function GrupCalismalariEkrani({ grupCalismalari, setGrupCalismalari, aktifYil, siniflar }) {
+  const bosForm = { tur: GRUP_TURLERI[0], tarih: today(), hedefKitle: "", katilimci: "", konu: "", alan: MEB_CALISMA_ALANLARI[0], not: "" };
+  const [form, setForm] = useState(bosForm);
+  const [formAcik, setFormAcik] = useState(false);
+  const [duzenlenen, setDuzenlenen] = useState(null);
+  const [filtreTur, setFiltreTur] = useState("Tümü");
+
+  const yilKayitlari = (grupCalismalari || []).filter(g => !g.yil || g.yil === aktifYil);
+  const gosterilen = filtreTur === "Tümü" ? yilKayitlari : yilKayitlari.filter(g => g.tur === filtreTur);
+  const sirali = [...gosterilen].sort((a,b) => pdrTarihMs(b.tarih) - pdrTarihMs(a.tarih));
+
+  const toplamKatilimci = yilKayitlari.reduce((t,g) => t + (parseInt(g.katilimci,10) || 0), 0);
+
+  async function kaydet() {
+    if (!form.konu.trim()) { alert("Konu / başlık boş bırakılamaz."); return; }
+    let yeni;
+    if (duzenlenen) {
+      yeni = grupCalismalari.map(g => g.id === duzenlenen ? { ...g, ...form } : g);
+    } else {
+      yeni = [...(grupCalismalari||[]), { id: uid(), yil: aktifYil, ...form }];
+    }
+    setGrupCalismalari(yeni); await saveGrupCalismalari(yeni);
+    setForm(bosForm); setFormAcik(false); setDuzenlenen(null);
+  }
+  async function sil(id) {
+    if (!confirm("Bu çalışma kaydı silinsin mi?")) return;
+    const yeni = grupCalismalari.filter(g => g.id !== id);
+    setGrupCalismalari(yeni); await saveGrupCalismalari(yeni);
+  }
+  function duzenle(g) {
+    setForm({ tur:g.tur, tarih:g.tarih, hedefKitle:g.hedefKitle, katilimci:g.katilimci, konu:g.konu, alan:g.alan, not:g.not || "" });
+    setDuzenlenen(g.id); setFormAcik(true);
+  }
+
+  const alanSayilari = {};
+  yilKayitlari.forEach(g => { if (g.alan) alanSayilari[g.alan] = (alanSayilari[g.alan]||0) + 1; });
+  const turSayilari = {};
+  yilKayitlari.forEach(g => { turSayilari[g.tur] = (turSayilari[g.tur]||0) + 1; });
+
+  const inputStil = { width:"100%", padding:"9px 11px", borderRadius:9, border:`1px solid ${BORDER}`, fontSize:13, boxSizing:"border-box", background:CARD, color:TEXT };
+  const etiketStil = { fontSize:11, fontWeight:700, color:MUTED, display:"block", marginBottom:4, marginTop:9 };
+
+  return (
+    <div>
+      <div style={{ fontSize:18, fontWeight:900, marginBottom:4, color:ACCENT }}>👪 Grup Çalışmaları</div>
+      <div style={{ fontSize:12, color:MUTED, lineHeight:1.55, marginBottom:14 }}>
+        Sınıf rehberliği, psikoeğitim, grup çalışması, veli eğitimi ve öğretmen bilgilendirme
+        çalışmalarını buradan kaydet. Her kayıt bir MEB çalışma alanıyla etiketlenir; yıl sonu
+        raporunda "hangi alanda kaç çalışma yapıldı" sorusunun cevabı buradan çıkar.
+      </div>
+
+      <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+        <div style={{ flex:1, background:CARD, border:`1px solid ${BORDER}`, boxShadow:"0 4px 12px rgba(20,40,32,0.14)", borderRadius:12, padding:"10px 12px", textAlign:"center" }}>
+          <div style={{ fontSize:20, fontWeight:900, color:ACCENT }}>{yilKayitlari.length}</div>
+          <div style={{ fontSize:10.5, color:MUTED, fontWeight:700 }}>Çalışma</div>
+        </div>
+        <div style={{ flex:1, background:CARD, border:`1px solid ${BORDER}`, boxShadow:"0 4px 12px rgba(20,40,32,0.14)", borderRadius:12, padding:"10px 12px", textAlign:"center" }}>
+          <div style={{ fontSize:20, fontWeight:900, color:PURPLE }}>{toplamKatilimci}</div>
+          <div style={{ fontSize:10.5, color:MUTED, fontWeight:700 }}>Katılımcı</div>
+        </div>
+        <div style={{ flex:1, background:CARD, border:`1px solid ${BORDER}`, boxShadow:"0 4px 12px rgba(20,40,32,0.14)", borderRadius:12, padding:"10px 12px", textAlign:"center" }}>
+          <div style={{ fontSize:20, fontWeight:900, color:ACCENT }}>{Object.keys(alanSayilari).length}</div>
+          <div style={{ fontSize:10.5, color:MUTED, fontWeight:700 }}>Alan</div>
+        </div>
+      </div>
+
+      <button onClick={() => { setFormAcik(!formAcik); setDuzenlenen(null); setForm(bosForm); }} style={{
+        width:"100%", padding:"11px", borderRadius:11, border:"none", background:PURPLE, color:"#fff",
+        fontSize:14, fontWeight:800, cursor:"pointer", marginBottom:12
+      }}>{formAcik ? "✕ Kapat" : "+ Yeni Çalışma Ekle"}</button>
+
+      {formAcik && (
+        <div style={{ background:CARD, border:`1px solid ${BORDER}`, boxShadow:"0 4px 12px rgba(20,40,32,0.14)", borderRadius:14, padding:14, marginBottom:14 }}>
+          <label style={etiketStil}>Çalışma Türü</label>
+          <select value={form.tur} onChange={e=>setForm({...form, tur:e.target.value})} style={inputStil}>
+            {GRUP_TURLERI.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+
+          <label style={etiketStil}>Tarih</label>
+          <input value={form.tarih} onChange={e=>setForm({...form, tarih:e.target.value})} placeholder="GG.AA.YYYY" style={inputStil} />
+
+          <label style={etiketStil}>Konu / Başlık</label>
+          <input value={form.konu} onChange={e=>setForm({...form, konu:e.target.value})} placeholder="örn. Sınav Kaygısıyla Baş Etme" style={inputStil} />
+
+          <label style={etiketStil}>MEB Çalışma Alanı</label>
+          <select value={form.alan} onChange={e=>setForm({...form, alan:e.target.value})} style={inputStil}>
+            {MEB_CALISMA_ALANLARI.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+
+          <label style={etiketStil}>Hedef Kitle</label>
+          <input value={form.hedefKitle} onChange={e=>setForm({...form, hedefKitle:e.target.value})} placeholder="örn. 8-A / Veliler / Öğretmenler" style={inputStil} list="pdr-grup-siniflar" />
+          <datalist id="pdr-grup-siniflar">
+            {(siniflar||[]).map(s => <option key={s} value={s} />)}
+            <option value="Veliler" /><option value="Öğretmenler" />
+          </datalist>
+
+          <label style={etiketStil}>Katılımcı Sayısı</label>
+          <input value={form.katilimci} onChange={e=>setForm({...form, katilimci:e.target.value.replace(/[^0-9]/g,"")})} placeholder="örn. 32" inputMode="numeric" style={inputStil} />
+
+          <label style={etiketStil}>Not (isteğe bağlı)</label>
+          <textarea value={form.not} onChange={e=>setForm({...form, not:e.target.value})} rows={3} placeholder="Nasıl geçti, öne çıkanlar, sonraki adım..." style={{...inputStil, resize:"vertical"}} />
+
+          <button onClick={kaydet} style={{
+            width:"100%", padding:"11px", borderRadius:11, border:"none", background:ACCENT, color:"#fff",
+            fontSize:14, fontWeight:800, cursor:"pointer", marginTop:12
+          }}>{duzenlenen ? "Güncelle" : "Kaydet"}</button>
+        </div>
+      )}
+
+      {Object.keys(alanSayilari).length > 0 && (
+        <div style={{ background:CARD, border:`1px solid ${BORDER}`, boxShadow:"0 4px 12px rgba(20,40,32,0.14)", borderRadius:14, padding:14, marginBottom:14 }}>
+          <div style={{ fontSize:12, fontWeight:800, color:TEXT, marginBottom:9 }}>📊 MEB Çalışma Alanlarına Göre Dağılım</div>
+          {MEB_CALISMA_ALANLARI.filter(a => alanSayilari[a]).map(a => {
+            const oran = Math.round((alanSayilari[a] / yilKayitlari.length) * 100);
+            return (
+              <div key={a} style={{ marginBottom:7 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:10.5, color:MUTED, marginBottom:2 }}>
+                  <span style={{ fontWeight:600 }}>{a}</span><span style={{ fontWeight:800, color:ACCENT }}>{alanSayilari[a]}</span>
+                </div>
+                <div style={{ height:5, background:BORDER, borderRadius:3, overflow:"hidden" }}>
+                  <div style={{ width:`${oran}%`, height:"100%", background:ACCENT, borderRadius:3 }} />
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ fontSize:10, color:MUTED, marginTop:8, lineHeight:1.5, fontStyle:"italic" }}>
+            Hiç çalışma yapılmamış alanlar bu listede görünmez — yıl içinde hangi öncelik alanının
+            boş kaldığını buradan fark edebilirsin.
+          </div>
+        </div>
+      )}
+
+      <div style={{ display:"flex", gap:5, overflowX:"auto", marginBottom:10, paddingBottom:4 }}>
+        {["Tümü", ...GRUP_TURLERI].map(t => (
+          <button key={t} onClick={()=>setFiltreTur(t)} style={{
+            flexShrink:0, padding:"4px 10px", borderRadius:14,
+            border:`1px solid ${filtreTur===t ? ACCENT : BORDER}`,
+            background:filtreTur===t ? ACCENT_LIGHT : CARD,
+            boxShadow:"0 2px 6px rgba(20,40,32,0.10)",
+            color:filtreTur===t ? ACCENT : MUTED,
+            fontSize:11, fontWeight:filtreTur===t ? 700 : 500, cursor:"pointer"
+          }}>{t}{t!=="Tümü" && turSayilari[t] ? ` (${turSayilari[t]})` : ""}</button>
+        ))}
+      </div>
+
+      {sirali.length === 0 ? (
+        <div style={{ background:CARD, border:`1px dashed ${BORDER}`, borderRadius:14, padding:22, textAlign:"center", color:MUTED, fontSize:12.5 }}>
+          Bu yıl için henüz kayıt yok. Yaptığın ilk sınıf rehberliği ya da veli çalışmasını ekleyerek başlayabilirsin.
+        </div>
+      ) : sirali.map(g => (
+        <div key={g.id} style={{ background:CARD, border:`1px solid ${BORDER}`, boxShadow:"0 4px 12px rgba(20,40,32,0.14)", borderRadius:14, padding:13, marginBottom:10 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:14, fontWeight:800, color:TEXT, marginBottom:3 }}>{g.konu}</div>
+              <div style={{ fontSize:11, color:MUTED }}>
+                {g.tarih}{g.hedefKitle ? ` · ${g.hedefKitle}` : ""}{g.katilimci ? ` · ${g.katilimci} katılımcı` : ""}
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:5, flexShrink:0 }}>
+              <button onClick={()=>duzenle(g)} title="Düzenle" style={{ padding:"3px 8px", borderRadius:8, border:`1px solid ${BORDER}`, background:CARD, fontSize:11, cursor:"pointer" }}>✏️</button>
+              <button onClick={()=>sil(g.id)} title="Sil" style={{ padding:"3px 8px", borderRadius:8, border:"1px solid #F5B7B1", background:CARD, fontSize:11, cursor:"pointer" }}>🗑️</button>
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginTop:8 }}>
+            <span style={{ background:ACCENT_LIGHT, color:ACCENT, borderRadius:10, padding:"2px 9px", fontSize:10, fontWeight:700 }}>{g.tur}</span>
+            {g.alan && <span style={{ background:PURPLE_LIGHT, color:PURPLE, borderRadius:10, padding:"2px 9px", fontSize:10, fontWeight:700 }}>{g.alan}</span>}
+          </div>
+          {g.not && <div style={{ fontSize:11.5, color:MUTED, lineHeight:1.55, marginTop:8, whiteSpace:"pre-wrap" }}>{g.not}</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 async function loadSevkler() {
   try { const r = await window.storage.get("pdr-sevkler"); return r ? JSON.parse(r.value) : []; } catch { return []; }
 }
@@ -10243,7 +10452,11 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
   const [sinifSilOnay, setSinifSilOnay] = useState(null);
   const [kaynastirmaAcikId, setKaynastirmaAcikId] = useState(null);
 
-  const RISK_TURLERI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygusal","Devamsızlık","Öz Zarar","Sağlık","Madde Kullanımı","Teknoloji / Ekran Bağımlılığı","Ekonomik Güçlük","Yas / Kayıp","Travma","Özel Öğrenme Güçlüğü","Diğer"];
+  // Risk türleri — İl/İlçe MEM'in 2026-2027 rehberlik öncelikleri yazısındaki
+// çalışma alanlarını karşılayacak şekilde genişletildi: göç/uyum (md.12),
+// adli süreç ve danışmanlık tedbiri (md.8), toplumsal cinsiyet temelli
+// şiddet (md.9), ihmal/istismar (md.12).
+const RISK_TURLERI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygusal","Devamsızlık","Öz Zarar","Sağlık","Madde Kullanımı","Teknoloji / Ekran Bağımlılığı","Ekonomik Güçlük","Yas / Kayıp","Travma","Özel Öğrenme Güçlüğü","Göç / Uyum Süreci","Adli Süreç / Danışmanlık Tedbiri","Toplumsal Cinsiyet Temelli Şiddet","İhmal / İstismar","Diğer"];
 
   // Yıl filtreli öğrenciler
   const yilOgrencileri = ogrenciler.filter(o => !o.yil || o.yil === aktifYil).filter(o => pdrKademeUyumlu(o.className, kademe));
@@ -11248,6 +11461,7 @@ export default function App() {
   const [profNotlari, setProfNotlari] = useState({});
   const [ilerlemeNotlari, setIlerlemeNotlari] = useState({});
   const [sevkler, setSevkler] = useState([]);
+  const [grupCalismalari, setGrupCalismalari] = useState([]);
   const [hatirlatmalar, setHatirlatmalar] = useState([]);
   // Yıl Sonu Kapsam Takibi'nde hangi sınıfın hiç görüşülmemiş öğrencileri
   // açık — tıklanan sınıf tekrar tıklanırsa kapanır (null'a döner).
@@ -11281,6 +11495,7 @@ export default function App() {
     loadProfNotlari().then(setProfNotlari);
     loadIlerlemeNotlari().then(setIlerlemeNotlari);
     loadSevkler().then(setSevkler);
+    loadGrupCalismalari().then(setGrupCalismalari);
     loadHatirlatmalar().then(setHatirlatmalar);
     loadNetHaritasi().then(setNetHaritasiKayitlari);
     loadKonuHaritasi().then(setKonuHaritasiVerisi);
@@ -11448,7 +11663,7 @@ export default function App() {
     else if (aiAnaliz.includes("HAFİF") || aiAnaliz.includes("HAFIF")) aiOncelik = "Düşük";
 
     // Risk türü — AI'dan otomatik çek
-    const riskTurleriListesi = ["Davranış","Akademik","Aile","Akran / Zorbalık","Akran-Zorbalık","Duygusal","Devamsızlık","Öz Zarar","Sağlık","Madde Kullanımı","Teknoloji / Ekran Bağımlılığı","Teknoloji-Ekran Bağımlılığı","Ekonomik Güçlük","Yas / Kayıp","Yas-Kayıp","Travma","Özel Öğrenme Güçlüğü","Diğer"];
+    const riskTurleriListesi = ["Davranış","Akademik","Aile","Akran / Zorbalık","Akran-Zorbalık","Duygusal","Devamsızlık","Öz Zarar","Sağlık","Madde Kullanımı","Teknoloji / Ekran Bağımlılığı","Teknoloji-Ekran Bağımlılığı","Ekonomik Güçlük","Yas / Kayıp","Yas-Kayıp","Travma","Özel Öğrenme Güçlüğü","Göç / Uyum Süreci","Adli Süreç / Danışmanlık Tedbiri","Toplumsal Cinsiyet Temelli Şiddet","İhmal / İstismar","Diğer"];
     let aiRiskTuru = riskForm.riskTuru;
     const turMatch = aiAnaliz.match(/RİSK TÜRÜ:\s*(.+)/);
     if (turMatch) {
@@ -11793,6 +12008,7 @@ export default function App() {
     { key: "belgeler", label: "📑 Belgeler" },
     { key: "kutuphane", label: "📚 Kütüphane" },
     { key: "kazanimlar", label: "📘 Kazanımlar" },
+    { key: "grup_calismalari", label: "👪 Grup Çalışmaları" },
     { key: "istatistik", label: "İstatistik" },
     { key: "ayarlar", label: "⚙️ Ayarlar" },
     ...(pdrIsAdmin ? [{ key: "onaylar", label: "🛠 Onaylar" }] : []),
@@ -12152,6 +12368,11 @@ export default function App() {
               const kalanOog = oogDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
               setOogDegerlendirmeler(kalanOog); await saveOogDegerlendirmeler(kalanOog);
 
+              // Grup çalışmaları öğrenciye değil doğrudan yıla bağlı — silinen
+              // yılın kayıtları da temizlenmeli.
+              const kalanGrup = (grupCalismalari||[]).filter(g => g.yil !== yil);
+              setGrupCalismalari(kalanGrup); await saveGrupCalismalari(kalanGrup);
+
               // Öğrenci silmede zaten temizlenen ama yıl silmede unutulmuş
               // diziler: hatırlatmalar, net haritası.
               const kalanHatirlatmalar = (hatirlatmalar||[]).filter(h => !silinecekMi(h.studentName, h.className, h.numara));
@@ -12220,6 +12441,11 @@ export default function App() {
 
               const kalanOog = oogDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
               setOogDegerlendirmeler(kalanOog); await saveOogDegerlendirmeler(kalanOog);
+
+              // Grup çalışmaları öğrenciye değil doğrudan yıla bağlı — silinen
+              // yılın kayıtları da temizlenmeli.
+              const kalanGrup = (grupCalismalari||[]).filter(g => g.yil !== yil);
+              setGrupCalismalari(kalanGrup); await saveGrupCalismalari(kalanGrup);
 
               const kalanHatirlatmalar2 = (hatirlatmalar||[]).filter(h => !silinecekMi(h.studentName, h.className, h.numara));
               setHatirlatmalar(kalanHatirlatmalar2); await saveHatirlatmalar(kalanHatirlatmalar2);
@@ -12815,6 +13041,15 @@ export default function App() {
         {tab === "kazanimlar" && <KazanimlarSekmesi kademe={kademe} />}
 
         {/* ── İSTATİSTİK ───────────────────────────────────────────── */}
+        {tab === "grup_calismalari" && (
+          <GrupCalismalariEkrani
+            grupCalismalari={grupCalismalari}
+            setGrupCalismalari={setGrupCalismalari}
+            aktifYil={aktifYil}
+            siniflar={[...new Set([...(sinifListesi||[]), ...(ogrenciler||[]).map(o=>(o.className||"").trim())].filter(Boolean))].sort((a,b)=>a.localeCompare(b,"tr"))}
+          />
+        )}
+
         {tab === "istatistik" && (
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
