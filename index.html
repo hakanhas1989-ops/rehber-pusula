@@ -11245,16 +11245,37 @@ const RISK_TURLERI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygus
     // Deneme ortalaması — sınavTuru'na göre aktif dersler, her öğrencinin EN SON
     // deneme girişindeki toplam net'i alınıp, deneme girmiş öğrenciler üzerinden ortalanır
     const dersler = aktifDersler(sinavTuru);
+    // Bir öğrencinin tek bir denemedeki toplam neti — toplu yüklemede sadece
+    // toplam net girilmiş olabileceği için önce o kontrol edilir.
+    const netHesapla = (nets) => (nets?._topluNet !== undefined && nets._topluNet !== "")
+      ? (parseFloat(nets._topluNet) || 0)
+      : dersler.reduce((s,d)=>s+(parseFloat(nets?.[d.key])||0), 0);
+
+    // Sınıfın deneme ortalaması, HERKESİN AYNI denemesi üzerinden hesaplanır.
+    // Önceki sürüm her öğrencinin kendi son denemesini alıyordu; biri D1'de
+    // biri D3'teyken bu ortalama anlamsız oluyordu. Artık sınıfta veri girilmiş
+    // EN SON deneme numarası bulunur ve ortalama yalnızca o denemeden alınır —
+    // D2 girildiğinde D1 ortalaması kendiliğinden yerini D2'ye bırakır.
+    const ogrSozlukleri = ogr.map(o => pdrSozlukOku(denemeler, o.studentName, o.className, o.numara) || {});
+    const tumDenemeNolari = ogrSozlukleri.flatMap(s =>
+      Object.keys(s).filter(k => k !== "7sinif").map(k => parseInt(k,10)).filter(n => !isNaN(n)));
+    const sonDenemeNo = tumDenemeNolari.length > 0 ? Math.max(...tumDenemeNolari) : null;
+
     const denemeNetleri = [];
-    ogr.forEach(o => {
-      const sozluk = pdrSozlukOku(denemeler, o.studentName, o.className, o.numara) || {};
-      const girisler = Object.entries(sozluk).filter(([k])=>k!=="7sinif").sort((a,b)=>Number(a[0])-Number(b[0]));
-      if (girisler.length === 0) return;
-      const sonNets = girisler[girisler.length-1][1];
-      const toplamNet = dersler.reduce((s,d)=>s+(parseFloat(sonNets[d.key])||0),0);
-      denemeNetleri.push(toplamNet);
-    });
+    if (sonDenemeNo !== null) {
+      ogrSozlukleri.forEach(s => {
+        const nets = s[String(sonDenemeNo)];
+        if (nets) denemeNetleri.push(netHesapla(nets));
+      });
+    }
     const denemeOrt = denemeNetleri.length > 0 ? (denemeNetleri.reduce((a,b)=>a+b,0)/denemeNetleri.length) : null;
+
+    // Geçmiş dönem ortalaması (GDO) — sınıf geneli, bir kez hesaplanır ve
+    // bu yılın denemelerinden bağımsız olarak yerinde kalır.
+    const gdoDegerleri = ogrSozlukleri
+      .map(s => parseFloat(s["7sinif"]?.ortalama))
+      .filter(v => !isNaN(v));
+    const gdoOrt = gdoDegerleri.length > 0 ? (gdoDegerleri.reduce((a,b)=>a+b,0)/gdoDegerleri.length) : null;
 
     // Cinsiyet dağılımı
     const cinsiyetDagilim = { Kız:0, Erkek:0, Belirtilmemiş:0 };
@@ -11290,7 +11311,7 @@ const RISK_TURLERI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygus
     // otomatik yansır.
     const devamsizlikRiskliOgrenciler = devamsizlikListesi.filter(d => d.devamsizlik >= 4);
 
-    return { ogr, gorusmeler, riskler, riskDagilim, gelenOgrenciSayisi, konuSirali, denemeOrt, denemeKapsam: denemeNetleri.length, cinsiyetDagilim, devamsizlikListesi, devamsizlikRiskliOgrenciler, kaynastirmaOgrenciler, kaynastirmaDagilim };
+    return { ogr, gorusmeler, riskler, riskDagilim, gelenOgrenciSayisi, konuSirali, denemeOrt, denemeKapsam: denemeNetleri.length, sonDenemeNo, gdoOrt, gdoKapsam: gdoDegerleri.length, cinsiyetDagilim, devamsizlikListesi, devamsizlikRiskliOgrenciler, kaynastirmaOgrenciler, kaynastirmaDagilim };
   }
 
   // Gösterilecek sınıflar: elle eklenen sınıflar + öğrencisi olan tüm sınıflar (birleşim)
@@ -11425,7 +11446,9 @@ const RISK_TURLERI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygus
             {label:"Gelen Öğrenci",val:st.gelenOgrenciSayisi,color:BLUE},
             {label:"Aktif Risk",val:st.riskler.length,color:st.riskler.length>0?"#C0392B":MUTED},
             {label:"Görüşme",val:st.gorusmeler.length,color:BLUE},
-            {label:"Deneme Ort.",val: st.denemeOrt!==null ? st.denemeOrt.toFixed(1) : "—", color:PURPLE},
+            {label:"GDO Sınıf Ort.",val: st.gdoOrt!==null ? st.gdoOrt.toFixed(1) : "—", color:PURPLE},
+            {label: st.sonDenemeNo!==null ? `D${st.sonDenemeNo} Sınıf Ort.` : "Deneme Ort.",
+             val: st.denemeOrt!==null ? st.denemeOrt.toFixed(1) : "—", color:ACCENT},
           ].map(c=>(
             <div key={c.label} style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:10,padding:"10px 6px",textAlign:"center"}}>
               <div style={{fontSize:22,fontWeight:900,color:c.color}}>{c.val}</div>
@@ -11433,8 +11456,11 @@ const RISK_TURLERI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygus
             </div>
           ))}
         </div>
-        {st.denemeOrt!==null && (
-          <div style={{ fontSize:10, color:MUTED, marginTop:-8, marginBottom:14, textAlign:"right" }}>Deneme ortalaması {st.denemeKapsam}/{st.ogr.length} öğrenciden hesaplandı</div>
+        {(st.denemeOrt!==null || st.gdoOrt!==null) && (
+          <div style={{ fontSize:10, color:MUTED, marginTop:-8, marginBottom:14, textAlign:"right", lineHeight:1.6 }}>
+            {st.gdoOrt!==null && <>GDO: {st.gdoKapsam}/{st.ogr.length} öğrenciden<br/></>}
+            {st.denemeOrt!==null && <>D{st.sonDenemeNo}: {st.denemeKapsam}/{st.ogr.length} öğrenciden hesaplandı</>}
+          </div>
         )}
 
         <RiskOzetKartlari ogrenciler={st.ogr} kompakt baslik="📊 Geçmiş Dönem Deneme Risk Dağılımı" />
@@ -13677,7 +13703,9 @@ export default function App() {
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
                   {(() => {
                     const TUR_PALET = ["#E63946","#457B9D","#2A9D8F","#E76F51","#9B87F0","#E9C46A","#C0392B","#1A8C5B","#8E5B3C","#3B4FD8","#D45D9C","#B07D1A","#00A8A8","#6C757D","#264653"];
-                    const turler = ["Davranış", "Akademik", "Aile", "Akran / Zorbalık", "Duygusal", "Devamsızlık", "Öz Zarar", "Sağlık", "Madde Kullanımı", "Teknoloji / Ekran Bağımlılığı", "Ekonomik Güçlük", "Yas / Kayıp", "Travma", "Özel Öğrenme Güçlüğü", "Diğer"];
+                    // Ortak RISK_TURLERI sabitinden okunur — burada ayrı bir kopya
+                    // tutulursa listeye eklenen yeni türler forma yansımıyordu.
+                    const turler = RISK_TURLERI;
                     return turler.map((t, ti) => {
                       const s = riskForm.riskTuru === t;
                       const rc = TUR_PALET[ti % TUR_PALET.length];
