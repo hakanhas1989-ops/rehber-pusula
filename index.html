@@ -3596,18 +3596,50 @@ function raporCizgiGrafik(noktalar, { genislik = 460, yukseklik = 130, renk = "#
   const nx = i => solPad + i * xAdimi;
   const ny = y => ustPad + cizimYukseklik - ((y - yMin) / yAralik) * cizimYukseklik;
   const yoldata = noktalar.map((n, i) => `${i === 0 ? "M" : "L"} ${nx(i).toFixed(1)} ${ny(n.y).toFixed(1)}`).join(" ");
+  // Çizginin altını dolduran alan — trendi görsel olarak daha okunur kılar.
+  const alanData = yoldata + ` L ${nx(noktalar.length-1).toFixed(1)} ${(ustPad+cizimYukseklik).toFixed(1)} L ${nx(0).toFixed(1)} ${(ustPad+cizimYukseklik).toFixed(1)} Z`;
+  // Kare ızgara: 5 yatay, dikey çizgiler nokta sayısına göre.
+  const yatayAdet = 4, dikeyAdet = Math.max(1, noktalar.length - 1);
+  const gid = "pdrGrad" + Math.abs(String(renk).split("").reduce((a,c)=>a+c.charCodeAt(0),0));
   return (
     <svg viewBox={`0 0 ${genislik} ${yukseklik}`} style={{ width: "100%", height: yukseklik, display: "block" }}>
-      <line x1={solPad} y1={ustPad} x2={solPad} y2={ustPad + cizimYukseklik} stroke="#ddd" strokeWidth="1" />
-      <line x1={solPad} y1={ustPad + cizimYukseklik} x2={genislik - sagPad} y2={ustPad + cizimYukseklik} stroke="#ddd" strokeWidth="1" />
-      <text x={solPad - 4} y={ustPad + 4} fontSize="8" fill="#999" textAnchor="end">{Math.round(yMax)}{birim}</text>
-      <text x={solPad - 4} y={ustPad + cizimYukseklik} fontSize="8" fill="#999" textAnchor="end">{Math.round(yMin)}{birim}</text>
-      <path d={yoldata} fill="none" stroke={renk} strokeWidth="2" />
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={renk} stopOpacity="0.32" />
+          <stop offset="100%" stopColor={renk} stopOpacity="0.03" />
+        </linearGradient>
+      </defs>
+      {/* Zemin */}
+      <rect x={solPad} y={ustPad} width={cizimGenislik} height={cizimYukseklik} fill="#FBFCFB" />
+      {/* Kare ızgara — yatay çizgiler ve Y değerleri */}
+      {Array.from({length: yatayAdet+1}).map((_, i) => {
+        const y = ustPad + (cizimYukseklik/yatayAdet)*i;
+        const deger = yMax - (yAralik/yatayAdet)*i;
+        return (
+          <g key={"h"+i}>
+            <line x1={solPad} y1={y} x2={genislik-sagPad} y2={y} stroke="#E3EAE6" strokeWidth="0.8" />
+            <text x={solPad-4} y={y+3} fontSize="7.5" fill="#9AA8A1" textAnchor="end">{Math.round(deger)}{birim}</text>
+          </g>
+        );
+      })}
+      {/* Kare ızgara — dikey çizgiler */}
+      {Array.from({length: dikeyAdet+1}).map((_, i) => (
+        <line key={"v"+i} x1={solPad + (cizimGenislik/dikeyAdet)*i} y1={ustPad}
+              x2={solPad + (cizimGenislik/dikeyAdet)*i} y2={ustPad+cizimYukseklik}
+              stroke="#E3EAE6" strokeWidth="0.8" />
+      ))}
+      {/* Eksenler */}
+      <line x1={solPad} y1={ustPad} x2={solPad} y2={ustPad + cizimYukseklik} stroke="#B9CFBE" strokeWidth="1.2" />
+      <line x1={solPad} y1={ustPad + cizimYukseklik} x2={genislik - sagPad} y2={ustPad + cizimYukseklik} stroke="#B9CFBE" strokeWidth="1.2" />
+      {/* Alan dolgusu + çizgi */}
+      {noktalar.length > 1 && <path d={alanData} fill={`url(#${gid})`} stroke="none" />}
+      <path d={yoldata} fill="none" stroke={renk} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+      {/* Noktalar + değer etiketleri + X ekseni etiketleri */}
       {noktalar.map((n, i) => (
         <g key={i}>
-          <circle cx={nx(i)} cy={ny(n.y)} r="2.6" fill={renk} />
-          <text x={nx(i)} y={ny(n.y) - 6} fontSize="7.5" fill="#555" textAnchor="middle">{n.y}{birim}</text>
-          <text x={nx(i)} y={yukseklik - 4} fontSize="7.5" fill="#999" textAnchor="middle">{n.etiket}</text>
+          <circle cx={nx(i)} cy={ny(n.y)} r="4" fill="#fff" stroke={renk} strokeWidth="2" />
+          <text x={nx(i)} y={ny(n.y) - 8} fontSize="7.5" fill="#4A5A52" fontWeight="700" textAnchor="middle">{n.y}{birim}</text>
+          <text x={nx(i)} y={yukseklik - 4} fontSize="7.5" fill="#9AA8A1" textAnchor="middle">{n.etiket}</text>
         </g>
       ))}
     </svg>
@@ -5222,6 +5254,27 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
 // tamamlandığında ikinci ölçüm alınıp fark gösteriliyor.
 // NOT: Bu bir etki KANITI değil, bir izleme aracıdır — puan değişimi müdahale
 // dışındaki etkenlerden de kaynaklanabilir; danışman yorumlamayı kendi yapar.
+// ── Giriş alanlarında otomatik ilerleme ─────────────────────────────────────
+// AMAÇ: Ders ders not/net girerken her kutuya tek tek dokunmak yorucu.
+// Bu yardımcı, aynı grup içindeki bir sonraki alana odağı taşır.
+// İki tetikleyici var:
+//   1) Enter/Tab tuşu (klavyeli girişte akıcı ilerleme)
+//   2) Alan "dolu" sayıldığında otomatik geçiş — yazılı puanlarda 3 hane
+//      (örn. 100) veya 2 hane girilip 100'ü aşamayacak durum; netlerde
+//      kullanıcı ondalık yazabildiği için OTOMATİK geçiş yapılmaz, sadece
+//      Enter çalışır. Aksi halde "12.33" yazarken "12"de kaçardı.
+function pdrSonrakiAlanaGec(e, grupAdi) {
+  const alanlar = Array.from(document.querySelectorAll(`[data-pdr-grup="${grupAdi}"]`));
+  const i = alanlar.indexOf(e.target);
+  if (i > -1 && i < alanlar.length - 1) alanlar[i + 1].focus();
+  else e.target.blur();
+}
+function pdrEnterIleGec(grupAdi) {
+  return (e) => {
+    if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); pdrSonrakiAlanaGec(e, grupAdi); }
+  };
+}
+
 function pdrSonProfilPuani(profiles, ad, sinif, numara) {
   const eslesir = (p) => pdrAyniOgrenci(p.studentName, p.className, ad, sinif, p.numara, numara);
   const list = (profiles||[]).filter(eslesir).sort((a,b) => pdrTarihMs(a.date) - pdrTarihMs(b.date));
@@ -9822,6 +9875,9 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
               <input
                 type="number" step="0.33" min="0" max={d.maks}
                 placeholder="0"
+                data-pdr-grup="deneme-net"
+                enterKeyHint="next"
+                onKeyDown={pdrEnterIleGec("deneme-net")}
                 value={nets[d.key]}
                 onChange={e => setNets(n => ({ ...n, [d.key]: e.target.value }))}
                 style={{ width: "100%", padding: "7px 8px", border: `1px solid ${nets[d.key] ? d.color : BORDER}`, borderRadius: 7, fontSize: 13, fontWeight: 700, textAlign: "center", boxSizing: "border-box", outline: "none", color: d.color }}
@@ -10643,15 +10699,28 @@ function ProfilMerkez({
                             <div>
                               <label style={{fontSize:9,color:MUTED,display:"block",marginBottom:2}}>1. YAZILI</label>
                               <input type="number" min="0" max="100" placeholder="—"
+                                data-pdr-grup="yazili-puan" enterKeyHint="next"
+                                onKeyDown={pdrEnterIleGec("yazili-puan")}
                                 value={v1}
-                                onChange={e=>setProf2Form(f=>({...f,sinavlar:{...f.sinavlar,[d.key+"1"]:e.target.value}}))}
+                                onChange={e=>{
+                                  const v=e.target.value;
+                                  setProf2Form(f=>({...f,sinavlar:{...f.sinavlar,[d.key+"1"]:v}}));
+                                  // 3 hane (100) ya da 100'ü aşamayacak 2 hane girildiyse sıradaki kutuya geç
+                                  if (v.length===3 || (v.length===2 && parseInt(v,10)>10)) setTimeout(()=>pdrSonrakiAlanaGec(e,"yazili-puan"),0);
+                                }}
                                 style={{...inp,borderColor:v1?d.color:BORDER,textAlign:"center",fontWeight:700}} />
                             </div>
                             <div>
                               <label style={{fontSize:9,color:MUTED,display:"block",marginBottom:2}}>2. YAZILI</label>
                               <input type="number" min="0" max="100" placeholder="—"
+                                data-pdr-grup="yazili-puan" enterKeyHint="next"
+                                onKeyDown={pdrEnterIleGec("yazili-puan")}
                                 value={v2}
-                                onChange={e=>setProf2Form(f=>({...f,sinavlar:{...f.sinavlar,[d.key+"2"]:e.target.value}}))}
+                                onChange={e=>{
+                                  const v=e.target.value;
+                                  setProf2Form(f=>({...f,sinavlar:{...f.sinavlar,[d.key+"2"]:v}}));
+                                  if (v.length===3 || (v.length===2 && parseInt(v,10)>10)) setTimeout(()=>pdrSonrakiAlanaGec(e,"yazili-puan"),0);
+                                }}
                                 style={{...inp,borderColor:v2?d.color:BORDER,textAlign:"center",fontWeight:700}} />
                             </div>
                             <div style={{textAlign:"center",minWidth:40}}>
@@ -12529,6 +12598,38 @@ export default function App() {
     { key: "ayarlar", label: "⚙️ Ayarlar" },
     ...(pdrIsAdmin ? [{ key: "onaylar", label: "🛠 Onaylar" }] : []),
   ];
+  // ── Sekme doluluk göstergesi ──────────────────────────────────────────────
+  // AMAÇ: Hangi sekmeye veri girdiğini, hangisinin boş kaldığını tek bakışta
+  // görebilmek. Yalnızca VERİ GİRİLEN sekmeler işaretlenir; kütüphane, şema,
+  // ayarlar gibi salt görüntüleme/araç sekmeleri kapsam dışıdır.
+  // Yeşil nokta = bu yıl için en az bir kayıt var, boş halka = henüz yok.
+  const pdrSekmeDolulugu = React.useMemo(() => {
+    const yilinki = (arr) => (arr||[]).filter(x => !x.yil || x.yil === aktifYil).length > 0;
+    const sozlukDolu = (s) => s && Object.keys(s).some(k => {
+      const v = s[k];
+      return v && (Array.isArray(v) ? v.length > 0 : (typeof v === "object" ? Object.keys(v).length > 0 : true));
+    });
+    return {
+      ogrenciler: yilinki(ogrenciler),
+      yeni: yilinki(records),
+      profil_merkez: (profiles||[]).length > 0 || (profiles2||[]).length > 0,
+      mudahale: sozlukDolu(mudahalePlan),
+      devamsizlik: (ogrenciler||[]).some(o => (o.devamsizlikGecmisi||[]).length > 0),
+      risk: yilinki(riskListesi),
+      deneme: sozlukDolu(denemeler),
+      net_haritasi: (netHaritasiKayitlari||[]).length > 0,
+      konu_haritasi: sozlukDolu(konuHaritasiVerisi),
+      testler: sozlukDolu(testKayitlari),
+      hatirlatici: (hatirlatmalar||[]).length > 0,
+      belgeler: (sevkler||[]).length > 0,
+      grup_calismalari: yilinki(grupCalismalari),
+      kriz: yilinki(krizKayitlari),
+      sosyometri: yilinki(sosyometri),
+    };
+  }, [ogrenciler, records, profiles, profiles2, mudahalePlan, riskListesi, denemeler,
+      netHaritasiKayitlari, konuHaritasiVerisi, testKayitlari, hatirlatmalar, sevkler,
+      grupCalismalari, krizKayitlari, sosyometri, aktifYil]);
+
   const TABS = TABS_TUMU.filter(t =>
     !(kademe === "ilkokul" && ILKOKULDA_GIZLENECEK_SEKMELER.includes(t.key))
   );
@@ -12618,19 +12719,30 @@ export default function App() {
 
       {/* Tabs */}
       <div style={{ display: "flex", background: CARD, borderBottom: `1px solid ${BORDER}`, overflowX: "auto", boxShadow: "0 4px 10px rgba(20,40,32,0.14)", position: "sticky", top: 0, zIndex: 8 }}>
-        {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{
-            flexShrink: 0, padding: "11px 10px", border: "none", background: "none",
-            fontWeight: tab === t.key ? 700 : 500,
-            color: tab === t.key ? ACCENT : MUTED,
-            fontSize: 11, cursor: "pointer",
-            borderBottom: tab === t.key ? `3px solid ${ACCENT}` : "3px solid transparent",
-            display: "flex", alignItems: "center", gap: 4,
-          }}>
-            {t.label}
-            {t.key === "onaylar" && <span style={{ background: "#FB923C", color: "#fff", borderRadius: 8, padding: "1px 6px", fontSize: 8, fontWeight: 800, letterSpacing: 0.3 }}>YENİ</span>}
-          </button>
-        ))}
+        {TABS.map(t => {
+          const dolu = pdrSekmeDolulugu[t.key];
+          return (
+            <button key={t.key} onClick={() => setTab(t.key)} title={dolu === undefined ? undefined : (dolu ? "Bu yıl için kayıt var" : "Bu yıl için henüz kayıt yok")} style={{
+              flexShrink: 0, padding: "11px 10px", border: "none", background: "none",
+              fontWeight: tab === t.key ? 700 : 500,
+              color: tab === t.key ? ACCENT : MUTED,
+              fontSize: 11, cursor: "pointer",
+              borderBottom: tab === t.key ? `3px solid ${ACCENT}` : "3px solid transparent",
+              display: "flex", alignItems: "center", gap: 4,
+            }}>
+              {dolu !== undefined && (
+                <span style={{
+                  width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
+                  background: dolu ? ACCENT : "transparent",
+                  border: dolu ? "none" : `1.5px solid ${MUTED}`,
+                  opacity: dolu ? 1 : 0.5,
+                }} />
+              )}
+              {t.label}
+              {t.key === "onaylar" && <span style={{ background: "#FB923C", color: "#fff", borderRadius: 8, padding: "1px 6px", fontSize: 8, fontWeight: 800, letterSpacing: 0.3 }}>YENİ</span>}
+            </button>
+          );
+        })}
       </div>
 
       <div style={{ padding: "16px 16px 80px", minHeight: "calc(100vh - 200px)",
