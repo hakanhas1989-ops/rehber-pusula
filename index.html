@@ -11168,9 +11168,21 @@ function SinifDenemeGrafigi({ ogrenciler, denemeler, sinavTuru, vurgulananAd }) 
               {s.noktalar.map(p => (
                 <circle key={p.no} cx={nx(p.no)} cy={ny(p.toplam)} r={bu ? 4.2 : 3} fill="#fff" stroke={renk} strokeWidth={bu ? 2.4 : 1.8} />
               ))}
-              {bu && s.noktalar.map(p => (
-                <text key={"t"+p.no} x={nx(p.no)} y={ny(p.toplam)-9} fontSize="7.5" fontWeight="800" fill={renk} textAnchor="middle">{p.toplam}</text>
-              ))}
+              {/* Seçili öğrencinin net değeri, çizginin kesiştiği noktanın tam
+                  üzerinde bir rozet içinde gösterilir; arka plan dolgusu olmadan
+                  ızgara çizgileri üstünde okunmuyordu. */}
+              {bu && s.noktalar.map(p => {
+                const metin = String(p.toplam);
+                const gen = 9 + metin.length * 4.6;
+                return (
+                  <g key={"t"+p.no}>
+                    <rect x={nx(p.no) - gen/2} y={ny(p.toplam) - 6.5} width={gen} height={13}
+                          rx="6.5" fill="#FFFFFF" stroke={renk} strokeWidth="1.2" />
+                    <text x={nx(p.no)} y={ny(p.toplam) + 3.2} fontSize="8" fontWeight="800"
+                          fill={renk} textAnchor="middle">{metin}</text>
+                  </g>
+                );
+              })}
             </g>
           );
         })}
