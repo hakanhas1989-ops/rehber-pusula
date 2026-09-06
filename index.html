@@ -3601,18 +3601,12 @@ function raporCizgiGrafik(noktalar, { genislik = 460, yukseklik = 130, renk = "#
   const nx = i => solPad + i * xAdimi;
   const ny = y => ustPad + cizimYukseklik - ((y - yMin) / yAralik) * cizimYukseklik;
   const yoldata = noktalar.map((n, i) => `${i === 0 ? "M" : "L"} ${nx(i).toFixed(1)} ${ny(n.y).toFixed(1)}`).join(" ");
-  // Çizginin altını dolduran alan — trendi görsel olarak daha okunur kılar.
-  const alanData = yoldata + ` L ${nx(noktalar.length-1).toFixed(1)} ${(ustPad+cizimYukseklik).toFixed(1)} L ${nx(0).toFixed(1)} ${(ustPad+cizimYukseklik).toFixed(1)} Z`;
   // Kare ızgara: 5 yatay, dikey çizgiler nokta sayısına göre.
   const yatayAdet = 4, dikeyAdet = Math.max(1, noktalar.length - 1);
   const gid = "pdrGrad" + Math.abs(String(renk).split("").reduce((a,c)=>a+c.charCodeAt(0),0));
   return (
     <svg viewBox={`0 0 ${genislik} ${yukseklik}`} style={{ width: "100%", height: yukseklik, display: "block" }}>
       <defs>
-        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={renk} stopOpacity="0.32" />
-          <stop offset="100%" stopColor={renk} stopOpacity="0.03" />
-        </linearGradient>
       </defs>
       {/* Zemin — kareli defter görünümü: ince kareler + kalın ana çizgiler */}
       <defs>
@@ -3642,9 +3636,10 @@ function raporCizgiGrafik(noktalar, { genislik = 460, yukseklik = 130, renk = "#
       {/* Eksenler */}
       <line x1={solPad} y1={ustPad} x2={solPad} y2={ustPad + cizimYukseklik} stroke="#B9CFBE" strokeWidth="1.2" />
       <line x1={solPad} y1={ustPad + cizimYukseklik} x2={genislik - sagPad} y2={ustPad + cizimYukseklik} stroke="#B9CFBE" strokeWidth="1.2" />
-      {/* Alan dolgusu + çizgi */}
-      {noktalar.length > 1 && <path d={alanData} fill={`url(#${gid})`} stroke="none" />}
-      <path d={yoldata} fill="none" stroke={renk} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+      {/* Çizgi. Not: eskiden çizginin altı renkli dolguyla doldurulmuştu, ama
+          bu dolgu kareli ızgaranın üstünü örtüyor ve ızgara görünmez oluyordu.
+          Sınıf grafiğindeki temiz görünümle aynı olması için dolgu kaldırıldı. */}
+      <path d={yoldata} fill="none" stroke={renk} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
       {/* Noktalar + değer etiketleri + X ekseni etiketleri */}
       {noktalar.map((n, i) => (
         <g key={i}>
@@ -3683,24 +3678,24 @@ function RaporModal({ rapor, onKapat }) {
   };
 
   const S = {
-    bolumBaslik: { background: "#1FA971", color: "#fff", padding: "6px 12px", borderRadius: "6px 6px 0 0", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" },
-    bolumIcerik: { border: "1px solid #B7E4C7", borderTop: "none", borderRadius: "0 0 6px 6px", padding: 12, marginBottom: 16 },
-    bolumBaslik2: { background: "#457B9D", color: "#fff", padding: "6px 12px", borderRadius: "6px 6px 0 0", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" },
-    bolumIcerik2: { border: "1px solid #AEC9DC", borderTop: "none", borderRadius: "0 0 6px 6px", padding: 12, marginBottom: 16 },
+    bolumBaslik: { background: "linear-gradient(90deg, #127C56 0%, #2E7A6B 100%)", color: "#fff", padding: "6px 12px", borderRadius: "6px 6px 0 0", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" },
+    bolumIcerik: { border: "1px solid #B9D9C8", borderTop: "none", borderRadius: "0 0 6px 6px", padding: 12, marginBottom: 16 },
+    bolumBaslik2: { background: "linear-gradient(90deg, #6E5AAE 0%, #9E78ED 100%)", color: "#fff", padding: "6px 12px", borderRadius: "6px 6px 0 0", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" },
+    bolumIcerik2: { border: "1px solid #D5C6F3", borderTop: "none", borderRadius: "0 0 6px 6px", padding: 12, marginBottom: 16 },
   };
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "#fff", display: "flex", flexDirection: "column", fontFamily: "Arial, sans-serif" }}>
       {/* Üst bar */}
-      <div style={{ background: "#1FA971", color: "#fff", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+      <div style={{ background: "linear-gradient(135deg, #0E6E4C 0%, #2E5B6E 55%, #5B3F9E 100%)", color: "#fff", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
         <span style={{ fontWeight: 800, fontSize: 15 }}>📄 PDR Profil Raporu — {ogrenci}</span>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => raporIndir("pdr-rapor-icerik", "PDR_Rapor_" + (ogrenci||"").replace(/\s+/g,"_"))} style={{ background: "#fff", color: "#1FA971", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>🖨 İndir</button>
+          <button onClick={() => raporIndir("pdr-rapor-icerik", "PDR_Rapor_" + (ogrenci||"").replace(/\s+/g,"_"))} style={{ background: "#fff", color: "#127C56", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>🖨 İndir</button>
           <button onClick={() => {
             // Mobil için: rapor içeriğini data URI ile aç
             const el = document.getElementById("pdr-rapor-icerik");
             if (!el) return;
-            const htmlStr = `<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PDR Raporu</title><style>@page{size:A4;margin:10mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a;padding:10px;margin:0}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.noprint{display:none}}table{width:100%;border-collapse:collapse}svg{max-width:100%}</style></head><body><div class="noprint" style="position:fixed;top:0;left:0;right:0;background:#1FA971;color:#fff;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;z-index:999"><span style="font-weight:700">PDR Raporu — ${ogrenci}</span><button onclick="window.print()" style="background:#fff;color:#1FA971;border:none;border-radius:6px;padding:6px 14px;font-weight:800;cursor:pointer">🖨️ Yazdır/PDF</button></div><div style="margin-top:50px">${el.innerHTML}</div></body></html>`;
+            const htmlStr = `<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PDR Raporu</title><style>@page{size:A4;margin:10mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a;padding:10px;margin:0}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.noprint{display:none}}table{width:100%;border-collapse:collapse}svg{max-width:100%}</style></head><body><div class="noprint" style="position:fixed;top:0;left:0;right:0;background:#127C56;color:#fff;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;z-index:999"><span style="font-weight:700">PDR Raporu — ${ogrenci}</span><button onclick="window.print()" style="background:#fff;color:#127C56;border:none;border-radius:6px;padding:6px 14px;font-weight:800;cursor:pointer">🖨️ Yazdır/PDF</button></div><div style="margin-top:50px">${el.innerHTML}</div></body></html>`;
             // Base64 encode
             const b64 = btoa(unescape(encodeURIComponent(htmlStr)));
             window.location.href = "data:text/html;base64," + b64;
@@ -3710,11 +3705,11 @@ function RaporModal({ rapor, onKapat }) {
       </div>
 
       {/* Rapor içeriği */}
-      <div id="pdr-rapor-icerik" style={{ flex: 1, overflowY: "auto", padding: "20px 24px", background: "#fff" }}>
+      <div id="pdr-rapor-icerik" style={{ flex: 1, overflowY: "auto", padding: "20px 24px", background: "linear-gradient(160deg, #F2FAF6 0%, #FAFAFB 50%, #F5F1FC 100%)" }}>
         {/* Başlık */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "3px solid #1FA971", paddingBottom: 12, marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "3px solid #127C56", paddingBottom: 12, marginBottom: 20 }}>
           <div>
-            <div style={{ fontSize: 10, color: "#1FA971", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>PDR Servisi — Öğrenci Profil Raporu</div>
+            <div style={{ fontSize: 10, color: "#127C56", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>PDR Servisi — Öğrenci Profil Raporu</div>
             <div style={{ fontSize: 22, fontWeight: 900, color: "#1a1a1a", margin: "4px 0" }}>{ogrenci}</div>
             {profil1?.className && <div style={{ fontSize: 13, color: "#666" }}>{profil1.className}</div>}
             {raporKaynastirma && raporKaynastirma.length > 0 && (
@@ -3770,7 +3765,7 @@ function RaporModal({ rapor, onKapat }) {
                   }).map((r, i, arr) => (
                     <div key={i} style={{ marginBottom:12, paddingBottom:12, borderBottom: i < arr.length-1 ? "1px solid #e8f4ee" : "none" }}>
                       <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:5, flexWrap:"wrap" }}>
-                        <span style={{ background:"#1FA971", color:"#fff", borderRadius:10, padding:"2px 8px", fontSize:9, fontWeight:700 }}>{i+1}. Görüşme</span>
+                        <span style={{ background:"#127C56", color:"#fff", borderRadius:10, padding:"2px 8px", fontSize:9, fontWeight:700 }}>{i+1}. Görüşme</span>
                         <span style={{ fontSize:10, color:"#888" }}>{r.date}</span>
                         {r.meetingType==="Veli" && <span style={{ background:"#FDEBD0", color:"#E76F51", borderRadius:10, padding:"1px 7px", fontSize:9, fontWeight:700 }}>Veli</span>}
                         {r.topic && <span style={{ background:"#f0f0f0", color:"#555", borderRadius:10, padding:"1px 7px", fontSize:9 }}>{r.topic}</span>}
@@ -3781,7 +3776,7 @@ function RaporModal({ rapor, onKapat }) {
                           <div style={{ fontSize:10, color:"#555", lineHeight:1.6, background:"#fafafa", borderRadius:4, padding:"4px 7px", fontStyle:"italic" }}>{r.raw}</div>
                         </div>
                       )}
-                      <div style={{ fontSize:9, fontWeight:700, color:"#1FA971", textTransform:"uppercase", marginBottom:3 }}>Bir Sonraki Seans Planlaması</div>
+                      <div style={{ fontSize:9, fontWeight:700, color:"#127C56", textTransform:"uppercase", marginBottom:3 }}>Bir Sonraki Seans Planlaması</div>
                       <div style={{ fontSize:11, color:"#333", lineHeight:1.7 }}>{r.summary}</div>
                     </div>
                   ))}
@@ -3868,7 +3863,7 @@ function RaporModal({ rapor, onKapat }) {
                   <div style={S.bolumIcerik2}>
                     {ogrSevkler.map((s,i) => (
                       <div key={i} style={{ marginBottom:6, fontSize:10.5, lineHeight:1.6 }}>
-                        <span style={{ fontWeight:700, color:"#457B9D" }}>{s.tarih} — {s.sevkYeri}{s.sonucBekleniyor?" (Sonuç Bekleniyor)":""}: </span>
+                        <span style={{ fontWeight:700, color:"#9E78ED" }}>{s.tarih} — {s.sevkYeri}{s.sonucBekleniyor?" (Sonuç Bekleniyor)":""}: </span>
                         <span style={{ color:"#555" }}>{s.sevkNedeni || "—"}</span>
                         {s.geri_bildirim && <div style={{ color:"#555", marginTop:2 }}><span style={{fontWeight:700}}>Geri Bildirim: </span>{s.geri_bildirim}</div>}
                       </div>
@@ -3887,7 +3882,7 @@ function RaporModal({ rapor, onKapat }) {
                 <div style={S.bolumIcerik2}>
                   {profil2.sinavlar && Object.values(profil2.sinavlar).some(v => v !== "" && v !== null && v !== undefined) && (
                     <div style={{ marginBottom: 12 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: "#457B9D", textTransform: "uppercase", marginBottom: 6 }}>Yazılı Sınav Puanları</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#9E78ED", textTransform: "uppercase", marginBottom: 6 }}>Yazılı Sınav Puanları</div>
                       {DERSLER.map(d => {
                         const v1 = parseFloat(profil2.sinavlar?.[d.key+"1"]);
                         const v2 = parseFloat(profil2.sinavlar?.[d.key+"2"]);
@@ -3910,7 +3905,7 @@ function RaporModal({ rapor, onKapat }) {
                           </div>
                         );
                       })}
-                      {dersOrtalama() && <div style={{ textAlign:"right", fontSize:11, fontWeight:700, color:"#457B9D", marginTop:6 }}>Genel Ortalama: {dersOrtalama()}</div>}
+                      {dersOrtalama() && <div style={{ textAlign:"right", fontSize:11, fontWeight:700, color:"#9E78ED", marginTop:6 }}>Genel Ortalama: {dersOrtalama()}</div>}
                     </div>
                   )}
                   {profil2.ilgiler?.length > 0 && (
@@ -3930,7 +3925,7 @@ function RaporModal({ rapor, onKapat }) {
                     const e = parseFloat(d2.E_yuzde) || 0;
                     const eRenk = e<=1.5?"#1A8C5B":e<=2.5?"#B07D1A":"#C0392B";
                     const eBg = e<=1.5?"#E6F5EE":e<=2.5?"#FDF6E3":"#FDECEA";
-                    const prRenk = pr>=85?"#1A8C5B":pr>=70?"#457B9D":pr>=60?"#B07D1A":"#C0392B";
+                    const prRenk = pr>=85?"#1A8C5B":pr>=70?"#9E78ED":pr>=60?"#B07D1A":"#C0392B";
                     return (
                       <div style={{ marginBottom: 10 }}>
                         <div style={{ fontSize: 10, fontWeight: 700, color: "#9B87F0", textTransform: "uppercase", marginBottom: 8 }}>D2 Dikkat Testi</div>
