@@ -5643,6 +5643,87 @@ const HATIRLATMA_KATEGORILERI = [
 // eklemez, karar her zaman danışmanda kalır). Tarihe göre otomatik olarak
 // Gecikmiş/Bugün/Yarın/Bu Hafta/Daha Sonra diye gruplanır, çok sayıda
 // öğrenci olduğunda listede kaybolmamak için isim/sınıf filtresi de var.
+// ── Bildirim Durumu Paneli ──────────────────────────────────────────────────
+// AMAÇ: Push bildirimi çalışmadığında sebebini görünür kılmak. Token kaydı
+// sessizce başarısız olabiliyordu (tarayıcı izni, servis çalışanı, ağ) ve
+// dışarıdan hiçbir belirti olmuyordu. Bu panel üç şeyi gösterir: tarayıcı
+// izni, bu cihazın kaydının sunucuda olup olmadığı ve yeniden deneme imkânı.
+function BildirimDurumu() {
+  const [durum, setDurum] = useState({ yukleniyor: true });
+  const [mesaj, setMesaj] = useState("");
+
+  async function kontrolEt() {
+    setDurum({ yukleniyor: true });
+    try {
+      const izin = ("Notification" in window) ? Notification.permission : "yok";
+      const uid = pdrAuth.currentUser?.uid;
+      let kayitli = null;
+      if (uid) {
+        const s = await pdrFirestoreOku(uid, "fcmTokens");
+        try { kayitli = s ? JSON.parse(s) : []; } catch (e) { kayitli = []; }
+      }
+      setDurum({ yukleniyor: false, izin, adet: kayitli ? kayitli.length : 0, uid });
+    } catch (e) {
+      setDurum({ yukleniyor: false, hata: e.message });
+    }
+  }
+  useEffect(() => { kontrolEt(); }, []);
+
+  async function yenidenKaydet() {
+    setMesaj("Kaydediliyor...");
+    const uid = pdrAuth.currentUser?.uid;
+    if (!uid) { setMesaj("Önce giriş yapman gerekiyor."); return; }
+    try {
+      if (!("Notification" in window)) { setMesaj("Bu tarayıcı bildirimi desteklemiyor."); return; }
+      if (!firebase.messaging || !(await firebase.messaging.isSupported())) { setMesaj("Bu tarayıcı/cihaz push bildirimini desteklemiyor."); return; }
+      const izin = await Notification.requestPermission();
+      if (izin !== "granted") { setMesaj("Bildirim izni verilmedi. Tarayıcı ayarlarından bu siteye bildirim izni ver."); return; }
+      const reg = await navigator.serviceWorker.getRegistration("sw.js") || await navigator.serviceWorker.register("sw.js");
+      const token = await firebase.messaging().getToken({ vapidKey: PDR_VAPID_KEY, serviceWorkerRegistration: reg });
+      if (!token) { setMesaj("Bildirim kimliği alınamadı. İnternet bağlantını kontrol edip tekrar dene."); return; }
+      const mevcutStr = await pdrFirestoreOku(uid, "fcmTokens");
+      let mevcut = []; try { mevcut = mevcutStr ? JSON.parse(mevcutStr) : []; } catch (e) { mevcut = []; }
+      if (!mevcut.includes(token)) mevcut.push(token);
+      await pdrFirestoreYaz(uid, "fcmTokens", JSON.stringify(mevcut));
+      setMesaj("Bu cihaz bildirim için kaydedildi.");
+      kontrolEt();
+    } catch (e) {
+      setMesaj("Hata: " + e.message);
+    }
+  }
+
+  if (durum.yukleniyor) return null;
+
+  const izinTamam = durum.izin === "granted";
+  const kayitTamam = (durum.adet || 0) > 0;
+  const hepsiTamam = izinTamam && kayitTamam;
+
+  return (
+    <div style={{
+      background: hepsiTamam ? "#EAF7F0" : "#FEF5E7",
+      border: `1px solid ${hepsiTamam ? "#B9D9C8" : "#F5CBA7"}`,
+      borderRadius: 12, padding: "10px 12px", marginBottom: 14, fontSize: 11.5, lineHeight: 1.6,
+      color: hepsiTamam ? "#1A5C40" : "#7E5109"
+    }}>
+      <div style={{ fontWeight: 800, marginBottom: 4 }}>
+        {hepsiTamam ? "🔔 Bildirimler açık" : "⚠️ Bildirimler çalışmıyor"}
+      </div>
+      <div>Tarayıcı izni: <b>{durum.izin === "granted" ? "verildi" : durum.izin === "denied" ? "engellendi" : "henüz sorulmadı"}</b></div>
+      <div>Kayıtlı cihaz: <b>{durum.adet || 0}</b></div>
+      {!hepsiTamam && (
+        <div style={{ marginTop: 6 }}>
+          Hatırlatmalar her gün 08:00 ve 16:00'da kontrol edilir; bildirim gelmesi için bu cihazın kayıtlı olması gerekir.
+        </div>
+      )}
+      <button onClick={yenidenKaydet} style={{
+        marginTop: 8, padding: "6px 12px", borderRadius: 8, border: `1px solid ${hepsiTamam ? "#B9D9C8" : "#E67E22"}`,
+        background: "#fff", color: hepsiTamam ? "#1A5C40" : "#B9770E", fontSize: 11, fontWeight: 700, cursor: "pointer"
+      }}>{hepsiTamam ? "Bu cihazı yeniden kaydet" : "Bildirimleri Etkinleştir"}</button>
+      {mesaj && <div style={{ marginTop: 6, fontWeight: 700 }}>{mesaj}</div>}
+    </div>
+  );
+}
+
 function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hatirlatmalar, setHatirlatmalar }) {
   const [seciliAd, setSeciliAd] = useState(aktifOgrenci?.name || "");
   const [ogrenciArama, setOgrenciArama] = useState("");
@@ -5750,6 +5831,8 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
       <div style={{ fontSize: 12, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
         Öğrencilerle ilgili takip edilecek şeyleri buradan görebilirsin — elle ekleyebilir, ya da görüşme notunu AI ile özetlerken önerilen hatırlatmayı onaylayabilirsin. Tarihe göre otomatik gruplanır.
       </div>
+
+      <BildirimDurumu />
 
       {/* Yeni hatırlatma ekle */}
       {!formAcik ? (
