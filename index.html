@@ -2745,7 +2745,10 @@ function KaynastirmaTablosu({ ogrenciler, aktifYil, setTab, setAktifOgrenci }) {
   const [acik, setAcik] = useState(false);
   const yilOgr = (ogrenciler||[]).filter(o => !o.yil || o.yil === aktifYil);
   const kaynastirmalilar = yilOgr.filter(o => (o.kaynastirma||[]).length > 0);
-  if (kaynastirmalilar.length === 0) return null;
+  // Hiç tanı atanmamışsa da kart görünür — eskiden tamamen gizleniyordu ve
+  // "tabloyu bulamıyorum" durumuna yol açıyordu. Boşken nereden veri
+  // girileceğini anlatır.
+  const bosMu = kaynastirmalilar.length === 0;
 
   // Sütunlarda yalnızca en az bir öğrencide bulunan tanılar gösterilir;
   // boş sütunlar tabloyu gereksiz genişletiyordu.
@@ -2764,13 +2767,23 @@ function KaynastirmaTablosu({ ogrenciler, aktifYil, setTab, setAktifOgrenci }) {
         <div>
           <div style={{fontSize:13,fontWeight:800,color:TEXT}}>🧩 Kaynaştırma Tablosu</div>
           <div style={{fontSize:10.5,color:MUTED,marginTop:2}}>
-            {kaynastirmalilar.length} öğrenci · {siniflar.length} sınıf · {tanilar.length} tanı grubu
+            {bosMu ? "Henüz tanı atanmamış" : `${kaynastirmalilar.length} öğrenci · ${siniflar.length} sınıf · ${tanilar.length} tanı grubu`}
           </div>
         </div>
         <span style={{fontSize:14,color:MUTED}}>{acik ? "▲" : "▼"}</span>
       </div>
 
-      {acik && (
+      {acik && bosMu && (
+        <div style={{marginTop:12, background:"#FEF5E7", border:"1px solid #F5CBA7", borderRadius:9, padding:"11px 13px", fontSize:11.5, color:"#7E5109", lineHeight:1.6}}>
+          Henüz hiçbir öğrenciye kaynaştırma tanısı atanmamış. Atamak için:
+          <div style={{marginTop:6, fontWeight:700}}>
+            Sınıf düzeyi seç → şube seç → <b>Öğrenci Listesi</b>'nde öğrencinin yanındaki <b>🧩 Tanı Düzenle</b>
+          </div>
+          <div style={{marginTop:6}}>Tanı atadığın anda tablo burada otomatik oluşur.</div>
+        </div>
+      )}
+
+      {acik && !bosMu && (
         <div style={{marginTop:12}}>
           <div style={{fontSize:10,color:MUTED,marginBottom:8,lineHeight:1.5}}>
             Tabloyu yana kaydırarak tüm tanıları görebilirsin. Öğrenci adına dokununca kaydına gidersin.
