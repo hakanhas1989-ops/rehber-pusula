@@ -2721,6 +2721,149 @@ function SosyometriEkrani({ sosyometri, setSosyometri, ogrenciler, aktifYil, sin
   );
 }
 
+// Tanılar tabloda sütun başlığı olarak kısaltılır — 10 tanının tam adı yan yana
+// sığmıyor. Tablonun altında kısaltmaların açılımı verilir.
+const KAYNASTIRMA_KISALT = {
+  "Özel Öğrenme Güçlüğü": "ÖÖG",
+  "DEHB": "DEHB",
+  "Otizm Spektrum Bozukluğu": "OSB",
+  "Zihinsel Yetersizlik": "ZY",
+  "İşitme Yetersizliği": "İY",
+  "Görme Yetersizliği": "GY",
+  "Bedensel Yetersizlik": "BY",
+  "Süregelen Hastalık": "SH",
+  "Dil ve Konuşma Güçlüğü": "DKG",
+  "Diğer": "Diğ",
+};
+
+// Kaynaştırma çapraz tablosu: satırlarda öğrenci (sınıfa göre gruplu),
+// sütunlarda tanı grupları, kesişimde işaret. Her sınıfın altında o sınıfın
+// toplamı, tablonun en altında tanı bazında genel toplam yer alır.
+// Veri kaynağı öğrencinin kendi kaydıdır (o.kaynastirma) — sınıf içindeki
+// "Tanı Düzenle" ile yapılan her değişiklik buraya anında yansır.
+function KaynastirmaTablosu({ ogrenciler, aktifYil, setTab, setAktifOgrenci }) {
+  const [acik, setAcik] = useState(false);
+  const yilOgr = (ogrenciler||[]).filter(o => !o.yil || o.yil === aktifYil);
+  const kaynastirmalilar = yilOgr.filter(o => (o.kaynastirma||[]).length > 0);
+  if (kaynastirmalilar.length === 0) return null;
+
+  // Sütunlarda yalnızca en az bir öğrencide bulunan tanılar gösterilir;
+  // boş sütunlar tabloyu gereksiz genişletiyordu.
+  const tanilar = KAYNASTIRMA_TANILAR.filter(t => kaynastirmalilar.some(o => (o.kaynastirma||[]).includes(t)));
+
+  const siniflar = [...new Set(kaynastirmalilar.map(o => (o.className||"—").trim()))]
+    .sort((a,b) => a.localeCompare(b,"tr"));
+
+  const hucre = { padding:"5px 4px", textAlign:"center", fontSize:11, borderBottom:`1px solid ${BORDER}` };
+  const adHucre = { padding:"5px 6px", fontSize:11.5, borderBottom:`1px solid ${BORDER}`,
+                    position:"sticky", left:0, background:CARD, zIndex:1, minWidth:118, textAlign:"left" };
+
+  return (
+    <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14)",borderRadius:12,padding:14,marginBottom:14}}>
+      <div onClick={()=>setAcik(!acik)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:800,color:TEXT}}>🧩 Kaynaştırma Tablosu</div>
+          <div style={{fontSize:10.5,color:MUTED,marginTop:2}}>
+            {kaynastirmalilar.length} öğrenci · {siniflar.length} sınıf · {tanilar.length} tanı grubu
+          </div>
+        </div>
+        <span style={{fontSize:14,color:MUTED}}>{acik ? "▲" : "▼"}</span>
+      </div>
+
+      {acik && (
+        <div style={{marginTop:12}}>
+          <div style={{fontSize:10,color:MUTED,marginBottom:8,lineHeight:1.5}}>
+            Tabloyu yana kaydırarak tüm tanıları görebilirsin. Öğrenci adına dokununca kaydına gidersin.
+          </div>
+
+          <div style={{overflowX:"auto", WebkitOverflowScrolling:"touch", border:`1px solid ${BORDER}`, borderRadius:9}}>
+            <table style={{borderCollapse:"collapse", width:"100%", minWidth: 118 + tanilar.length*40 + 44}}>
+              <thead>
+                <tr style={{background:BG}}>
+                  <th style={{...adHucre, background:BG, fontWeight:800, color:TEXT, fontSize:10.5}}>Öğrenci · Sınıf</th>
+                  {tanilar.map(t => (
+                    <th key={t} title={t} style={{...hucre, fontWeight:800, color:"#8B5A00", fontSize:9.5, minWidth:40}}>
+                      {KAYNASTIRMA_KISALT[t] || t}
+                    </th>
+                  ))}
+                  <th style={{...hucre, fontWeight:800, color:TEXT, fontSize:9.5, minWidth:34}}>Top.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {siniflar.map(sinif => {
+                  const sinifOgr = kaynastirmalilar.filter(o => (o.className||"—").trim() === sinif)
+                    .sort((a,b)=>(a.studentName||"").localeCompare(b.studentName||"","tr"));
+                  return (
+                    <React.Fragment key={sinif}>
+                      <tr style={{background:ACCENT_LIGHT}}>
+                        <td colSpan={tanilar.length+2} style={{padding:"4px 6px",fontSize:10.5,fontWeight:800,color:ACCENT,
+                          position:"sticky",left:0}}>{sinif}</td>
+                      </tr>
+                      {sinifOgr.map(o => {
+                        const kendi = o.kaynastirma || [];
+                        return (
+                          <tr key={pdrOgrAnahtar(o.studentName,o.className,o.numara)}>
+                            <td onClick={()=>{ setAktifOgrenci({name:o.studentName,className:o.className,numara:o.numara}); setTab("yeni"); }}
+                              style={{...adHucre, cursor:"pointer", fontWeight:600, color:TEXT}}>
+                              {o.studentName}
+                            </td>
+                            {tanilar.map(t => (
+                              <td key={t} style={{...hucre, color: kendi.includes(t) ? "#8B5A00" : BORDER,
+                                fontWeight: kendi.includes(t) ? 900 : 400, fontSize: kendi.includes(t) ? 13 : 11}}>
+                                {kendi.includes(t) ? "●" : "·"}
+                              </td>
+                            ))}
+                            <td style={{...hucre, fontWeight:800, color:MUTED}}>{kendi.length}</td>
+                          </tr>
+                        );
+                      })}
+                      {/* Sınıf ara toplamı */}
+                      <tr style={{background:"#FAFAF8"}}>
+                        <td style={{...adHucre, background:"#FAFAF8", fontSize:10, fontWeight:800, color:MUTED, textAlign:"right"}}>
+                          {sinif} toplam
+                        </td>
+                        {tanilar.map(t => {
+                          const n = sinifOgr.filter(o => (o.kaynastirma||[]).includes(t)).length;
+                          return <td key={t} style={{...hucre, fontWeight:800, color: n>0 ? "#8B5A00" : BORDER, fontSize:10.5}}>{n || "·"}</td>;
+                        })}
+                        <td style={{...hucre, fontWeight:900, color:ACCENT, fontSize:11}}>{sinifOgr.length}</td>
+                      </tr>
+                    </React.Fragment>
+                  );
+                })}
+                {/* Genel toplam */}
+                <tr style={{background:ACCENT, color:"#fff"}}>
+                  <td style={{...adHucre, background:ACCENT, color:"#fff", fontWeight:900, fontSize:11, borderBottom:"none"}}>
+                    OKUL TOPLAMI
+                  </td>
+                  {tanilar.map(t => {
+                    const n = kaynastirmalilar.filter(o => (o.kaynastirma||[]).includes(t)).length;
+                    return <td key={t} style={{...hucre, color:"#fff", fontWeight:900, fontSize:11.5, borderBottom:"none"}}>{n}</td>;
+                  })}
+                  <td style={{...hucre, color:"#fff", fontWeight:900, fontSize:12, borderBottom:"none"}}>{kaynastirmalilar.length}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Kısaltma açılımları */}
+          <div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:9}}>
+            {tanilar.map(t => (
+              <span key={t} style={{background:"#FFF4E5",color:"#8B5A00",borderRadius:8,padding:"2px 7px",fontSize:9.5,fontWeight:600}}>
+                <b>{KAYNASTIRMA_KISALT[t] || t}</b> = {t}
+              </span>
+            ))}
+          </div>
+          <div style={{fontSize:10,color:MUTED,marginTop:8,lineHeight:1.5}}>
+            Bir öğrencide birden fazla tanı olabilir; bu yüzden tanı sütunlarının toplamı
+            öğrenci sayısından fazla olabilir. Sağdaki "Top." sütunu o öğrencinin tanı sayısıdır.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 async function loadSevkler() {
   try { const r = await window.storage.get("pdr-sevkler"); return r ? JSON.parse(r.value) : []; } catch { return []; }
 }
@@ -11789,6 +11932,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
           🏫 {aktifYil} — Sınıf Düzeyi Seç
         </div>
         <RiskOzetKartlari ogrenciler={yilOgrencileri} baslik="📊 Tüm Okul — Geçmiş Dönem Deneme Risk Dağılımı" />
+        <KaynastirmaTablosu ogrenciler={ogrenciler} aktifYil={aktifYil} setTab={setTab} setAktifOgrenci={setAktifOgrenci} />
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           {sinifDuzeyleri.map(duzey => {
             const dst = sinifDuzeyiIstatistik(duzey);
