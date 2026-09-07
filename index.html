@@ -11294,6 +11294,15 @@ function SinifDenemeGrafigi({ ogrenciler, denemeler, sinavTuru, vurgulananAd }) 
   );
 }
 
+// Risk türleri — İl/İlçe MEM'in 2026-2027 rehberlik öncelikleri yazısındaki
+// çalışma alanlarını karşılayacak şekilde genişletildi: göç/uyum (md.12),
+// adli süreç ve danışmanlık tedbiri (md.8), toplumsal cinsiyet temelli
+// şiddet (md.9), ihmal/istismar (md.12).
+// NOT: Bu sabit ÜST SEVİYEDE durmalı — hem Sınıf risk haritası hem de Risk
+// formu kullanıyor. Bir bileşenin içinde tanımlıyken diğeri erişemiyor ve
+// "RISK_TURLERI is not defined" hatası veriyordu.
+const RISK_TURLERI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygusal","Devamsızlık","Öz Zarar","Sağlık","Madde Kullanımı","Teknoloji / Ekran Bağımlılığı","Ekonomik Güçlük","Yas / Kayıp","Travma","Özel Öğrenme Güçlüğü","Göç / Uyum Süreci","Adli Süreç / Danışmanlık Tedbiri","Toplumsal Cinsiyet Temelli Şiddet","İhmal / İstismar","Diğer"];
+
 function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYil, sinifListesi, setSinifListesi, denemeler, sinavTuru, onSinifSilTumVeri, kademe, setTab, setAktifOgrenci, aktifOgrenci, profiles, profiles2, onRaporAc }) {
   const [seciliSinif, setSeciliSinif] = useState(null);
   const [seciliSinifDuzeyi, setSeciliSinifDuzeyi] = useState(null);
@@ -11303,12 +11312,6 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
   const [yeniSinifAdi, setYeniSinifAdi] = useState("");
   const [sinifSilOnay, setSinifSilOnay] = useState(null);
   const [kaynastirmaAcikId, setKaynastirmaAcikId] = useState(null);
-
-  // Risk türleri — İl/İlçe MEM'in 2026-2027 rehberlik öncelikleri yazısındaki
-// çalışma alanlarını karşılayacak şekilde genişletildi: göç/uyum (md.12),
-// adli süreç ve danışmanlık tedbiri (md.8), toplumsal cinsiyet temelli
-// şiddet (md.9), ihmal/istismar (md.12).
-const RISK_TURLERI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygusal","Devamsızlık","Öz Zarar","Sağlık","Madde Kullanımı","Teknoloji / Ekran Bağımlılığı","Ekonomik Güçlük","Yas / Kayıp","Travma","Özel Öğrenme Güçlüğü","Göç / Uyum Süreci","Adli Süreç / Danışmanlık Tedbiri","Toplumsal Cinsiyet Temelli Şiddet","İhmal / İstismar","Diğer"];
 
   // Yıl filtreli öğrenciler
   const yilOgrencileri = ogrenciler.filter(o => !o.yil || o.yil === aktifYil).filter(o => pdrKademeUyumlu(o.className, kademe));
