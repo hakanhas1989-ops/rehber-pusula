@@ -441,6 +441,11 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const pdrAuth = firebase.auth();
 const pdrDb = firebase.firestore();
+// Çevrimdışı kalıcılık: internet yokken yapılan Firestore yazmaları artık
+// tarayıcının diskinde kuyruklanır, bağlantı gelince otomatik gönderilir.
+// (multi-tab hatası önemsiz — o durumda kalıcılık sessizce devre dışı kalır,
+// yazma yine dener, sadece disk kuyruğu olmaz.)
+pdrDb.enablePersistence({ synchronizeTabs: true }).catch(() => {});
 
 // Push bildirimi (FCM) — Hatırlatıcı'nın uygulama kapalıyken de bildirim
 // gönderebilmesi için. Cloudflare Worker günde iki kez (08:00 ve 16:00,
@@ -2871,6 +2876,84 @@ function KaynastirmaTablosu({ ogrenciler, aktifYil, setTab, setAktifOgrenci }) {
             Bir öğrencide birden fazla tanı olabilir; bu yüzden tanı sütunlarının toplamı
             öğrenci sayısından fazla olabilir. Sağdaki "Top." sütunu o öğrencinin tanı sayısıdır.
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Buluta Zorla Gönder ──────────────────────────────────────────────────
+// AMAÇ: Firestore'da offline kalıcılık etkinleştirilmeden önce, internetsiz
+// çekilen yazmalar buluta ulaşmadan kaybolmuş olabilir — telefonda veri
+// duruyor ama buluta hiç gitmemiş (pdr-hatirlatmalar örneğinde tespit edildi).
+// Bu araç, telefonun kendi hafızasındaki (localStorage) TÜM pdr-* verilerini
+// tek tek okuyup buluta yeniden yazar. Var olan bulut verisinin üzerine yazar
+// — telefon her zaman "doğru" kabul edilir, çünkü kullanıcı en son oradan girdi.
+async function pdrButunVeriyiBulutaGonder(uid, ilerlemeCb) {
+  const anahtarlar = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith("pdr__")) anahtarlar.push(k.slice(5));
+  }
+  let basarili = 0, hatali = 0;
+  for (let i = 0; i < anahtarlar.length; i++) {
+    const key = anahtarlar[i];
+    try {
+      const deger = localStorage.getItem("pdr__" + key);
+      if (deger !== null) { await pdrFirestoreYaz(uid, key, deger); basarili++; }
+    } catch (e) { hatali++; }
+    if (ilerlemeCb) ilerlemeCb(i + 1, anahtarlar.length, key);
+  }
+  return { toplam: anahtarlar.length, basarili, hatali };
+}
+
+function BulutSenkronAraci() {
+  const [durum, setDurum] = useState("bekliyor"); // bekliyor | calisiyor | tamam | hata
+  const [ilerleme, setIlerleme] = useState({ yapilan: 0, toplam: 0, anahtar: "" });
+  const [sonuc, setSonuc] = useState(null);
+
+  async function baslat() {
+    const uid = pdrAuth.currentUser?.uid;
+    if (!uid) { setDurum("hata"); setSonuc({ hata: "Giriş yapılı değil." }); return; }
+    setDurum("calisiyor");
+    try {
+      const r = await pdrButunVeriyiBulutaGonder(uid, (yapilan, toplam, anahtar) => setIlerleme({ yapilan, toplam, anahtar }));
+      setSonuc(r); setDurum("tamam");
+    } catch (e) { setSonuc({ hata: e.message }); setDurum("hata"); }
+  }
+
+  return (
+    <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14)",borderRadius:12,padding:14,marginBottom:14}}>
+      <div style={{fontSize:13,fontWeight:800,color:TEXT,marginBottom:4}}>☁️ Buluta Zorla Gönder</div>
+      <div style={{fontSize:11,color:MUTED,lineHeight:1.55,marginBottom:10}}>
+        İnternetsizken yapılan bazı kayıtlar buluta ulaşmamış olabilir — bu telefonda görünüp
+        diğer cihazlarda görünmeyen veriye yol açar. Bu araç telefondaki TÜM verini buluta yeniden
+        gönderir. Sadece bu cihazın verisini kullanır, hiçbir şeyi silmez.
+      </div>
+
+      {durum === "bekliyor" && (
+        <button onClick={baslat} style={{width:"100%",padding:"10px",borderRadius:10,border:"none",
+          background:PURPLE,color:"#fff",fontSize:13,fontWeight:800,cursor:"pointer"}}>Şimdi Buluta Gönder</button>
+      )}
+      {durum === "calisiyor" && (
+        <div>
+          <div style={{fontSize:11.5,color:TEXT,marginBottom:6}}>
+            Gönderiliyor... {ilerleme.yapilan}/{ilerleme.toplam}
+          </div>
+          <div style={{height:6,background:BORDER,borderRadius:3,overflow:"hidden"}}>
+            <div style={{width:`${ilerleme.toplam?(ilerleme.yapilan/ilerleme.toplam*100):0}%`,height:"100%",background:PURPLE,borderRadius:3}} />
+          </div>
+        </div>
+      )}
+      {durum === "tamam" && sonuc && (
+        <div style={{background:ACCENT_LIGHT,border:`1px solid ${ACCENT}`,borderRadius:9,padding:"9px 12px",fontSize:12,color:ACCENT,fontWeight:700}}>
+          ✓ Tamamlandı — {sonuc.basarili}/{sonuc.toplam} kayıt buluta gönderildi
+          {sonuc.hatali > 0 && <span style={{color:"#C0392B"}}> ({sonuc.hatali} başarısız)</span>}
+        </div>
+      )}
+      {durum === "hata" && sonuc && (
+        <div style={{background:"#FDECEA",border:"1px solid #F5B7B1",borderRadius:9,padding:"9px 12px",fontSize:12,color:"#C0392B",fontWeight:700}}>
+          Hata: {sonuc.hata}
         </div>
       )}
     </div>
@@ -5989,6 +6072,7 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
       </div>
 
       <BildirimDurumu />
+      <BulutSenkronAraci />
 
       {/* Yeni hatırlatma ekle */}
       {!formAcik ? (
