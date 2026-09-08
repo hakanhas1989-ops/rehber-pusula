@@ -11545,6 +11545,7 @@ const RISK_TURLERI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygus
 
 function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYil, sinifListesi, setSinifListesi, denemeler, sinavTuru, onSinifSilTumVeri, kademe, setTab, setAktifOgrenci, aktifOgrenci, profiles, profiles2, onRaporAc }) {
   const [seciliSinif, setSeciliSinif] = useState(null);
+  const [cinsiyetDuzenleAcik, setCinsiyetDuzenleAcik] = useState(false);
   const [seciliSinifDuzeyi, setSeciliSinifDuzeyi] = useState(null);
   const [listeYukleAcik, setListeYukleAcik] = useState(false);
   const [listeMetni, setListeMetni] = useState("");
@@ -11827,7 +11828,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
             {st.cinsiyetDagilim.Belirtilmemiş>0 && <div style={{fontSize:13,color:MUTED}}>Belirtilmemiş: <b>{st.cinsiyetDagilim.Belirtilmemiş}</b></div>}
           </div>
           {st.cinsiyetDagilim.Belirtilmemiş>0 && (
-            <div>
+            <div style={{marginBottom:12}}>
               <div style={{fontSize:10,color:MUTED,marginBottom:6}}>Cinsiyeti belirtilmemiş öğrenciler — hızlı işaretle:</div>
               <div style={{display:"flex",flexDirection:"column",gap:6}}>
                 {st.ogr.filter(o=>!o.cinsiyet).map(o => (
@@ -11840,6 +11841,27 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+          {(st.cinsiyetDagilim.Kız + st.cinsiyetDagilim.Erkek) > 0 && (
+            <div>
+              <div onClick={()=>setCinsiyetDuzenleAcik(a=>!a)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",marginBottom: cinsiyetDuzenleAcik?6:0}}>
+                <span style={{fontSize:10,color:MUTED}}>Yanlış işaretlediysen buradan düzelt</span>
+                <span style={{fontSize:11,color:ACCENT,fontWeight:700}}>{cinsiyetDuzenleAcik?"Kapat ▲":"Düzenle ▼"}</span>
+              </div>
+              {cinsiyetDuzenleAcik && (
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  {st.ogr.filter(o=>o.cinsiyet).sort((a,b)=>(a.studentName||"").localeCompare(b.studentName||"","tr")).map(o => (
+                    <div key={pdrOgrAnahtar(o.studentName,o.className,o.numara)} style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span style={{fontSize:12}}>{o.studentName}</span>
+                      <div style={{display:"flex",gap:4}}>
+                        <button onClick={()=>handleCinsiyetGuncelle(o,"Kız")} style={{padding:"2px 8px",borderRadius:6,border:`1px solid ${o.cinsiyet==="Kız"?ACCENT:BORDER}`,background:o.cinsiyet==="Kız"?ACCENT_LIGHT:"#fff",color:o.cinsiyet==="Kız"?ACCENT:TEXT,fontWeight:o.cinsiyet==="Kız"?700:400,fontSize:11,cursor:"pointer"}}>Kız</button>
+                        <button onClick={()=>handleCinsiyetGuncelle(o,"Erkek")} style={{padding:"2px 8px",borderRadius:6,border:`1px solid ${o.cinsiyet==="Erkek"?ACCENT:BORDER}`,background:o.cinsiyet==="Erkek"?ACCENT_LIGHT:"#fff",color:o.cinsiyet==="Erkek"?ACCENT:TEXT,fontWeight:o.cinsiyet==="Erkek"?700:400,fontSize:11,cursor:"pointer"}}>Erkek</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
