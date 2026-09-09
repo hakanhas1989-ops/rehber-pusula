@@ -12210,10 +12210,32 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
                   {oRisk.length > 0 && <span style={{background:"#FDECEA",color:"#C0392B",borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>⚠ Risk</span>}
                   {oTeknoloji && <span title={oRisk.find(r=>r.teknolojiBagimliligi)?.teknolojiGerekce || ""} style={{background:"#EEF2FF",color:"#3B4FD8",borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>📱 Teknoloji</span>}
                   {kaynastirmaTanilari.length > 0 && <span title={kaynastirmaTanilari.join(", ")} style={{background:"#FFF4E5",color:"#8B5A00",borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>🧩 {kaynastirmaTanilari.length===1?kaynastirmaTanilari[0]:`${kaynastirmaTanilari.length} tanı`}</span>}
-                  {gdo !== null && <span title="Geçmiş Dönem Deneme Ortalaması" style={{background:"#F3EEFB",color:PURPLE,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>📊 GDO: {gdo.toFixed(1)}</span>}
-                  {denemeNetleri.map(d => (
-                    <span key={d.idx} title={`Deneme ${d.idx} — Net`} style={{background:"#EDEAFB",color:PURPLE,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:700}}>D{d.idx} {d.net.toFixed(1)}</span>
-                  ))}
+                  {gdo !== null && (() => {
+                    const gt = pdrYuzdelikTahminEt(gdo);
+                    const az = gt && gt.n < 8;
+                    return (
+                      <span title={gt ? `Geçmiş Dönem Deneme Ortalaması — tahmini yüzdelik %${gt.min}-${gt.max}${az?" (az veri)":""}` : "Geçmiş Dönem Deneme Ortalaması"}
+                        style={{background: az ? "#FEF5E7" : "#F3EEFB", color: az ? "#B07D1A" : PURPLE, borderRadius:8, padding:"1px 6px", fontSize:9, fontWeight:700}}>
+                        📊 GDO: {gdo.toFixed(1)}{gt ? ` · %${gt.min}-${gt.max}` : ""}
+                      </span>
+                    );
+                  })()}
+                  {/* Tüm denemeleri tek tek göstermek yerine (9'a kadar çıkabildiği için
+                      karta sığmıyordu — bu yüzden değiştirildi) sadece EN SON deneme
+                      gösteriliyor; yeni deneme girildikçe otomatik güncellenir. Geçmiş
+                      denemelerin tamamı bu ekranın üstündeki Sınıf Deneme Net Grafiği'nde
+                      zaten görünüyor, burada tekrar etmeye gerek yok. */}
+                  {denemeNetleri.length > 0 && (() => {
+                    const son = denemeNetleri[denemeNetleri.length - 1];
+                    const st_ = pdrYuzdelikTahminEt(son.net);
+                    const az = st_ && st_.n < 8;
+                    return (
+                      <span title={st_ ? `Deneme ${son.idx} — tahmini yüzdelik %${st_.min}-${st_.max}${az?" (az veri)":""}` : `Deneme ${son.idx} — Net`}
+                        style={{background: az ? "#FEF5E7" : "#EDEAFB", color: az ? "#B07D1A" : PURPLE, borderRadius:8, padding:"1px 6px", fontSize:9, fontWeight:700}}>
+                        D{son.idx} {son.net.toFixed(1)}{st_ ? ` · %${st_.min}-${st_.max}` : ""}
+                      </span>
+                    );
+                  })()}
                   {devamsizlikSayisi > 0 && (() => {
                     const devRenk = devamsizlikSayisi >= 10 ? { bg:"#FDECEA", fg:"#C0392B" }
                       : devamsizlikSayisi >= 7 ? { bg:"#FEF3E2", fg:"#B7791F" }
