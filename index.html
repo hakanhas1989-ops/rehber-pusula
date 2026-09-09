@@ -3446,10 +3446,6 @@ const DERSLER = [
   { key: "din", label: "Din Kültürü", color: "#E9C46A" },
 ];
 // 2 yazılı sistemi
-const DERSLER_YAZILI = DERSLER.map(d => [
-  { key: d.key+"1", label: d.label+" 1.Yazılı", ders: d.key, color: d.color },
-  { key: d.key+"2", label: d.label+" 2.Yazılı", ders: d.key, color: d.color+"bb" },
-]).flat();
 const ILGI_ETIKETLERI = [
   "Spor","Müzik","Resim / Sanat","Dans","Tiyatro","Okuma","Yazarlık",
   "Teknoloji / Kodlama","Doğa / Çevre","Hayvanlar","Tarih","Bilim",
@@ -10262,7 +10258,6 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
   useEffect(() => { if (aktifOgrenci?.name) setSeciliOgrenci(aktifOgrenci.name); }, [aktifOgrenci?.name]);
   const [aramaMetni, setAramaMetni] = useState("");
   const [aktifDeneme, setAktifDeneme] = useState(null); // { ogrenci, no }
-  const [formNet, setFormNet] = useState({});
   const [kaydedildi, setKaydedildi] = useState(false);
 
   const filtreliListe = kayitliListesi.filter(o =>
@@ -12789,14 +12784,11 @@ export default function App() {
   const [onerilenGecmisYil, setOnerilenGecmisYil] = useState(null); // [{sinif,ortalama}] | null — Profil 2 geçmiş yıl önerisi
   const [profAiLoading, setProfAiLoading] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [profSaved, setProfSaved] = useState(false);
-  const [prof2Saved, setProf2Saved] = useState(false);
   const [prof2AiLoading, setProf2AiLoading] = useState(false);
   const [prof2Analiz, setProf2Analiz] = useState("");
   const [raporVerisi, setRaporVerisi] = useState(null);
   const [riskListesi, setRiskListesi] = useState([]);
   const [denemeler, setDenemeler] = useState({});
-  const [denemeSeciliOgrenci, setDenemeSeciliOgrenci] = useState("");
   const [ogrenciler, setOgrenciler] = useState([]);
   const [aktifOgrenci, setAktifOgrenci] = useState({ name: "", className: "" });
   useEffect(() => {
@@ -12805,7 +12797,6 @@ export default function App() {
       setForm(f => ({ ...f, studentName: aktifOgrenci.name, className: aktifOgrenci.className || "", numara: bulunan?.numara || "" }));
     }
   }, [aktifOgrenci?.name]);
-  const [profMerkezKey, setProfMerkezKey] = useState(0); // force re-render
   const [riskForm, setRiskForm] = useState({ studentName: "", className: "", numara: "", riskTuru: "", aciklama: "", oncelik: "Orta", tarih: today() });
   const [riskOgrenciArama, setRiskOgrenciArama] = useState("");
   useEffect(() => {
@@ -12858,7 +12849,6 @@ export default function App() {
   const [netHaritasiKayitlari, setNetHaritasiKayitlari] = useState([]);
   const [konuHaritasiVerisi, setKonuHaritasiVerisi] = useState({});
   const [kutuphane, setKutuphane] = useState([]);
-  const [pdfYukleniyor, setPdfYukleniyor] = useState(false);
   const [search, setSearch] = useState("");
   const recogRef = useRef(null);
 
