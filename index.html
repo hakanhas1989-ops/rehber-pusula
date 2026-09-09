@@ -1852,7 +1852,7 @@ async function getScoresFromNotes(studentName, notlar) {
   } catch { return { ...EMPTY_SCORES }; }
 }
 
-async function getP2Analiz({ studentName, className, numara, sinavlar, d2, ilgiler, kariyer_hedef, aile_notu, gorusmeler, denemeGirilen, sinavTuru = "lgs" }) {
+async function getP2Analiz({ studentName, className, numara, sinavlar, d2, gecmisYillar, ilgiler, kariyer_hedef, aile_notu, gorusmeler, denemeGirilen, sinavTuru = "lgs" }) {
   const dersListesi = aktifDersler(sinavTuru);
   const toplamSoru = dersListesi.reduce((s,d)=>s+d.maks, 0);
   const dersMetni = DERSLER.map(d => {
@@ -1866,6 +1866,11 @@ async function getP2Analiz({ studentName, className, numara, sinavlar, d2, ilgil
     return null;
   }).filter(Boolean).join(", ");
   const d2Metni = d2 && (d2.TN || d2.TN_E) ? `D2 Dikkat Testi: TN=${d2.TN||"—"}, E1=${d2.E1||"—"}, E2=${d2.E2||"—"}, TN-E=${d2.TN_E||"—"}, E%=${d2.E_yuzde||"—"}, PR=${d2.PR||"—"}` : "";
+  // Geçmiş yıl sonu not ortalamaları — worker'daki p2_analiz istemi bunu da alır.
+  const gecmisYilMetni = gecmisYillar && Object.entries(gecmisYillar).some(([,v])=>v!=="" && v!=null)
+    ? "Gecmis Yil Sonu Not Ortalamalari: " + Object.entries(gecmisYillar).filter(([,v])=>v!=="" && v!=null)
+        .sort((a,b)=>a[0]-b[0]).map(([sinif,ort])=>`${sinif}.Sinif=${ort}`).join(", ")
+    : "";
   const denemeBolum = denemeGirilen && denemeGirilen.length > 0
     ? "DENEME SONUCLARI:\n" + denemeGirilen.map(d => {
         const dersMetni2 = dersListesi.map(ld => `${ld.label.substring(0,3)}: ${parseFloat(d.nets?.[ld.key]||0).toFixed(1)}`).join(", ");
@@ -1883,7 +1888,7 @@ async function getP2Analiz({ studentName, className, numara, sinavlar, d2, ilgil
     body: JSON.stringify({
       action: "p2_analiz",
       apiKey,
-      data: { studentName, className, numara, gorusmeler, dersMetni, d2Metni, denemeBolum, avg, ilgiler: ilgiler?.join(", "), kariyer_hedef, aile_notu },
+      data: { studentName, className, numara, gorusmeler, dersMetni, d2Metni, gecmisYilMetni, denemeBolum, avg, ilgiler: ilgiler?.join(", "), kariyer_hedef, aile_notu },
     }),
   });
   const data = await res.json();
@@ -3446,8 +3451,19 @@ const ILGI_ETIKETLERI = [
   "Fotoğrafçılık","Liderlik","Diğer"
 ];
 const EMPTY_SINAV = { turkce1:"", turkce2:"", mat1:"", mat2:"", inkilap1:"", inkilap2:"", fen1:"", fen2:"", ingilizce1:"", ingilizce2:"", din1:"", din2:"" };
+// Bir sınıf isminden ("8-A" gibi) önceki en fazla 3 sınıf düzeyini çıkarır:
+// 8. sınıf öğrencisi için [5,6,7]. Kademe bilgisine ihtiyaç duymaz.
+function pdrOncekiSinifDuzeyleri(className) {
+  const m = (className || "").match(/\d+/);
+  if (!m) return [];
+  const mevcut = parseInt(m[0], 10);
+  const liste = [];
+  for (let d = mevcut - 1; d >= Math.max(1, mevcut - 3); d--) liste.push(d);
+  return liste.reverse();
+}
+
 const EMPTY_D2 = { TN: "", E1: "", E2: "", CP: "", FR: "", E_yuzde: "", TN_E: "", PR: "", yorum: "" };
-const EMPTY_PROF2 = { studentName:"", className:"", sinavlar:{...EMPTY_SINAV}, d2: {...EMPTY_D2}, ilgiler:[], ilgiNot:"", kariyer_hedef:"", aile_notu:"" };
+const EMPTY_PROF2 = { studentName:"", className:"", sinavlar:{...EMPTY_SINAV}, d2: {...EMPTY_D2}, gecmisYillar:{}, ilgiler:[], ilgiNot:"", kariyer_hedef:"", aile_notu:"" };
 
 function today() { return new Date().toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" }); }
 // AI'a "bugün" bağlamı vermek için — sadece tarih değil GÜN ADI da lazım,
@@ -4119,6 +4135,19 @@ function RaporModal({ rapor, onKapat }) {
               <div>
                 <div style={{ ...S.bolumBaslik2 }}>Profil 2 — Akademik & İlgi Profili</div>
                 <div style={S.bolumIcerik2}>
+                  {profil2.gecmisYillar && Object.entries(profil2.gecmisYillar).filter(([,v])=>v!=="" && v!=null).length > 0 && (
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#9E78ED", textTransform: "uppercase", marginBottom: 6 }}>Geçmiş Yıl Sonu Not Ortalamaları</div>
+                      <div style={{ display:"flex", gap:8 }}>
+                        {Object.entries(profil2.gecmisYillar).filter(([,v])=>v!=="" && v!=null).sort((a,b)=>a[0]-b[0]).map(([sinif,ort]) => (
+                          <div key={sinif} style={{ flex:1, background:"#F3F0FF", borderRadius:8, padding:"8px", textAlign:"center" }}>
+                            <div style={{ fontSize: 16, fontWeight: 900, color: "#9E78ED" }}>{ort}</div>
+                            <div style={{ fontSize: 9, color: "#9E78ED", fontWeight:700 }}>{sinif}. Sınıf</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {profil2.sinavlar && Object.values(profil2.sinavlar).some(v => v !== "" && v !== null && v !== undefined) && (
                     <div style={{ marginBottom: 12 }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: "#9E78ED", textTransform: "uppercase", marginBottom: 6 }}>Yazılı Sınav Puanları</div>
@@ -5115,7 +5144,91 @@ function TestZamanCizelgesi({ kayitlar }) {
   );
 }
 
-function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayitlari, setTestKayitlari }) {
+// ── D2 Dikkat Testi Paneli (Testler sekmesi) ────────────────────────────────
+// AMAÇ: D2 girişini Profil 2 formundan Testler sekmesine taşımak. Veri hâlâ
+// AYNI YERDE (profiles2 dizisindeki öğrencinin en son kaydının d2 alanı)
+// tutuluyor — böylece PDF rapor, AI Akademik analizi ve profil ekranındaki
+// mevcut gösterim kodu HİÇ DEĞİŞMEDEN çalışmaya devam ediyor. Sadece giriş
+// noktası taşındı.
+function D2Paneli({ seciliAd, seciliSinif, seciliNumara, profiles2, setProfiles2 }) {
+  const mevcutP2 = profiles2.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliAd, seciliSinif, p.numara, seciliNumara));
+  const [d2, setD2] = useState({ ...EMPTY_D2, ...(mevcutP2?.d2 || {}) });
+  const [kaydedildi, setKaydedildi] = useState(false);
+  const inp = { width:"100%", padding:"9px 11px", borderRadius:9, border:`1px solid ${BORDER}`, fontSize:13, boxSizing:"border-box", background:CARD, color:TEXT };
+  const lbl = { fontSize:10, fontWeight:700, color:MUTED, display:"block", marginBottom:3 };
+
+  useEffect(() => {
+    setD2({ ...EMPTY_D2, ...(mevcutP2?.d2 || {}) });
+  }, [seciliAd, seciliSinif, seciliNumara]);
+
+  function alanGuncelle(key, val) {
+    setD2(nd0 => {
+      const nd = { ...nd0, [key]: val };
+      const tn = parseFloat(key === "TN" ? val : nd.TN), e1 = parseFloat(key === "E1" ? val : nd.E1) || 0, e2 = parseFloat(key === "E2" ? val : nd.E2) || 0;
+      if (!isNaN(tn) && tn > 0) { nd.TN_E = String(tn - e1 - e2); nd.E_yuzde = (((e1 + e2) / tn) * 100).toFixed(2); }
+      return nd;
+    });
+  }
+
+  async function kaydet() {
+    let guncel;
+    if (mevcutP2) {
+      guncel = profiles2.map(p => p.id === mevcutP2.id ? { ...p, d2 } : p);
+    } else {
+      guncel = [{ id: uid(), date: today(), studentName: seciliAd, className: seciliSinif, numara: seciliNumara || "", ...EMPTY_PROF2, d2 }, ...profiles2];
+    }
+    setProfiles2(guncel);
+    await saveProfiles2(guncel);
+    setKaydedildi(true); setTimeout(() => setKaydedildi(false), 2000);
+  }
+
+  return (
+    <div>
+      <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:12}}>
+        <div style={{fontSize:12,fontWeight:700,color:PURPLE,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>D2 Dikkat Testi — {seciliAd}</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
+          {[{key:"TN",label:"TN"},{key:"E1",label:"E1"},{key:"E2",label:"E2"},{key:"CP",label:"CP"},{key:"FR",label:"FR"},{key:"PR",label:"PR"}].map(f=>(
+            <div key={f.key}>
+              <label style={{...lbl,color:PURPLE}}>{f.key}</label>
+              <input type="number" placeholder="—" value={d2?.[f.key]||""}
+                onChange={e=>alanGuncelle(f.key, e.target.value)}
+                style={{...inp,borderColor:d2?.[f.key]?PURPLE:BORDER}} />
+            </div>
+          ))}
+        </div>
+        {(d2?.TN_E||d2?.E_yuzde) && (
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+            {[{k:"TN_E",l:"TN-E (Test Performansı)"},{k:"E_yuzde",l:"E% (Hata Oranı)"}].map(f=>(
+              <div key={f.k} style={{background:"#F3F0FF",borderRadius:8,padding:"8px",textAlign:"center"}}>
+                <div style={{fontSize:18,fontWeight:900,color:PURPLE}}>{d2?.[f.k]||"—"}</div>
+                <div style={{fontSize:10,color:PURPLE,fontWeight:700}}>{f.l}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {d2?.E_yuzde && (
+          <div style={{borderRadius:8,padding:"8px 12px",marginBottom:6,border:"2px solid",...(()=>{const e=parseFloat(d2.E_yuzde);return e<=1.5?{background:"#E6F5EE",borderColor:"#1A8C5B",color:"#1A8C5B"}:e<=2.5?{background:"#FDF6E3",borderColor:"#B07D1A",color:"#B07D1A"}:{background:"#FDECEA",borderColor:"#C0392B",color:"#C0392B"};})()}}>
+            <b>E = {d2.E_yuzde}%</b> → {(()=>{const e=parseFloat(d2.E_yuzde);return e<=1.5?"NORMAL (0–1.5)":e<=2.5?"DİKKAT EDİLMELİ (1.5–2.5)":"DİKKAT PROBLEMİ (2.5+)";})()}
+          </div>
+        )}
+        <label style={lbl}>DANIŞMAN YORUMU</label>
+        <textarea placeholder="D2 gözlemi…" value={d2?.yorum||""}
+          onChange={e=>setD2(nd=>({...nd,yorum:e.target.value}))}
+          rows={2} style={{...inp,resize:"vertical"}} />
+      </div>
+      <button onClick={kaydet} style={{
+        width:"100%", padding:"11px", borderRadius:11, border:"none",
+        background: kaydedildi ? ACCENT : PURPLE, color:"#fff", fontSize:13.5, fontWeight:800, cursor:"pointer"
+      }}>{kaydedildi ? "✓ Kaydedildi" : "D2 Sonucunu Kaydet"}</button>
+      <div style={{fontSize:10,color:MUTED,marginTop:8,lineHeight:1.5}}>
+        Bu sonuç Profil 2'nin öğrenciye ait en son kaydına yazılır; profil ekranında ve PDF raporda
+        otomatik görünür.
+      </div>
+    </div>
+  );
+}
+
+function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayitlari, setTestKayitlari, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler }) {
   const [seciliAd, setSeciliAd] = useState(aktifOgrenci?.name || "");
   const [ogrenciArama, setOgrenciArama] = useState("");
   const [kategori, setKategori] = useState(null); // "objektif" | "projektif" | null
@@ -5242,9 +5355,25 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
             <div style={{ marginBottom: 16 }}>
               <label style={{ ...lbl, marginBottom:6 }}>YENİ TEST SONUCU EKLE</label>
               {!kategori ? (
-                <div style={{ display:"flex", gap:8 }}>
-                  <button onClick={()=>setKategori("objektif")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #3B4FD8`, background:"#EEF2FF", color:"#3B4FD8", fontSize:13, fontWeight:800, cursor:"pointer" }}>🔵 Objektif Testler</button>
-                  <button onClick={()=>setKategori("projektif")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #9B87F0`, background:"#F3EEFB", color:"#9B87F0", fontSize:13, fontWeight:800, cursor:"pointer" }}>🟣 Projektif Testler</button>
+                <div>
+                  <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                    <button onClick={()=>setKategori("objektif")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #3B4FD8`, background:"#EEF2FF", color:"#3B4FD8", fontSize:13, fontWeight:800, cursor:"pointer" }}>🔵 Objektif Testler</button>
+                    <button onClick={()=>setKategori("projektif")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #9B87F0`, background:"#F3EEFB", color:"#9B87F0", fontSize:13, fontWeight:800, cursor:"pointer" }}>🟣 Projektif Testler</button>
+                  </div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={()=>setKategori("d2panel")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid ${PURPLE}`, background:"#F3F0FF", color:PURPLE, fontSize:13, fontWeight:800, cursor:"pointer" }}>🎯 D2 Dikkat Testi</button>
+                    <button onClick={()=>setKategori("oog")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #8B5A00`, background:"#FFF4E5", color:"#8B5A00", fontSize:13, fontWeight:800, cursor:"pointer" }}>🧩 ÖÖG Ön-Tarama</button>
+                  </div>
+                </div>
+              ) : kategori === "d2panel" ? (
+                <div>
+                  <button onClick={()=>setKategori(null)} style={{ background:"none", border:"none", color:MUTED, fontSize:12, cursor:"pointer", marginBottom:8, padding:0 }}>← Kategoriyi değiştir</button>
+                  <D2Paneli seciliAd={seciliAd} seciliSinif={seciliSinif} seciliNumara={seciliNumara} profiles2={profiles2} setProfiles2={setProfiles2} />
+                </div>
+              ) : kategori === "oog" ? (
+                <div>
+                  <button onClick={()=>setKategori(null)} style={{ background:"none", border:"none", color:MUTED, fontSize:12, cursor:"pointer", marginBottom:8, padding:0 }}>← Kategoriyi değiştir</button>
+                  <OOGPaneli seciliAd={seciliAd} seciliSinif={seciliSinif} seciliNumara={seciliNumara} oogDegerlendirmeler={oogDegerlendirmeler} setOogDegerlendirmeler={setOogDegerlendirmeler} />
                 </div>
               ) : (
                 <div>
@@ -10721,7 +10850,7 @@ function ProfilMerkez({
     if (p1) setProfForm({ notes:p1.notes||"", scores:{...EMPTY_SCORES,...p1.scores}, analysis:p1.analysis||"" });
     else setProfForm({ notes:"", scores:{...EMPTY_SCORES}, analysis:"" });
     if (p2) {
-      setProf2Form({...EMPTY_PROF2,...p2, sinavlar:{...EMPTY_SINAV,...(p2.sinavlar||{})}, d2:{...EMPTY_D2,...(p2.d2||{})}, ilgiler:p2.ilgiler||[]});
+      setProf2Form({...EMPTY_PROF2,...p2, sinavlar:{...EMPTY_SINAV,...(p2.sinavlar||{})}, d2:{...EMPTY_D2,...(p2.d2||{})}, gecmisYillar:{...(p2.gecmisYillar||{})}, ilgiler:p2.ilgiler||[]});
       setProf2Analiz(p2.d2_analiz||"");
     } else {
       setProf2Form({...EMPTY_PROF2});
@@ -10943,7 +11072,7 @@ function ProfilMerkez({
             <>
               {/* Alt sekmeler */}
               <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
-                {[["p1","📊 Profil 1"],["p2","📚 Profil 2 + D2"],["oog","🧩 ÖÖG"]].map(([k,l])=>(
+                {[["p1","📊 Profil 1"],["p2","📚 Profil 2"]].map(([k,l])=>(
                   <button key={k} onClick={()=>setAltSekme(k)} style={{
                     padding:"7px 14px", border:`1px solid ${altSekme===k ? ACCENT : BORDER}`,
                     background:altSekme===k ? ACCENT_LIGHT : "#fff",
@@ -11062,47 +11191,31 @@ function ProfilMerkez({
                     })}
                   </div>
 
-                  {/* D2 */}
-                  <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:12}}>
-                    <div style={{fontSize:12,fontWeight:700,color:PURPLE,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>D2 Dikkat Testi</div>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
-                      {[{key:"TN",label:"TN"},{key:"E1",label:"E1"},{key:"E2",label:"E2"},{key:"CP",label:"CP"},{key:"FR",label:"FR"},{key:"PR",label:"PR"}].map(f=>(
-                        <div key={f.key}>
-                          <label style={{...lbl,color:PURPLE}}>{f.key}</label>
-                          <input type="number" placeholder="—" value={prof2Form.d2?.[f.key]||""}
-                            onChange={e=>{
-                              const val=e.target.value;
-                              setProf2Form(p=>{
-                                const nd={...(p.d2||{}),[f.key]:val};
-                                const tn=parseFloat(f.key==="TN"?val:nd.TN),e1=parseFloat(f.key==="E1"?val:nd.E1)||0,e2=parseFloat(f.key==="E2"?val:nd.E2)||0;
-                                if(!isNaN(tn)&&tn>0){nd.TN_E=String(tn-e1-e2);nd.E_yuzde=(((e1+e2)/tn)*100).toFixed(2);}
-                                return {...p,d2:nd};
-                              });
-                            }}
-                            style={{...inp,borderColor:prof2Form.d2?.[f.key]?PURPLE:BORDER}} />
+                  {/* Geçmiş Yıl Sonu Not Ortalamaları */}
+                  {(() => {
+                    const oncekiler = pdrOncekiSinifDuzeyleri(seciliSinif);
+                    if (oncekiler.length === 0) return null;
+                    return (
+                      <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:12}}>
+                        <div style={{fontSize:12,fontWeight:700,color:PURPLE,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>Geçmiş Yıl Sonu Not Ortalamaları</div>
+                        <div style={{fontSize:10,color:MUTED,marginBottom:10,lineHeight:1.5}}>
+                          Elle girebilir, ya da Görüşme Notu'nu AI ile özetlerken notta geçen bir
+                          ortalama varsa oradan da öneri olarak gelebilir.
                         </div>
-                      ))}
-                    </div>
-                    {(prof2Form.d2?.TN_E||prof2Form.d2?.E_yuzde) && (
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-                        {[{k:"TN_E",l:"TN-E (Test Performansı)"},{k:"E_yuzde",l:"E% (Hata Oranı)"}].map(f=>(
-                          <div key={f.k} style={{background:"#F3F0FF",borderRadius:8,padding:"8px",textAlign:"center"}}>
-                            <div style={{fontSize:18,fontWeight:900,color:PURPLE}}>{prof2Form.d2?.[f.k]||"—"}</div>
-                            <div style={{fontSize:10,color:PURPLE,fontWeight:700}}>{f.l}</div>
-                          </div>
-                        ))}
+                        <div style={{display:"grid",gridTemplateColumns:`repeat(${oncekiler.length},1fr)`,gap:8}}>
+                          {oncekiler.map(d => (
+                            <div key={d}>
+                              <label style={{...lbl,color:PURPLE}}>{d}. SINIF</label>
+                              <input type="number" step="0.01" min="0" max="100" placeholder="—"
+                                value={prof2Form.gecmisYillar?.[d]||""}
+                                onChange={e=>setProf2Form(p=>({...p, gecmisYillar:{...(p.gecmisYillar||{}), [d]: e.target.value}}))}
+                                style={{...inp,borderColor:prof2Form.gecmisYillar?.[d]?PURPLE:BORDER,textAlign:"center",fontWeight:700}} />
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    )}
-                    {prof2Form.d2?.E_yuzde && (
-                      <div style={{borderRadius:8,padding:"8px 12px",marginBottom:6,border:"2px solid",...(()=>{const e=parseFloat(prof2Form.d2.E_yuzde);return e<=1.5?{background:"#E6F5EE",borderColor:"#1A8C5B",color:"#1A8C5B"}:e<=2.5?{background:"#FDF6E3",borderColor:"#B07D1A",color:"#B07D1A"}:{background:"#FDECEA",borderColor:"#C0392B",color:"#C0392B"};})()}}>
-                        <b>E = {prof2Form.d2.E_yuzde}%</b> → {(()=>{const e=parseFloat(prof2Form.d2.E_yuzde);return e<=1.5?"NORMAL (0–1.5)":e<=2.5?"DİKKAT EDİLMELİ (1.5–2.5)":"DİKKAT PROBLEMİ (2.5+)";})()}
-                      </div>
-                    )}
-                    <label style={lbl}>DANIŞMAN YORUMU</label>
-                    <textarea placeholder="D2 gözlemi…" value={prof2Form.d2?.yorum||""}
-                      onChange={e=>setProf2Form(p=>({...p,d2:{...(p.d2||{}),yorum:e.target.value}}))}
-                      rows={2} style={{...inp,resize:"vertical"}} />
-                  </div>
+                    );
+                  })()}
 
                   {/* İlgi alanları */}
                   <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14,marginBottom:12}}>
@@ -11137,13 +11250,6 @@ function ProfilMerkez({
                 </div>
               )}
 
-              {/* ÖÖG Tarama */}
-              {altSekme === "oog" && (
-                <OOGPaneli
-                  seciliAd={seciliAd} seciliSinif={seciliSinif} seciliNumara={seciliNumara}
-                  oogDegerlendirmeler={oogDegerlendirmeler} setOogDegerlendirmeler={setOogDegerlendirmeler}
-                />
-              )}
 
               {/* Kaydet butonu */}
               {altSekme !== "oog" && (
@@ -12546,6 +12652,7 @@ export default function App() {
   const [listening, setListening] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [onerilenHatirlatma, setOnerilenHatirlatma] = useState(null); // {metin} | null
+  const [onerilenGecmisYil, setOnerilenGecmisYil] = useState(null); // [{sinif,ortalama}] | null — Profil 2 geçmiş yıl önerisi
   const [profAiLoading, setProfAiLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [profSaved, setProfSaved] = useState(false);
@@ -12681,11 +12788,29 @@ export default function App() {
     // hiçbir şey kaydedilmez.
     const parcalar = tamCevap.split(/---HATIRLATMA---/i);
     const summary = parcalar[0].trim();
-    // Worker güncellenmeden önceki eski cevaplarda hatırlatmadan sonra hâlâ bir
-    // ---BIREYI_TANIMA--- bloğu gelebilir — burada atılıyor, hiç kullanılmıyor.
-    const hatirlatmaBlok = (parcalar[1] || "").split(/---BIREYI_TANIMA---/i)[0].trim();
+    const kalanTum = parcalar[1] || "";
+    // Yeni "Geçmiş Yıl Ortalaması" bloğunu ayırıyoruz. Eski worker cevaplarında
+    // hâlâ bir ---BIREYI_TANIMA--- kalıntısı gelebilir — o da savunma amaçlı atılıyor.
+    const gyParcalari = kalanTum.split(/---GECMIS_YIL_ORT---/i);
+    const hatirlatmaBlok = gyParcalari[0].split(/---BIREYI_TANIMA---/i)[0].trim();
+    const gecmisYilBlok = (gyParcalari[1] || "").trim();
     setForm(f => ({ ...f, summary }));
     setOnerilenHatirlatma(pdrHatirlatmaBlokParcala(hatirlatmaBlok));
+    // Geçmiş yıl ortalaması önerisi — aynı AI çağrısından gelir, ek maliyet
+    // üretmez. Onayla dendiğinde doğrudan Profil 2'nin en son kaydına yazılır.
+    if (gecmisYilBlok && !/^yok/i.test(gecmisYilBlok)) {
+      const bulgular2 = gecmisYilBlok.split("\n").map(satir => {
+        const m = satir.match(/^\s*(\d{1,2})\s*\|\s*([\d.,]+)\s*$/);
+        if (!m) return null;
+        const sinif = parseInt(m[1],10);
+        const ortalama = m[2].trim().replace(",",".");
+        if (isNaN(sinif) || sinif<1 || sinif>12 || !ortalama) return null;
+        return { sinif, ortalama };
+      }).filter(Boolean);
+      setOnerilenGecmisYil(bulgular2.length > 0 ? bulgular2 : null);
+    } else {
+      setOnerilenGecmisYil(null);
+    }
     setAiLoading(false);
   }
 
@@ -12699,6 +12824,26 @@ export default function App() {
     setHatirlatmalar(guncel);
     await saveHatirlatmalar(guncel);
     setOnerilenHatirlatma(null);
+  }
+
+  // Geçmiş yıl ortalaması önerisini doğrudan Profil 2'nin en son kaydına
+  // yazar — öğrencinin varsa önceki kaydı korunur, sadece gecmisYillar
+  // alanı güncellenir/eklenir.
+  async function handleGecmisYilOnayaGonder() {
+    if (!onerilenGecmisYil || !form.studentName.trim()) return;
+    const mevcut = profiles2.find(p => pdrAyniOgrenci(p.studentName, p.className, form.studentName, form.className, p.numara, form.numara));
+    const yeniGecmisYillar = { ...(mevcut?.gecmisYillar || {}) };
+    onerilenGecmisYil.forEach(o => { yeniGecmisYillar[o.sinif] = o.ortalama; });
+    let guncel2;
+    if (mevcut) {
+      guncel2 = profiles2.map(p => p.id === mevcut.id ? { ...p, gecmisYillar: yeniGecmisYillar } : p);
+    } else {
+      guncel2 = [{ id: uid(), date: today(), studentName: form.studentName, className: form.className, numara: form.numara || "", ...EMPTY_PROF2, gecmisYillar: yeniGecmisYillar }, ...profiles2];
+    }
+    setProfiles2(guncel2);
+    await saveProfiles2(guncel2);
+    setOnerilenGecmisYil(null);
+    alert("Geçmiş yıl ortalamaları Profil 2'ye kaydedildi.");
   }
 
   async function handleSave() {
@@ -13429,6 +13574,26 @@ export default function App() {
                   </div>
                 </div>
               )}
+              {/* AI'ın fark ettiği geçmiş yıl ortalamaları — doğrudan Profil 2'ye yazılır */}
+              {onerilenGecmisYil && (
+                <div style={{ background:"#F3F0FF", border:"1px solid #C9B8F5", borderRadius:10, padding:"10px 12px", marginBottom:10 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:PURPLE, marginBottom:8 }}>
+                    📚 AI, geçmiş yıl not ortalaması fark etti:
+                  </div>
+                  <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+                    {onerilenGecmisYil.map((o,i) => (
+                      <div key={i} style={{ flex:1, background:"#fff", borderRadius:8, padding:"6px", textAlign:"center" }}>
+                        <div style={{ fontSize:15, fontWeight:900, color:PURPLE }}>{o.ortalama}</div>
+                        <div style={{ fontSize:9.5, color:PURPLE, fontWeight:700 }}>{o.sinif}. Sınıf</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={handleGecmisYilOnayaGonder} disabled={!form.studentName.trim()} style={{ flex:1, padding:"7px", background:PURPLE, color:"#fff", border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>✓ Profil 2'ye Kaydet</button>
+                    <button onClick={()=>setOnerilenGecmisYil(null)} style={{ padding:"7px 14px", background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>Yoksay</button>
+                  </div>
+                </div>
+              )}
               {/* Kaydet */}
               <button onClick={handleSave} disabled={!form.studentName.trim()||!(form.summary.trim()||form.raw.trim())} style={{ width:"100%", padding:"13px", background:form.studentName&&(form.summary||form.raw)?PURPLE:BORDER, color:form.studentName&&(form.summary||form.raw)?"#fff":MUTED, border:"none", borderRadius:12, fontSize:15, fontWeight:800, cursor:"pointer" }}>
                 {saved?"✓ Kaydedildi!":"💾 Görüşmeyi Kaydet"}
@@ -13445,6 +13610,10 @@ export default function App() {
             setAktifOgrenci={setAktifOgrenci}
             testKayitlari={testKayitlari}
             setTestKayitlari={setTestKayitlari}
+            profiles2={profiles2}
+            setProfiles2={setProfiles2}
+            oogDegerlendirmeler={oogDegerlendirmeler}
+            setOogDegerlendirmeler={setOogDegerlendirmeler}
           />
         )}
 
