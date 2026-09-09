@@ -3843,6 +3843,58 @@ async function raporIndir(elementId, dosyaAdi) {
 // grafik kütüphanesine ihtiyaç duymadan. noktalar: [{x, y, etiket}], x
 // değerleri eşit aralıklı kabul edilir (deneme no, hafta no gibi sıralı
 // değerler için tasarlandı).
+const PDR_YUZDELIK_TABLOSU = [
+  // Negatif net: LGS'de 3 yanlış 1 doğruyu götürdüğü için toplam net eksiye
+  // düşebilir. D1-D9 giriş kutuları 0'ın altına inmiyor (min=0) ama GDO alanı
+  // negatif değer kabul ediyor — bu aralık sadece GDO için anlamlı.
+  { alt:-10, ust:0, min:90.4, max:99.6, ort:97.4, n:9 },
+  { alt:0, ust:3, min:89.5, max:96.9, ort:93.0, n:12 },
+  { alt:3, ust:6, min:79.1, max:94.5, ort:87.8, n:15 },
+  { alt:6, ust:9, min:73.1, max:92.1, ort:81.6, n:25 },
+  { alt:9, ust:12, min:66.8, max:83.3, ort:74.2, n:15 },
+  { alt:12, ust:15, min:59.9, max:82.0, ort:68.7, n:23 },
+  { alt:15, ust:18, min:57.5, max:76.0, ort:63.9, n:23 },
+  { alt:18, ust:21, min:49.5, max:65.0, ort:58.7, n:14 },
+  { alt:21, ust:24, min:48.4, max:59.0, ort:53.7, n:13 },
+  { alt:24, ust:27, min:44.7, max:56.6, ort:49.9, n:25 },
+  { alt:27, ust:30, min:41.5, max:51.7, ort:46.6, n:15 },
+  { alt:30, ust:33, min:32.9, max:46.9, ort:40.3, n:17 },
+  { alt:33, ust:36, min:30.8, max:46.1, ort:37.7, n:23 },
+  { alt:36, ust:39, min:28.5, max:40.2, ort:34.1, n:32 },
+  { alt:39, ust:42, min:26.2, max:37.6, ort:31.5, n:21 },
+  { alt:42, ust:45, min:24.7, max:30.8, ort:27.4, n:15 },
+  { alt:45, ust:48, min:19.5, max:28.4, ort:25.3, n:16 },
+  { alt:48, ust:51, min:17.8, max:25.9, ort:21.9, n:16 },
+  { alt:51, ust:54, min:16.2, max:24.2, ort:20.8, n:15 },
+  { alt:54, ust:57, min:14.3, max:21.6, ort:18.3, n:24 },
+  { alt:57, ust:60, min:15.1, max:17.9, ort:16.5, n:7 },
+  { alt:60, ust:63, min:11.2, max:15.2, ort:13.2, n:11 },
+  { alt:63, ust:66, min:8.5, max:12.5, ort:10.4, n:8 },
+  { alt:66, ust:69, min:7.3, max:9.9, ort:8.9, n:7 },
+  { alt:69, ust:72, min:4.5, max:8.4, ort:6.5, n:10 },
+  { alt:72, ust:75, min:4.3, max:5.1, ort:4.7, n:2 },
+  { alt:75, ust:78, min:2.5, max:4.7, ort:3.9, n:10 },
+  { alt:78, ust:81, min:1.3, max:3.1, ort:2.3, n:5 },
+  { alt:81, ust:84, min:0.8, max:1.7, ort:1.3, n:4 },
+  { alt:87, ust:90, min:0.2, max:0.2, ort:0.2, n:1 },
+];
+
+function pdrYuzdelikTahminEt(net) {
+  if (net === null || net === undefined || isNaN(net) || net < -10) return null;
+  const dolu = PDR_YUZDELIK_TABLOSU.filter(b => b.n > 0);
+  if (dolu.length === 0) return null;
+  const tamEslesen = dolu.find(b => net >= b.alt && net < b.ust);
+  if (tamEslesen) return { ...tamEslesen, yakinTahmin: false };
+  // Tabloda tam karşılığı olmayan bir net (örn. veri boşluğu ya da uç değer) —
+  // en yakın aralığı bul, "yaklaşık" olduğunu belirt.
+  let enYakin = dolu[0], enKucukFark = Math.abs(net - (dolu[0].alt + dolu[0].ust) / 2);
+  dolu.forEach(b => {
+    const fark = Math.abs(net - (b.alt + b.ust) / 2);
+    if (fark < enKucukFark) { enKucukFark = fark; enYakin = b; }
+  });
+  return { ...enYakin, yakinTahmin: true };
+}
+
 function raporCizgiGrafik(noktalar, { genislik = 460, yukseklik = 130, renk = "#1FA971", birim = "", minY = null, maxY = null } = {}) {
   if (!noktalar || noktalar.length === 0) return null;
   const solPad = 34, altPad = 22, ustPad = 14, sagPad = 12;
@@ -9547,6 +9599,35 @@ function OgrenciYonetim({
             )}
           </div>
 
+          {/* GDO için de, D1-D9 gibi, okulun bu yılki gerçek LGS sonucundan
+              çıkarılan yüzdelik dilimi tahmini — geçmiş dönem netinin bugünkü
+              LGS ölçeğinde yaklaşık nereye denk geldiğini gösterir. */}
+          {sinif7Data && !isNaN(parseFloat(sinif7Data.ortalama)) && (() => {
+            const tahmin = pdrYuzdelikTahminEt(parseFloat(sinif7Data.ortalama));
+            if (!tahmin) return null;
+            // n<8: bu aralıkta çok az öğrenci verisi var — ortalama güvenilir olmayabilir,
+            // rengi ve mesajı buna göre değiştiriyoruz (bkz. pdrYuzdelikTahminEt tanımı).
+            const azVeri = tahmin.n < 8;
+            const renk = azVeri ? "#B07D1A" : PURPLE;
+            const zemin = azVeri ? "#FEF5E7" : "#F3F0FF";
+            const kenarlik = azVeri ? "#F0D68A" : PURPLE;
+            return (
+              <div style={{ background: zemin, border: `1px solid ${kenarlik}`, borderRadius: 8, padding: "8px 12px", marginBottom: 14 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: renk }}>
+                    {azVeri ? "⚠️ " : "📊 "}GDO Tahmini Yüzdelik Dilim{tahmin.yakinTahmin ? " (yaklaşık)" : ""}
+                  </span>
+                  <span style={{ fontSize: 15, fontWeight: 900, color: renk }}>%{tahmin.min} – %{tahmin.max}</span>
+                </div>
+                <div style={{ fontSize: 9.5, color: renk, marginTop: 3, opacity: 0.9 }}>
+                  {azVeri
+                    ? `Bu aralıkta sadece ${tahmin.n} öğrenci verisi var — istatistiksel olarak güvenilir sayılamaz, dikkatli yorumla.`
+                    : `Okulun bu yılki LGS sonuçlarına göre, ${tahmin.alt}-${tahmin.ust} net aralığındaki ${tahmin.n} öğrencinin ortalama yüzdelik dilimi %${tahmin.ort}. Bu bir tahmindir, kesin sonuç değildir.`}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Alt sekmeler */}
           <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
             {[
@@ -10347,6 +10428,31 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
           <span style={{ fontSize: 13, fontWeight: 700, color: ACCENT }}>Toplam Net</span>
           <span style={{ fontSize: 22, fontWeight: 900, color: ACCENT }}>{isNaN(toplam) ? "—" : toplam.toFixed(2)}</span>
         </div>
+        {/* Okulun bu yılki gerçek LGS sonuçlarından çıkarılan yüzdelik dilimi
+            tahmini — AI kullanmaz, sabit bir referans tablosundan anında hesaplanır. */}
+        {!isNaN(toplam) && (() => {
+          const tahmin = pdrYuzdelikTahminEt(toplam);
+          if (!tahmin) return null;
+          const azVeri = tahmin.n < 8;
+          const renk = azVeri ? "#B07D1A" : PURPLE;
+          const zemin = azVeri ? "#FEF5E7" : "#F3F0FF";
+          const kenarlik = azVeri ? "#F0D68A" : PURPLE;
+          return (
+            <div style={{ background: zemin, border: `1px solid ${kenarlik}`, borderRadius: 8, padding: "8px 12px", marginBottom: 10 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: renk }}>
+                  {azVeri ? "⚠️ " : "📊 "}Tahmini Yüzdelik Dilim{tahmin.yakinTahmin ? " (yaklaşık)" : ""}
+                </span>
+                <span style={{ fontSize: 15, fontWeight: 900, color: renk }}>%{tahmin.min} – %{tahmin.max}</span>
+              </div>
+              <div style={{ fontSize: 9.5, color: renk, marginTop: 3, opacity: 0.9 }}>
+                {azVeri
+                  ? `Bu aralıkta sadece ${tahmin.n} öğrenci verisi var — istatistiksel olarak güvenilir sayılamaz, dikkatli yorumla.`
+                  : `Okulun bu yılki LGS sonuçlarına göre, ${tahmin.alt}-${tahmin.ust} net aralığındaki ${tahmin.n} öğrencinin ortalama yüzdelik dilimi %${tahmin.ort}. Bu bir tahmindir, kesin sonuç değildir.`}
+              </div>
+            </div>
+          );
+        })()}
         <div style={{ marginBottom: 10 }}>
           <label style={{ fontSize: 10, fontWeight: 700, color: MUTED, display: "block", marginBottom: 3 }}>GİRİŞ TARİHİ (hangi görüşmede ele alındıysa)</label>
           <input value={girisTarihi} onChange={e=>setGirisTarihi(e.target.value)} placeholder="GG.AA.YYYY"
