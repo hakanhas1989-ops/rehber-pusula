@@ -62,7 +62,13 @@ function showPdrFatalError(msg, stack, src) {
     '<div style="margin-bottom:8px;">' + msg.replace(/</g,'&lt;') + '</div>' +
     (src ? '<div style="margin-bottom:8px;opacity:0.8;">Konum: ' + src.replace(/</g,'&lt;') + '</div>' : '') +
     (stack ? '<div style="font-size:10px;opacity:0.8;">' + stack.replace(/</g,'&lt;') + '</div>' : '');
-  document.body.appendChild(box);
+  // document.body henüz oluşmamışsa (çok erken bir hata, örneğin bir CDN
+  // dosyası <head> içindeyken yüklenemezse) document.documentElement'e
+  // eklenir; o da yoksa (neredeyse imkansız ama) sessizce vazgeçilir —
+  // hatayı göstermeye çalışırken ikinci bir hataya düşülmez.
+  var hedef = document.body || document.documentElement;
+  if (hedef) { hedef.appendChild(box); }
+  else { try { console.error('[pdr-fatal]', msg, stack, src); } catch (e) {} }
 }
 setTimeout(function() {
   var root = document.getElementById('root');
