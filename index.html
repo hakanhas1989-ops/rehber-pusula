@@ -471,8 +471,13 @@ async function pdrBildirimTokenKaydet(uid) {
     const mevcutStr = await pdrFirestoreOku(uid, "fcmTokens");
     let mevcut = [];
     try { mevcut = mevcutStr ? JSON.parse(mevcutStr) : []; } catch (e) { mevcut = []; }
-    if (!mevcut.includes(token)) {
-      mevcut.push(token);
+    // Kayıtlar hem eski biçimde (düz metin token) hem yeni biçimde
+    // ({token, tarih} nesnesi) gelebilir. Firebase token'ı zamanla
+    // DEĞİŞTİRDİĞİNDE eskisi otomatik silinmiyordu, bu da aynı cihaza iki
+    // bildirim gitmesine (çift bildirim) yol açıyordu.
+    const tokenDeger = (x) => (typeof x === "string" ? x : x?.token);
+    if (!mevcut.some(x => tokenDeger(x) === token)) {
+      mevcut.push({ token, tarih: today() });
       await pdrFirestoreYaz(uid, "fcmTokens", JSON.stringify(mevcut));
     }
   } catch (e) {
@@ -6084,12 +6089,20 @@ function BildirimDurumu() {
         const s = await pdrFirestoreOku(uid, "fcmTokens");
         try { kayitli = s ? JSON.parse(s) : []; } catch (e) { kayitli = []; }
       }
-      setDurum({ yukleniyor: false, izin, adet: kayitli ? kayitli.length : 0, uid });
+      setDurum({ yukleniyor: false, izin, adet: kayitli ? kayitli.length : 0, liste: kayitli || [], uid });
     } catch (e) {
       setDurum({ yukleniyor: false, hata: e.message });
     }
   }
   useEffect(() => { kontrolEt(); }, []);
+
+  async function cihazSil(index) {
+    const uid = durum.uid;
+    if (!uid) return;
+    const yeni = (durum.liste || []).filter((_, i) => i !== index);
+    await pdrFirestoreYaz(uid, "fcmTokens", JSON.stringify(yeni));
+    kontrolEt();
+  }
 
   async function yenidenKaydet() {
     setMesaj("Kaydediliyor...");
@@ -6105,7 +6118,8 @@ function BildirimDurumu() {
       if (!token) { setMesaj("Bildirim kimliği alınamadı. İnternet bağlantını kontrol edip tekrar dene."); return; }
       const mevcutStr = await pdrFirestoreOku(uid, "fcmTokens");
       let mevcut = []; try { mevcut = mevcutStr ? JSON.parse(mevcutStr) : []; } catch (e) { mevcut = []; }
-      if (!mevcut.includes(token)) mevcut.push(token);
+      const tokenDeger = (x) => (typeof x === "string" ? x : x?.token);
+      if (!mevcut.some(x => tokenDeger(x) === token)) mevcut.push({ token, tarih: today() });
       await pdrFirestoreYaz(uid, "fcmTokens", JSON.stringify(mevcut));
       setMesaj("Bu cihaz bildirim için kaydedildi.");
       kontrolEt();
@@ -6132,6 +6146,23 @@ function BildirimDurumu() {
       </div>
       <div>Tarayıcı izni: <b>{durum.izin === "granted" ? "verildi" : durum.izin === "denied" ? "engellendi" : "henüz sorulmadı"}</b></div>
       <div>Kayıtlı cihaz: <b>{durum.adet || 0}</b></div>
+      {durum.adet > 1 && (
+        <div style={{ marginTop: 6, background: "rgba(255,255,255,0.6)", borderRadius: 8, padding: "6px 8px" }}>
+          <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 4 }}>
+            1'den fazla cihaz kayıtlı — eskisi/tekrar edeni sil, aksi halde her bildirim birden fazla gelir:
+          </div>
+          {(durum.liste || []).map((x, i) => {
+            const tarih = typeof x === "object" ? x.tarih : null;
+            const tokenStr = typeof x === "string" ? x : x.token;
+            return (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0", fontSize: 10.5 }}>
+                <span>Cihaz {i + 1} {tarih ? `· ${tarih}` : "· tarih bilinmiyor (eski kayıt)"} <span style={{ opacity: 0.6 }}>· …{(tokenStr || "").slice(-6)}</span></span>
+                <button onClick={() => cihazSil(i)} style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid #C0392B", background: "#fff", color: "#C0392B", fontSize: 9.5, fontWeight: 700, cursor: "pointer" }}>Sil</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
       {!hepsiTamam && (
         <div style={{ marginTop: 6 }}>
           Hatırlatmalar her gün 08:00 ve 16:00'da kontrol edilir; bildirim gelmesi için bu cihazın kayıtlı olması gerekir.
