@@ -12772,6 +12772,18 @@ export default function App() {
   const [profiles2, setProfiles2] = useState([]);
   const [oogDegerlendirmeler, setOogDegerlendirmeler] = useState([]);
   const [tab, setTab] = useState("ogrenci");
+  // Sekme çubuğunu tıklanan sekme etrafında ortalamak için kullanılıyor —
+  // kullanıcı artık elle kaydırmak zorunda kalmadan, seçtiği sekme her zaman
+  // görünür ve kendinden önceki/sonraki sekmelerin arasında konumlanıyor.
+  const pdrSekmeCubugu = React.useRef(null);
+  React.useEffect(() => {
+    const kap = pdrSekmeCubugu.current;
+    if (!kap) return;
+    const buton = kap.querySelector(`[data-pdr-sekme-key="${tab}"]`);
+    if (!buton) return;
+    const hedef = buton.offsetLeft - (kap.clientWidth / 2) + (buton.offsetWidth / 2);
+    kap.scrollTo({ left: Math.max(0, hedef), behavior: "smooth" });
+  }, [tab]);
   const [form, setForm] = useState({ studentName: "", className: "", numara: "", meetingType: "Öğrenci", topic: "", raw: "", summary: "", tarih: today() });
   const [notOgrenciArama, setNotOgrenciArama] = useState("");
   const [profForm, setProfForm] = useState({ studentName: "", className: "", numara: "", notes: "", scores: { ...EMPTY_SCORES }, analysis: "" });
@@ -13411,7 +13423,14 @@ export default function App() {
   // Konu Haritası artık hem LGS (ortaokul) hem TYT/AYT (lise) konu/soru
   // verisiyle dolu — sadece ilkokulda gizlenir.
   const ILKOKULDA_GIZLENECEK_SEKMELER = ["net_haritasi", "deneme", "konu_haritasi"];
-  const TABS_TUMU = [
+  // Sekme kalabalığını azaltmak için birbirine yakın işlevdeki sekmeler tek bir
+// üst sekmenin altında gruplandı — pdr-program'daki AYNI mantık, ama bu
+// programda "Müdahale Programları" ve "Takvim" sekmeleri hiç YOK (kişisel
+// programa özel), o yüzden Müdahale ve Zaman grupları burada kurulmadı —
+// tek üyeli bir grup anlamsız olurdu. "testler" yine bilerek Akademik
+// grubuna katılmadı (ilkokulda sadece deneme/net_haritasi/konu_haritasi
+// gizleniyor, Testler ilkokulda da görünür kalmalı).
+const TABS_TUMU = [
     { key: "ogrenciler", label: "👥 Öğrenciler" },
     { key: "yeni", label: "📝 Görüşme Notu" },
     { key: "profil_merkez", label: "📋 Profil" },
@@ -13419,17 +13438,14 @@ export default function App() {
     { key: "sinif_profili", label: "🏫 Sınıf" },
     { key: "devamsizlik", label: "📅 Devamsızlık" },
     { key: "risk", label: "⚠ Risk" },
-    { key: "deneme", label: "📊 Deneme" },
-    { key: "net_haritasi", label: "🎯 Net Haritası" },
-    { key: "konu_haritasi", label: "📚 Konu Haritası" },
+    { key: "deneme", label: "📊 Akademik", grup: ["deneme","net_haritasi","konu_haritasi"],
+      grupEtiketler: { deneme: "📊 Deneme", net_haritasi: "🎯 Net Haritası", konu_haritasi: "📚 Konu Haritası" } },
     { key: "testler", label: "🧪 Testler" },
     { key: "hatirlatici", label: "🔔 Hatırlatıcı" },
-    { key: "belgeler", label: "📑 Belgeler" },
-    { key: "kutuphane", label: "📚 Kütüphane" },
-    { key: "kazanimlar", label: "📘 Kazanımlar" },
-    { key: "grup_calismalari", label: "👪 Grup Çalışmaları" },
-    { key: "kriz", label: "🚨 Kriz Müdahale" },
-    { key: "sosyometri", label: "🤝 Sosyometri" },
+    { key: "belgeler", label: "📑 Kayıtlar", grup: ["belgeler","kutuphane","kazanimlar"],
+      grupEtiketler: { belgeler: "📑 Belgeler", kutuphane: "📚 Kütüphane", kazanimlar: "📘 Kazanımlar" } },
+    { key: "grup_calismalari", label: "🏫 Okul Çapı", grup: ["grup_calismalari","kriz","sosyometri"],
+      grupEtiketler: { grup_calismalari: "👪 Grup Çalışmaları", kriz: "🚨 Kriz Müdahale", sosyometri: "🤝 Sosyometri" } },
     { key: "istatistik", label: "İstatistik" },
     { key: "ayarlar", label: "⚙️ Ayarlar" },
     ...(pdrIsAdmin ? [{ key: "onaylar", label: "🛠 Onaylar" }] : []),
@@ -13582,16 +13598,23 @@ export default function App() {
       })()}
 
       {/* Tabs */}
-      <div style={{ display: "flex", background: CARD, borderBottom: `1px solid ${BORDER}`, overflowX: "auto", boxShadow: "0 4px 10px rgba(20,40,32,0.14)", position: "sticky", top: 0, zIndex: 8 }}>
+      <div ref={pdrSekmeCubugu} style={{ display: "flex", background: CARD, borderBottom: `1px solid ${BORDER}`, overflowX: "auto", boxShadow: "0 4px 10px rgba(20,40,32,0.14)", position: "sticky", top: 0, zIndex: 8 }}>
         {TABS.map(t => {
-          const dolu = pdrSekmeDolulugu[t.key];
+          // Gruplanmış bir üst sekme, üyelerinden HERHANGİ BİRİ dolu ya da
+          // aktifse öyle görünür — tek bir üyeye değil tüm gruba bakar.
+          const grupUyeleri = t.grup || [t.key];
+          const grupAktifMi = grupUyeleri.includes(tab);
+          const dolu = t.grup
+            ? (grupUyeleri.some(k => pdrSekmeDolulugu[k] === true) ? true
+               : grupUyeleri.some(k => pdrSekmeDolulugu[k] === false) ? false : undefined)
+            : pdrSekmeDolulugu[t.key];
           return (
-            <button key={t.key} onClick={() => setTab(t.key)} title={dolu === undefined ? undefined : (aktifOgrenci?.name ? `${aktifOgrenci.name}: ${dolu ? "kayıt var" : "henüz kayıt yok"}` : (dolu ? "Bu yıl için kayıt var" : "Bu yıl için henüz kayıt yok"))} style={{
+            <button key={t.key} data-pdr-sekme-key={t.key} onClick={() => setTab(t.key)} title={dolu === undefined ? undefined : (aktifOgrenci?.name ? `${aktifOgrenci.name}: ${dolu ? "kayıt var" : "henüz kayıt yok"}` : (dolu ? "Bu yıl için kayıt var" : "Bu yıl için henüz kayıt yok"))} style={{
               flexShrink: 0, padding: "11px 10px", border: "none", background: "none",
-              fontWeight: tab === t.key ? 700 : 500,
-              color: tab === t.key ? ACCENT : MUTED,
+              fontWeight: grupAktifMi ? 700 : 500,
+              color: grupAktifMi ? ACCENT : MUTED,
               fontSize: 11, cursor: "pointer",
-              borderBottom: tab === t.key ? `3px solid ${ACCENT}` : "3px solid transparent",
+              borderBottom: grupAktifMi ? `3px solid ${ACCENT}` : "3px solid transparent",
               display: "flex", alignItems: "center", gap: 4,
             }}>
               {dolu !== undefined && (
@@ -13608,6 +13631,27 @@ export default function App() {
           );
         })}
       </div>
+
+      {/* Grup içi geçiş şeridi — aktif sekme gruplanmış üst sekmelerden birine
+          aitse (bkz. TABS_TUMU'daki "grup" alanı), o grubun kardeşleri arasında
+          ana sekme çubuğuna dönmeden geçiş yapılabilsin diye çıkar. */}
+      {(() => {
+        const aktifGrup = TABS_TUMU.find(t => t.grup && t.grup.includes(tab));
+        if (!aktifGrup) return null;
+        return (
+          <div style={{ display: "flex", gap: 6, padding: "8px 12px", background: "#F3F0FF",
+            borderBottom: `1px solid ${BORDER}`, overflowX: "auto", position: "sticky", top: 0, zIndex: 7 }}>
+            {aktifGrup.grup.map(k => (
+              <button key={k} onClick={() => setTab(k)} style={{
+                flexShrink: 0, padding: "6px 12px", borderRadius: 20, border: "none", cursor: "pointer",
+                fontSize: 11.5, fontWeight: tab === k ? 800 : 600,
+                background: tab === k ? PURPLE : "#fff",
+                color: tab === k ? "#fff" : PURPLE,
+              }}>{aktifGrup.grupEtiketler?.[k] || k}</button>
+            ))}
+          </div>
+        );
+      })()}
 
       <div style={{ padding: "16px 16px 80px", minHeight: "calc(100vh - 200px)",
         background: "linear-gradient(160deg, rgba(23,199,128,0.16) 0%, rgba(158,120,237,0.10) 52%, rgba(158,120,237,0.30) 100%)" }}>
