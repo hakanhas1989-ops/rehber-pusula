@@ -1043,20 +1043,31 @@ if ("serviceWorker" in navigator) {
 // Storage API — localStorage tabanlı + Firestore bulut senkronizasyonu
 window.storage = {
   get: async (key) => {
+    // ÖNEMLİ DÜZELTME: eskiden yerelde HERHANGİ bir değer varsa (ne kadar
+    // eski olursa olsun) o kullanılıyor, buluta hiç bakılmıyordu. Bu, bir
+    // cihazda (örn. telefon) girilen/yüklenen veri diğer cihazda (örn.
+    // tablet) hiç görünmemesine yol açıyordu — tablet kendi eski yerel
+    // kopyasını "yeterli" sanıp buluttaki güncel veriyi hiç sormuyordu.
+    // Artık giriş yapılıyken (ve internet varken) ÖNCE HER ZAMAN bulut
+    // kontrol ediliyor — cihazlar arası tutarlılık böyle sağlanıyor. Yerel
+    // kopya sadece çevrimdışıyken ya da bulut isteği başarısız olduğunda
+    // yedek olarak kullanılıyor.
+    const user = pdrAuth.currentUser;
+    if (user) {
+      try {
+        const bulutDeger = await pdrFirestoreOku(user.uid, key);
+        if (bulutDeger !== null) {
+          try { localStorage.setItem("rpusula__" + key, bulutDeger); } catch {}
+          return { key, value: bulutDeger };
+        }
+        // Bulutta bu anahtar için hiç veri yok — yerelde henüz senkronize
+        // olmamış bir yazma olabilir, ona bakılacak (aşağıda).
+      } catch (e) { console.warn("Bulut okuma hatası, yerel denenecek:", key, e); }
+    }
     try {
       const v = localStorage.getItem("rpusula__" + key);
       if (v !== null) return { key, value: v };
     } catch (e) { console.warn("Yerel okuma hatası:", key, e); }
-    // Yerelde yoksa (örn. yeni cihaz, henüz senkronize olmadı) doğrudan buluttan dene
-    const user = pdrAuth.currentUser;
-    if (!user) return null;
-    try {
-      const bulutDeger = await pdrFirestoreOku(user.uid, key);
-      if (bulutDeger !== null) {
-        try { localStorage.setItem("rpusula__" + key, bulutDeger); } catch {}
-        return { key, value: bulutDeger };
-      }
-    } catch (e) { console.warn("Bulut okuma hatası:", key, e); }
     return null;
   },
   set: async (key, value) => {
