@@ -10284,6 +10284,8 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
   const dersler = aktifDersler(sinavTuru);
   const [excelPanelAcik, setExcelPanelAcik] = useState(false);
   const [guncelYilExcelAcik, setGuncelYilExcelAcik] = useState(false);
+  const [denemeSilAcik, setDenemeSilAcik] = useState(false);
+  const [denemeSiliniyor, setDenemeSiliniyor] = useState(false);
   const [seciliOgrenci, setSeciliOgrenci] = useState(aktifOgrenci?.name || "");
   // aktifOgrenci değişince güncelle
   useEffect(() => { if (aktifOgrenci?.name) setSeciliOgrenci(aktifOgrenci.name); }, [aktifOgrenci?.name]);
@@ -10551,6 +10553,45 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
           setDenemeler={setDenemeler}
           onKapat={() => setGuncelYilExcelAcik(false)}
         />
+      )}
+
+      {/* Bu yılın deneme verilerini (D1, D2, ...) toplu silme — GDO'ya (7. sınıf
+          geçmiş dönem ortalaması) DOKUNMAZ, sadece bu yıl için toplu yüklenen/
+          girilen deneme kayıtlarını temizler. Yanlış Excel yüklendiğinde baştan
+          başlayabilmek için. */}
+      {!denemeSilAcik ? (
+        <button onClick={() => setDenemeSilAcik(true)} style={{
+          width: "100%", padding: "8px", marginBottom: 10,
+          background: "none", border: "1px dashed #F28B82", color: "#C5221F",
+          borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer"
+        }}>🗑 Bu Yılın Deneme Verilerini Sil</button>
+      ) : (
+        <div style={{ background: "#FDECEA", border: "1px solid #F28B82", borderRadius: 10, padding: 10, marginBottom: 10 }}>
+          <div style={{ fontSize: 11, color: "#C0392B", marginBottom: 8, lineHeight: 1.6 }}>
+            Bu yıl için girilen <b>tüm öğrencilerin tüm denemeleri</b> (D1, D2, …) kalıcı olarak silinecek.
+            <b> GDO (geçmiş dönem ortalaması) etkilenmez</b>, o ayrı tutulur. Bu işlem geri alınamaz.
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setDenemeSilAcik(false)} style={{
+              flex: 1, padding: "7px", background: CARD, border: `1px solid ${BORDER}`, boxShadow: "0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 8,
+              fontSize: 11, fontWeight: 700, color: MUTED, cursor: "pointer"
+            }}>Vazgeç</button>
+            <button onClick={async () => {
+              setDenemeSiliniyor(true);
+              const yeni = {};
+              Object.entries(denemeler || {}).forEach(([key, val]) => {
+                if (val && val["7sinif"]) yeni[key] = { "7sinif": val["7sinif"] };
+              });
+              setDenemeler(yeni);
+              await saveDenemeler(yeni);
+              setDenemeSiliniyor(false);
+              setDenemeSilAcik(false);
+            }} disabled={denemeSiliniyor} style={{
+              flex: 1, padding: "7px", background: "#C5221F", border: "none", borderRadius: 8,
+              fontSize: 11, fontWeight: 700, color: "#fff", cursor: "pointer", opacity: denemeSiliniyor ? 0.6 : 1
+            }}>{denemeSiliniyor ? "Siliniyor..." : "Evet, Sil"}</button>
+          </div>
+        </div>
       )}
 
       {!excelPanelAcik && (
