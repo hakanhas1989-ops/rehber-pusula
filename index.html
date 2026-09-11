@@ -8897,29 +8897,36 @@ function ExcelTopluYukle({ ogrenciler, setOgrenciler, denemeler, setDenemeler, a
   const [onarimSonuc, setOnarimSonuc] = useState(null);
   const [onariliyor, setOnariliyor] = useState(false);
 
-  // ── Onarım: yukarıdaki hatanın DÜZELTİLMESİNDEN ÖNCE yüklenmiş GDO
-  // verilerini kurtarır. "Ad || Sınıf || Numara" biçimindeki her anahtarı
-  // geri çözüp kayıtlı bir öğrenciyle (büyük/küçük harf farkını görmezden
-  // gelerek) eşleştirir; anahtar kayıtlı öğrencininkiyle birebir aynı
-  // değilse veriyi DOĞRU anahtara taşır. Zaten doğru olanlara dokunmaz.
+  // ── Onarım: yukarıdaki hatanın DÜZELTİLMESİNDEN ÖNCE yüklenmiş TÜM deneme
+  // verilerini kurtarır — hem GDO (7sinif) hem bu yılki D1-D9 kayıtları.
+  // "Ad || Sınıf || Numara" biçimindeki her anahtarı geri çözüp kayıtlı bir
+  // öğrenciyle (büyük/küçük harf farkını görmezden gelerek) eşleştirir;
+  // anahtar kayıtlı öğrencininkiyle birebir aynı değilse veriyi DOĞRU
+  // anahtara taşır/birleştirir. Doğru anahtarda zaten olan alanların üzerine
+  // yazmaz — sadece eksik olanları tamamlar.
   async function handleOnar() {
     setOnariliyor(true);
     const yeni = { ...denemeler };
     let tasinan = 0, bulunamayan = 0;
     Object.entries(denemeler || {}).forEach(([eskiKey, val]) => {
-      if (!val || !val["7sinif"]) return;
+      if (!val || Object.keys(val).length === 0) return;
       const parcalar = eskiKey.split(" || ");
       const [hamAd, hamSinif, hamNo] = parcalar;
       const kayitli = ogrenciler.find(o => pdrAyniOgrenci(o.studentName, o.className, hamAd, hamSinif, o.numara, hamNo));
       if (!kayitli) { bulunamayan++; return; }
       const dogruKey = pdrOgrAnahtar(kayitli.studentName, kayitli.className, kayitli.numara);
-      if (dogruKey === eskiKey) return;
-      if (yeni[dogruKey]?.["7sinif"]) return;
-      yeni[dogruKey] = { ...(yeni[dogruKey] || {}), "7sinif": val["7sinif"] };
-      if (yeni[eskiKey]) {
-        const { "7sinif": _atilan, ...kalan } = yeni[eskiKey];
-        if (Object.keys(kalan).length > 0) yeni[eskiKey] = kalan; else delete yeni[eskiKey];
-      }
+      if (dogruKey === eskiKey) return; // zaten doğru
+      const hedefte = yeni[dogruKey] || {};
+      const eksikAlanlar = {};
+      let tasinacakVarMi = false;
+      Object.entries(val).forEach(([alan, deger]) => {
+        if (hedefte[alan] === undefined) { eksikAlanlar[alan] = deger; tasinacakVarMi = true; }
+      });
+      if (!tasinacakVarMi) return;
+      yeni[dogruKey] = { ...hedefte, ...eksikAlanlar };
+      const kalanEski = { ...val };
+      Object.keys(eksikAlanlar).forEach(alan => delete kalanEski[alan]);
+      if (Object.keys(kalanEski).length > 0) yeni[eskiKey] = kalanEski; else delete yeni[eskiKey];
       tasinan++;
     });
     setDenemeler(yeni);
@@ -9107,7 +9114,7 @@ function ExcelTopluYukle({ ogrenciler, setOgrenciler, denemeler, setDenemeler, a
         background: "none", border: "1px dashed #E67E22", color: "#B7590B",
         borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: onariliyor ? 0.6 : 1
       }}>
-        {onariliyor ? "⏳ Taranıyor..." : "🔧 Daha Önce Yüklenip Kartlara Yansımayan GDO Verilerini Onar"}
+        {onariliyor ? "⏳ Taranıyor..." : "🔧 Daha Önce Yüklenip Kartlara Yansımayan Deneme Verilerini Onar (GDO + Bu Yıl)"}
       </button>
       {onarimSonuc && (
         <div style={{marginTop:8, background:"#FDF6E3", borderRadius:8, padding:10, fontSize:11.5, color:"#8A5A00", lineHeight:1.6}}>
@@ -10243,7 +10250,7 @@ function DenemeBazliRiskGosterimi({ denemeler, kayitliListesi, dersler }) {
   );
 }
 
-function DenemeGuncelYilTopluYukle({ denemeler, setDenemeler, onKapat }) {
+function DenemeGuncelYilTopluYukle({ ogrenciler, denemeler, setDenemeler, onKapat }) {
   const [denemeNo, setDenemeNo] = useState(1);
   const [yukleniyor, setYukleniyor] = useState(false);
   const [sonuc, setSonuc] = useState(null);
@@ -10290,8 +10297,20 @@ function DenemeGuncelYilTopluYukle({ denemeler, setDenemeler, onKapat }) {
           const net = parseFloat(netStr);
           if (isNaN(net)) { eslesmeyen.push(adSoyad); continue; }
 
-          const key = pdrOgrAnahtar(adSoyad, sinif, numara);
-          const mevcut = pdrSozlukOku(yeniDenemeler, adSoyad, sinif, numara) || {};
+          // ÖNEMLİ DÜZELTME: Excel'deki ham yazımla anahtar kurmak yerine,
+          // önce kayıtlı öğrenci listesinde (büyük/küçük harf farkını
+          // görmezden gelerek) eşleşen bir öğrenci arıyoruz. Eşleşme varsa
+          // KAYITLI öğrencinin kendi isim/sınıf/numarasıyla anahtar kuruyoruz
+          // — aksi halde veri yanlış anahtara yazılıp hiçbir karta
+          // yansımıyordu (aynı hata GDO yüklemesinde de vardı, orada
+          // düzeltilmişti; burada da aynı kök sorun varmış).
+          const kayitli = (ogrenciler || []).find(o => pdrAyniOgrenci(o.studentName, o.className, adSoyad, sinif, o.numara, numara));
+          const yazimAdi = kayitli ? kayitli.studentName : adSoyad;
+          const yazimSinif = kayitli ? kayitli.className : sinif;
+          const yazimNumara = kayitli ? kayitli.numara : numara;
+
+          const key = pdrOgrAnahtar(yazimAdi, yazimSinif, yazimNumara);
+          const mevcut = pdrSozlukOku(yeniDenemeler, yazimAdi, yazimSinif, yazimNumara) || {};
           yeniDenemeler[key] = { ...mevcut, [denemeNo]: { _topluNet: net } };
           islenen++;
         }
@@ -10306,6 +10325,7 @@ function DenemeGuncelYilTopluYukle({ denemeler, setDenemeler, onKapat }) {
     };
     reader.readAsBinaryString(file);
   }
+
 
   return (
     <div style={{ background:CARD, border:`2px solid ${BLUE}`, borderRadius:12, padding:14, marginBottom:14 }}>
@@ -10608,6 +10628,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
       )}
       {guncelYilExcelAcik && (
         <DenemeGuncelYilTopluYukle
+          ogrenciler={ogrenciler}
           denemeler={denemeler}
           setDenemeler={setDenemeler}
           onKapat={() => setGuncelYilExcelAcik(false)}
@@ -11921,8 +11942,22 @@ function SunumGrafigi({ ogrenciler, denemeler, sinavTuru, gorunenAdlar }) {
       })
       .filter(p => !isNaN(p.no))
       .sort((a,b)=>a.no-b.no);
-    const gdoHam = parseFloat(d["7sinif"]?.ortalama);
-    if (!isNaN(gdoHam)) noktalar.unshift({ no: 0, toplam: Math.round(gdoHam*10)/10 });
+    // Geçmiş dönem: mümkünse 9 denemenin HER BİRİNİ ayrı nokta olarak göster
+    // (G1..G9, no: -9..-1 — böylece D1'den önce, kendi aralarında sıralı
+    // dururlar). Sadece toplu ortalama girilmişse (eski/manuel giriş, tek
+    // sayı) tek bir "GDO" noktasına (no:0) düşer — veri kaybı olmasın diye.
+    const yedi = d["7sinif"];
+    if (yedi) {
+      const gecmisNoktalar = Object.entries(yedi.denemeler || {})
+        .map(([gNo, veri]) => ({ no: parseInt(gNo,10) - 10, toplam: Math.round((parseFloat(veri?.toplam_net)||0)*10)/10 }))
+        .filter(p => !isNaN(p.no) && p.toplam > 0);
+      if (gecmisNoktalar.length > 0) {
+        noktalar.unshift(...gecmisNoktalar.sort((a,b)=>a.no-b.no));
+      } else {
+        const gdoHam = parseFloat(yedi.ortalama);
+        if (!isNaN(gdoHam)) noktalar.unshift({ no: 0, toplam: Math.round(gdoHam*10)/10 });
+      }
+    }
     return { ad: o.studentName, noktalar, renk: SINIF_GRAFIK_RENKLERI[i % SINIF_GRAFIK_RENKLERI.length] };
   });
   const seriler = tumSeriler.filter(s => s.noktalar.length > 0);
@@ -11937,10 +11972,11 @@ function SunumGrafigi({ ogrenciler, denemeler, sinavTuru, gorunenAdlar }) {
   }
 
   const veriNolari = [...new Set(seriler.flatMap(s => s.noktalar.map(p=>p.no)))];
-  const gdoVar = veriNolari.includes(0);
-  const enBuyuk = Math.max(veriNolari.length ? Math.max(...veriNolari) : 0, 1);
-  const tumNolar = [...(gdoVar ? [0] : []), ...Array.from({length: enBuyuk}, (_,i)=>i+1)];
-  const etiket = (no) => no === 0 ? "GDO" : "D"+no;
+  const gdoTekVar = veriNolari.includes(0);
+  const gecmisNolari = veriNolari.filter(n => n < 0).sort((a,b)=>a-b);
+  const enBuyuk = Math.max(veriNolari.filter(n=>n>0).length ? Math.max(...veriNolari.filter(n=>n>0)) : 0, 1);
+  const tumNolar = [...gecmisNolari, ...(gdoTekVar ? [0] : []), ...Array.from({length: enBuyuk}, (_,i)=>i+1)];
+  const etiket = (no) => no === 0 ? "GDO" : no < 0 ? "G"+(no+10) : "D"+no;
 
   const genislik = 1000, yukseklik = 460;
   const solPad = 54, sagPad = 20, ustPad = 24, altPad = 46;
@@ -11975,10 +12011,10 @@ function SunumGrafigi({ ogrenciler, denemeler, sinavTuru, gorunenAdlar }) {
       {tumNolar.map(no => (
         <g key={no}>
           <line x1={nx(no)} y1={ustPad} x2={nx(no)} y2={ustPad+cy}
-                stroke={no===0 ? "#9E78ED" : "#C7DBD0"} strokeWidth={no===0 ? 2 : 1.2}
-                strokeDasharray={no===0 ? "5,5" : undefined} />
-          <text x={nx(no)} y={yukseklik-14} fontSize={no===0 ? 15 : 14}
-                fill={no===0 ? "#9E78ED" : "#5E7A6D"} fontWeight={no===0 ? 900 : 600}
+                stroke={no<=0 ? "#9E78ED" : "#C7DBD0"} strokeWidth={no===1 ? 2 : 1.2}
+                strokeDasharray={no===1 ? "5,5" : undefined} />
+          <text x={nx(no)} y={yukseklik-14} fontSize={no<=0 ? 13 : 14}
+                fill={no<=0 ? "#9E78ED" : "#5E7A6D"} fontWeight={no<=0 ? 800 : 600}
                 textAnchor="middle">{etiket(no)}</text>
         </g>
       ))}
