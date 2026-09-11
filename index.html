@@ -8894,6 +8894,39 @@ function ExcelTopluYukle({ ogrenciler, setOgrenciler, denemeler, setDenemeler, a
   const dersler = aktifDersler(sinavTuru);
   const [yukleniyor, setYukleniyor] = useState(false);
   const [sonuc, setSonuc] = useState(null);
+  const [onarimSonuc, setOnarimSonuc] = useState(null);
+  const [onariliyor, setOnariliyor] = useState(false);
+
+  // ── Onarım: yukarıdaki hatanın DÜZELTİLMESİNDEN ÖNCE yüklenmiş GDO
+  // verilerini kurtarır. "Ad || Sınıf || Numara" biçimindeki her anahtarı
+  // geri çözüp kayıtlı bir öğrenciyle (büyük/küçük harf farkını görmezden
+  // gelerek) eşleştirir; anahtar kayıtlı öğrencininkiyle birebir aynı
+  // değilse veriyi DOĞRU anahtara taşır. Zaten doğru olanlara dokunmaz.
+  async function handleOnar() {
+    setOnariliyor(true);
+    const yeni = { ...denemeler };
+    let tasinan = 0, bulunamayan = 0;
+    Object.entries(denemeler || {}).forEach(([eskiKey, val]) => {
+      if (!val || !val["7sinif"]) return;
+      const parcalar = eskiKey.split(" || ");
+      const [hamAd, hamSinif, hamNo] = parcalar;
+      const kayitli = ogrenciler.find(o => pdrAyniOgrenci(o.studentName, o.className, hamAd, hamSinif, o.numara, hamNo));
+      if (!kayitli) { bulunamayan++; return; }
+      const dogruKey = pdrOgrAnahtar(kayitli.studentName, kayitli.className, kayitli.numara);
+      if (dogruKey === eskiKey) return;
+      if (yeni[dogruKey]?.["7sinif"]) return;
+      yeni[dogruKey] = { ...(yeni[dogruKey] || {}), "7sinif": val["7sinif"] };
+      if (yeni[eskiKey]) {
+        const { "7sinif": _atilan, ...kalan } = yeni[eskiKey];
+        if (Object.keys(kalan).length > 0) yeni[eskiKey] = kalan; else delete yeni[eskiKey];
+      }
+      tasinan++;
+    });
+    setDenemeler(yeni);
+    await saveDenemeler(yeni);
+    setOnarimSonuc({ tasinan, bulunamayan });
+    setOnariliyor(false);
+  }
 
   async function handleDosya(e) {
     const file = e.target.files[0];
@@ -9010,9 +9043,16 @@ function ExcelTopluYukle({ ogrenciler, setOgrenciler, denemeler, setDenemeler, a
           }
 
           // 7.sınıf denemelerini "7s_" prefix ile kaydet
+          // ÖNEMLİ DÜZELTME: öğrenci zaten kayıtlıysa (mevcut varsa), anahtar
+          // Excel'deki ham yazımla değil, kayıtlı öğrencinin KENDİ isim/sınıf/
+          // numarasıyla kurulmalı — aksi halde büyük/küçük harf farkı yüzünden
+          // veri yanlış anahtara yazılıp hiçbir karta yansımıyordu.
           if (Object.keys(deneme7).length > 0) {
-            const denemeKey = pdrOgrAnahtar(adSoyad, sube, no);
-            const ogrDen = yeniDenemeler[denemeKey] || yeniDenemeler[pdrOgrAnahtar(adSoyad, sube)] || yeniDenemeler[adSoyad] || {};
+            const yazimAdi = mevcut ? mevcut.studentName : adSoyad;
+            const yazimSube = mevcut ? mevcut.className : sube;
+            const yazimNo = mevcut ? mevcut.numara : no;
+            const denemeKey = pdrOgrAnahtar(yazimAdi, yazimSube, yazimNo);
+            const ogrDen = yeniDenemeler[denemeKey] || yeniDenemeler[pdrOgrAnahtar(yazimAdi, yazimSube)] || yeniDenemeler[yazimAdi] || {};
             ogrDen["7sinif"] = { denemeler: deneme7, ortalama: ort.toFixed(1), risk: risk7 };
             yeniDenemeler[denemeKey] = ogrDen;
           }
@@ -9059,6 +9099,24 @@ function ExcelTopluYukle({ ogrenciler, setOgrenciler, denemeler, setDenemeler, a
       }}>
         {yukleniyor ? "⏳ Yükleniyor..." : "📂 Excel Dosyası Seç (.xlsx)"}
       </label>
+
+      {/* Onarım aracı — daha önce yüklenmiş ama isim yazım farkı yüzünden
+          hiçbir karta yansımamış GDO verilerini düzeltir. */}
+      <button onClick={handleOnar} disabled={onariliyor} style={{
+        width: "100%", padding: "10px", marginTop: 8,
+        background: "none", border: "1px dashed #E67E22", color: "#B7590B",
+        borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: onariliyor ? 0.6 : 1
+      }}>
+        {onariliyor ? "⏳ Taranıyor..." : "🔧 Daha Önce Yüklenip Kartlara Yansımayan GDO Verilerini Onar"}
+      </button>
+      {onarimSonuc && (
+        <div style={{marginTop:8, background:"#FDF6E3", borderRadius:8, padding:10, fontSize:11.5, color:"#8A5A00", lineHeight:1.6}}>
+          {onarimSonuc.tasinan > 0
+            ? <>✓ <b>{onarimSonuc.tasinan}</b> öğrencinin GDO verisi doğru öğrenci kaydına taşındı — artık kartlarda görünmeli.</>
+            : <>Taşınacak bir şey bulunamadı — GDO verileri zaten doğru yerdeydi.</>}
+          {onarimSonuc.bulunamayan > 0 && <><br/>{onarimSonuc.bulunamayan} kayıt, hiçbir öğrenciyle eşleştirilemedi (muhtemelen o öğrenci artık sistemde yok).</>}
+        </div>
+      )}
 
       {sonuc && !sonuc.hata && (
         <div style={{marginTop:12}}>
@@ -11835,6 +11893,280 @@ function SinifDenemeGrafigi({ ogrenciler, denemeler, sinavTuru, vurgulananAd }) 
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SINIF SUNUMU — Sınıfa/velilere/idareye AÇIK EKRANDA gösterilebilecek, tüm
+// öğrencileri veya seçilen öğrencileri karşılaştırmalı deneme trendiyle
+// gösteren AYRI bir sekme.
+//
+// KRİTİK TASARIM KURALI: Bu ekran ve altındaki hiçbir bileşen; risk, kriz,
+// kaynaştırma/tanı, görüşme notu, uyum izleme, cinsiyet, devamsızlık gibi
+// HİÇBİR hassas veriye ERİŞEMEZ — çünkü bu prop'lar bu bileşenlere hiç
+// GEÇİRİLMİYOR. Sadece iki veri kaynağı kullanılır: öğrenci adı+sınıfı, ve
+// deneme netleri.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function SunumGrafigi({ ogrenciler, denemeler, sinavTuru, gorunenAdlar }) {
+  const dersler = aktifDersler(sinavTuru);
+  const maksNet = dersler.reduce((s,d)=>s+d.maks, 0);
+
+  const tumSeriler = (ogrenciler||[]).map((o,i) => {
+    const d = pdrSozlukOku(denemeler, o.studentName, o.className, o.numara) || {};
+    const noktalar = Object.entries(d)
+      .filter(([k]) => k !== "7sinif")
+      .map(([no, nets]) => {
+        const toplam = nets?._topluNet !== undefined && nets._topluNet !== ""
+          ? parseFloat(nets._topluNet) || 0
+          : dersler.reduce((s,x)=>s+(parseFloat(nets?.[x.key])||0), 0);
+        return { no: parseInt(no,10), toplam: Math.round(toplam*10)/10 };
+      })
+      .filter(p => !isNaN(p.no))
+      .sort((a,b)=>a.no-b.no);
+    const gdoHam = parseFloat(d["7sinif"]?.ortalama);
+    if (!isNaN(gdoHam)) noktalar.unshift({ no: 0, toplam: Math.round(gdoHam*10)/10 });
+    return { ad: o.studentName, noktalar, renk: SINIF_GRAFIK_RENKLERI[i % SINIF_GRAFIK_RENKLERI.length] };
+  });
+  const seriler = tumSeriler.filter(s => s.noktalar.length > 0);
+  const cizilecek = seriler.filter(s => gorunenAdlar.includes(s.ad));
+
+  if (seriler.length === 0) {
+    return (
+      <div style={{textAlign:"center",padding:"60px 20px",color:MUTED,fontSize:15}}>
+        Bu sınıf için henüz deneme verisi girilmemiş.
+      </div>
+    );
+  }
+
+  const veriNolari = [...new Set(seriler.flatMap(s => s.noktalar.map(p=>p.no)))];
+  const gdoVar = veriNolari.includes(0);
+  const enBuyuk = Math.max(veriNolari.length ? Math.max(...veriNolari) : 0, 1);
+  const tumNolar = [...(gdoVar ? [0] : []), ...Array.from({length: enBuyuk}, (_,i)=>i+1)];
+  const etiket = (no) => no === 0 ? "GDO" : "D"+no;
+
+  const genislik = 1000, yukseklik = 460;
+  const solPad = 54, sagPad = 20, ustPad = 24, altPad = 46;
+  const cg = genislik - solPad - sagPad, cy = yukseklik - ustPad - altPad;
+  const xAdim = tumNolar.length > 1 ? cg/(tumNolar.length-1) : 0;
+  const nx = (no) => solPad + tumNolar.indexOf(no) * xAdim;
+  const ny = (v) => ustPad + cy - (v/maksNet)*cy;
+
+  const ortalamalar = tumNolar.map(no => {
+    const vals = seriler.map(s => s.noktalar.find(p=>p.no===no)?.toplam).filter(v => v !== undefined);
+    return { no, ort: vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null };
+  }).filter(o => o.ort !== null);
+
+  return (
+    <svg viewBox={`0 0 ${genislik} ${yukseklik}`} style={{width:"100%",height:"auto",display:"block"}}>
+      <defs>
+        <pattern id="sunumKare" width="14" height="14" patternUnits="userSpaceOnUse">
+          <path d="M 14 0 L 0 0 0 14" fill="none" stroke="#E4EDE8" strokeWidth="1" />
+        </pattern>
+      </defs>
+      <rect x={solPad} y={ustPad} width={cg} height={cy} fill="#FCFDFC" />
+      <rect x={solPad} y={ustPad} width={cg} height={cy} fill="url(#sunumKare)" />
+      {[0,0.25,0.5,0.75,1].map((f,i) => {
+        const y = ustPad + cy*f;
+        return (
+          <g key={i}>
+            <line x1={solPad} y1={y} x2={genislik-sagPad} y2={y} stroke="#C7DBD0" strokeWidth="1.4" />
+            <text x={solPad-8} y={y+5} fontSize="15" fill="#5E7A6D" fontWeight="700" textAnchor="end">{Math.round(maksNet*(1-f))}</text>
+          </g>
+        );
+      })}
+      {tumNolar.map(no => (
+        <g key={no}>
+          <line x1={nx(no)} y1={ustPad} x2={nx(no)} y2={ustPad+cy}
+                stroke={no===0 ? "#9E78ED" : "#C7DBD0"} strokeWidth={no===0 ? 2 : 1.2}
+                strokeDasharray={no===0 ? "5,5" : undefined} />
+          <text x={nx(no)} y={yukseklik-14} fontSize={no===0 ? 15 : 14}
+                fill={no===0 ? "#9E78ED" : "#5E7A6D"} fontWeight={no===0 ? 900 : 600}
+                textAnchor="middle">{etiket(no)}</text>
+        </g>
+      ))}
+      {ortalamalar.length > 1 && (
+        <path d={ortalamalar.map((o,i)=>`${i===0?"M":"L"} ${nx(o.no).toFixed(1)} ${ny(o.ort).toFixed(1)}`).join(" ")}
+          fill="none" stroke="#5E7A6D" strokeWidth="3" strokeDasharray="9,7" opacity="0.85" />
+      )}
+      {cizilecek.map((s) => {
+        const d = s.noktalar.map((p,i)=>`${i===0?"M":"L"} ${nx(p.no).toFixed(1)} ${ny(p.toplam).toFixed(1)}`).join(" ");
+        return (
+          <g key={s.ad}>
+            <path d={d} fill="none" stroke={s.renk} strokeWidth="4.4" strokeLinejoin="round" strokeLinecap="round" />
+            {s.noktalar.map(p => (
+              <circle key={p.no} cx={nx(p.no)} cy={ny(p.toplam)} r="6" fill="#fff" stroke={s.renk} strokeWidth="3.2" />
+            ))}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function SinifSunumuEkrani({ ogrenciler, denemeler, sinavTuru, kademe }) {
+  const [seciliDuzey, setSeciliDuzey] = useState(null);
+  const [seciliSube, setSeciliSube] = useState(null);
+  const [mod, setMod] = useState("tumSinif"); // "tumSinif" | "secili"
+  const [seciliOgrenciler, setSeciliOgrenciler] = useState([]);
+  const [sunumModu, setSunumModu] = useState(false);
+
+  // SADECE isim + sınıf + yıl bilgisiyle çalışır — kademeye uygun tüm öğrenciler.
+  const tumOgr = (ogrenciler||[]).filter(o => pdrKademeUyumlu(o.className, kademe));
+  const duzeyler = [...new Set(tumOgr.map(o => (o.className||"").match(/^\d+/)?.[0]).filter(Boolean))]
+    .sort((a,b)=>Number(a)-Number(b));
+
+  if (!seciliDuzey) {
+    return (
+      <div>
+        <div style={{background:"#EEF2FF",borderRadius:10,padding:"10px 14px",marginBottom:6,fontSize:13,color:BLUE,fontWeight:600}}>
+          📽️ Sınıf Sunumu — Düzey Seç
+        </div>
+        <div style={{fontSize:11,color:MUTED,marginBottom:14,lineHeight:1.55}}>
+          Bu ekran sınıfa/veliye/idareye açıkça gösterilebilir — isim ve deneme netleri dışında
+          hiçbir bilgiye (risk, kaynaştırma, görüşme, devamsızlık) erişimi yoktur.
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          {duzeyler.map(duzey => (
+            <div key={duzey} onClick={()=>setSeciliDuzey(duzey)} style={{
+              background:CARD, border:`2px solid ${BORDER}`, borderRadius:14, padding:"20px 12px",
+              cursor:"pointer", textAlign:"center"
+            }}>
+              <div style={{fontSize:26,fontWeight:900,color:ACCENT}}>{duzey}. Sınıflar</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const subeler = [...new Set(tumOgr.filter(o => (o.className||"").startsWith(seciliDuzey)).map(o=>o.className))].sort();
+
+  if (!seciliSube) {
+    return (
+      <div>
+        <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:14}}>
+          <button onClick={()=>setSeciliDuzey(null)} style={{background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, padding:"6px 10px", fontSize:12, fontWeight:700, cursor:"pointer"}}>◀ Düzeyler</button>
+          <div style={{background:"#EEF2FF",borderRadius:10,padding:"10px 14px",fontSize:13,color:BLUE,fontWeight:600,flex:1}}>
+            {seciliDuzey}. Sınıflar — Şube Seç
+          </div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          {subeler.map(sube => (
+            <div key={sube} onClick={()=>{ setSeciliSube(sube); setSeciliOgrenciler([]); setMod("tumSinif"); }} style={{
+              background:CARD, border:`2px solid ${BORDER}`, borderRadius:14, padding:"18px 12px", cursor:"pointer", textAlign:"center"
+            }}>
+              <div style={{fontSize:20,fontWeight:900,color:ACCENT}}>{sube}</div>
+              <div style={{fontSize:11,color:MUTED,marginTop:4}}>{tumOgr.filter(o=>o.className===sube).length} öğrenci</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const subeOgrencileri = tumOgr.filter(o => o.className === seciliSube).sort((a,b)=>(a.studentName||"").localeCompare(b.studentName||"","tr"));
+  const gorunenAdlar = mod === "tumSinif" ? subeOgrencileri.map(o=>o.studentName) : seciliOgrenciler;
+
+  function ogrenciToggle(ad) {
+    setSeciliOgrenciler(cur => cur.includes(ad) ? cur.filter(x=>x!==ad) : [...cur, ad]);
+  }
+
+  const icerik = (
+    <div>
+      <div style={{fontSize: sunumModu?32:20, fontWeight:900, color:TEXT, textAlign:"center", marginBottom: sunumModu?18:12}}>
+        {seciliSube} — Deneme Net Trendi
+      </div>
+      <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14)",borderRadius:16,padding: sunumModu?20:14}}>
+        <SunumGrafigi ogrenciler={subeOgrencileri} denemeler={denemeler} sinavTuru={sinavTuru} gorunenAdlar={gorunenAdlar} />
+      </div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:14,justifyContent:"center"}}>
+        <span style={{display:"flex",alignItems:"center",gap:5,padding:"5px 10px",borderRadius:10,background:BG,fontSize: sunumModu?13:10.5,color:MUTED,fontWeight:700}}>
+          <span style={{width:16,height:0,borderTop:"3px dashed #5E7A6D",display:"inline-block"}} /> Sınıf Ortalaması
+        </span>
+        {subeOgrencileri.map((o,i) => {
+          const renk = SINIF_GRAFIK_RENKLERI[i % SINIF_GRAFIK_RENKLERI.length];
+          const gorunuyor = gorunenAdlar.includes(o.studentName);
+          return (
+            <span key={o.studentName} style={{
+              display:"flex",alignItems:"center",gap:5,padding:"5px 10px",borderRadius:10,
+              border:`1px solid ${gorunuyor?renk:BORDER}`, background:gorunuyor?"#fff":BG,
+              opacity:gorunuyor?1:0.4, fontSize: sunumModu?13:10.5, fontWeight:700, color:gorunuyor?renk:MUTED
+            }}>
+              <span style={{width:10,height:10,borderRadius:"50%",background:gorunuyor?renk:"transparent",border:gorunuyor?"none":`1.5px solid ${MUTED}`,flexShrink:0}} />
+              {o.studentName}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  if (sunumModu) {
+    return (
+      <div style={{position:"fixed",inset:0,zIndex:9999,background:"linear-gradient(160deg,#EFEDEC 0%,#E4E9E6 100%)",overflow:"auto",padding:"28px 24px"}}>
+        <button onClick={()=>setSunumModu(false)} style={{
+          position:"fixed", top:16, right:16, zIndex:10000,
+          background:"#1C2B24", color:"#fff", border:"none", borderRadius:10,
+          padding:"10px 18px", fontSize:14, fontWeight:800, cursor:"pointer"
+        }}>✕ Sunumdan Çık</button>
+        <div style={{paddingTop:52}}>{icerik}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:14}}>
+        <button onClick={()=>setSeciliSube(null)} style={{background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, padding:"6px 10px", fontSize:12, fontWeight:700, cursor:"pointer"}}>◀ Şubeler</button>
+        <div style={{background:"#EEF2FF",borderRadius:10,padding:"10px 14px",fontSize:13,color:BLUE,fontWeight:600,flex:1}}>
+          {seciliSube}
+        </div>
+        <button onClick={()=>setSunumModu(true)} style={{
+          background:ACCENT, color:"#fff", border:"none", borderRadius:8,
+          padding:"8px 14px", fontSize:12, fontWeight:800, cursor:"pointer", whiteSpace:"nowrap"
+        }}>🖥️ Tam Ekran Sunum</button>
+      </div>
+
+      <div style={{display:"flex",gap:6,marginBottom:14}}>
+        <button onClick={()=>setMod("tumSinif")} style={{
+          flex:1, padding:"9px", borderRadius:10, border:`1px solid ${mod==="tumSinif"?ACCENT:BORDER}`,
+          background:mod==="tumSinif"?ACCENT_LIGHT:CARD, color:mod==="tumSinif"?ACCENT:MUTED,
+          fontWeight:800, fontSize:12.5, cursor:"pointer"
+        }}>👥 Tüm Sınıf</button>
+        <button onClick={()=>setMod("secili")} style={{
+          flex:1, padding:"9px", borderRadius:10, border:`1px solid ${mod==="secili"?ACCENT:BORDER}`,
+          background:mod==="secili"?ACCENT_LIGHT:CARD, color:mod==="secili"?ACCENT:MUTED,
+          fontWeight:800, fontSize:12.5, cursor:"pointer"
+        }}>☑️ Öğrenci Seç</button>
+      </div>
+
+      {mod === "secili" && (
+        <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,padding:12,marginBottom:14}}>
+          <div style={{fontSize:11,color:MUTED,marginBottom:8,fontWeight:700}}>Grafikte gösterilecek öğrencileri seç:</div>
+          <div style={{display:"flex",flexDirection:"column",gap:4,maxHeight:220,overflowY:"auto"}}>
+            {subeOgrencileri.map(o => {
+              const secili = seciliOgrenciler.includes(o.studentName);
+              return (
+                <div key={o.studentName} onClick={()=>ogrenciToggle(o.studentName)} style={{
+                  display:"flex",alignItems:"center",gap:8,padding:"6px 8px",borderRadius:8,cursor:"pointer",
+                  background:secili?ACCENT_LIGHT:"transparent"
+                }}>
+                  <span style={{
+                    width:16,height:16,borderRadius:4,flexShrink:0,
+                    border:`1.5px solid ${secili?ACCENT:BORDER}`,background:secili?ACCENT:"transparent",
+                    color:"#fff",fontSize:11,fontWeight:900,textAlign:"center",lineHeight:"14px"
+                  }}>{secili?"✓":""}</span>
+                  <span style={{fontSize:12.5,color:TEXT,fontWeight:secili?700:400}}>{o.studentName}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {icerik}
+    </div>
+  );
+}
+
 // Risk türleri — İl/İlçe MEM'in 2026-2027 rehberlik öncelikleri yazısındaki
 // çalışma alanlarını karşılayacak şekilde genişletildi: göç/uyum (md.12),
 // adli süreç ve danışmanlık tedbiri (md.8), toplumsal cinsiyet temelli
@@ -13533,6 +13865,7 @@ const TABS_TUMU = [
     { key: "deneme", label: "📊 Akademik", grup: ["deneme","net_haritasi","konu_haritasi"],
       grupEtiketler: { deneme: "📊 Deneme", net_haritasi: "🎯 Net Haritası", konu_haritasi: "📚 Konu Haritası" } },
     { key: "testler", label: "🧪 Testler" },
+    { key: "sinif_sunumu", label: "📽️ Sınıf Sunumu" },
     { key: "hatirlatici", label: "🔔 Hatırlatıcı" },
     { key: "belgeler", label: "📑 Kayıtlar", grup: ["belgeler","kutuphane","kazanimlar"],
       grupEtiketler: { belgeler: "📑 Belgeler", kutuphane: "📚 Kütüphane", kazanimlar: "📘 Kazanımlar" } },
@@ -13874,6 +14207,19 @@ const TABS_TUMU = [
             setProfiles2={setProfiles2}
             oogDegerlendirmeler={oogDegerlendirmeler}
             setOogDegerlendirmeler={setOogDegerlendirmeler}
+          />
+        )}
+
+        {/* ── SINIF SUNUMU ─────────────────────────────────────────────
+            KASITLI OLARAK sadece 4 prop geçiliyor: ogrenciler, denemeler,
+            sinavTuru, kademe. riskListesi, records, uyumIzleme, sosyometri
+            gibi hiçbir hassas veri BU EKRANA hiç ulaşmıyor. */}
+        {tab === "sinif_sunumu" && (
+          <SinifSunumuEkrani
+            ogrenciler={ogrenciler}
+            denemeler={denemeler}
+            sinavTuru={sinavTuru}
+            kademe={kademe}
           />
         )}
 
