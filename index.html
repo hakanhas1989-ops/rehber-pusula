@@ -13311,6 +13311,28 @@ export default function App() {
     setAktifOgrenci({ name: "", className: "" });
   }
   const [rehberGoster, setRehberGoster] = useState(false);
+  const [aramaAcik, setAramaAcik] = useState(false);
+  const [aramaMetni, setAramaMetni] = useState("");
+  const [fabAcik, setFabAcik] = useState(false);
+  const [toastMesaj, setToastMesaj] = useState(null);
+  const toastZamanlayiciRef = React.useRef(null);
+  function pdrToastGoster(mesaj) {
+    clearTimeout(toastZamanlayiciRef.current);
+    setToastMesaj(mesaj);
+    toastZamanlayiciRef.current = setTimeout(() => setToastMesaj(null), 3200);
+  }
+
+  useEffect(() => {
+    function tusDinleyici(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLocaleLowerCase("tr") === "k") {
+        e.preventDefault();
+        setAramaAcik(true);
+      }
+      if (e.key === "Escape") setAramaAcik(false);
+    }
+    window.addEventListener("keydown", tusDinleyici);
+    return () => window.removeEventListener("keydown", tusDinleyici);
+  }, []);
   const [belgelerAltSekme, setBelgelerAltSekme] = useState("sevk"); // "sevk" | "meb_rapor" | "veli_mektubu"
   const [degerlendirmeAcik, setDegerlendirmeAcik] = useState(false);
   const [kvkkBildirimGoster, setKvkkBildirimGoster] = useState(false);
@@ -13406,13 +13428,32 @@ export default function App() {
       // cihazlar arası senkron olması gerekmiyor.
     };
 
+    const yerelBeklemedeAnahtarlar = new Set();
+    const ANAHTAR_ETIKETI = {
+      "pdr-ogrenciler": "Öğrenci listesi", "pdr-risk": "Risk kayıtları", "pdr-denemeler": "Deneme verileri",
+      "pdr-hatirlatmalar": "Hatırlatmalar", "pdr-sosyometri": "Sosyometri", "pdr-kriz-kayitlari": "Kriz kayıtları",
+      "pdr-grup-calismalari": "Grup çalışmaları", "pdr-mudahale": "Müdahale planı", "pdr-records": "Görüşme notları",
+      "pdr-profiles": "Profil (P1)", "pdr-profiles2": "Profil (P2)", "pdr-net-haritasi": "Net haritası",
+      "pdr-konu-haritasi": "Konu haritası", "pdr-test-kayitlari": "Test kayıtları", "pdr-sevkler": "Sevk kayıtları",
+    };
+
     let ilkAnlikGoruntu = true;
     const aboneligiIptalEt = pdrDb.collection("users").doc(uid).collection("data")
       .onSnapshot(snapshot => {
         if (ilkAnlikGoruntu) { ilkAnlikGoruntu = false; return; }
         snapshot.docChanges().forEach(degisiklik => {
+          if (degisiklik.doc.metadata.hasPendingWrites) {
+            yerelBeklemedeAnahtarlar.add(degisiklik.doc.id);
+            setTimeout(() => yerelBeklemedeAnahtarlar.delete(degisiklik.doc.id), 4000);
+            return;
+          }
+          const buCihazdanMiydi = yerelBeklemedeAnahtarlar.has(degisiklik.doc.id);
+          yerelBeklemedeAnahtarlar.delete(degisiklik.doc.id);
           const uygula = anahtarUygulama[degisiklik.doc.id];
           if (uygula) uygula();
+          if (!buCihazdanMiydi && ANAHTAR_ETIKETI[degisiklik.doc.id]) {
+            pdrToastGoster(`🔄 ${ANAHTAR_ETIKETI[degisiklik.doc.id]} başka bir cihazdan güncellendi`);
+          }
         });
       }, hata => console.warn("[canlı senkron] dinleme hatası:", hata.message));
 
@@ -14051,6 +14092,99 @@ const TABS_TUMU = [
 
       <RaporModal rapor={raporVerisi} onKapat={() => setRaporVerisi(null)} />
       {rehberGoster && <BaslarkenRehberi onKapat={async () => { setRehberGoster(false); await saveRehberGorunduMu(); }} />}
+
+      {/* ── Canlı Güncelleme Bildirimi ─────────────────────────────────── */}
+      {toastMesaj && (
+        <div style={{
+          position: "fixed", top: 14, left: "50%", transform: "translateX(-50%)", zIndex: 10050,
+          background: "#1C2B24", color: "#fff", padding: "10px 18px", borderRadius: 12,
+          fontSize: 12.5, fontWeight: 700, boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+          maxWidth: "92%", textAlign: "center",
+        }}>{toastMesaj}</div>
+      )}
+
+      {/* ── Hızlı Erişim (FAB) ─────────────────────────────────────────── */}
+      <div style={{ position: "fixed", bottom: 22, right: 18, zIndex: 9997, display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+        {fabAcik && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12, alignItems: "flex-end" }}>
+            {[
+              ["📝 Yeni Görüşme", () => { setTab("yeni"); setAktifOgrenci(null); setFabAcik(false); }],
+              ["👥 Öğrenciler", () => { setTab("ogrenciler"); setFabAcik(false); }],
+              ["⚠ Risk Kaydı", () => { setTab("risk"); setFabAcik(false); }],
+              ["🔔 Hatırlatıcı", () => { setTab("hatirlatici"); setFabAcik(false); }],
+              ["🔍 Ara", () => { setAramaAcik(true); setFabAcik(false); }],
+            ].map(([etiket, aksiyon]) => (
+              <button key={etiket} onClick={aksiyon} style={{
+                background: "#fff", color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 22,
+                padding: "10px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer",
+                boxShadow: "0 4px 14px rgba(0,0,0,0.18)", whiteSpace: "nowrap",
+              }}>{etiket}</button>
+            ))}
+          </div>
+        )}
+        <button onClick={() => setFabAcik(v => !v)} title="Hızlı Erişim" style={{
+          width: 56, height: 56, borderRadius: "50%", background: fabAcik ? "#1C2B24" : ACCENT, color: "#fff",
+          border: "none", fontSize: fabAcik ? 22 : 24, cursor: "pointer",
+          boxShadow: "0 6px 18px rgba(15,61,46,0.45)",
+        }}>{fabAcik ? "✕" : "⚡"}</button>
+      </div>
+
+      {/* ── Global Arama (Ctrl+K) ────────────────────────────────────────── */}
+      {aramaAcik && (() => {
+        const q = aramaMetni.trim().toLocaleLowerCase("tr");
+        const sonuclar = q.length < 2 ? [] : (() => {
+          const bulunanlar = [];
+          (ogrenciler || []).forEach(o => {
+            if ((o.studentName || "").toLocaleLowerCase("tr").includes(q) || (o.className || "").toLocaleLowerCase("tr").includes(q)) {
+              bulunanlar.push({ tip: "👤", baslik: o.studentName, alt: o.className || "", git: () => { setAktifOgrenci({ name: o.studentName, className: o.className, numara: o.numara }); setTab("yeni"); } });
+            }
+          });
+          (riskListesi || []).forEach(r => {
+            if ((r.studentName || "").toLocaleLowerCase("tr").includes(q) || (r.riskTuru || "").toLocaleLowerCase("tr").includes(q) || (r.aciklama || "").toLocaleLowerCase("tr").includes(q)) {
+              bulunanlar.push({ tip: "⚠", baslik: r.studentName, alt: `Risk: ${r.riskTuru || "belirtilmemiş"}`, git: () => { setAktifOgrenci({ name: r.studentName, className: r.className, numara: r.numara }); setTab("risk"); } });
+            }
+          });
+          (hatirlatmalar || []).forEach(h => {
+            if ((h.studentName || "").toLocaleLowerCase("tr").includes(q) || (h.metin || "").toLocaleLowerCase("tr").includes(q)) {
+              bulunanlar.push({ tip: "🔔", baslik: h.studentName || "Hatırlatma", alt: h.metin || "", git: () => { setAktifOgrenci(h.studentName ? { name: h.studentName, className: h.className, numara: h.numara } : null); setTab("hatirlatici"); } });
+            }
+          });
+          return bulunanlar.slice(0, 30);
+        })();
+        return (
+          <div onClick={() => { setAramaAcik(false); setAramaMetni(""); }} style={{
+            position: "fixed", inset: 0, zIndex: 10040, background: "rgba(20,30,25,0.55)",
+            display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "64px 16px",
+          }}>
+            <div onClick={e => e.stopPropagation()} style={{
+              background: "#fff", borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "72vh",
+              display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 24px 70px rgba(0,0,0,0.35)",
+            }}>
+              <div style={{ padding: 14, borderBottom: `1px solid ${BORDER}` }}>
+                <input autoFocus value={aramaMetni} onChange={e => setAramaMetni(e.target.value)}
+                  placeholder="Öğrenci, risk kaydı ya da hatırlatma ara…"
+                  style={{ width: "100%", padding: "11px 14px", fontSize: 15, border: `1px solid ${BORDER}`, borderRadius: 10, boxSizing: "border-box" }} />
+              </div>
+              <div style={{ overflowY: "auto", padding: 6 }}>
+                {q.length < 2 && <div style={{ padding: 20, textAlign: "center", fontSize: 12, color: MUTED }}>En az 2 karakter yaz…</div>}
+                {q.length >= 2 && sonuclar.length === 0 && <div style={{ padding: 20, textAlign: "center", fontSize: 12, color: MUTED }}>Sonuç bulunamadı.</div>}
+                {sonuclar.map((s, i) => (
+                  <div key={i} onClick={() => { s.git(); setAramaAcik(false); setAramaMetni(""); }} style={{
+                    display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+                  }} onMouseEnter={e => e.currentTarget.style.background = BG} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    <span style={{ fontSize: 18, flexShrink: 0 }}>{s.tip}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: TEXT, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.baslik}</div>
+                      {s.alt && <div style={{ fontSize: 11, color: MUTED, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.alt}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Header */}
       <div style={{ background: "linear-gradient(135deg, #0E6E4C 0%, #2E5B6E 55%, #5B3F9E 100%)", color: "#fff", padding: "16px 20px 12px", position: "sticky", top: 0, zIndex: 10, boxShadow: "0 4px 16px rgba(15,61,46,0.35)" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
