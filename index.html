@@ -10109,13 +10109,26 @@ function OgrenciYonetim({
   // olan öğrenci detay ekranı eski kademedeki bir öğrenciyi göstermeye devam
   // edebiliyordu (yanlış/eski veriyle) — artık kademe değişince otomatik
   // olarak listeye dönülür, "Geri" butonuna basmaya gerek kalmaz.
-  useEffect(() => { setSeciliOgrenci(null); }, [kademe]);
+  // ÖNEMLİ DÜZELTME: kademe uygulama açılışında Firestore'dan ASENKRON
+  // yükleniyor (başlangıç değeri "", biraz sonra gerçek değer geliyor) — bu
+  // İLK yükleme de bir "değişim" sayılıp seçili öğrenciyi sıfırlıyordu, bu
+  // yüzden aktifOgrenci localStorage'dan doğru restore olsa bile birkaç
+  // yüz milisaniye sonra listeye geri düşülüyordu (özellikle uygulamayı
+  // kapatıp tekrar açınca / "geri" ile çıkıp girince fark ediliyordu). İlk
+  // yüklemeyi bir ref ile atlayıp sadece SONRAKİ gerçek değişimlerde sıfırlıyoruz.
+  const kademeIlkYuklemeRef = useRef(true);
+  useEffect(() => {
+    if (kademeIlkYuklemeRef.current) { kademeIlkYuklemeRef.current = false; return; }
+    setSeciliOgrenci(null);
+  }, [kademe]);
   const [excelPanelAcik, setExcelPanelAcik] = useState(false);
   const [sinifGuncelleAcik, setSinifGuncelleAcik] = useState(false);
   const [yeniSinifDegeri, setYeniSinifDegeri] = useState("");
   const [yeniAdDegeri, setYeniAdDegeri] = useState("");
   const [gdoDuzenleAcik, setGdoDuzenleAcik] = useState(false);
   const [gdoDegeri, setGdoDegeri] = useState("");
+  const [gdoDenemeleriAcik, setGdoDenemeleriAcik] = useState(false);
+  const [gdoDenemeDegerleri, setGdoDenemeDegerleri] = useState({});
 
   // "Aktif öğrenci" başka bir sekmede seçilip buraya dönülürse, o öğrencinin
   // detayını göstermeye devam et — sadece açıkça "Geri" ile çıkıldığında
@@ -10226,6 +10239,33 @@ function OgrenciYonetim({
     setDenemeler(yeniDenemeler);
     await saveDenemeler(yeniDenemeler);
     setGdoDuzenleAcik(false);
+  }
+
+  // Geçmiş dönemin TEK TEK denemelerini (G1..G9, öğrenciye göre daha azı
+  // dolu olabilir — örn. sadece 6 tanesi girilmiş olabilir, kalanlar boş
+  // bırakılır) elle girme/düzeltme. Ortalama, girilen değerlerin ortalaması
+  // olarak OTOMATİK hesaplanır — ayrıca elle girmeye gerek kalmaz, ama
+  // yukarıdaki tekil "Elle Gir" ile de her zaman ezilebilir.
+  async function handleGdoDenemeleriKaydet() {
+    const girilenler = {};
+    Object.entries(gdoDenemeDegerleri).forEach(([no, deger]) => {
+      const net = parseFloat(String(deger).replace(",", "."));
+      if (!isNaN(net)) girilenler[no] = { toplam_net: net };
+    });
+    const netler = Object.values(girilenler).map(v => v.toplam_net);
+    const ortalama = netler.length > 0 ? netler.reduce((a, b) => a + b, 0) / netler.length : null;
+    const mevcutSozluk = pdrSozlukOku(denemeler, seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara) || {};
+    const guncelYedi = { ...(mevcutSozluk["7sinif"] || {}), denemeler: girilenler };
+    if (ortalama !== null) {
+      guncelYedi.ortalama = ortalama.toFixed(1);
+      guncelYedi.risk = denemeRiskHesapla(ortalama, dersler);
+      guncelYedi.manuel = true;
+    }
+    const guncelSozluk = { ...mevcutSozluk, "7sinif": guncelYedi };
+    const yeniDenemeler = pdrSozlukYaz(denemeler, seciliOgrenci, seciliOgrenciSinif, guncelSozluk, seciliOgrenciNumara);
+    setDenemeler(yeniDenemeler);
+    await saveDenemeler(yeniDenemeler);
+    setGdoDenemeleriAcik(false);
   }
 
 
@@ -10608,7 +10648,42 @@ function OgrenciYonetim({
                 <button onClick={()=>setGdoDuzenleAcik(false)} style={{ background:"none", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", color:MUTED, borderRadius:6, padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer" }}>İptal</button>
               </>
             )}
+            <button onClick={() => {
+              if (!gdoDenemeleriAcik) {
+                const mevcut = {};
+                Object.entries(sinif7Data?.denemeler || {}).forEach(([no, v]) => { mevcut[no] = v?.toplam_net ?? ""; });
+                setGdoDenemeDegerleri(mevcut);
+              }
+              setGdoDenemeleriAcik(v => !v);
+            }} style={{
+              background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:6, padding:"2px 8px", fontSize:10, fontWeight:700, cursor:"pointer"
+            }}>{gdoDenemeleriAcik ? "▲ Tek Tek Kapat" : "🔧 Tek Tek Gir/Düzelt"}</button>
           </div>
+
+          {/* Geçmiş dönemin tek tek denemeleri — 9 küçük kutu, doldurulmayanlar
+              boş bırakılabilir (örn. öğrencinin sadece 6 denemesi olabilir).
+              Kaydedince ortalama otomatik hesaplanır. */}
+          {gdoDenemeleriAcik && (
+            <div style={{ background:"#FAFAF8", border:`1px solid ${BORDER}`, borderRadius:10, padding:10, marginBottom:14 }}>
+              <div style={{ fontSize:10.5, color:MUTED, marginBottom:8, lineHeight:1.5 }}>
+                Geçmiş dönemde girilen her denemeyi ayrı ayrı yaz — boş bırakılanlar hesaba katılmaz. Kaydedince GDO ortalaması bunlardan otomatik hesaplanır.
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:8, marginBottom:10 }}>
+                {Array.from({length:9}, (_,i) => i+1).map(no => (
+                  <div key={no} style={{ display:"flex", alignItems:"center", gap:5 }}>
+                    <span style={{ fontSize:10.5, color:PURPLE, fontWeight:800, width:20, flexShrink:0 }}>G{no}</span>
+                    <input type="number" step="0.1" value={gdoDenemeDegerleri[no] ?? ""} placeholder="—"
+                      onChange={e => setGdoDenemeDegerleri(d => ({ ...d, [no]: e.target.value }))}
+                      style={{ width:"100%", padding:"5px 6px", border:`1px solid ${BORDER}`, borderRadius:6, fontSize:12, boxSizing:"border-box" }} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={handleGdoDenemeleriKaydet} style={{ flex:1, background:PURPLE, color:"#fff", border:"none", borderRadius:8, padding:"7px", fontSize:11.5, fontWeight:700, cursor:"pointer" }}>💾 Kaydet</button>
+                <button onClick={()=>setGdoDenemeleriAcik(false)} style={{ padding:"7px 14px", background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:8, fontSize:11.5, fontWeight:700, cursor:"pointer" }}>İptal</button>
+              </div>
+            </div>
+          )}
 
           {/* GDO için de, D1-D9 gibi, okulun bu yılki gerçek LGS sonucundan
               çıkarılan yüzdelik dilimi tahmini — geçmiş dönem netinin bugünkü
