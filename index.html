@@ -10158,6 +10158,35 @@ function OgrenciYonetim({
   // bu yüzden filtre doğru kalsa bile kullanıcı öğrenciyi görmek için tekrar
   // aşağı kaydırmak zorunda kalıyordu. "Geri" butonunda bu konum geri yükleniyor.
   const listeScrollKonumuRef = useRef(0);
+  // Sınıf filtresi çubuğunu seçilen sınıf etrafında ortalamak için — ana
+  // sekme çubuğundaki aynı desen (pdrSekmeCubugu, TABS render'ında). Çok
+  // sayıda sınıf varsa (8-A...8-DNI gibi) seçilen sınıf yatayda görünmeyen
+  // bir yerde kalabiliyordu.
+  const sinifFiltreCubugu = useRef(null);
+  useEffect(() => {
+    const kap = sinifFiltreCubugu.current;
+    if (!kap) return;
+    const buton = kap.querySelector(`[data-pdr-sinif-key="${sinifFiltre}"]`);
+    if (!buton) return;
+    const hedef = buton.offsetLeft - (kap.clientWidth / 2) + (buton.offsetWidth / 2);
+    kap.scrollTo({ left: Math.max(0, hedef), behavior: "smooth" });
+  }, [sinifFiltre]);
+  // React'in liste görünümünü DOM'a gerçekten yazdığı anla AYNI ANDA, tarayıcı
+  // henüz boyamadan (paint) önce çalışır (useLayoutEffect'in garantisi budur)
+  // — bu yüzden hem requestAnimationFrame'den hem normal useEffect'ten daha
+  // güvenilir: normal useEffect kullanılsaydı tarayıcı önce sayfayı "en üstte"
+  // boyayıp SONRA kaydırma yapılacağı için gözle görülür bir sıçrama/flaş
+  // olabilirdi. seciliOgrenci null olduğunda (profil kapanıp liste
+  // göründüğünde) kaydedilmiş konuma döner, sonra konumu sıfırlar ki bir
+  // sonraki "Öğrenciyi Sil" gibi başka bir null'lamada yanlışlıkla tekrar
+  // eski bir konuma atlamasın.
+  React.useLayoutEffect(() => {
+    if (seciliOgrenci === null && listeScrollKonumuRef.current > 0) {
+      const hedef = listeScrollKonumuRef.current;
+      listeScrollKonumuRef.current = 0;
+      window.scrollTo(0, hedef);
+    }
+  }, [seciliOgrenci]);
   const [sinifSilAcik, setSinifSilAcik] = useState(false);
   const [sinifSiliniyor, setSinifSiliniyor] = useState(false);
   const [gorunumModu, setGorunumModu] = useState("liste"); // liste | aylik
@@ -10440,9 +10469,9 @@ function OgrenciYonetim({
           <>
           {/* Sınıf filtresi */}
           {siniflar.length > 0 && (
-            <div style={{ display:"flex", gap:5, overflowX:"auto", marginBottom:10, paddingBottom:4 }}>
+            <div ref={sinifFiltreCubugu} style={{ display:"flex", gap:5, overflowX:"auto", marginBottom:10, paddingBottom:4 }}>
               {["Tümü", ...siniflar].map(s => (
-                <button key={s} onClick={() => { setSinifFiltre(s); setSinifSilAcik(false); }} style={{
+                <button key={s} data-pdr-sinif-key={s} onClick={() => { setSinifFiltre(s); setSinifSilAcik(false); }} style={{
                   flexShrink:0, padding:"4px 10px", borderRadius:14,
                   border:`1px solid ${sinifFiltre===s ? ACCENT : BORDER}`,
                   background:sinifFiltre===s ? ACCENT_LIGHT : CARD,
@@ -10598,10 +10627,9 @@ function OgrenciYonetim({
               // Geri'de sıfırlamıyordu, sadece bu ekranın kendi listesine
               // dönüyordu).
               if (setAktifOgrenci) setAktifOgrenci({ name: "", className: "" });
-              // Liste tekrar render olduktan sonra (bir sonraki frame'de) eski
-              // kaydırma konumuna dön — hemen çağrılırsa liste DOM'a henüz
-              // yeniden gelmemiş olabilir, requestAnimationFrame bunu garantiler.
-              requestAnimationFrame(() => window.scrollTo(0, listeScrollKonumuRef.current));
+              // Kaydırma konumu geri yükleme yukarıdaki useLayoutEffect'te
+              // yapılıyor (seciliOgrenci null olunca) — requestAnimationFrame
+              // burada güvenilir değildi.
             }} style={{
               background:BG, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:700, color:MUTED, cursor:"pointer"
             }}>← Geri</button>
