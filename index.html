@@ -10591,6 +10591,13 @@ function OgrenciYonetim({
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, flexWrap:"wrap", rowGap:8 }}>
             <button onClick={() => {
               setSeciliOgrenci(null); setAktifSekme("ozet");
+              // "Geri" tüm sekmelerden bağlantıyı kessin — sadece bu ekranın
+              // içindeki seçimi değil, ortak aktifOgrenci'yi de temizliyoruz.
+              // Yoksa Görüşme Notu/Profil/Müdahale gibi diğer sekmeler aynı
+              // öğrenciyi göstermeye devam ediyordu (bu ortak bilgiyi hiçbiri
+              // Geri'de sıfırlamıyordu, sadece bu ekranın kendi listesine
+              // dönüyordu).
+              if (setAktifOgrenci) setAktifOgrenci({ name: "", className: "" });
               // Liste tekrar render olduktan sonra (bir sonraki frame'de) eski
               // kaydırma konumuna dön — hemen çağrılırsa liste DOM'a henüz
               // yeniden gelmemiş olabilir, requestAnimationFrame bunu garantiler.
