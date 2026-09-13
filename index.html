@@ -10109,17 +10109,21 @@ function OgrenciYonetim({
   // olan öğrenci detay ekranı eski kademedeki bir öğrenciyi göstermeye devam
   // edebiliyordu (yanlış/eski veriyle) — artık kademe değişince otomatik
   // olarak listeye dönülür, "Geri" butonuna basmaya gerek kalmaz.
-  // ÖNEMLİ DÜZELTME: kademe uygulama açılışında Firestore'dan ASENKRON
-  // yükleniyor (başlangıç değeri "", biraz sonra gerçek değer geliyor) — bu
-  // İLK yükleme de bir "değişim" sayılıp seçili öğrenciyi sıfırlıyordu, bu
-  // yüzden aktifOgrenci localStorage'dan doğru restore olsa bile birkaç
-  // yüz milisaniye sonra listeye geri düşülüyordu (özellikle uygulamayı
-  // kapatıp tekrar açınca / "geri" ile çıkıp girince fark ediliyordu). İlk
-  // yüklemeyi bir ref ile atlayıp sadece SONRAKİ gerçek değişimlerde sıfırlıyoruz.
-  const kademeIlkYuklemeRef = useRef(true);
+  // ÖNEMLİ DÜZELTME (2. deneme): kademe uygulama açılışında Firestore'dan
+  // ASENKRON yükleniyor — başlangıç değeri "" olup GERÇEK değer (örn.
+  // "ortaokul") biraz SONRA, ayrı bir render'da geliyor. Bir önceki
+  // düzeltmem ("ilk çalışmayı atla") bunu YAKALAYAMIYORDU çünkü asıl
+  // sıfırlama o ilk çalışmada değil, gecikmeli gelen bu İKİNCİ çalışmada
+  // oluyordu. Doğrusu: sadece bir GERÇEK kademe değerinden BAŞKA bir GERÇEK
+  // kademe değerine geçişte sıfırla (örn. "ortaokul"->"lise") — "" (henüz
+  // yüklenmedi) ile hiçbir GERÇEK değer arasındaki geçiş bir "kullanıcı
+  // değişikliği" sayılmaz, sıfırlama yapılmaz. Gerçek React ortamında
+  // (react-test-renderer) her iki senaryo da test edilip doğrulandı.
+  const oncekiKademeRef = useRef(kademe);
   useEffect(() => {
-    if (kademeIlkYuklemeRef.current) { kademeIlkYuklemeRef.current = false; return; }
-    setSeciliOgrenci(null);
+    const onceki = oncekiKademeRef.current;
+    oncekiKademeRef.current = kademe;
+    if (onceki && kademe && onceki !== kademe) setSeciliOgrenci(null);
   }, [kademe]);
   const [excelPanelAcik, setExcelPanelAcik] = useState(false);
   const [sinifGuncelleAcik, setSinifGuncelleAcik] = useState(false);
