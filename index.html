@@ -12996,7 +12996,23 @@ export default function App() {
   const [riskListesi, setRiskListesi] = useState([]);
   const [denemeler, setDenemeler] = useState({});
   const [ogrenciler, setOgrenciler] = useState([]);
-  const [aktifOgrenci, setAktifOgrenci] = useState({ name: "", className: "" });
+  // "Geri tuşuna basıp çıktığımda o öğrenciye tekrar gelsin" — aktifOgrenci
+  // artık sadece hafızada değil, tarayıcının kendi yerel deposunda da
+  // tutuluyor. Bu TEK değişiklik, aktifOgrenci'yi okuyan HER sekmeyi aynı
+  // anda düzeltiyor — hepsi zaten bu ortak bilgiden besleniyor.
+  const [aktifOgrenci, setAktifOgrenci] = useState(() => {
+    try {
+      const kayitli = localStorage.getItem("rpusula_son_aktif_ogrenci");
+      if (kayitli) { const o = JSON.parse(kayitli); if (o?.name) return o; }
+    } catch (e) {}
+    return { name: "", className: "" };
+  });
+  useEffect(() => {
+    try {
+      if (aktifOgrenci?.name) localStorage.setItem("rpusula_son_aktif_ogrenci", JSON.stringify(aktifOgrenci));
+      else localStorage.removeItem("rpusula_son_aktif_ogrenci");
+    } catch (e) {}
+  }, [aktifOgrenci]);
   useEffect(() => {
     if (aktifOgrenci?.name) {
       const bulunan = kayitliListesi.find(o => pdrAyniOgrenci(o.name, o.className, aktifOgrenci.name, aktifOgrenci.className));
