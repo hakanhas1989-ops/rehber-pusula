@@ -10151,13 +10151,14 @@ function OgrenciYonetim({
   const [formAcik, setFormAcik] = useState(false);
   const [aktifSekme, setAktifSekme] = useState("ozet"); // ozet | gorusme | deneme | profil
   const [sinifFiltre, setSinifFiltre] = useState("Tümü");
-  // Bir öğrenciye tıklayıp profiline girmeden hemen önceki sayfa kaydırma
-  // konumunu (scroll) burada saklıyoruz. Filtre/liste kendisi zaten değişmiyor
-  // (sinifFiltre ayrı bir state, dokunulmuyor) — ama profil ekranı kapanıp
-  // liste tekrar göründüğünde tarayıcı sayfayı otomatik en üste sıfırlıyordu,
-  // bu yüzden filtre doğru kalsa bile kullanıcı öğrenciyi görmek için tekrar
-  // aşağı kaydırmak zorunda kalıyordu. "Geri" butonunda bu konum geri yükleniyor.
-  const listeScrollKonumuRef = useRef(0);
+  // Hangi öğrenciye tıklayıp profiline girildiğini saklıyoruz — geri
+  // dönüldüğünde doğrudan O ÖĞRENCİNİN satırını scrollIntoView ile
+  // hedefliyoruz. Daha önce piksel bazlı window.scrollY/scrollTo denendi
+  // ama güvenilir çıkmadı; scrollIntoView, liste yeniden render olurken
+  // satır sırası/yüksekliği ufak değişse bile (örn. bir rozet görünüp
+  // kaybolsa) her zaman doğru sonucu verir — piksel sayısı gibi "eski" bir
+  // varsayıma dayanmaz, doğrudan DOM'daki gerçek satırı bulur.
+  const donulecekOgrenciRef = useRef(null);
   // Sınıf filtresi çubuğunu seçilen sınıf etrafında ortalamak için — ana
   // sekme çubuğundaki aynı desen (pdrSekmeCubugu, TABS render'ında). Çok
   // sayıda sınıf varsa (8-A...8-DNI gibi) seçilen sınıf yatayda görünmeyen
@@ -10172,20 +10173,17 @@ function OgrenciYonetim({
     kap.scrollTo({ left: Math.max(0, hedef), behavior: "smooth" });
   }, [sinifFiltre]);
   // React'in liste görünümünü DOM'a gerçekten yazdığı anla AYNI ANDA, tarayıcı
-  // henüz boyamadan (paint) önce çalışır (useLayoutEffect'in garantisi budur)
-  // — bu yüzden hem requestAnimationFrame'den hem normal useEffect'ten daha
-  // güvenilir: normal useEffect kullanılsaydı tarayıcı önce sayfayı "en üstte"
-  // boyayıp SONRA kaydırma yapılacağı için gözle görülür bir sıçrama/flaş
-  // olabilirdi. seciliOgrenci null olduğunda (profil kapanıp liste
-  // göründüğünde) kaydedilmiş konuma döner, sonra konumu sıfırlar ki bir
-  // sonraki "Öğrenciyi Sil" gibi başka bir null'lamada yanlışlıkla tekrar
-  // eski bir konuma atlamasın.
+  // henüz boyamadan (paint) önce çalışır (useLayoutEffect'in garantisi budur).
+  // seciliOgrenci null olduğunda (profil kapanıp liste göründüğünde)
+  // kaydedilmiş öğrencinin satırını arayıp ekrana getiriyor, sonra referansı
+  // sıfırlıyor ki bir sonraki "Öğrenciyi Sil" gibi başka bir null'lamada
+  // yanlışlıkla tekrar eski bir hedefe atlamasın.
   React.useLayoutEffect(() => {
-    if (seciliOgrenci === null && listeScrollKonumuRef.current > 0) {
-      const hedef = listeScrollKonumuRef.current;
-      listeScrollKonumuRef.current = 0;
-      window.scrollTo(0, hedef);
-    }
+    if (seciliOgrenci !== null || !donulecekOgrenciRef.current) return;
+    const anahtar = donulecekOgrenciRef.current;
+    donulecekOgrenciRef.current = null;
+    const satir = Array.from(document.querySelectorAll("[data-pdr-ogrenci-satir]")).find(el => el.getAttribute("data-pdr-ogrenci-satir") === anahtar);
+    if (satir) satir.scrollIntoView({ block: "center" });
   }, [seciliOgrenci]);
   const [sinifSilAcik, setSinifSilAcik] = useState(false);
   const [sinifSiliniyor, setSinifSiliniyor] = useState(false);
@@ -10450,7 +10448,7 @@ function OgrenciYonetim({
                             .slice()
                             .sort((a,b) => (a.date||"").localeCompare(b.date||""))
                             .map(k => (
-                            <div key={k.id} onClick={() => { listeScrollKonumuRef.current = window.scrollY; setSeciliOgrenci(k.studentName); if(setAktifOgrenci) setAktifOgrenci({ name:k.studentName, className:k.className||"" }); }}
+                            <div key={k.id} data-pdr-ogrenci-satir={pdrOgrAnahtar(k.studentName, k.className, k.numara)} onClick={() => { donulecekOgrenciRef.current = pdrOgrAnahtar(k.studentName, k.className, k.numara); setSeciliOgrenci(k.studentName); if(setAktifOgrenci) setAktifOgrenci({ name:k.studentName, className:k.className||"" }); }}
                               style={{ background:BG, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:"9px 12px", display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
                               <span style={{ fontSize:11, color:MUTED, minWidth:44 }}>{k.date}</span>
                               <span style={{ flex:1, fontSize:13, fontWeight:700, color:TEXT }}>{k.studentName}</span>
@@ -10569,10 +10567,10 @@ function OgrenciYonetim({
               const oAniDegisim = aniDegisimHesapla(o, records, riskListesi, sevkler, denemeler, testKayitlari, dersler, profiles);
 
               return (
-                <div key={pdrOgrAnahtar(o.studentName, o.className, o.numara)} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:12, padding:"10px 14px", display:"flex", flexDirection:"column", gap:6 }}>
+                <div key={pdrOgrAnahtar(o.studentName, o.className, o.numara)} data-pdr-ogrenci-satir={pdrOgrAnahtar(o.studentName, o.className, o.numara)} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:12, padding:"10px 14px", display:"flex", flexDirection:"column", gap:6 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                     {/* Tıklanabilir alan: avatar + isim/sınıf/no */}
-                    <div onClick={() => { listeScrollKonumuRef.current = window.scrollY; setSeciliOgrenci(o.studentName); if(setAktifOgrenci) setAktifOgrenci({ name: o.studentName, className: o.className || "" }); }}
+                    <div onClick={() => { donulecekOgrenciRef.current = pdrOgrAnahtar(o.studentName, o.className, o.numara); setSeciliOgrenci(o.studentName); if(setAktifOgrenci) setAktifOgrenci({ name: o.studentName, className: o.className || "" }); }}
                       style={{ display:"flex", alignItems:"center", gap:10, flex:1, cursor:"pointer", minWidth:0 }}>
                       <div style={{ width:34, height:34, borderRadius:"50%", background:ACCENT_LIGHT, color:ACCENT, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:14, flexShrink:0 }}>
                         {o.studentName.charAt(0).toUpperCase()}
