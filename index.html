@@ -5124,6 +5124,254 @@ function beierKategoriOzetiHesapla(maddeler) {
   });
 }
 
+// ── Mesleki Eğilim Belirleme Testi (160 Madde) ───────────────────────────────
+// Kaynak: rehberlikservisim.com — kağıt üzerinde 160 maddelik ilgi envanteri.
+// Danışman öğrenciyle uyguladıktan sonra aşağıdaki 160 maddelik listeden elle
+// işaretler. Puanlama TAMAMEN yerel/deterministiktir — AI'a hiç gitmez: her
+// 10. madde bir sütuna (A-İ) denk gelir (1,11,21...→A; 2,12,22...→B; ...
+// 10,20,30...→İ), her işaretli madde o sütuna 10 puan katar. Bu, testin
+// resmi "Puanlama ve Değerlendirme" formundaki tabloyla birebir aynı
+// mantıktır. NOT: kişisel pdr-program sürümünde işaretli cevap kağıdını
+// AI'a fotoğraf/PDF olarak okutup otomatik işaretleme yaptırma kısayolu da
+// var; bu sürümde o kısayol yok (ayrı bir worker eylemi gerektiriyor),
+// sadece elle işaretleme mevcut — puanlama ve sonuç ekranı birebir aynı.
+const MESLEKI_EGILIM_MADDELERI = [
+  "Evdeki veya bahçedeki bitkilerin bakımıyla ilgilenmek.",
+  "Elektronik aletlerle ilgilenmek.",
+  "Çevresinde fikrine başvurulan bir kişi olmak.",
+  "Müzeleri ve sanat galerilerini gezmek.",
+  "Kitap okumak.",
+  "Toplumsal hayattaki sorunlarla ilgilenmek.",
+  "Uluslararası konferanslara katılmak.",
+  "İnsan vücudunun işleyişini incelemek.",
+  "\"Zengin olma sanatı\" gibi kitapları okumak.",
+  "Matematiksel hesaplara ilgi duymak.",
+  "Evde hayvan beslemek.",
+  "El sanatları sergilerini gezmek.",
+  "Polisiye filimlerin sonuçlarını tahmin etmek.",
+  "Pul veya benzeri kolleksiyonlar yapmak.",
+  "Gazetelerdeki köşe yazılarını okumak.",
+  "TV'deki açık oturumları izlemek.",
+  "Yabancı dilden kitap tercüme etmek.",
+  "Sağlık kuruluşlarında gönüllü çalışmayı istemek.",
+  "Televizyonlardaki ekonomi programlarını izlemek.",
+  "Bilgisayarda özel programlar geliştirmek.",
+  "Seracılık üzerine araştırma yapmak.",
+  "Evdeki mobilyaları onarmak.",
+  "Liderlerin hayat hikayelerini okumak.",
+  "Antika eşyalara ilgi duymak.",
+  "İnsanların sorunlarına çözüm bulmaya çalışmak.",
+  "İnsan davranışlarının nedenini araştırmak.",
+  "Turistlerle konuşmaya çalışmak.",
+  "Hastalara ve düşkünlere yardım etmek.",
+  "Enflasyonun nedenlerini araştırmak.",
+  "Sayısal bulmacalar çözmek.",
+  "Hayvanların hayatlarını anlatan belgeselleri izlemek.",
+  "Binaların mimari özelliklerini merak etmek.",
+  "Yardım kuruluşlarına para toplamak.",
+  "Müzik aletleri ile ilgilenmek.",
+  "Reklamların nasıl daha etkili olabileceği konusunda düşünmek.",
+  "İnsan davranışlarını incelemek.",
+  "Yeni duyduğu bir kelime için sözlüğe bakmak.",
+  "İlaçların prospektüsünü okumak.",
+  "Ekonomi haberlerini izlemek.",
+  "Mimari yapıların projelerini incelemek ve çizmek.",
+  "Modern çiftçilik yöntemleri hakkında yazılar okumak.",
+  "Legolarla değişik yapılar oluşturmak.",
+  "Arkadaşlarının sorunları ile ilgilenmek.",
+  "Taklit ve komedi yapmak.",
+  "TV'deki psikolojik sorunlarla ilgili programları izlemek.",
+  "Gazetelerdeki sorunlarımıza çözümler ile ilgili yazıları okumak.",
+  "Yabancı ülkeleri merak etmek.",
+  "Laboratuvarda deney yapmaktan hoşlanmak.",
+  "Borsayı takip etmek.",
+  "Mısır Piramitleri'nin nasıl yapıldığını merak etmek.",
+  "Bitkilerin büyümesini gözlemlemek.",
+  "Başladığı işin mutlaka sonunu getirmek.",
+  "Siyasi parti propagandalarına katılmak.",
+  "Sanat galerilerini gezmek.",
+  "Tarihi olay ve kişileri incelemek.",
+  "Dernek vakıf gibi kurumlarda çalışmak.",
+  "Dil öğrenmenin yöntemlerini araştırmak.",
+  "Kaza geçiren bir insana ilk yardımda bulunmak.",
+  "Döviz kurlarını takip etmek.",
+  "Bilim teknik dergilerini okumak.",
+  "Başka ülkelerin iklimlerini incelemek.",
+  "Çocuklara pratik oyuncaklar yapmak.",
+  "TV'deki açık oturum programlarını izlemek.",
+  "Modern dans gösterileriyle ilgilenmek.",
+  "Radyo ve TV'den günlük haberleri takip etmek.",
+  "İnsanları suça iten nedenleri araştırmak.",
+  "Turistlere rehberlik yapmak.",
+  "Tıp alanındaki yenilikleri izlemek.",
+  "Reklamların etkisini incelemek.",
+  "Keşif ve icatlarla ilgilenmek.",
+  "Okyanusları ve yeraltı sularını araştırmak.",
+  "Halı ve kilim mağazalarını gezmek.",
+  "Bir başkasına yapılan haksızlığa karşı koymak.",
+  "Doğa fotoğrafları çekmek.",
+  "Olayların neden ve sonuçlarını merak etmek.",
+  "Cezaevinde yatanların hayatlarını ve sorunlarını merak etmek.",
+  "Güçlü bir hafızaya sahip olmak.",
+  "Hastahanede yatan yakınını ziyaret etmek.",
+  "İnsanları etkilemenin yollarını öğrenmek.",
+  "Elektronik devrelerin nasıl çalıştığını araştırmak.",
+  "Çevredeki bitki türleriyle ilgilenmek.",
+  "Evdeki eşyaların dizaynını yapmak.",
+  "Fikirlerini ısrarla savunmak.",
+  "Değişik yörelerin halk oyunlarını oynamak veya merak etmek.",
+  "Toplumların sosyal yapılarını incelemek.",
+  "Günlük gazetelerden en az birini takip etmek.",
+  "Dilbilgisinden başarılı olmak.",
+  "Bir hastanın ameliyatını izlemek.",
+  "Banka ve bankacılık sistemini merak etmek.",
+  "Farklı bir yakıtla çalışabilecek otomobil geliştirmeyi istemek.",
+  "Hayvanların üremeleri ve gelişmeleriyle ilgili araştırmalar yapmak.",
+  "Mobilya fuarlarını gezmek.",
+  "Miting ve gösterilerin nedenini merak etmek.",
+  "Müzik aleti çalmak.",
+  "İnsanlara bir şeyler anlatmaktan ve öğretmekten zevk almak.",
+  "Aynı haberi farklı gazetelerden de takip etmek.",
+  "Farklı dillerdeki ortak kelimeleri bulmak.",
+  "Besinlerin içindeki maddeleri merak etmek.",
+  "Satın alacağı malın maliyetini öğrenmek.",
+  "Astronomi ile ilgili kitaplar okumak.",
+  "Türkiyenin yer altı zenginliklerini araştırmak.",
+  "Araba modelleri ile ilgilenmek.",
+  "Arkadaşları için aktiviteler düzenlemek.",
+  "Tarihi eser ve sarayları gezmeyi istemek.",
+  "İnsan ve evrenin yaratılışını düşünmek.",
+  "Olayların yorumuna önem vermek.",
+  "Gazetedeki dış politika yazılarını okumak.",
+  "Bilim müzesini gezmek istemek.",
+  "Bir firmanın kâr zarar hesapları ile ilgilenmek.",
+  "Maket uçak yapmak.",
+  "Çevre sorunlarına duyarlı olmak.",
+  "Daha değişik elbise modelleri tasarlamak.",
+  "Bir konuda ayrıntılı bilgi toplamak.",
+  "Doğada gördüklerini resmetmeye çalışmak.",
+  "Eşya ve olayların ayrıntılarına dikkat etmek.",
+  "Alışveriş yaparken pazarlık yapmak.",
+  "Düşüncelerini etkin bir şekilde aktarabilmek.",
+  "Kaynak suları ve kaplıcaların faydalarını araştırmak.",
+  "Para harcarken ekonomik davranmaya çalışmak.",
+  "Evren ve galaksilerle ilgilenmek.",
+  "Deniz canlılarını araştırmak.",
+  "Kumaşlara desen ve renk vermek.",
+  "İnsanlarla iyi ilişkiler kurmaya çalışmak.",
+  "Çamurdan figürler yapmak.",
+  "Bir derste veya oturumda muhattabına konunun incelikleri hakkında soru sormak.",
+  "Yasalarla ilgili kitaplar okumak.",
+  "Dış politikayı takip etmek.",
+  "Kanserin tedavisini merak etmek.",
+  "Çevresinde düzenli birisi olarak bilinmek.",
+  "Teknolojik yeniliklerle ilgilenmek.",
+  "Yerşekillerinin oluşumlarıyla ilgili bilgiler toplamak.",
+  "Bulduğu malzemelerle yeni eşyalar, araçlar yapmak.",
+  "Oyunlarda lider olmak.",
+  "Evinin dekoruna ve düzenine önem vermek.",
+  "Duygularını, düşüncelerini ve gördüklerini abartılı şekilde aktarmak.",
+  "Politika ve politikacılarla ilgilenmek.",
+  "Tatil yörelerine gezi düzenlemek.",
+  "Kır gezilerinde şifalı bitkileri toplamak.",
+  "Güne programlı başlamak.",
+  "Bir işe başlamadan önce o işin genel planını ve programını yapmak.",
+  "Hasta ve yaralı hayvanlara yardımcı olmak.",
+  "El becerisi gerektiren işleri titizlikle yapmak.",
+  "Toplum önünde etkili ve güzel konuşmak.",
+  "Anadolu'da yaşamış medeniyetler hakkında bilgi toplamak.",
+  "Farklı dinleri ve inançları araştırmak.",
+  "Duygu ve düşüncelerini yazarak ifade etmek.",
+  "Ülkelerin siyasal tarihlerini araştırmak.",
+  "Mikroskopla değişik objelere bakmayı istemek.",
+  "Randevularına zamanında gidebilmek.",
+  "Bilimsel formüllerle ilgilenmek.",
+  "Atmosfer olayları ve ozon tabakasının yırtılması ile ilgilenmek.",
+  "Araba, makine ve elektronik eşya modelleri çizmek, tasarlamak.",
+  "Bir konuda araştırma ve inceleme yaptıktan sonra karar vermek.",
+  "Sinema veya tiyatroya gitmek.",
+  "Güzel konuşmaya özen göstermek.",
+  "Farklı ırkların ve dillerin nasıl oluştuğunu araştırmak.",
+  "Yabancı filmleri alt yazısız izlemek.",
+  "Doğada gördüğü maddelerin yapısını merak etmek.",
+  "İnsani ilişkilerde nazik olmak.",
+  "Kullandığı cihazların fonksiyonlarını geliştirmek."
+];
+const MESLEKI_EGILIM_SUTUNLAR = [
+  { harf: "A", meslekler: "Ziraat Müh., Orman Müh., Çevre Müh., Su Ürünleri, Maden Müh., Meteoroloji Müh., Jeoloji Müh., Coğrafya, Arkeoloji, Veterinerlik" },
+  { harf: "B", meslekler: "Mimarlık, İç Mimarlık, Radyo-TV Teknisyenliği, Teknik Ressam, Teknik Öğretmenlikler, Diş Teknisyenliği, Makine Müh., Tekstil Müh." },
+  { harf: "C", meslekler: "Hukuk (Avukat, Hakim, Savcı), Siyasal Bilgiler, İşletme, Yöneticilik" },
+  { harf: "D", meslekler: "Fotoğraf, Sinema, Tiyatro, Folklor, Müzik, Resim, Heykeltıraşlık, Spor, Mimarlık, Peyzaj Mimarlığı, Dekoratörlük, Arkeoloji, Sanat Tarihi" },
+  { harf: "E", meslekler: "Edebiyat, Gazetecilik, İletişim, Öğretmenlik, Reklamcılık, Halkla İlişkiler, Pazarlama, Rehberlik ve Psikolojik Danışmanlık, İlahiyat" },
+  { harf: "F", meslekler: "Psikoloji, Sosyoloji, Felsefe, Antropoloji, Hukuk, Pazarlama, Kamu Yönetimi, Gazetecilik, Halkla İlişkiler" },
+  { harf: "G", meslekler: "Mütercim-Tercümanlık, Filoloji, Turizm-Otelcilik, Uluslararası İlişkiler" },
+  { harf: "H", meslekler: "Biyoloji, Kimya, Tıp, Eczacılık, Diş Hekimliği, Hemşirelik, Veterinerlik" },
+  { harf: "I", meslekler: "İktisat, Ekonomi, Maliye, Bankacılık, Kamu ve Özel Sektör Yöneticiliği, Muhasebe" },
+  { harf: "İ", meslekler: "Bilgisayar Müh., Elektrik-Elektronik Müh., İnşaat Müh., Uçak Müh., Endüstri Müh., Metalurji Müh., Matematik, Fizik" },
+];
+// Resmi formdaki değerlendirme ölçeği — sütun puanı 0-160 arası olabilir (16 madde × 10 puan).
+const MESLEKI_EGILIM_DUZEYLER = [
+  { max: 40, ad: "Bu meslek grubuyla ilginiz yok.", renk: "#C0392B" },
+  { max: 80, ad: "İlginiz var; ama bu meslekleri seçmeniz için yeterli değil.", renk: "#B07D1A" },
+  { max: 100, ad: "Bu mesleklere ilginiz var; ama seçmeden önce bir kere daha düşününüz.", renk: "#B07D1A" },
+  { max: 130, ad: "Normal; bu meslekleri seçebilirsiniz.", renk: "#457B9D" },
+  { max: 160, ad: "Bu meslekler için idealsiniz; hiç düşünmeden seçebilirsiniz.", renk: "#1A8C5B" },
+];
+function mesleklEgilimDuzeyHesapla(puan) {
+  const bulunan = MESLEKI_EGILIM_DUZEYLER.find(d => puan <= d.max);
+  return bulunan || MESLEKI_EGILIM_DUZEYLER[MESLEKI_EGILIM_DUZEYLER.length - 1];
+}
+// Madde numarasından (1-160) sütun index'i (0-9, A-İ) çıkarır.
+function mesleklEgilimSutunIndex(maddeNo) {
+  const kalan = maddeNo % 10;
+  return kalan === 0 ? 9 : kalan - 1;
+}
+// İşaretli madde numaraları dizisinden 10 sütunun puanını ve düzeyini hesaplar,
+// en yüksek puandan en düşüğe sıralı döner.
+function mesleklEgilimSonucHesapla(isaretliMaddeler) {
+  const sutunPuan = new Array(10).fill(0);
+  (isaretliMaddeler || []).forEach(n => {
+    const idx = mesleklEgilimSutunIndex(n);
+    if (idx >= 0 && idx < 10) sutunPuan[idx] += 10;
+  });
+  return MESLEKI_EGILIM_SUTUNLAR
+    .map((s, i) => ({ ...s, puan: sutunPuan[i], duzey: mesleklEgilimDuzeyHesapla(sutunPuan[i]) }))
+    .sort((a, b) => b.puan - a.puan);
+}
+
+// Meslek grubu (A-İ) → lise türü eşleşmesi. Bu bir KILAVUZ/İPUCU'dur, kesin bir
+// yönlendirme değildir — nihai karar öğrencinin LGS başarısına, o lise türünün
+// bulunduğu ile erişimine ve kişisel tercihine bağlıdır (özellikle Fen Lisesi
+// ve Sosyal Bilimler Lisesi'nin taban puanları çok yüksektir).
+const LISE_TURU_ONERI = {
+  A: ["Fen Lisesi", "Anadolu Lisesi (Sayısal)"],
+  B: ["Anadolu Lisesi (Sayısal)", "Mesleki ve Teknik Anadolu Lisesi (ilgili teknik alan varsa)"],
+  C: ["Anadolu Lisesi (Eşit Ağırlık / Sözel)"],
+  D: ["Güzel Sanatlar Lisesi", "Spor Lisesi"],
+  E: ["Anadolu Lisesi (Sözel)", "Anadolu İmam Hatip Lisesi (ilahiyat ağırlıklıysa)"],
+  F: ["Sosyal Bilimler Lisesi", "Anadolu Lisesi (Sözel)"],
+  G: ["Anadolu Lisesi (yoğun yabancı dil programı)"],
+  H: ["Fen Lisesi", "Anadolu Lisesi (Sayısal)"],
+  I: ["Anadolu Lisesi (Eşit Ağırlık)"],
+  "İ": ["Fen Lisesi", "Anadolu Lisesi (Sayısal)"],
+};
+// Sonuçtaki güçlü sütunlara (puan >= 101, yani resmi kılavuzdaki "normal" ve
+// "ideal" bantları — 0-100 arası "ilginiz yok/yeterli değil/bir kez daha
+// düşünün" demek, lise önerisine temel oluşturacak kadar güçlü bir sinyal
+// değil) bakarak en fazla 3 sütunu esas alır, ilişkili lise türlerini toplar.
+function mesleklEgilimLiseOnerisiHesapla(sonucSirali) {
+  const guclu = (sonucSirali || []).filter(s => s.puan >= 101).slice(0, 3);
+  if (guclu.length === 0) return null;
+  const liseSeti = new Map();
+  guclu.forEach(s => {
+    (LISE_TURU_ONERI[s.harf] || []).forEach(lise => {
+      const mevcut = liseSeti.get(lise) || [];
+      if (!mevcut.includes(s.harf)) liseSeti.set(lise, [...mevcut, s.harf]);
+    });
+  });
+  return { sutunlar: guclu, liseler: Array.from(liseSeti.entries()).map(([lise, harfler]) => ({ lise, harfler })) };
+}
+
 const TEST_LISTESI = {
   objektif: [
     { ad: "D2 Dikkat Testi", tip: "d2" },
@@ -5150,6 +5398,7 @@ const TEST_LISTESI = {
       genelEtiket: "Genel Değerlendirme" },
     { ad: "16PF KİM (Kişilik ve Mesleki Yönlendirme)", tip: "kariyer" },
     { ad: "Kuder Mesleki İlgi Envanteri", tip: "kariyer" },
+    { ad: "Mesleki Eğilim Belirleme Testi (160 Madde)", tip: "mesleki_egilim_160" },
   ],
   projektif: [
     { ad: "BEİER Cümle Tamamlama Testi (Form A, 8-16 Yaş)", tip: "beier_form_a" },
@@ -5192,7 +5441,7 @@ function testDuzeyHesapla(testTanim, puan) {
   return bulunan ? bulunan.ad : testTanim.duzeyler[testTanim.duzeyler.length-1].ad;
 }
 
-const TEST_FORM_BOS = { tarih: today(), not: "", dogru:"", yanlisAtlanan:"", dikkatPuani:"", pr:"", altPuanlar:{}, genelSonuc:"", hamPuan:"", zekaYasi:"", zekaBolumu:"", hataPuani:"", gelisimselYas:"", toplamPuan:"", duzeyYorum:"", oneCikanAlanlar:"", genelYorum:"", maddeler:[], guvenlikUyarisi:"" };
+const TEST_FORM_BOS = { tarih: today(), not: "", dogru:"", yanlisAtlanan:"", dikkatPuani:"", pr:"", altPuanlar:{}, genelSonuc:"", hamPuan:"", zekaYasi:"", zekaBolumu:"", hataPuani:"", gelisimselYas:"", toplamPuan:"", duzeyYorum:"", oneCikanAlanlar:"", genelYorum:"", isaretliMaddeler:[], maddeler:[], guvenlikUyarisi:"" };
 function testVeriOlustur(tip, testTanim, form) {
   switch (tip) {
     case "d2": return { dogru: form.dogru, yanlisAtlanan: form.yanlisAtlanan, dikkatPuani: form.dikkatPuani, pr: form.pr };
@@ -5224,6 +5473,112 @@ function testFormGecerliMi(tip, form) {
 // fonksiyon o alanı çıkarır. Diğer türler (kariyer, alt_test, nitel, beier,
 // mesleki_egilim vb.) tek bir sayıya indirgenemez, bunlar için null döner ve
 // zaman çizelgesinde hiç gösterilmez. AI kullanılmaz, tamamen kayıtlı veriden.
+// ── Mesleki Eğilim Testi — Google Forms/Excel Toplu Yükleme ──────────────────
+// Google Forms yanıtlarının indirildiği E-Tablo'yu (Excel/CSV) okuyup her
+// öğrenci satırı için otomatik puanlayıp testKayitlari'na ekler. AI'a hiç
+// gitmez — form yanıtları zaten düzenli/yazılı metin olduğu için (el yazısı
+// okuma gerekmiyor), madde metniyle doğrudan eşleştirme yeterli ve daha
+// güvenilir. Sütunlar BAŞLIK METNİNE göre bulunur (Deneme'nin toplu
+// yüklemesindeki yöntemle aynı): "Ad Soyad" zorunlu, "Sınıf"/"Numara" varsa
+// kullanılır; kimlik sütunları dışındaki her hücre madde metinleriyle
+// karşılaştırılır (Google Forms'ta çoklu seçim soruları virgülle ayrılmış
+// metin olarak tek hücrede gelir).
+function MesEgilimTopluYukle({ testKayitlari, setTestKayitlari, onKapat }) {
+  const [yukleniyor, setYukleniyor] = useState(false);
+  const [sonuc, setSonuc] = useState(null);
+
+  function handleDosya(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setYukleniyor(true);
+    setSonuc(null);
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const wb = XLSX.read(evt.target.result, { type: "binary" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+        if (rows.length < 2) throw new Error("Dosyada veri satırı bulunamadı.");
+
+        function trNormalize(s) {
+          return String(s || "").toUpperCase()
+            .replace(/İ/g,"I").replace(/I/g,"I").replace(/Ş/g,"S").replace(/Ğ/g,"G")
+            .replace(/Ü/g,"U").replace(/Ö/g,"O").replace(/Ç/g,"C")
+            .replace(/\s+/g," ").trim();
+        }
+        const headers = rows[0].map(trNormalize);
+        const colAd = headers.findIndex(h => h.includes("AD SOYAD") || h.includes("ADI SOYADI") || h.includes("ISIM"));
+        const colSinif = headers.findIndex(h => h.includes("SINIF") || h.includes("SUBE"));
+        const colNumara = headers.findIndex(h => h.includes("NUMARA") || h === "NO" || h.includes("OKUL NO"));
+        if (colAd < 0) throw new Error('"Ad Soyad" sütunu bulunamadı — Google Forms sorusunun başlığında bu ifadenin geçtiğinden emin ol.');
+
+        const zamanIdx = headers.findIndex(h => h.includes("ZAMAN") || h.includes("TIMESTAMP"));
+        const kimlikSutunlari = new Set([colAd, colSinif, colNumara, zamanIdx].filter(i => i >= 0));
+
+        const yeniKayitlar = { ...testKayitlari };
+        let islenenOgrenci = 0, toplamIsaretli = 0;
+        const eslesmeyenSatir = [];
+
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          const adSoyad = String(row[colAd] || "").trim();
+          if (!adSoyad) continue;
+          const sinif = colSinif >= 0 ? String(row[colSinif] || "").trim() : "";
+          const numara = colNumara >= 0 ? String(row[colNumara] || "").trim() : "";
+
+          const cevapMetni = row.map((hucre, idx) => kimlikSutunlari.has(idx) ? "" : String(hucre || "")).join(" | ");
+          const isaretli = [];
+          MESLEKI_EGILIM_MADDELERI.forEach((madde, mIdx) => {
+            if (cevapMetni.includes(madde)) isaretli.push(mIdx + 1);
+          });
+
+          if (isaretli.length === 0) { eslesmeyenSatir.push(adSoyad); continue; }
+
+          const yeni = { id: uid(), kategori: "objektif", testAdi: "Mesleki Eğilim Belirleme Testi (160 Madde)", tip: "mesleki_egilim_160", tarih: today(), not: "Google Forms toplu yükleme", veri: { isaretliMaddeler: isaretli, genelYorum: "", guvenlikUyarisi: "" } };
+          const key = pdrOgrAnahtar(adSoyad, sinif, numara);
+          const mevcutListe = pdrSozlukOku(yeniKayitlar, adSoyad, sinif, numara) || [];
+          yeniKayitlar[key] = [yeni, ...mevcutListe];
+          islenenOgrenci++;
+          toplamIsaretli += isaretli.length;
+        }
+
+        setTestKayitlari(yeniKayitlar);
+        await saveTestKayitlari(yeniKayitlar);
+        setSonuc({ islenenOgrenci, toplamIsaretli, eslesmeyenSatir });
+      } catch (err) {
+        alert("Dosya okunamadı: " + err.message);
+      }
+      setYukleniyor(false);
+    };
+    reader.readAsBinaryString(file);
+  }
+
+  return (
+    <div style={{ background:CARD, border:`2px solid ${PURPLE}`, borderRadius:12, padding:14, marginBottom:16 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+        <div style={{ fontSize:13, fontWeight:800, color:PURPLE }}>📊 Mesleki Eğilim — Toplu Yükle</div>
+        <button onClick={onKapat} style={{ background:"none", border:"none", color:MUTED, fontSize:14, cursor:"pointer" }}>✕</button>
+      </div>
+      <div style={{ fontSize:11, color:MUTED, marginBottom:10, lineHeight:1.5 }}>
+        Google E-Tablosu'nu Dosya → İndir → Microsoft Excel (.xlsx) olarak indirip buradan yükle. Sütun başlıklarında "Ad Soyad" (zorunlu), varsa "Sınıf" ve "Numara" geçmesi yeterli — geri kalan sütunlar (madde işaretlemeleri) otomatik taranır, AI kullanılmaz.
+      </div>
+      <label style={{ display:"block", width:"100%", padding:14, background:"#fff", border:`2px dashed ${PURPLE}`, borderRadius:12, textAlign:"center", color:PURPLE, fontWeight:700, cursor:"pointer", boxSizing:"border-box" }}>
+        {yukleniyor ? "⏳ İşleniyor…" : "📂 Excel Dosyası Seç (.xlsx)"}
+        <input type="file" accept=".xlsx,.xls,.csv" onChange={handleDosya} style={{ display:"none" }} disabled={yukleniyor} />
+      </label>
+      {sonuc && (
+        <div style={{ marginTop:10, background:"#E6F5EE", borderRadius:8, padding:10 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:"#1A8C5B" }}>✓ {sonuc.islenenOgrenci} öğrenci işlendi, toplam {sonuc.toplamIsaretli} madde işaretlendi.</div>
+          {sonuc.eslesmeyenSatir.length > 0 && (
+            <div style={{ fontSize:11, color:"#B07D1A", marginTop:6, lineHeight:1.5 }}>⚠️ {sonuc.eslesmeyenSatir.length} satırda hiç madde eşleşmedi ({sonuc.eslesmeyenSatir.slice(0,5).join(", ")}{sonuc.eslesmeyenSatir.length>5?"...":""}) — cevap metinleri madde listesiyle tam eşleşmiyor olabilir.</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function testSkorCikar(kayit) {
   const v = kayit.veri || {};
   switch (kayit.tip) {
@@ -5419,6 +5774,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
   const [kaydedildi, setKaydedildi] = useState(false);
   const [beierYukleniyor, setBeierYukleniyor] = useState(false);
   const [acikTestId, setAcikTestId] = useState(null);
+  const [topluYuklemeAcik, setTopluYuklemeAcik] = useState(false);
 
   useEffect(() => {
     if (aktifOgrenci?.name) setSeciliAd(aktifOgrenci.name);
@@ -5497,6 +5853,16 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
       <div style={{ fontSize: 12, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
         Program hiçbir testi uygulamaz — burada sadece başka bir ortamda uyguladığın standart test/envanterlerin sonucunu kaydedersin. Kayıtlar öğrenci raporuna otomatik eklenir.
       </div>
+
+      {/* Mesleki Eğilim Testi — Google Forms/Excel toplu yükleme (öğrenci seçiminden bağımsız, sınıf/okul geneli) */}
+      {topluYuklemeAcik ? (
+        <MesEgilimTopluYukle testKayitlari={testKayitlari} setTestKayitlari={setTestKayitlari} onKapat={()=>setTopluYuklemeAcik(false)} />
+      ) : (
+        <button onClick={()=>setTopluYuklemeAcik(true)} style={{
+          width:"100%", padding:"10px 14px", background:"#fff", border:`2px dashed ${PURPLE}`, borderRadius:12,
+          color:PURPLE, fontWeight:700, fontSize:12.5, cursor:"pointer", marginBottom:16, textAlign:"left"
+        }}>📊 Mesleki Eğilim Testi — Google Forms/Excel Toplu Yükle (tüm sınıf birden)</button>
+      )}
 
       {/* Öğrenci seç */}
       <div style={{ marginBottom: 16 }}>
@@ -5642,6 +6008,54 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                 <input value={form.genelYorum} onChange={e=>setForm(f=>({...f,genelYorum:e.target.value}))} style={{...inp, marginBottom:10}} />
               </>)}
 
+              {seciliTest.tip === "mesleki_egilim_160" && (() => {
+                const isaretli = form.isaretliMaddeler || [];
+                const toggleMadde = (n) => setForm(f => {
+                  const mevcut = f.isaretliMaddeler || [];
+                  const yeni = mevcut.includes(n) ? mevcut.filter(x=>x!==n) : [...mevcut, n];
+                  return { ...f, isaretliMaddeler: yeni };
+                });
+                const canliSonuc = mesleklEgilimSonucHesapla(isaretli).filter(s=>s.puan>0).slice(0,3);
+                const liseOnerisi = mesleklEgilimLiseOnerisiHesapla(mesleklEgilimSonucHesapla(isaretli));
+                return (
+                  <>
+                    <div style={{ fontSize:11, color:MUTED, marginBottom:10 }}>
+                      Öğrenciyle uygulayıp aşağıdaki 160 maddeden işaretlemeleri gir. İşaretli: {isaretli.length} / 160
+                    </div>
+                    {canliSonuc.length > 0 && (
+                      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
+                        {canliSonuc.map(s => (
+                          <div key={s.harf} style={{ background: s.duzey.renk+"22", border:`1px solid ${s.duzey.renk}`, borderRadius:8, padding:"4px 8px", fontSize:11, fontWeight:700, color:s.duzey.renk }}>
+                            {s.harf}: {s.puan}p
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {liseOnerisi && (
+                      <div style={{ background:"#EEF2FF", border:`1px solid ${BLUE}`, borderRadius:10, padding:10, marginBottom:10 }}>
+                        <div style={{ fontSize:11, fontWeight:800, color:BLUE, marginBottom:6 }}>🎓 Lise Türü İpucu ({liseOnerisi.sutunlar.map(s=>s.harf).join(", ")} sütunlarına göre)</div>
+                        {liseOnerisi.liseler.map(l => (
+                          <div key={l.lise} style={{ fontSize:11.5, color:TEXT, marginBottom:2 }}>• {l.lise}</div>
+                        ))}
+                        <div style={{ fontSize:10, color:MUTED, marginTop:6, lineHeight:1.5 }}>Bu sadece ilgi profiline dayalı bir ipucudur, kesin bir yönlendirme değildir — LGS puanı/net ortalaması ve o lise türünün erişilebilirliği de birlikte değerlendirilmeli.</div>
+                      </div>
+                    )}
+                    <div style={{ maxHeight:320, overflowY:"auto", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:8, marginBottom:10 }}>
+                      {MESLEKI_EGILIM_MADDELERI.map((metin, i) => {
+                        const n = i+1;
+                        const secili = isaretli.includes(n);
+                        return (
+                          <label key={n} style={{ display:"flex", alignItems:"flex-start", gap:7, padding:"4px 4px", borderRadius:6, cursor:"pointer", background: secili?PURPLE_LIGHT:"transparent" }}>
+                            <input type="checkbox" checked={secili} onChange={()=>toggleMadde(n)} style={{ marginTop:2, flexShrink:0 }} />
+                            <span style={{ fontSize:11.5, color:TEXT }}><b>{n}.</b> {metin}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
+
               {seciliTest.tip === "beier_form_a" && (() => {
                 const maddeler = form.maddeler || [];
                 const getMadde = (no) => maddeler.find(m => m.no === no) || { no, cevap: "", puan: "0" };
@@ -5744,10 +6158,12 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                 {kayitlar.map(k => {
                   const beierMi = k.tip === "beier_form_a";
+                  const mesEgilimMi = k.tip === "mesleki_egilim_160";
+                  const genisletilebilir = beierMi || mesEgilimMi;
                   const detayAcik = acikTestId === k.id;
                   return (
                   <div key={k.id} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:"10px 12px" }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8, cursor: beierMi?"pointer":"default" }} onClick={()=>{ if(beierMi) setAcikTestId(detayAcik?null:k.id); }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8, cursor: genisletilebilir?"pointer":"default" }} onClick={()=>{ if(genisletilebilir) setAcikTestId(detayAcik?null:k.id); }}>
                       <div>
                         <div style={{ fontSize:13, fontWeight:700, color:TEXT }}>
                           {k.kategori === "objektif" ? "🔵" : "🟣"} {k.testAdi}
@@ -5759,10 +6175,36 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                         )}
                       </div>
                       <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
-                        {beierMi && <span style={{ fontSize:11, color:PURPLE }}>{detayAcik?"▲":"▼"}</span>}
+                        {genisletilebilir && <span style={{ fontSize:11, color:PURPLE }}>{detayAcik?"▲":"▼"}</span>}
                         <button onClick={(e)=>{e.stopPropagation(); handleSil(k.id);}} style={{ background:"none", border:"none", color:"#C0392B", fontSize:14, cursor:"pointer" }}>🗑</button>
                       </div>
                     </div>
+                    {mesEgilimMi && detayAcik && (() => {
+                      const sonuc = mesleklEgilimSonucHesapla(k.veri?.isaretliMaddeler||[]);
+                      const liseOnerisi = mesleklEgilimLiseOnerisiHesapla(sonuc);
+                      return (
+                        <div style={{ marginTop:10, borderTop:`1px solid ${BORDER}`, paddingTop:10, display:"flex", flexDirection:"column", gap:6 }}>
+                          {liseOnerisi && (
+                            <div style={{ background:"#EEF2FF", border:`1px solid ${BLUE}`, borderRadius:10, padding:10, marginBottom:2 }}>
+                              <div style={{ fontSize:11, fontWeight:800, color:BLUE, marginBottom:6 }}>🎓 Lise Türü İpucu ({liseOnerisi.sutunlar.map(s=>s.harf).join(", ")} sütunlarına göre)</div>
+                              {liseOnerisi.liseler.map(l => (
+                                <div key={l.lise} style={{ fontSize:11.5, color:TEXT, marginBottom:2 }}>• {l.lise}</div>
+                              ))}
+                              <div style={{ fontSize:10, color:MUTED, marginTop:6, lineHeight:1.5 }}>Bu sadece ilgi profiline dayalı bir ipucudur, kesin bir yönlendirme değildir — LGS puanı/net ortalaması ve o lise türünün erişilebilirliği de birlikte değerlendirilmeli.</div>
+                            </div>
+                          )}
+                          {sonuc.map(s => (
+                            <div key={s.harf} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, padding:"6px 8px", background: s.puan>0 ? s.duzey.renk+"14" : BG, borderRadius:8 }}>
+                              <div style={{ flex:1 }}>
+                                <div style={{ fontSize:12, fontWeight:800, color: s.puan>0?s.duzey.renk:MUTED }}>{s.harf} Sütunu — {s.puan} puan</div>
+                                <div style={{ fontSize:10, color:MUTED, marginTop:1 }}>{s.meslekler}</div>
+                              </div>
+                              <div style={{ fontSize:10, fontWeight:700, color: s.puan>0?s.duzey.renk:MUTED, textAlign:"right", maxWidth:90 }}>{s.duzey.ad}</div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
                     {beierMi && detayAcik && (() => {
                       const kategoriler = beierKategoriOzetiHesapla(k.veri?.maddeler||[]);
                       return (
