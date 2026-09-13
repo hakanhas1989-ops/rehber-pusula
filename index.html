@@ -2773,6 +2773,118 @@ const KAYNASTIRMA_KISALT = {
 // toplamı, tablonun en altında tanı bazında genel toplam yer alır.
 // Veri kaynağı öğrencinin kendi kaydıdır (o.kaynastirma) — sınıf içindeki
 // "Tanı Düzenle" ile yapılan her değişiklik buraya anında yansır.
+// ── Öncelik Listesi ──────────────────────────────────────────────────────────
+// AI değildir — risk, devamsızlık ve sosyometri kayıtlarının şeffaf bir
+// puanlama ile toplamıdır. NOT: kişisel pdr-program sürümünde bir de "uyum
+// izleme" verisi bu puanlamaya dahil edilir; o veri bu sürümde yok, bu yüzden
+// fonksiyon uyumIzleme parametresi almadan çağrılıyor — tasarım zaten buna
+// göre (parametre verilmezse o bölüm otomatik atlanır).
+function pdrOncelikSkoruHesapla(ogrenciler, riskListesi, sosyometri, aktifYil, uyumIzleme) {
+  const yilOgr = (ogrenciler||[]).filter(o => !o.yil || o.yil === aktifYil);
+  const sonuclar = [];
+
+  yilOgr.forEach(o => {
+    let puan = 0; const nedenler = [];
+
+    // 1) Aktif (kapatılmamış) risk kayıtları
+    const aktifRiskler = (riskListesi||[]).filter(r =>
+      !r.kapandi && pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className, r.numara, o.numara));
+    const oncelikPuan = { "Yüksek": 3, "Orta": 2, "Düşük": 1 };
+    aktifRiskler.forEach(r => {
+      const p = oncelikPuan[r.oncelik] || 1;
+      puan += p;
+    });
+    if (aktifRiskler.length > 0) {
+      const enYuksek = aktifRiskler.reduce((a,b) => (oncelikPuan[b.oncelik]||1) > (oncelikPuan[a.oncelik]||1) ? b : a);
+      nedenler.push({ etiket: `${enYuksek.oncelik} risk (${aktifRiskler.length} aktif)`, renk: "#C0392B" });
+    }
+
+    // 2) Devamsızlık (en son kayıtlı toplam gün)
+    const gecmis = o.devamsizlikGecmisi || [];
+    const devGun = gecmis[gecmis.length-1]?.gun || 0;
+    if (devGun >= 10) { puan += 2; nedenler.push({ etiket: `Devamsızlık ${devGun}g`, renk: "#B07D1A" }); }
+    else if (devGun >= 7) { puan += 1; nedenler.push({ etiket: `Devamsızlık ${devGun}g`, renk: "#B07D1A" }); }
+
+    // 3) Uyum izleme — bu sürümde veri gelmediği için bu bölüm hiç çalışmaz
+    if (uyumIzleme) {
+      const ogrUyum = uyumIzleme.filter(u => !u.beklemede &&
+        pdrAyniOgrenci(u.studentName, u.className, o.studentName, o.className, u.numara, o.numara))
+        .sort((a,b) => pdrTarihMs(b.tarih) - pdrTarihMs(a.tarih))[0];
+      if (ogrUyum && (ogrUyum.isaretli||[]).length > 0) {
+        const eklenen = Math.min(3, ogrUyum.isaretli.length * 0.5);
+        puan += eklenen;
+        nedenler.push({ etiket: `Uyum: ${ogrUyum.isaretli.length} gösterge`, renk: "#1F618D" });
+      }
+    }
+
+    // 4) Sosyometri — sınıfının en son kaydında hiç seçilmemiş mi?
+    const sinifKaydi = (sosyometri||[]).filter(s => (!s.yil || s.yil===aktifYil) && s.sinif === o.className)
+      .sort((a,b) => pdrTarihMs(b.tarih) - pdrTarihMs(a.tarih))[0];
+    if (sinifKaydi) {
+      const secimler = sinifKaydi.secimler || {};
+      const digerleri = Object.keys(secimler).filter(k => k !== o.studentName);
+      const katilim = digerleri.length;
+      const sinifOgrSayisi = yilOgr.filter(x => x.className === o.className).length;
+      const yeterliKatilim = katilim >= Math.max(5, sinifOgrSayisi * 0.6);
+      if (yeterliKatilim) {
+        const kacKisiSecti = Object.values(secimler).filter(v => Array.isArray(v) && v.includes(o.studentName)).length;
+        if (kacKisiSecti === 0) { puan += 2; nedenler.push({ etiket: "Sosyometri: hiç seçilmedi", renk: "#8E44AD" }); }
+      }
+    }
+
+    if (puan > 0) sonuclar.push({ studentName: o.studentName, className: o.className, numara: o.numara, puan, nedenler });
+  });
+
+  return sonuclar.sort((a,b) => b.puan - a.puan);
+}
+
+function OncelikListesi({ ogrenciler, riskListesi, sosyometri, aktifYil, uyumIzleme, setTab, setAktifOgrenci }) {
+  const [acik, setAcik] = useState(false);
+  const liste = pdrOncelikSkoruHesapla(ogrenciler, riskListesi, sosyometri, aktifYil, uyumIzleme);
+  if (liste.length === 0) return null;
+  const gosterilecek = liste.slice(0, 15);
+
+  return (
+    <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14)",borderRadius:12,padding:14,marginBottom:14}}>
+      <div onClick={()=>setAcik(!acik)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:800,color:TEXT}}>🎯 Öncelik Listesi</div>
+          <div style={{fontSize:10.5,color:MUTED,marginTop:2}}>
+            {liste.length} öğrenci — risk, devamsızlık{uyumIzleme?", uyum izleme":""} ve sosyometri birlikte değerlendirildi
+          </div>
+        </div>
+        <span style={{fontSize:14,color:MUTED}}>{acik ? "▲" : "▼"}</span>
+      </div>
+
+      {acik && (
+        <div style={{marginTop:12}}>
+          <div style={{fontSize:10,color:MUTED,marginBottom:10,lineHeight:1.55}}>
+            Bu bir AI değerlendirmesi değildir — zaten girdiğin risk, devamsızlık{uyumIzleme?", uyum izleme":""}
+            {" "}ve sosyometri kayıtlarının şeffaf bir toplamıdır. Puanın nereden geldiği her satırda yazıyor.
+            En fazla ilk 15 öğrenci gösterilir.
+          </div>
+          {gosterilecek.map((s,i) => (
+            <div key={s.studentName+s.className} onClick={()=>{ setAktifOgrenci({name:s.studentName,className:s.className,numara:s.numara}); setTab("yeni"); }}
+              style={{display:"flex",alignItems:"flex-start",gap:10,padding:"8px 0",borderBottom: i<gosterilecek.length-1?`1px solid ${BORDER}`:"none",cursor:"pointer"}}>
+              <div style={{width:26,height:26,borderRadius:"50%",background:"#FDECEA",color:"#C0392B",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:900,flexShrink:0}}>
+                {s.puan.toFixed(1)}
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:12.5,fontWeight:700,color:TEXT}}>{s.studentName} <span style={{color:MUTED,fontWeight:500,fontSize:11}}>· {s.className}</span></div>
+                <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:3}}>
+                  {s.nedenler.map((n,j) => (
+                    <span key={j} style={{background:n.renk+"18",color:n.renk,borderRadius:8,padding:"1px 7px",fontSize:9,fontWeight:700}}>{n.etiket}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function KaynastirmaTablosu({ ogrenciler, aktifYil, setTab, setAktifOgrenci }) {
   const [acik, setAcik] = useState(false);
   const yilOgr = (ogrenciler||[]).filter(o => !o.yil || o.yil === aktifYil);
@@ -7214,6 +7326,112 @@ function netHaritasiSinavBaglami(kademe) {
   return { sinavAdi: "deneme sınavı", ekBaglam: "", ornekDeneme: "ARI 8. Sınıf SDS-2" };
 }
 
+// ── Dikkat ve Odaklanma Hatası Analizi ───────────────────────────────────────
+// Amaç: bir dersteki yanlışın NEDENİNİ (bilgi eksikliği mi, dikkat/okuma hatası
+// mı, kodlama hatası mı, zaman yetersizliği mi) danışmanın öğrenciyle görüşme
+// sırasında işaretlemesi — AI tahmin etmez, sadece danışmanın öğrenciden aldığı
+// bilgiyi kaydeder. Her deneme kaydında (netHaritasiKayitlari[i].hataAnalizi)
+// ders başına saklanır: { [ders]: { [hataTuru]: sayı } }.
+const HATA_TURLERI_VARSAYILAN = ["Bilgi / Konu eksikliği", "Yanlış okuma veya anlama", "Yanlış kodlama", "Zaman yetersizliği"];
+function hataTurleriIcin(dersAdi) {
+  const ad = (dersAdi || "").toLocaleLowerCase("tr");
+  if (ad.includes("matemat")) return ["Bilgi / Konu eksikliği", "İşlem hatası", "Yanlış okuma veya anlama", "Yanlış kodlama", "Zaman yetersizliği"];
+  if (ad.includes("ingiliz") || ad.includes("yabancı")) return ["Bilgi / Konu / Kelime eksikliği", "Yanlış okuma veya anlama", "Yanlış kodlama", "Zaman yetersizliği"];
+  return HATA_TURLERI_VARSAYILAN;
+}
+// Ders adları AI'ın PDF'ten okuduğu haliyle geldiği için (örn. "Fen Bilimleri"
+// yerine "Fen B." ya da tam tersi) birebir eşleşmeyebilir — toplam tablosunda
+// dersleri anlamlı bir sırada göstermek için en yaygın adları esas alan bir
+// öncelik sırası. Listede olmayan bir ders adı sona düşer, kaybolmaz.
+const HATA_ANALIZI_DERS_SIRASI = ["Türkçe", "Matematik", "Fen Bilimleri", "T.C. İnkılap Tarihi ve Atatürkçülük", "İnkılap Tarihi", "Din Kültürü ve Ahlak Bilgisi", "Din Kültürü", "İngilizce", "Yabancı Dil"];
+
+// ── Boş Bırakma, Kazanım Trendi ve Deneme Değerlendirme Raporu ──────────────
+// Bir dersin boş bıraktığı soru sayısını hesaplar (soru - doğru - yanlış).
+// PDF'ten ayrı bir "boş" alanı istemiyoruz — var olan üç sayıdan türetilir,
+// bu yüzden AI çıkarma şemasında değişiklik gerekmez.
+function dersBosSayisi(ders) {
+  const bos = (Number(ders && ders.soru)||0) - (Number(ders && ders.dogru)||0) - (Number(ders && ders.yanlis)||0);
+  return bos > 0 ? bos : 0;
+}
+
+// En çok tekrar eden zayıf kazanımların, deneme deneme başarı% dizisini
+// çıkarır (sparkline çizimi için). konuOzetiOlustur'daki mantığın aynısı ama
+// TOPLAM değil, kronolojik DİZİ döndürür — trend gösterebilmek için.
+function kazanimTrendVerisi(ogrKayitlar, limit) {
+  limit = limit || 5;
+  const siraliKayitlar = [...(ogrKayitlar||[])].sort((a,b) => pdrTarihMs(a.tarih) - pdrTarihMs(b.tarih));
+  const map = {};
+  siraliKayitlar.forEach(kayit => {
+    (kayit.dersler||[]).forEach(ders => {
+      (ders.konular||[]).forEach(k => {
+        const key = ders.ders + "|||" + k.kazanim;
+        if (!map[key]) map[key] = { ders: ders.ders, kazanim: k.kazanim, kezYanlis:0, dizi:[] };
+        map[key].dizi.push({ tarih:kayit.tarih, basari: Number(k.basari)||0 });
+        if (k.yanlis > 0) map[key].kezYanlis++;
+      });
+    });
+  });
+  return Object.values(map)
+    .filter(x => x.kezYanlis > 0 && x.dizi.length >= 2)
+    .sort((a,b) => b.kezYanlis - a.kezYanlis)
+    .slice(0, limit);
+}
+
+// Bir kazanımın başarı% eğilimini gösteren küçük çizgi grafiği (sparkline).
+// Son değere göre renk: yükseliyorsa yeşil, düşüyorsa kırmızı, sabitse gri.
+function kazanimSparklineSVG(dizi, genislik, yukseklik) {
+  genislik = genislik || 110; yukseklik = yukseklik || 30;
+  if (!dizi || dizi.length < 2) return "";
+  const n = dizi.length;
+  const xPos = i => (i/(n-1)) * (genislik-6) + 3;
+  const yPos = v => yukseklik - 4 - (Math.max(0,Math.min(100,v))/100) * (yukseklik-8);
+  const path = dizi.map((d,i) => (i===0?"M":"L") + xPos(i).toFixed(1) + "," + yPos(d.basari).toFixed(1)).join(" ");
+  const son = dizi[dizi.length-1].basari, ilk = dizi[0].basari;
+  const renk = son > ilk ? "#1A8C5B" : (son < ilk ? "#C0392B" : "#8B8698");
+  return `<svg viewBox="0 0 ${genislik} ${yukseklik}" style="width:${genislik}px;height:${yukseklik}px;display:block;">
+    <path d="${path}" fill="none" stroke="${renk}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${xPos(n-1).toFixed(1)}" cy="${yPos(son).toFixed(1)}" r="2.5" fill="${renk}"/>
+  </svg>`;
+}
+
+// Öğrencinin tüm Net Haritası kayıtlarından, sade dilde bir "Deneme
+// Değerlendirme Raporu" çıkarır: ders bazında trafik ışığı (son deneme
+// başarı oranına göre) + önceki denemeye göre yön oku, toplam boş bırakma
+// oranı, işaretlenmiş hata tipi dağılımı. Tamamen var olan sayısal veriden
+// hesaplanır — AI'a gitmez, anlık ve ücretsiz.
+function ogrenciDegerlendirmeRaporuHesapla(ogrKayitlar) {
+  if (!ogrKayitlar || ogrKayitlar.length === 0) return null;
+  const siraliKayitlar = [...ogrKayitlar].sort((a,b) => pdrTarihMs(a.tarih) - pdrTarihMs(b.tarih));
+  const sonKayit = siraliKayitlar[siraliKayitlar.length-1];
+  const ilkKayit = siraliKayitlar[0];
+
+  const dersDurumu = (sonKayit.dersler||[]).map(ders => {
+    const oran = ders.soru > 0 ? (Number(ders.net)||0) / Number(ders.soru) : 0;
+    const renk = oran >= 0.65 ? "yesil" : (oran >= 0.40 ? "sari" : "kirmizi");
+    const ilkDers = (ilkKayit.dersler||[]).find(d => d.ders === ders.ders);
+    let yon = null;
+    if (ilkDers && siraliKayitlar.length >= 2 && ilkKayit !== sonKayit) {
+      const ilkOran = ilkDers.soru > 0 ? (Number(ilkDers.net)||0)/Number(ilkDers.soru) : 0;
+      yon = oran > ilkOran + 0.03 ? "yukari" : (oran < ilkOran - 0.03 ? "asagi" : "sabit");
+    }
+    return { ders: ders.ders, renk, net: ders.net, soru: ders.soru, bos: dersBosSayisi(ders), yon };
+  });
+
+  const toplamSoru = (sonKayit.dersler||[]).reduce((s,d)=>s+(Number(d.soru)||0),0);
+  const toplamBos = (sonKayit.dersler||[]).reduce((s,d)=>s+dersBosSayisi(d),0);
+  const bosOrani = toplamSoru > 0 ? Math.round((toplamBos/toplamSoru)*100) : 0;
+
+  const hataToplam = {};
+  siraliKayitlar.forEach(k => {
+    Object.values(k.hataAnalizi||{}).forEach(dersHata => {
+      Object.entries(dersHata).forEach(([tur,sayi]) => { hataToplam[tur] = (hataToplam[tur]||0) + (sayi||0); });
+    });
+  });
+  const hataToplamSayi = Object.values(hataToplam).reduce((a,b)=>a+b,0);
+
+  return { dersDurumu, bosOrani, hataToplam, hataToplamSayi, denemeSayisi: siraliKayitlar.length };
+}
+
 function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netHaritasiKayitlari, setNetHaritasiKayitlari, kademe }) {
   const sinavBaglami = netHaritasiSinavBaglami(kademe);
   const [seciliAd, setSeciliAd] = useState(aktifOgrenci?.name || "");
@@ -7224,6 +7442,8 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
   const [detayAcikId, setDetayAcikId] = useState(null);
   const [tekrarListesi, setTekrarListesi] = useState(null);
   const [tekrarYukleniyor, setTekrarYukleniyor] = useState(false);
+  const [hataOzetiAcik, setHataOzetiAcik] = useState(false);
+  const [degerlendirmeRaporuAcik, setDegerlendirmeRaporuAcik] = useState(false);
 
   useEffect(() => {
     if (aktifOgrenci?.name) setSeciliAd(aktifOgrenci.name);
@@ -7235,6 +7455,26 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
   const seciliNumara = seciliOgr?.numara || aktifOgrenci?.numara || "";
 
   const ogrKayitlar = (netHaritasiKayitlari||[]).filter(k => k.studentName === seciliAd).sort((a,b) => pdrTarihMs(b.tarih) - pdrTarihMs(a.tarih));
+
+  // Öğrencinin tüm denemelerindeki hata türü işaretlemelerini tek bir tabloya
+  // toplar: ders → hata türü → (her deneme için sayı) + toplam. Hiç işaretleme
+  // yapılmamışsa boş dizi döner, tablo gösterilmez.
+  const hataOzeti = useMemo(() => {
+    const kronolojik = [...ogrKayitlar].sort((a,b) => pdrTarihMs(a.tarih) - pdrTarihMs(b.tarih));
+    const isaretliVarMi = kronolojik.some(k => k.hataAnalizi && Object.values(k.hataAnalizi).some(d => Object.values(d).some(v => v > 0)));
+    if (!isaretliVarMi) return null;
+    const dersler = [...new Set(kronolojik.flatMap(k => (k.dersler||[]).map(d => d.ders)))];
+    dersler.sort((a,b) => {
+      const ia = HATA_ANALIZI_DERS_SIRASI.indexOf(a), ib = HATA_ANALIZI_DERS_SIRASI.indexOf(b);
+      return (ia===-1?99:ia) - (ib===-1?99:ib);
+    });
+    return { kayitlar: kronolojik, dersler };
+  }, [ogrKayitlar]);
+
+  // Deneme Değerlendirme Raporu — ders trafik ışığı, boş oranı, hata tipi dağılımı
+  const degerlendirmeRaporu = useMemo(() => ogrenciDegerlendirmeRaporuHesapla(ogrKayitlar), [ogrKayitlar]);
+  // En çok tekrar eden zayıf kazanımların deneme deneme gidişatı (sparkline)
+  const kazanimTrendleri = useMemo(() => kazanimTrendVerisi(ogrKayitlar), [ogrKayitlar]);
 
   async function handlePdfSec(file) {
     if (!file || !seciliAd) return;
@@ -7293,6 +7533,19 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
 
   async function handleKayitSil(id) {
     const guncel = (netHaritasiKayitlari||[]).filter(k => k.id !== id);
+    setNetHaritasiKayitlari(guncel);
+    await saveNetHaritasi(guncel);
+  }
+
+  // Bir deneme kaydındaki bir dersin bir hata türü hücresini günceller.
+  async function handleHataGuncelle(kayitId, ders, hataTuru, deger) {
+    const sayi = deger === "" ? 0 : Math.max(0, parseInt(deger, 10) || 0);
+    const guncel = (netHaritasiKayitlari||[]).map(k => {
+      if (k.id !== kayitId) return k;
+      const mevcutHata = k.hataAnalizi || {};
+      const mevcutDersHata = mevcutHata[ders] || {};
+      return { ...k, hataAnalizi: { ...mevcutHata, [ders]: { ...mevcutDersHata, [hataTuru]: sayi } } };
+    });
     setNetHaritasiKayitlari(guncel);
     await saveNetHaritasi(guncel);
   }
@@ -7480,7 +7733,8 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
                   <input type="number" value={ders.soru} onChange={e=>taslakSayiGuncelle(di,null,"soru",parseFloat(e.target.value)||0)} style={{ width:36, marginLeft:3, marginRight:6, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:4, fontSize:11 }} />
                   D:<input type="number" value={ders.dogru} onChange={e=>taslakSayiGuncelle(di,null,"dogru",parseFloat(e.target.value)||0)} style={{ width:32, marginLeft:2, marginRight:6, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:4, fontSize:11 }} />
                   Y:<input type="number" value={ders.yanlis} onChange={e=>taslakSayiGuncelle(di,null,"yanlis",parseFloat(e.target.value)||0)} style={{ width:32, marginLeft:2, marginRight:6, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:4, fontSize:11 }} />
-                  Net:<input type="number" value={ders.net} onChange={e=>taslakSayiGuncelle(di,null,"net",parseFloat(e.target.value)||0)} style={{ width:40, marginLeft:2, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:4, fontSize:11 }} />
+                  Net:<input type="number" value={ders.net} onChange={e=>taslakSayiGuncelle(di,null,"net",parseFloat(e.target.value)||0)} style={{ width:40, marginLeft:2, marginRight:6, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:4, fontSize:11 }} />
+                  {dersBosSayisi(ders) > 0 && <span title="Boş (soru-doğru-yanlış üzerinden hesaplanır)">B:{dersBosSayisi(ders)}</span>}
                 </div>
               </div>
               {(ders.konular||[]).filter(k => k.yanlis > 0).length > 0 && (
@@ -7526,6 +7780,87 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
         </div>
       )}
 
+      {/* 📊 Deneme Değerlendirme Raporu — sade dilde, öğrenciyle birlikte incelenebilecek özet.
+          Tamamen var olan sayısal veriden hesaplanır, AI çağrısı yapmaz. */}
+      {seciliAd && degerlendirmeRaporu && !taslak && (
+        <div style={{ marginBottom:20 }}>
+          <button onClick={()=>setDegerlendirmeRaporuAcik(v=>!v)} style={{
+            width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 14px",
+            background: degerlendirmeRaporuAcik ? "#1A8C5B" : "#fff", color: degerlendirmeRaporuAcik ? "#fff" : "#1A8C5B",
+            border:"2px solid #1A8C5B", borderRadius:12, fontSize:14, fontWeight:800, cursor:"pointer"
+          }}>
+            <span>📊 Deneme Değerlendirme Raporu</span>
+            <span>{degerlendirmeRaporuAcik ? "▲" : "▼"}</span>
+          </button>
+          {degerlendirmeRaporuAcik && (
+            <div style={{ marginTop:10, background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:14, padding:16 }}>
+              <div style={{ fontSize:12, color:MUTED, marginBottom:14, lineHeight:1.5 }}>
+                {degerlendirmeRaporu.denemeSayisi} denemenin özeti — bu ekranı öğrenciyle birlikte inceleyebilirsin.
+              </div>
+
+              {/* Ders bazlı trafik ışığı */}
+              <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:16 }}>
+                {degerlendirmeRaporu.dersDurumu.map(d => {
+                  const renkKodu = d.renk==="yesil" ? "#1A8C5B" : d.renk==="sari" ? "#D4A017" : "#C0392B";
+                  const yonIkon = d.yon==="yukari" ? "↗" : d.yon==="asagi" ? "↘" : d.yon==="sabit" ? "→" : "";
+                  return (
+                    <div key={d.ders} style={{ display:"flex", alignItems:"center", gap:10, background:"#fff", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:"8px 12px" }}>
+                      <span style={{ width:12, height:12, borderRadius:"50%", background:renkKodu, flexShrink:0 }}></span>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:13, fontWeight:700 }}>{d.ders}</div>
+                        <div style={{ fontSize:11, color:MUTED }}>Net: {d.net}/{d.soru}{d.bos>0 ? ` · Boş: ${d.bos}` : ""}</div>
+                      </div>
+                      {yonIkon && <span style={{ fontSize:16, fontWeight:900, color:renkKodu }}>{yonIkon}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Boş bırakma uyarısı */}
+              {degerlendirmeRaporu.bosOrani >= 15 && (
+                <div style={{ background:"#FFF4E5", border:"1px solid #F0C179", borderRadius:10, padding:10, fontSize:12, color:"#8A5A00", marginBottom:14 }}>
+                  ⏱️ Son denemede sorulan soruların <b>%{degerlendirmeRaporu.bosOrani}'i boş bırakılmış</b>. Bu, bilgi eksikliğinden çok zaman yönetimi ya da özgüven sorununa işaret edebilir.
+                </div>
+              )}
+
+              {/* Hata tipi dağılımı — mevcut "Dikkat ve Odaklanma Hatası Analizi" tablosundan derlenir */}
+              {degerlendirmeRaporu.hataToplamSayi > 0 && (
+                <div style={{ marginBottom:16 }}>
+                  <div style={{ fontSize:12, fontWeight:700, marginBottom:6 }}>Yanlışların nedeni (görüşmede işaretlenen):</div>
+                  {Object.entries(degerlendirmeRaporu.hataToplam).sort((a,b)=>b[1]-a[1]).map(([tur,sayi]) => (
+                    <div key={tur} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                      <div style={{ fontSize:11, width:150, flexShrink:0 }}>{tur}</div>
+                      <div style={{ flex:1, background:"#EDEEEC", borderRadius:6, height:10, overflow:"hidden" }}>
+                        <div style={{ width:`${Math.round((sayi/degerlendirmeRaporu.hataToplamSayi)*100)}%`, height:"100%", background:PURPLE }}></div>
+                      </div>
+                      <div style={{ fontSize:11, fontWeight:700, width:36, textAlign:"right" }}>%{Math.round((sayi/degerlendirmeRaporu.hataToplamSayi)*100)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Zayıf kazanımlarda gidişat (sparkline) */}
+              {kazanimTrendleri.length > 0 && (
+                <div>
+                  <div style={{ fontSize:12, fontWeight:700, marginBottom:8 }}>📉 En çok tekrar eden zayıf konularda gidişat:</div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {kazanimTrendleri.map((kt,i) => (
+                      <div key={i} style={{ display:"flex", alignItems:"center", gap:10, background:"#fff", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:"6px 10px" }}>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:11, fontWeight:700, color:MUTED }}>{kt.ders}</div>
+                          <div style={{ fontSize:11.5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{kt.kazanim}</div>
+                        </div>
+                        <div dangerouslySetInnerHTML={{ __html: kazanimSparklineSVG(kt.dizi) }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* İlerleme grafiği — en az 2 deneme yüklenince görünür */}
       {seciliAd && ogrKayitlar.length >= 2 && !taslak && (() => {
         const grafikHtml = netIlerlemeSVGOlustur(ogrKayitlar);
@@ -7562,7 +7897,7 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
                     <div style={{ marginTop:10, borderTop:`1px solid ${BORDER}`, paddingTop:10 }}>
                       {(k.dersler||[]).map((ders, di) => (
                         <div key={di} style={{ marginBottom:10 }}>
-                          <div style={{ fontSize:12, fontWeight:700, marginBottom:4 }}>{ders.ders} — {ders.dogru}/{ders.soru} (Net: {ders.net})</div>
+                          <div style={{ fontSize:12, fontWeight:700, marginBottom:4 }}>{ders.ders} — {ders.dogru}/{ders.soru} (Net: {ders.net}{dersBosSayisi(ders) > 0 ? `, Boş: ${dersBosSayisi(ders)}` : ""})</div>
                           {(ders.konular||[]).filter(x=>x.yanlis>0).length === 0 ? (
                             <div style={{ fontSize:11, color:"#1A8C5B" }}>✓ Zayıf konu yok</div>
                           ) : (
@@ -7572,6 +7907,30 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
                               ))}
                             </div>
                           )}
+                          {ders.yanlis > 0 && (() => {
+                            const dersHata = (k.hataAnalizi && k.hataAnalizi[ders.ders]) || {};
+                            const girilenToplam = Object.values(dersHata).reduce((s,v)=>s+(v||0),0);
+                            return (
+                              <div style={{ marginTop:8, background:BG, borderRadius:8, padding:8 }}>
+                                <div style={{ fontSize:10, fontWeight:700, color:MUTED, marginBottom:6 }}>
+                                  Bu derste {ders.yanlis} yanlış — öğrenciyle konuşurken nedenini işaretle:
+                                </div>
+                                <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                                  {hataTurleriIcin(ders.ders).map(hataTuru => (
+                                    <div key={hataTuru} style={{ display:"flex", alignItems:"center", gap:4, background:"#fff", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:6, padding:"3px 6px" }}>
+                                      <span style={{ fontSize:10, color:TEXT }}>{hataTuru}</span>
+                                      <input type="number" min="0" value={dersHata[hataTuru] || ""} placeholder="0"
+                                        onChange={e=>handleHataGuncelle(k.id, ders.ders, hataTuru, e.target.value)}
+                                        style={{ width:32, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:4, fontSize:11, textAlign:"center" }} />
+                                    </div>
+                                  ))}
+                                </div>
+                                <div style={{ fontSize:9, color: girilenToplam===ders.yanlis ? "#1A8C5B" : MUTED, marginTop:4 }}>
+                                  İşaretlenen: {girilenToplam} / {ders.yanlis} yanlış
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       ))}
                     </div>
@@ -7580,6 +7939,56 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
               );
             })}
           </div>
+        </div>
+      )}
+      {/* Toplam Dikkat ve Odaklanma Hatası Analizi — tüm denemelerden derlenmiş */}
+      {hataOzeti && (
+        <div style={{ marginTop:20 }}>
+          <button onClick={()=>setHataOzetiAcik(v=>!v)} style={{
+            width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 14px",
+            background: hataOzetiAcik ? PURPLE : "#fff", color: hataOzetiAcik ? "#fff" : PURPLE,
+            border:`2px solid ${PURPLE}`, borderRadius:12, fontSize:13, fontWeight:800, cursor:"pointer"
+          }}>
+            <span>🔎 Dikkat ve Odaklanma Hatası Analizi — Toplam</span>
+            <span>{hataOzetiAcik ? "▲" : "▼"}</span>
+          </button>
+          {hataOzetiAcik && (
+            <div style={{ marginTop:8, background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:12, padding:10, overflowX:"auto" }}>
+              <table style={{ borderCollapse:"collapse", fontSize:10.5, minWidth: 340 + hataOzeti.kayitlar.length*34 }}>
+                <thead>
+                  <tr>
+                    <th style={{ position:"sticky", left:0, background:CARD, textAlign:"left", padding:"4px 6px", borderBottom:`2px solid ${BORDER}` }}>Ders</th>
+                    <th style={{ textAlign:"left", padding:"4px 6px", borderBottom:`2px solid ${BORDER}`, minWidth:140 }}>Hata Türü</th>
+                    {hataOzeti.kayitlar.map((k, ki) => (
+                      <th key={k.id} title={`${k.denemeAdi||"Deneme"} · ${k.tarih}`} style={{ padding:"4px 4px", borderBottom:`2px solid ${BORDER}`, fontWeight:700, color:MUTED }}>D{ki+1}</th>
+                    ))}
+                    <th style={{ padding:"4px 6px", borderBottom:`2px solid ${BORDER}`, fontWeight:900, color:PURPLE }}>Toplam</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {hataOzeti.dersler.map(ders => {
+                    const hataTurleri = hataTurleriIcin(ders);
+                    return hataTurleri.map((hataTuru, hi) => (
+                      <tr key={ders+hataTuru}>
+                        {hi === 0 && (
+                          <td rowSpan={hataTurleri.length} style={{ position:"sticky", left:0, background:CARD, fontWeight:800, padding:"4px 6px", borderBottom:`1px solid ${BORDER}`, verticalAlign:"top" }}>{ders}</td>
+                        )}
+                        <td style={{ padding:"4px 6px", borderBottom:`1px solid ${BORDER}`, color:TEXT }}>{hataTuru}</td>
+                        {hataOzeti.kayitlar.map(k => {
+                          const deger = k.hataAnalizi?.[ders]?.[hataTuru] || 0;
+                          return <td key={k.id} style={{ textAlign:"center", padding:"4px 4px", borderBottom:`1px solid ${BORDER}`, color: deger>0?TEXT:BORDER }}>{deger || "–"}</td>;
+                        })}
+                        {(() => {
+                          const toplam = hataOzeti.kayitlar.reduce((s,k) => s + (k.hataAnalizi?.[ders]?.[hataTuru] || 0), 0);
+                          return <td style={{ textAlign:"center", padding:"4px 6px", borderBottom:`1px solid ${BORDER}`, fontWeight:900, color: toplam>0?PURPLE:BORDER }}>{toplam || "–"}</td>;
+                        })()}
+                      </tr>
+                    ));
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
       {seciliAd && ogrKayitlar.length === 0 && !taslak && (
@@ -11954,7 +12363,7 @@ function SinifDenemeGrafigi({ ogrenciler, denemeler, sinavTuru, vurgulananAd }) 
 // "RISK_TURLERI is not defined" hatası veriyordu.
 const RISK_TURLERI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygusal","Devamsızlık","Öz Zarar","Sağlık","Madde Kullanımı","Teknoloji / Ekran Bağımlılığı","Ekonomik Güçlük","Yas / Kayıp","Travma","Özel Öğrenme Güçlüğü","Göç / Uyum Süreci","Adli Süreç / Danışmanlık Tedbiri","Toplumsal Cinsiyet Temelli Şiddet","İhmal / İstismar","Diğer"];
 
-function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYil, sinifListesi, setSinifListesi, denemeler, sinavTuru, onSinifSilTumVeri, kademe, setTab, setAktifOgrenci, aktifOgrenci, profiles, profiles2, onRaporAc }) {
+function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYil, sinifListesi, setSinifListesi, denemeler, sinavTuru, onSinifSilTumVeri, kademe, setTab, setAktifOgrenci, aktifOgrenci, profiles, profiles2, onRaporAc, sosyometri }) {
   const [seciliSinif, setSeciliSinif] = useState(null);
   const [cinsiyetDuzenleAcik, setCinsiyetDuzenleAcik] = useState(false);
   const [seciliSinifDuzeyi, setSeciliSinifDuzeyi] = useState(null);
@@ -12488,6 +12897,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
           🏫 {aktifYil} — Sınıf Düzeyi Seç
         </div>
         <RiskOzetKartlari ogrenciler={yilOgrencileri} baslik="📊 Tüm Okul — Geçmiş Dönem Deneme Risk Dağılımı" />
+        <OncelikListesi ogrenciler={ogrenciler} riskListesi={riskListesi} sosyometri={sosyometri} aktifYil={aktifYil} setTab={setTab} setAktifOgrenci={setAktifOgrenci} />
         <KaynastirmaTablosu ogrenciler={ogrenciler} aktifYil={aktifYil} setTab={setTab} setAktifOgrenci={setAktifOgrenci} />
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           {sinifDuzeyleri.map(duzey => {
@@ -14700,6 +15110,7 @@ const TABS_TUMU = [
             aktifOgrenci={aktifOgrenci}
             profiles={profiles}
             profiles2={profiles2}
+            sosyometri={sosyometri}
             onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
           />
         )}
