@@ -11670,6 +11670,20 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
               }
               setDenemeler(yeni);
               await saveDenemeler(yeni);
+              // GDO silinirken, "Geçmiş Dönem Excel Toplu Yükle" ile Öğrenciler
+              // kaydına yazılmış risk7sinif/ort7sinif alanları (RiskOzetKartlari
+              // buradan okuyor) unutulup kalıyordu — denemeler{} boşalsa bile bu
+              // ikisi öğrenci kaydında kalmaya devam edip "Geçmiş Dönem Risk
+              // Dağılımı" kartlarının eski sayılarla gösterilmesine yol açıyordu.
+              if (gdoDaSil && setOgrenciler) {
+                const guncelOgrenciler = (ogrenciler || []).map(o => {
+                  if (o.risk7sinif === undefined && o.ort7sinif === undefined) return o;
+                  const { risk7sinif, ort7sinif, ...temiz } = o;
+                  return temiz;
+                });
+                setOgrenciler(guncelOgrenciler);
+                await saveOgrenciler(guncelOgrenciler);
+              }
               setDenemeSiliniyor(false);
               setDenemeSilAcik(false);
               setGdoDaSil(false);
