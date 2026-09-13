@@ -6157,10 +6157,12 @@ function BildirimDurumu() {
       </div>
       <div>Tarayıcı izni: <b>{durum.izin === "granted" ? "verildi" : durum.izin === "denied" ? "engellendi" : "henüz sorulmadı"}</b></div>
       <div>Kayıtlı cihaz: <b>{durum.adet || 0}</b></div>
-      {durum.adet > 1 && (
+      {durum.adet > 0 && (
         <div style={{ marginTop: 6, background: "rgba(255,255,255,0.6)", borderRadius: 8, padding: "6px 8px" }}>
           <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 4 }}>
-            1'den fazla cihaz kayıtlı — eskisi/tekrar edeni sil, aksi halde her bildirim birden fazla gelir:
+            {durum.adet > 1
+              ? "1'den fazla cihaz kayıtlı — eskisi/tekrar edeni sil, aksi halde her bildirim birden fazla gelir:"
+              : "Kayıtlı cihaz — silersen bu cihaza bildirim gitmez, ihtiyaç yoksa dokunma:"}
           </div>
           {(durum.liste || []).map((x, i) => {
             const tarih = typeof x === "object" ? x.tarih : null;
