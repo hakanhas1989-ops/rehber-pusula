@@ -5773,6 +5773,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
   const [form, setForm] = useState({ ...TEST_FORM_BOS });
   const [kaydedildi, setKaydedildi] = useState(false);
   const [beierYukleniyor, setBeierYukleniyor] = useState(false);
+  const [mesEgilimYukleniyor, setMesEgilimYukleniyor] = useState(false);
   const [acikTestId, setAcikTestId] = useState(null);
   const [topluYuklemeAcik, setTopluYuklemeAcik] = useState(false);
 
@@ -5842,6 +5843,44 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
       alert("Cevap kağıdı okunamadı: " + e.message);
     }
     setBeierYukleniyor(false);
+  }
+
+  // Mesleki Eğilim Belirleme Testi'nin işaretli cevap kağıdını (PDF/fotoğraf)
+  // okuyup hangi madde numaralarının işaretli olduğunu çıkarır. Puanlama
+  // burada YAPILMAZ (o tamamen yerel/deterministik, mesleklEgilimSonucHesapla
+  // ile hesaplanır) — AI sadece hangi kutunun işaretli olduğunu okur, danışman
+  // aşağıdaki 160 maddelik listede kaydetmeden önce kontrol edip düzeltebilir.
+  // Sistem promptu worker'da (action: "mesleki_egilim_cikar").
+  async function handleMesEgilimPdfSec(file) {
+    if (!file) return;
+    setMesEgilimYukleniyor(true);
+    try {
+      const apiKey = pdrGetApiKey();
+      if (!apiKey) throw new Error("Önce Ayarlar'dan API anahtarını gir.");
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result.split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const mediaType = file.type || (file.name.toLocaleLowerCase("tr").endsWith(".pdf") ? "application/pdf" : "image/jpeg");
+      const res = await fetch(PDR_AI_WORKER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mesleki_egilim_cikar", apiKey, data: { dosyaBase64: base64, mediaType } }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const text = data.content?.[0]?.text || "{}";
+      const temiz = text.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(temiz);
+      const gecerliMaddeler = (parsed.isaretliMaddeler||[]).filter(n => Number.isInteger(n) && n>=1 && n<=160);
+      if (gecerliMaddeler.length === 0) throw new Error("Belgeden işaretli madde okunamadı — belge formatı desteklenmiyor olabilir.");
+      setForm(f => ({ ...f, isaretliMaddeler: gecerliMaddeler }));
+    } catch (e) {
+      alert("Cevap kağıdı okunamadı: " + e.message);
+    }
+    setMesEgilimYukleniyor(false);
   }
 
   const inp = { width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, boxSizing:"border-box" };
@@ -6019,8 +6058,12 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                 const liseOnerisi = mesleklEgilimLiseOnerisiHesapla(mesleklEgilimSonucHesapla(isaretli));
                 return (
                   <>
+                    <label style={{ display:"block", width:"100%", padding:14, background:"#fff", border:`2px dashed ${PURPLE}`, borderRadius:12, textAlign:"center", color:PURPLE, fontWeight:700, cursor:"pointer", marginBottom:12, boxSizing:"border-box" }}>
+                      {mesEgilimYukleniyor ? "⏳ Cevap kağıdı okunuyor…" : "📄 İşaretli Cevap Kağıdını Yükle (PDF ya da Fotoğraf)"}
+                      <input type="file" accept="application/pdf,image/*" onChange={e=>handleMesEgilimPdfSec(e.target.files?.[0])} style={{ display:"none" }} disabled={mesEgilimYukleniyor} />
+                    </label>
                     <div style={{ fontSize:11, color:MUTED, marginBottom:10 }}>
-                      Öğrenciyle uygulayıp aşağıdaki 160 maddeden işaretlemeleri gir. İşaretli: {isaretli.length} / 160
+                      Yüklemeden önce ya da sonra, aşağıdaki 160 maddeden işaretlemeleri kontrol edip düzeltebilirsin. İşaretli: {isaretli.length} / 160
                     </div>
                     {canliSonuc.length > 0 && (
                       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
