@@ -9638,7 +9638,7 @@ function OgrenciYonetim({
         <div>
           {/* Geri + Başlık */}
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, flexWrap:"wrap", rowGap:8 }}>
-            <button onClick={() => { setSeciliOgrenci(null); setAktifSekme("ozet"); setAktifOgrenci({ name: "", className: "" }); }} style={{
+            <button onClick={() => { setSeciliOgrenci(null); setAktifSekme("ozet"); }} style={{
               background:BG, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:700, color:MUTED, cursor:"pointer"
             }}>← Geri</button>
             <button onClick={() => handleOgrenciSil(seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara)} style={{
