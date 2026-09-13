@@ -6125,6 +6125,12 @@ function BildirimDurumu() {
       const izin = await Notification.requestPermission();
       if (izin !== "granted") { setMesaj("Bildirim izni verilmedi. Tarayıcı ayarlarından bu siteye bildirim izni ver."); return; }
       const reg = await navigator.serviceWorker.getRegistration("sw.js") || await navigator.serviceWorker.register("sw.js");
+      // KÖK NEDEN: getToken() tek başına, Firebase'in kendi önbelleğinde
+      // zaten bir token varsa AYNISINI geri döndürüyordu — site verisi
+      // sıfırlansa, cihaz yeniden kaydedilse bile token GERÇEKTEN
+      // değişmiyordu. Önce mevcut token'ı AÇIKÇA silip Firebase'e "geçersiz
+      // say" dedirtiyoruz, ancak ondan sonra gerçekten YENİ bir token istiyoruz.
+      try { await firebase.messaging().deleteToken(); } catch (e) { /* silinecek bir şey yoksa sorun değil */ }
       const token = await firebase.messaging().getToken({ vapidKey: PDR_VAPID_KEY, serviceWorkerRegistration: reg });
       if (!token) { setMesaj("Bildirim kimliği alınamadı. İnternet bağlantını kontrol edip tekrar dene."); return; }
       const mevcutStr = await pdrFirestoreOku(uid, "fcmTokens");
