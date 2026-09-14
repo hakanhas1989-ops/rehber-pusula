@@ -6448,7 +6448,7 @@ function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mud
       {/* Öğrenci seç */}
       <input placeholder="Öğrenci ara..." value={aramaMetni} onChange={e=>setAramaMetni(e.target.value)} style={{...inp, marginBottom:8}} />
       <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:14}}>
-        {kayitliListesi.filter(o=>o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr"))).slice(0,15).map(o=>{
+        {kayitliListesi.filter(o=>o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) || o.numara?.includes(aramaMetni)).slice(0,15).map(o=>{
           const s=seciliAd===o.name;
           return <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={()=>{setSeciliAd(o.name); if(setAktifOgrenci) setAktifOgrenci({ name:o.name, className:o.className||"" });}} style={{padding:"4px 10px",borderRadius:16,border:`2px solid ${s?ACCENT:BORDER}`,background:s?ACCENT_LIGHT:CARD,color:s?ACCENT:MUTED,fontSize:11,fontWeight:s?700:500,cursor:"pointer"}}>{o.name}</button>;
         })}
@@ -8549,7 +8549,7 @@ function SevkTakipEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, sevkle
     if (gosterFiltre === "Bekliyor") return s.sonucBekleniyor;
     if (gosterFiltre === "Tamamlandı") return !s.sonucBekleniyor;
     return true;
-  }).filter(s => !aramaMetni || s.studentName?.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")));
+  }).filter(s => !aramaMetni || s.studentName?.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) || s.numara?.toString().includes(aramaMetni));
 
   const sevkYerleri = ["RAM","Psikolog","Psikiyatrist","Özel Eğitim","Sosyal Hizmetler","Rehberlik Araştırma","Diğer"];
 
@@ -8566,7 +8566,7 @@ function SevkTakipEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, sevkle
         {/* Öğrenci seç */}
         <label style={lbl}>ÖĞRENCİ</label>
         <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
-          {kayitliListesi.filter(o=>o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr"))).slice(0,12).map(o=>{
+          {kayitliListesi.filter(o=>o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) || o.numara?.includes(aramaMetni)).slice(0,12).map(o=>{
             const s=form.studentName===o.name;
             return <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={()=>{setForm(f=>({...f,studentName:o.name,className:o.className||""})); if(setAktifOgrenci) setAktifOgrenci({ name:o.name, className:o.className||"" });}} style={{padding:"4px 10px",borderRadius:16,border:`2px solid ${s?ACCENT:BORDER}`,background:s?ACCENT_LIGHT:CARD,color:s?ACCENT:MUTED,fontSize:11,fontWeight:s?700:500,cursor:"pointer"}}>{o.name}</button>;
           })}
@@ -8814,7 +8814,7 @@ function VeliMektubu({ kayitliListesi, aktifOgrenci, records }) {
 
       <input placeholder="Öğrenci ara..." value={aramaMetni} onChange={e=>setAramaMetni(e.target.value)} style={{width:"100%",padding:"9px 11px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:9,fontSize:13,boxSizing:"border-box",marginBottom:8}} />
       <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:12}}>
-        {kayitliListesi.filter(o=>o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr"))).slice(0,12).map(o=>{
+        {kayitliListesi.filter(o=>o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) || o.numara?.includes(aramaMetni)).slice(0,12).map(o=>{
           const s=seciliAd===o.name;
           return <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={()=>setSeciliAd(o.name)} style={{padding:"4px 10px",borderRadius:16,border:`2px solid ${s?ACCENT:BORDER}`,background:s?ACCENT_LIGHT:CARD,color:s?ACCENT:MUTED,fontSize:11,fontWeight:s?700:500,cursor:"pointer"}}>{o.name}</button>;
         })}
@@ -12401,7 +12401,7 @@ function ProfilMerkez({
   }, [seciliAd, profiles, profiles2]);
 
   const filtreliListe = kayitliListesi.filter(o =>
-    o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) || o.className?.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr"))
+    o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) || o.className?.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) || o.numara?.includes(aramaMetni)
   );
 
   // AI: görüşme notlarından puan
