@@ -15143,17 +15143,17 @@ const TABS_TUMU = [
         const sonuclar = q.length < 2 ? [] : (() => {
           const bulunanlar = [];
           (ogrenciler || []).forEach(o => {
-            if ((o.studentName || "").toLocaleLowerCase("tr").includes(q) || (o.className || "").toLocaleLowerCase("tr").includes(q)) {
+            if ((o.studentName || "").toLocaleLowerCase("tr").includes(q) || (o.className || "").toLocaleLowerCase("tr").includes(q) || (o.numara || "").toString().includes(q)) {
               bulunanlar.push({ tip: "👤", baslik: o.studentName, alt: o.className || "", git: () => { setAktifOgrenci({ name: o.studentName, className: o.className, numara: o.numara }); setTab("yeni"); } });
             }
           });
           (riskListesi || []).forEach(r => {
-            if ((r.studentName || "").toLocaleLowerCase("tr").includes(q) || (r.riskTuru || "").toLocaleLowerCase("tr").includes(q) || (r.aciklama || "").toLocaleLowerCase("tr").includes(q)) {
+            if ((r.studentName || "").toLocaleLowerCase("tr").includes(q) || (r.riskTuru || "").toLocaleLowerCase("tr").includes(q) || (r.aciklama || "").toLocaleLowerCase("tr").includes(q) || (r.numara || "").toString().includes(q)) {
               bulunanlar.push({ tip: "⚠", baslik: r.studentName, alt: `Risk: ${r.riskTuru || "belirtilmemiş"}`, git: () => { setAktifOgrenci({ name: r.studentName, className: r.className, numara: r.numara }); setTab("risk"); } });
             }
           });
           (hatirlatmalar || []).forEach(h => {
-            if ((h.studentName || "").toLocaleLowerCase("tr").includes(q) || (h.metin || "").toLocaleLowerCase("tr").includes(q)) {
+            if ((h.studentName || "").toLocaleLowerCase("tr").includes(q) || (h.metin || "").toLocaleLowerCase("tr").includes(q) || (h.numara || "").toString().includes(q)) {
               bulunanlar.push({ tip: "🔔", baslik: h.studentName || "Hatırlatma", alt: h.metin || "", git: () => { setAktifOgrenci(h.studentName ? { name: h.studentName, className: h.className, numara: h.numara } : null); setTab("hatirlatici"); } });
             }
           });
