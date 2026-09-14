@@ -9615,7 +9615,7 @@ function KullaniciOnaylari() {
   );
 }
 
-function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profiles, setProfiles, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, riskListesi, setRiskListesi, denemeler, setDenemeler, sevkler, setSevkler, mudahalePlan, setMudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, profNotlari, setProfNotlari, kutuphane, setKutuphane, yillar, setYillar, sinifListesi, setSinifListesi, aktifYil, setAktifYil, kademe, setKademe, sinavTuru, setSinavTuru, testKayitlari, setTestKayitlari, hatirlatmalar, setHatirlatmalar, netHaritasiKayitlari, setNetHaritasiKayitlari, konuHaritasiVerisi, setKonuHaritasiVerisi }) {
+function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profiles, setProfiles, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, riskListesi, setRiskListesi, denemeler, setDenemeler, sevkler, setSevkler, mudahalePlan, setMudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, profNotlari, setProfNotlari, kutuphane, setKutuphane, yillar, setYillar, sinifListesi, setSinifListesi, aktifYil, setAktifYil, kademe, setKademe, sinavTuru, setSinavTuru, testKayitlari, setTestKayitlari, hatirlatmalar, setHatirlatmalar, netHaritasiKayitlari, setNetHaritasiKayitlari, konuHaritasiVerisi, setKonuHaritasiVerisi, sosyometri, setSosyometri }) {
   const [key, setKey] = useState(() => pdrGetApiKey());
   const [gosterKey, setGosterKey] = useState(false);
   const [kaydedildi, setKaydedildi] = useState(false);
@@ -9623,6 +9623,141 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
   const [geriYuklemeOnay, setGeriYuklemeOnay] = useState(null); // dosyadan okunan veri, onay bekliyor
   const [geriYukleniyor, setGeriYukleniyor] = useState(false);
   const [geriYuklemeSonuc, setGeriYuklemeSonuc] = useState("");
+  const [maskelemeOnay, setMaskelemeOnay] = useState(false);
+  const [maskelemeCalisiyor, setMaskelemeCalisiyor] = useState(false);
+  const [maskelemeSonuc, setMaskelemeSonuc] = useState("");
+
+  // Zaten kayıtlı öğrencilerin soyadlarını GERİYE DÖNÜK maskeler (tek seferlik,
+  // geri alınamaz bir işlem). Yeni öğrenci ekleme akışında kullanılan
+  // pdrSoyadMaskele ile birebir aynı kural — sadece burada TÜM ilgili veri
+  // türlerinde (görüşme, risk, profil, sevk, deneme, testler, sosyometri vb.)
+  // eski adı yeni maskeli adla değiştiriyoruz ki her yerde tutarlı kalsın.
+  // KAPSAM DIŞI (bilinçli): Kriz kayıtlarındaki "etkilenen" alanı serbest metin
+  // olduğu için (örn. "7-B sınıfı geneli" ya da cümle içinde geçen bir isim)
+  // otomatik ve güvenli şekilde değiştirilemiyor — elle kontrol edilmeli.
+  // Grup Çalışmaları'nda zaten bireysel öğrenci adı tutulmuyor (sınıf/grup
+  // düzeyinde), o yüzden dokunulmadı.
+  async function handleGeriDonukMaskeleme() {
+    setMaskelemeCalisiyor(true);
+    setMaskelemeSonuc("");
+
+    // 1) Değişecek öğrencileri belirle — adında zaten "*" olanlar daha önce
+    // maskelenmiş sayılır, tekrar işlenmez (işlemi güvenle birden fazla kez
+    // çalıştırabilmek için).
+    const eslesme = [];
+    const yeniOgrenciler = ogrenciler.map(o => {
+      const eskiAd = o.studentName || "";
+      if (eskiAd.includes("*")) return o;
+      const yeniAd = pdrSoyadMaskele(eskiAd);
+      if (yeniAd === eskiAd) return o;
+      eslesme.push({ eskiAd, yeniAd, className: o.className || "", numara: o.numara || "" });
+      return { ...o, studentName: yeniAd };
+    });
+
+    if (eslesme.length === 0) {
+      setMaskelemeSonuc("Maskelenecek yeni bir isim bulunamadı — muhtemelen hepsi zaten maskelenmiş.");
+      setMaskelemeCalisiyor(false);
+      setMaskelemeOnay(false);
+      return;
+    }
+
+    function bul(ad, sinif, no) {
+      return eslesme.find(e => pdrAyniOgrenci(e.eskiAd, e.className, ad, sinif, e.numara, no));
+    }
+
+    // 2) Dizi (array) tipi koleksiyonlar — her öğenin kendi studentName alanı var
+    function diziGuncelle(dizi) {
+      return (dizi || []).map(item => {
+        const e = bul(item.studentName, item.className, item.numara);
+        return e ? { ...item, studentName: e.yeniAd } : item;
+      });
+    }
+    const yeniRecords = diziGuncelle(records);
+    const yeniRisk = diziGuncelle(riskListesi);
+    const yeniP1 = diziGuncelle(profiles);
+    const yeniP2 = diziGuncelle(profiles2);
+    const yeniSevkler = diziGuncelle(sevkler);
+    const yeniOog = diziGuncelle(oogDegerlendirmeler);
+    const yeniNetHaritasi = diziGuncelle(netHaritasiKayitlari);
+    const yeniHatirlatmalar = diziGuncelle(hatirlatmalar);
+
+    // 3) Sözlük (dictionary) tipi koleksiyonlar — anahtar isim içeriyor,
+    // eski anahtarı silip yeni anahtarla aynı değeri yeniden yazıyoruz.
+    function sozlukGuncelle(sozluk) {
+      let yeni = { ...(sozluk || {}) };
+      eslesme.forEach(e => {
+        const eskiAnahtarlar = [
+          pdrOgrAnahtar(e.eskiAd, e.className, e.numara),
+          pdrOgrAnahtar(e.eskiAd, e.className),
+          e.eskiAd,
+        ];
+        const yeniAnahtarlar = [
+          pdrOgrAnahtar(e.yeniAd, e.className, e.numara),
+          pdrOgrAnahtar(e.yeniAd, e.className),
+          e.yeniAd,
+        ];
+        eskiAnahtarlar.forEach((eskiAnahtar, i) => {
+          if (yeni[eskiAnahtar] !== undefined) {
+            const yeniAnahtar = yeniAnahtarlar[i];
+            if (yeniAnahtar !== eskiAnahtar) {
+              yeni[yeniAnahtar] = yeni[eskiAnahtar];
+              delete yeni[eskiAnahtar];
+            }
+          }
+        });
+      });
+      return yeni;
+    }
+    const yeniDenemeler = sozlukGuncelle(denemeler);
+    const yeniMudahale = sozlukGuncelle(mudahalePlan);
+    const yeniHazirlik = sozlukGuncelle(hazirlikNotlari);
+    const yeniIlerleme = sozlukGuncelle(ilerlemeNotlari);
+    const yeniProfNotlari = sozlukGuncelle(profNotlari);
+    const yeniTestKayitlari = sozlukGuncelle(testKayitlari);
+
+    // 4) Sosyometri — özel yapı: secimler hem anahtar (kimin seçimleri)
+    // hem de değer dizisi (kimleri seçti) olarak öğrenci adı içeriyor.
+    // Aynı sınıftaki eşleşen öğrenci için ikisini de güncelliyoruz.
+    const yeniSosyometri = (sosyometri || []).map(k => {
+      const mevcutSecimler = k.secimler || {};
+      let degisti = false;
+      const yeniSecimler = {};
+      Object.entries(mevcutSecimler).forEach(([ad, secilenler]) => {
+        const e1 = eslesme.find(x => x.eskiAd === ad && x.className === (k.sinif || ""));
+        const yeniAnahtarAd = e1 ? e1.yeniAd : ad;
+        if (e1) degisti = true;
+        const yeniListe = (secilenler || []).map(secilenAd => {
+          const e2 = eslesme.find(x => x.eskiAd === secilenAd && x.className === (k.sinif || ""));
+          if (e2) degisti = true;
+          return e2 ? e2.yeniAd : secilenAd;
+        });
+        yeniSecimler[yeniAnahtarAd] = yeniListe;
+      });
+      return degisti ? { ...k, secimler: yeniSecimler } : k;
+    });
+
+    // 5) Hepsini kaydet
+    setOgrenciler(yeniOgrenciler); await saveOgrenciler(yeniOgrenciler);
+    setRecords(yeniRecords); await saveRecords(yeniRecords);
+    setRiskListesi(yeniRisk); await saveRiskListesi(yeniRisk);
+    setProfiles(yeniP1); await saveProfiles(yeniP1);
+    setProfiles2(yeniP2); await saveProfiles2(yeniP2);
+    setSevkler(yeniSevkler); await saveSevkler(yeniSevkler);
+    setOogDegerlendirmeler(yeniOog); await saveOogDegerlendirmeler(yeniOog);
+    setNetHaritasiKayitlari(yeniNetHaritasi); await saveNetHaritasi(yeniNetHaritasi);
+    setHatirlatmalar(yeniHatirlatmalar); await saveHatirlatmalar(yeniHatirlatmalar);
+    setDenemeler(yeniDenemeler); await saveDenemeler(yeniDenemeler);
+    setMudahalePlan(yeniMudahale); await saveMudahalePlan(yeniMudahale);
+    setHazirlikNotlari(yeniHazirlik); await saveHazirlikNotlari(yeniHazirlik);
+    setIlerlemeNotlari(yeniIlerleme); await saveIlerlemeNotlari(yeniIlerleme);
+    setProfNotlari(yeniProfNotlari); await saveProfNotlari(yeniProfNotlari);
+    setTestKayitlari(yeniTestKayitlari); await saveTestKayitlari(yeniTestKayitlari);
+    setSosyometri(yeniSosyometri); await saveSosyometri(yeniSosyometri);
+
+    setMaskelemeSonuc(`${eslesme.length} öğrencinin soyadı maskelendi, ilgili tüm kayıtlar güncellendi.`);
+    setMaskelemeCalisiyor(false);
+    setMaskelemeOnay(false);
+  }
 
   function handleKaydet() {
     pdrSetApiKey(key);
@@ -9806,6 +9941,40 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
           </div>
         </div>
       )}
+
+      <div style={{ background: "#FDECEA", borderRadius: 12, padding: 14, marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 14, color: "#C0392B" }}>🔒 Kayıtlı Öğrenci Soyadlarını Maskele</div>
+        <div style={{ fontSize: 13, color: MUTED, marginBottom: 10, lineHeight: 1.5 }}>
+          Şu anda kayıtlı tüm öğrencilerin soyadını (ve varsa üçüncü/orta ismini), ilk 2 harf dışındaki
+          harfleri yıldızlayarak (örn. "Yılmaz" → "Yı****") maskeler — görüşme, risk, profil, deneme,
+          test, sevk ve sosyometri kayıtları dahil ilgili HER yerde tutarlı olacak şekilde günceller.
+          Bundan sonra elle/toplu eklenen öğrenciler zaten otomatik maskeleniyor, bu sadece <b>önceden
+          eklenmiş</b> öğrenciler için tek seferlik bir işlem. <b>Geri alınamaz</b> — önce yukarıdan
+          yedek indirmeni öneririz.
+        </div>
+        {!maskelemeOnay ? (
+          <button onClick={() => setMaskelemeOnay(true)} style={{
+            width: "100%", padding: 12, background: "#fff", color: "#C0392B",
+            border: "2px solid #C0392B", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: "pointer"
+          }}>🔒 Geriye Dönük Maskelemeyi Başlat</button>
+        ) : (
+          <div>
+            <div style={{ fontSize: 12.5, color: "#C0392B", fontWeight: 700, marginBottom: 10 }}>
+              Emin misin? {ogrenciler.length} öğrencinin kaydı taranacak, soyadı olanlar maskelenecek. Bu işlem geri alınamaz.
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setMaskelemeOnay(false)} disabled={maskelemeCalisiyor} style={{
+                flex: 1, padding: 12, background: "none", border: `1px solid ${BORDER}`, color: MUTED, borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer"
+              }}>Vazgeç</button>
+              <button onClick={handleGeriDonukMaskeleme} disabled={maskelemeCalisiyor} style={{
+                flex: 1, padding: 12, background: "#C0392B", color: "#fff", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: "pointer", opacity: maskelemeCalisiyor?0.6:1
+              }}>{maskelemeCalisiyor ? "Uygulanıyor…" : "Evet, Maskele"}</button>
+            </div>
+          </div>
+        )}
+        {maskelemeSonuc && <div style={{ fontSize: 13, color: "#1A8C5B", fontWeight: 700, marginTop: 8 }}>{maskelemeSonuc}</div>}
+      </div>
+
 
       <div style={{ fontSize: 14, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
         Yapay zeka özelliklerini (özet çıkarma, risk değerlendirmesi, müdahale planı vb.)
@@ -16296,6 +16465,7 @@ const TABS_TUMU = [
           hatirlatmalar={hatirlatmalar} setHatirlatmalar={setHatirlatmalar}
           netHaritasiKayitlari={netHaritasiKayitlari} setNetHaritasiKayitlari={setNetHaritasiKayitlari}
           konuHaritasiVerisi={konuHaritasiVerisi} setKonuHaritasiVerisi={setKonuHaritasiVerisi}
+          sosyometri={sosyometri} setSosyometri={setSosyometri}
         />}
         {tab === "onaylar" && pdrIsAdmin && <KullaniciOnaylari />}
       </div>
