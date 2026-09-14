@@ -3830,6 +3830,20 @@ function pdrKademeUyumlu(className, kademe) {
   return k === kademe;
 }
 
+// Soyadı (ve varsa üçüncü/orta ismi) gizlilik için maskeler: ilk 2 harf
+// görünür kalır, kalanı yıldız olur (örn. "Yılmaz" -> "Yı****"). İlk isim
+// (adın kendisi) hiç dokunulmaz. Yeni öğrenci eklenirken/yüklenirken
+// KAYDEDİLEN veri üzerinde kalıcı olarak uygulanır — kullanıcı isteği
+// gereği resmi belgeler dahil her yerde bu maskelenmiş hal kullanılır,
+// ayrı bir "tam ad" alanı tutulmuyor.
+function pdrSoyadMaskele(adSoyad) {
+  const parcalar = (adSoyad || "").trim().split(/\s+/).filter(Boolean);
+  if (parcalar.length <= 1) return (adSoyad || "").trim();
+  const ilk = parcalar[0];
+  const kalan = parcalar.slice(1).map(p => p.length <= 2 ? p : p.slice(0, 2) + "*".repeat(p.length - 2));
+  return [ilk, ...kalan].join(" ");
+}
+
 function pdrAyniOgrenci(ad1, sinif1, ad2, sinif2, no1, no2) {
   const s1 = (sinif1 || "").toLocaleLowerCase("tr").trim();
   const s2 = (sinif2 || "").toLocaleLowerCase("tr").trim();
@@ -9978,7 +9992,7 @@ function ExcelTopluYukle({ ogrenciler, setOgrenciler, denemeler, setDenemeler, a
           if (!mevcut) {
             yeniOgrenciler.push({
               id: uid(),
-              studentName: adSoyad,
+              studentName: pdrSoyadMaskele(adSoyad),
               className: sube,
               numara: no,
               yil: aktifYil,
@@ -10340,12 +10354,13 @@ function OgrenciYonetim({
 
   async function handleOgrenciEkle() {
     if (!yeniForm.studentName.trim()) return;
-    const yeni = { id: uid(), ...yeniForm, yil: aktifYil, tarih: today() };
+    const maskeliAd = pdrSoyadMaskele(yeniForm.studentName.trim());
+    const yeni = { id: uid(), ...yeniForm, studentName: maskeliAd, yil: aktifYil, tarih: today() };
     const updated = [yeni, ...ogrenciler];
     setOgrenciler(updated);
     await saveOgrenciler(updated);
-    setSeciliOgrenci(yeniForm.studentName);
-    if(setAktifOgrenci) setAktifOgrenci({ name: yeniForm.studentName, className: yeniForm.className });
+    setSeciliOgrenci(maskeliAd);
+    if(setAktifOgrenci) setAktifOgrenci({ name: maskeliAd, className: yeniForm.className });
     setYeniForm({ studentName:"", className:"", numara:"" });
     setFormAcik(false);
   }
@@ -13208,7 +13223,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
         if (!adSoyad) return;
         const mevcut = yeniOgrenciler.find(o => pdrAyniOgrenci(o.studentName, o.className, adSoyad, seciliSinif, o.numara, numara));
         if (mevcut) { zatenVar++; return; }
-        yeniOgrenciler.push({ id: uid(), studentName: adSoyad, className: seciliSinif, numara, yil: aktifYil, tarih: today() });
+        yeniOgrenciler.push({ id: uid(), studentName: pdrSoyadMaskele(adSoyad), className: seciliSinif, numara, yil: aktifYil, tarih: today() });
         eklenen++;
       });
       setOgrenciler(yeniOgrenciler);
