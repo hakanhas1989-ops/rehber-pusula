@@ -8092,7 +8092,7 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
       const res = await fetch(PDR_AI_WORKER_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "net_haritasi_tekrar_listesi", apiKey, data: { ogrenci: seciliAd, ozet, kademe, sinavAdi: sinavBaglami.sinavAdi, ekBaglam: sinavBaglami.ekBaglam } }),
+        body: JSON.stringify({ action: "net_haritasi_tekrar_listesi", apiKey, data: { ogrenci: pdrAnonimKimlik(seciliAd, seciliSinif, seciliNumara), ozet, kademe, sinavAdi: sinavBaglami.sinavAdi, ekBaglam: sinavBaglami.ekBaglam } }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -8768,17 +8768,27 @@ function VeliMektubu({ kayitliListesi, aktifOgrenci, records }) {
     };
     const apiKey = pdrGetApiKey();
     if (!apiKey) { setAiLoading(false); return; }
+    // AI'a gerçek ad yerine kısaltılmış/anonim kimlik gönderiliyor (diğer tüm
+    // AI çağrılarıyla tutarlı olsun diye) — mektup metninde geçen kısaltılmış
+    // adı, danışmana gösterilen son metinde gerçek adla geri değiştiriyoruz.
+    // Bu geri değişim %100 garantili değil (AI ismi tam olarak nasıl
+    // kullanacağına göre değişir) — mektup zaten göndermeden önce gözden
+    // geçirilecek bir taslak, ama çoğu durumda otomatik doğru gelecektir.
+    const anonimKimlik = pdrAnonimKimlik(seciliAd, seciliSinif, "");
+    const kisaAnonim = anonimKimlik.split(" (")[0];
     const res = await fetch(PDR_AI_WORKER_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "veli_mektubu",
         apiKey,
-        data: { studentName: seciliAd, mektupTipiAciklama: tipler[mektupTipi], ozet },
+        data: { studentName: anonimKimlik, mektupTipiAciklama: tipler[mektupTipi], ozet },
       }),
     });
     const data = await res.json();
-    setMektup(data.content?.[0]?.text || "");
+    let metin = data.content?.[0]?.text || "";
+    if (kisaAnonim) metin = metin.split(kisaAnonim).join(seciliAd);
+    setMektup(metin);
     setAiLoading(false);
   }
 
@@ -9020,7 +9030,7 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
       body: JSON.stringify({
         action: "seans_hazirlik",
         apiKey,
-        data: { ogrenci, gorusmeler, mudahaleBolum, risk, deneme, etkinlikMetni },
+        data: { ogrenci: pdrAnonimKimlik(ogrenci, ogrenciSinif, ""), gorusmeler, mudahaleBolum, risk, deneme, etkinlikMetni },
       }),
     });
     const data = await res.json();
@@ -9412,7 +9422,7 @@ function IlerlemeYazisi({ ogrenci, ogrenciSinif, ogrRec, ogrP1, denemeGirilen, i
       body: JSON.stringify({
         action: "seans_degerlendirme",
         apiKey,
-        data: { ogrenci, seanslar, profilBolum, denemeBolum },
+        data: { ogrenci: pdrAnonimKimlik(ogrenci, ogrenciSinif, ""), seanslar, profilBolum, denemeBolum },
       }),
     });
     const data = await res.json();
@@ -12242,7 +12252,7 @@ function ProfilMerkez({
     ].filter(Boolean).join("\n\n");
 
     setScoresLoading(true);
-    const aiSkorlar = await getScoresFromNotes(seciliAd, notlar);
+    const aiSkorlar = await getScoresFromNotes(pdrAnonimKimlik(seciliAd, seciliSinif, seciliNumara), notlar);
 
     // Ağırlıklı ortalama: görüşme notu varsa %60 AI, %40 değerlendirme; yoksa %100 AI
     let finalSkorlar = aiSkorlar;
