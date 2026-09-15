@@ -4497,8 +4497,45 @@ function RaporModal({ rapor, onKapat }) {
               </div>
             )}
 
-            {/* Deneme Sonuçları */}
-            {raporDenemeler && Object.keys(raporDenemeler).length > 0 && (() => {
+            {/* Geçmiş Dönem Ortalaması (GDO) — "7sinif" anahtarı altında ayrı
+                saklanan, bir önceki döneme ait tek bir ortalama/risk bilgisi.
+                Aşağıdaki "LGS Deneme Sonuçları" bölümünden BAĞIMSIZDIR — o
+                bölüm sadece BU yıl tek tek girilen (D1, D2...) denemeleri
+                kapsar. Öğrencide sadece GDO varsa (hiç bu yıl denemesi
+                girilmemişse) bu bölüm tek başına görünür. */}
+            {raporDenemeler?.["7sinif"] && (() => {
+              const gdo = raporDenemeler["7sinif"];
+              const riskRenk = gdo.risk === "yuksek" ? "#C0392B" : gdo.risk === "orta" ? "#B07D1A" : "#1A8C5B";
+              const riskEtiket = gdo.risk === "yuksek" ? "Yüksek Risk" : gdo.risk === "orta" ? "Orta Risk" : "Düşük Risk";
+              const gdoDenemeSayisi = Object.keys(gdo.denemeler || {}).length;
+              return (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ ...S.bolumBaslik2 }}>Geçmiş Dönem Ortalaması (GDO){gdoDenemeSayisi > 0 ? ` — ${gdoDenemeSayisi} deneme` : ""}</div>
+                  <div style={{ ...S.bolumIcerik2, display:"flex", gap:10 }}>
+                    <div style={{ flex:1, textAlign:"center", background:"#f9f9f9", borderRadius:6, padding:"8px 4px" }}>
+                      <div style={{ fontSize:18, fontWeight:900, color:ACCENT }}>{gdo.ortalama ?? "—"}</div>
+                      <div style={{ fontSize:9, color:"#888" }}>Ortalama Net</div>
+                    </div>
+                    {gdo.risk && (
+                      <div style={{ flex:1, textAlign:"center", background:"#f9f9f9", borderRadius:6, padding:"8px 4px" }}>
+                        <div style={{ fontSize:13, fontWeight:900, color:riskRenk }}>{riskEtiket}</div>
+                        <div style={{ fontSize:9, color:"#888" }}>Risk Düzeyi</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Deneme Sonuçları — BU YIL tek tek girilen denemeler (D1, D2...).
+                ÖNEMLİ DÜZELTME: burada "7sinif" (GDO) anahtarını filtreleyip
+                çıkardıktan SONRA kalan liste boş olabiliyordu (örn. öğrencide
+                sadece GDO varsa, hiç bu yıl denemesi girilmemişse) — ama dış
+                koşul filtrelemeden ÖNCEKİ anahtar sayısına bakıyordu, bu
+                yüzden bölüm yine de render oluyor ve 0 denemeden ortalama/
+                max/min hesaplanınca NaN/Infinity görünüyordu. Şimdi filtrelenmiş
+                listenin kendisi (girilen.length > 0) kontrol ediliyor. */}
+            {raporDenemeler && (() => {
               const girilen = Object.entries(raporDenemeler)
                 .filter(([k])=>k!=="7sinif")
                 .sort((a,b) => a[0]-b[0])
@@ -4511,6 +4548,7 @@ function RaporModal({ rapor, onKapat }) {
                   const toplam = pdrToplamNetHesapla(nets, dersler);
                   return { no: parseInt(no), nets, toplam };
                 });
+              if (girilen.length === 0) return null;
               const avg = girilen.reduce((s,d)=>s+d.toplam,0)/girilen.length;
               const max = Math.max(...girilen.map(d=>d.toplam));
               const min = Math.min(...girilen.map(d=>d.toplam));
