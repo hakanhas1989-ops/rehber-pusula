@@ -10467,8 +10467,12 @@ function OgrenciYonetim({
 
   async function handleHatirlatmaDuzenleOnayla(hedefRec) {
     if (!onerilenHatirlatmaDuzenle) return;
+    // hedefRec.className/numara, görüşme notunun YAZILDIĞI andaki bilgi
+    // olabilir — öğrenci o tarihten bu yana sınıf değiştirmiş olabilir.
+    // Hatırlatmayı her zaman öğrencinin GÜNCEL sınıf/numarasıyla oluşturuyoruz.
+    const guncelOgr = kayitliListesi?.find(o => o.name === hedefRec.studentName);
     const yeni = {
-      id: uid(), studentName: hedefRec.studentName, className: hedefRec.className, numara: hedefRec.numara,
+      id: uid(), studentName: hedefRec.studentName, className: guncelOgr?.className || hedefRec.className, numara: guncelOgr?.numara || hedefRec.numara,
       metin: onerilenHatirlatmaDuzenle.metin, tarih: onerilenHatirlatmaDuzenle.tarih || today(), kaynak: "ai", olusturmaTarihi: today(), tamamlandi: false
     };
     const guncel = [yeni, ...(hatirlatmalar||[])];
