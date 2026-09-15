@@ -15898,6 +15898,38 @@ const TABS_TUMU = [
               const yeniIlerleme = pdrSozlukTasi(ilerlemeNotlari);
               setIlerlemeNotlari(yeniIlerleme); await saveIlerlemeNotlari(yeniIlerleme);
 
+              // ÖNEMLİ DÜZELTME: bu üç koleksiyon (danışman not defteri, testler,
+              // sosyometri) sınıf/ad güncellemesinde UNUTULMUŞTU — öğrenci
+              // silinirken temizleniyordu ama sınıf değişince eski anahtarda/
+              // eski ad-sınıfla kalıp "kayboluyor" gibi görünüyordu.
+              const yeniProfNotlari = pdrSozlukTasi(profNotlari);
+              setProfNotlari(yeniProfNotlari); await saveProfNotlari(yeniProfNotlari);
+
+              const yeniTestKayitlari = pdrSozlukTasi(testKayitlari);
+              setTestKayitlari(yeniTestKayitlari); await saveTestKayitlari(yeniTestKayitlari);
+
+              // Sosyometri özel yapı: secimler hem anahtar (kimin seçimleri)
+              // hem de değer dizisi (kimleri seçti) olarak öğrenci adı
+              // içeriyor — aynı sınıftaki eşleşmeler için ikisini de güncelle.
+              const yeniSosyometri = (sosyometri||[]).map(k => {
+                if ((k.sinif||"") !== eskiSinif) return k;
+                const mevcutSecimler = k.secimler || {};
+                let degisti = false;
+                const yeniSecimler = {};
+                Object.entries(mevcutSecimler).forEach(([ad, secilenler]) => {
+                  const buAnahtarMi = ad === eskiAd;
+                  const yeniAnahtarAd = buAnahtarMi ? yeniAd : ad;
+                  if (buAnahtarMi) degisti = true;
+                  const yeniListe = (secilenler||[]).map(secilenAd => {
+                    if (secilenAd === eskiAd) { degisti = true; return yeniAd; }
+                    return secilenAd;
+                  });
+                  yeniSecimler[yeniAnahtarAd] = yeniListe;
+                });
+                return degisti ? { ...k, secimler: yeniSecimler } : k;
+              });
+              setSosyometri(yeniSosyometri); await saveSosyometri(yeniSosyometri);
+
               const yeniOog = oogDegerlendirmeler.map(o => ayniMi(o.studentName, o.className, o.numara) ? { ...o, studentName: yeniAd, className: yeniSinif } : o);
               setOogDegerlendirmeler(yeniOog); await saveOogDegerlendirmeler(yeniOog);
             }}
@@ -15962,6 +15994,23 @@ const TABS_TUMU = [
 
               const updKonuHaritasi = pdrSozlukOgrenciTemizle(konuHaritasiVerisi);
               setKonuHaritasiVerisi(updKonuHaritasi); await saveKonuHaritasi(updKonuHaritasi);
+
+              // Sosyometri de daha önce silme kapsamında değildi — silinen
+              // öğrencinin kendi seçim kaydı (anahtar) kaldırılır, ayrıca
+              // aynı sınıftaki diğer öğrencilerin seçim listelerinden de
+              // (artık var olmayan birini "seçmiş" görünmesin diye) çıkarılır.
+              const updSosyometri = (sosyometri||[]).map(k => {
+                if ((k.sinif||"") !== className) return k;
+                const mevcutSecimler = k.secimler || {};
+                if (!(studentName in mevcutSecimler) && !Object.values(mevcutSecimler).some(list => (list||[]).includes(studentName))) return k;
+                const yeniSecimler = {};
+                Object.entries(mevcutSecimler).forEach(([ad, secilenler]) => {
+                  if (ad === studentName) return; // silinen öğrencinin kendi kaydı düşer
+                  yeniSecimler[ad] = (secilenler||[]).filter(secilenAd => secilenAd !== studentName);
+                });
+                return { ...k, secimler: yeniSecimler };
+              });
+              setSosyometri(updSosyometri); await saveSosyometri(updSosyometri);
             }}
             onSinifSil={handleSinifSilTumVeri}
             setAktifOgrenci={setAktifOgrenci}
