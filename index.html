@@ -10311,6 +10311,7 @@ function OgrenciYonetim({
   riskListesi, setRiskListesi,
   kayitliListesi, mudahalePlan, aktifYil, onYilEkrani,
   hazirlikNotlari, setHazirlikNotlari,
+  hatirlatmalar, setHatirlatmalar,
   ilerlemeNotlari, setIlerlemeNotlari,
   onRaporAc, setAktifOgrenci, aktifOgrenci, setTab, onSinifGuncelle, onOgrenciSil, onSinifSil, sinifListesi, sinavTuru, sevkler, testKayitlari, kademe, konuHaritasiVerisi,
 }) {
@@ -10406,14 +10407,36 @@ function OgrenciYonetim({
   const [duzenlemeId, setDuzenlemeId] = useState(null);
   const [duzenleForm, setDuzenleForm] = useState(null);
   const [duzenleAiLoading, setDuzenleAiLoading] = useState(false);
+  const [onerilenHatirlatmaDuzenle, setOnerilenHatirlatmaDuzenle] = useState(null);
 
+  // ÖNEMLİ DÜZELTME: bu fonksiyon daha önce AI cevabından sadece özeti alıp
+  // "---HATIRLATMA---" bloğunu sessizce atıyordu — yani var olan bir
+  // görüşmeyi düzenleyip AI ile yeniden özetlediğinizde, AI'ın fark ettiği
+  // bir hatırlatma varsa bile hiçbir yerde önerilmiyordu (yeni görüşme
+  // eklerken önerilirdi). Şimdi handleSummarize ile aynı ayrıştırma
+  // yapılıyor, öneri bu düzenleme kartının kendi onay kutusunda çıkıyor.
   async function handleDuzenleAiOzetle() {
     if (!duzenleForm?.raw?.trim()) return;
     setDuzenleAiLoading(true);
     const tamCevap = await getAISummary(duzenleForm.raw);
-    const summary = tamCevap.split(/---HATIRLATMA---/i)[0].trim();
+    const parcalar = tamCevap.split(/---HATIRLATMA---/i);
+    const summary = parcalar[0].trim();
+    const hatirlatmaBlok = (parcalar[1] || "").split(/---GECMIS_YIL_ORT---/i)[0].split(/---BIREYI_TANIMA---/i)[0].trim();
     setDuzenleForm(f => ({ ...f, summary }));
+    setOnerilenHatirlatmaDuzenle(pdrHatirlatmaBlokParcala(hatirlatmaBlok));
     setDuzenleAiLoading(false);
+  }
+
+  async function handleHatirlatmaDuzenleOnayla(hedefRec) {
+    if (!onerilenHatirlatmaDuzenle) return;
+    const yeni = {
+      id: uid(), studentName: hedefRec.studentName, className: hedefRec.className, numara: hedefRec.numara,
+      metin: onerilenHatirlatmaDuzenle.metin, tarih: onerilenHatirlatmaDuzenle.tarih || today(), kaynak: "ai", olusturmaTarihi: today(), tamamlandi: false
+    };
+    const guncel = [yeni, ...(hatirlatmalar||[])];
+    setHatirlatmalar(guncel);
+    await saveHatirlatmalar(guncel);
+    setOnerilenHatirlatmaDuzenle(null);
   }
 
   async function handleGorusmeGuncelle(id, fields) {
@@ -11114,11 +11137,28 @@ function OgrenciYonetim({
                                 <button onClick={handleDuzenleAiOzetle} disabled={!duzenleForm?.raw?.trim()||duzenleAiLoading} style={{width:"100%",padding:"7px",background:duzenleForm?.raw?.trim()&&!duzenleAiLoading?PURPLE:BORDER,color:duzenleForm?.raw?.trim()&&!duzenleAiLoading?"#fff":MUTED,border:"none",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer",marginBottom:6}}>
                                   {duzenleAiLoading?"⏳ Özetleniyor...":"✦ AI ile Yeniden Özetle"}
                                 </button>
+                                {/* AI'ın bu görüşme notundan fark ettiği hatırlatma — kesin kayıt
+                                    değil, sadece öneri; onaylamadan Hatırlatıcı'ya hiçbir şey eklenmez. */}
+                                {onerilenHatirlatmaDuzenle && (
+                                  <div style={{ background:"#FFF4E5", border:"1px solid #F0C179", borderRadius:8, padding:"8px 10px", marginBottom:6 }}>
+                                    <div style={{ fontSize:10.5, fontWeight:700, color:"#B07D1A", marginBottom:6 }}>🔔 AI bir hatırlatma fark etti:</div>
+                                    <div style={{ fontSize:11.5, color:TEXT, marginBottom:6 }}>{onerilenHatirlatmaDuzenle.metin}</div>
+                                    <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:8 }}>
+                                      <label style={{ fontSize:10, color:MUTED }}>Tarih:</label>
+                                      <input value={onerilenHatirlatmaDuzenle.tarih} onChange={e=>setOnerilenHatirlatmaDuzenle(h=>({...h, tarih:e.target.value}))} placeholder="GG.AA.YYYY"
+                                        style={{ flex:1, padding:"4px 7px", border:`1px solid ${BORDER}`, borderRadius:6, fontSize:11 }} />
+                                    </div>
+                                    <div style={{ display:"flex", gap:6 }}>
+                                      <button onClick={()=>handleHatirlatmaDuzenleOnayla(r)} style={{ flex:1, padding:"6px", background:"#B07D1A", color:"#fff", border:"none", borderRadius:6, fontSize:11, fontWeight:700, cursor:"pointer" }}>✓ Ekle</button>
+                                      <button onClick={()=>setOnerilenHatirlatmaDuzenle(null)} style={{ padding:"6px 10px", background:"none", border:`1px solid ${BORDER}`, color:MUTED, borderRadius:6, fontSize:11, fontWeight:700, cursor:"pointer" }}>Yoksay</button>
+                                    </div>
+                                  </div>
+                                )}
                                 <label style={{fontSize:10,fontWeight:600,color:MUTED,display:"block",marginBottom:2}}>ÖZET</label>
                                 <textarea value={duzenleForm?.summary||""} onChange={e=>setDuzenleForm(f=>({...f,summary:e.target.value}))} rows={4} style={{width:"100%",padding:"7px 9px",border:`1px solid ${ACCENT_LIGHT}`,borderRadius:8,fontSize:12,resize:"vertical",boxSizing:"border-box",background:"#F0FAF4",marginBottom:8}}/>
                                 <div style={{display:"flex",gap:8}}>
-                                  <button onClick={()=>{setDuzenlemeId(null);setDuzenleForm(null);}} style={{flex:1,padding:"8px",background:BG,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:8,fontSize:12,fontWeight:700,color:MUTED,cursor:"pointer"}}>İptal</button>
-                                  <button onClick={()=>handleGorusmeGuncelle(r.id,duzenleForm)} disabled={!duzenleForm?.summary?.trim()} style={{flex:1,padding:"8px",background:duzenleForm?.summary?.trim()?ACCENT:BORDER,color:duzenleForm?.summary?.trim()?"#fff":MUTED,border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>💾 Kaydet</button>
+                                  <button onClick={()=>{setDuzenlemeId(null);setDuzenleForm(null);setOnerilenHatirlatmaDuzenle(null);}} style={{flex:1,padding:"8px",background:BG,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:8,fontSize:12,fontWeight:700,color:MUTED,cursor:"pointer"}}>İptal</button>
+                                  <button onClick={()=>{handleGorusmeGuncelle(r.id,duzenleForm);setOnerilenHatirlatmaDuzenle(null);}} disabled={!duzenleForm?.summary?.trim()} style={{flex:1,padding:"8px",background:duzenleForm?.summary?.trim()?ACCENT:BORDER,color:duzenleForm?.summary?.trim()?"#fff":MUTED,border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>💾 Kaydet</button>
                                 </div>
                               </div>
                             ) : (
@@ -15754,6 +15794,8 @@ const TABS_TUMU = [
             onYilEkrani={() => setYilEkrani(true)}
             hazirlikNotlari={hazirlikNotlari}
             setHazirlikNotlari={setHazirlikNotlari}
+            hatirlatmalar={hatirlatmalar}
+            setHatirlatmalar={setHatirlatmalar}
             ilerlemeNotlari={ilerlemeNotlari}
             setIlerlemeNotlari={setIlerlemeNotlari}
             onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
