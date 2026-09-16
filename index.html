@@ -10730,9 +10730,9 @@ function OgrenciYonetim({
                             .map(k => (
                             <div key={k.id} data-pdr-ogrenci-satir={pdrOgrAnahtar(k.studentName, k.className, k.numara)} onClick={() => { donulecekOgrenciRef.current = pdrOgrAnahtar(k.studentName, k.className, k.numara); setSeciliOgrenci(k.studentName); if(setAktifOgrenci) setAktifOgrenci({ name:k.studentName, className:k.className||"" }); }}
                               style={{ background:BG, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:"9px 12px", display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
-                              <span style={{ fontSize:11, color:MUTED, minWidth:44 }}>{k.date}</span>
-                              <span style={{ flex:1, fontSize:13, fontWeight:700, color:TEXT }}>{k.studentName}</span>
-                              <span style={{ fontSize:11, color:MUTED }}>{k.className}{k.numara ? ` · No: ${k.numara}` : ""}</span>
+                              <span style={{ fontSize:10.5, color:MUTED, flexShrink:0 }}>{k.date}</span>
+                              <span style={{ flex:1, minWidth:0, fontSize:12, fontWeight:700, color:TEXT, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{k.studentName}</span>
+                              <span style={{ fontSize:10.5, color:MUTED, flexShrink:0 }}>{k.className}{k.numara ? ` · No: ${k.numara}` : ""}</span>
                             </div>
                           ))}
                         </div>
