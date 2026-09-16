@@ -10069,6 +10069,14 @@ function ExcelTopluYukle({ ogrenciler, setOgrenciler, denemeler, setDenemeler, a
   // anahtar kayıtlı öğrencininkiyle birebir aynı değilse veriyi DOĞRU
   // anahtara taşır/birleştirir. Doğru anahtarda zaten olan alanların üzerine
   // yazmaz — sadece eksik olanları tamamlar.
+  // ÖNEMLİ DÜZELTME: pdrAyniOgrenci sınıf bilgisi HER İKİ tarafta da doluysa
+  // ve BİRBİRİNDEN FARKLIYSA eşleşmeyi reddediyor — yani öğrenci sonradan
+  // sınıf değiştirdiyse (ve bu kayıt "Bilgileri Güncelle" ile değil, başka
+  // bir yoldan eski sınıf etiketiyle kalmışsa) bu araç onu bulamıyordu.
+  // Şimdi katı eşleşme bulunamazsa, İSİM TEK BAŞINA (büyük/küçük harf
+  // farkı gözetmeden) TEK BİR öğrenciyle eşleşiyorsa — sınıf farklı olsa
+  // bile — o öğrenciye taşınıyor. Birden fazla öğrenci aynı isme sahipse
+  // (belirsizlik varsa) güvenlik için atlanıyor, elle düzeltilmesi gerekir.
   async function handleOnar() {
     setOnariliyor(true);
     const yeni = { ...denemeler };
@@ -10077,7 +10085,12 @@ function ExcelTopluYukle({ ogrenciler, setOgrenciler, denemeler, setDenemeler, a
       if (!val || Object.keys(val).length === 0) return;
       const parcalar = eskiKey.split(" || ");
       const [hamAd, hamSinif, hamNo] = parcalar;
-      const kayitli = ogrenciler.find(o => pdrAyniOgrenci(o.studentName, o.className, hamAd, hamSinif, o.numara, hamNo));
+      let kayitli = ogrenciler.find(o => pdrAyniOgrenci(o.studentName, o.className, hamAd, hamSinif, o.numara, hamNo));
+      if (!kayitli) {
+        const adNorm = (hamAd || "").toLocaleLowerCase("tr").trim();
+        const isimEslesenler = ogrenciler.filter(o => (o.studentName || "").toLocaleLowerCase("tr").trim() === adNorm);
+        if (isimEslesenler.length === 1) kayitli = isimEslesenler[0];
+      }
       if (!kayitli) { bulunamayan++; return; }
       const dogruKey = pdrOgrAnahtar(kayitli.studentName, kayitli.className, kayitli.numara);
       if (dogruKey === eskiKey) return; // zaten doğru
