@@ -4129,6 +4129,27 @@ function raporVerisiOlustur({ ogrenci, ogrenciSinif, profil1, profil2, gorusmele
 }
 
 // ── PDF Rapor Bileşeni ────────────────────────────────────────────────────────
+// Rapor bölüm başlıklarının yanına, o verinin uygulamada hangi sekmeden
+// geldiğini gösteren küçük, yuvarlak, ikonlu bir rozet — Google AI Overview'daki
+// kaynak etiketlerine benzer şekilde (ikon + isim, tek tonda, köşeleri
+// yuvarlak). Başlık çubukları koyu renkli olduğu için rozet yarı saydam beyaz.
+function KaynakRozeti({ ikon, ad }) {
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      background: "rgba(255,255,255,0.22)", borderRadius: 20,
+      padding: "1px 8px 1px 3px", fontSize: 8, fontWeight: 700, color: "#fff",
+      marginLeft: 8, verticalAlign: "middle", textTransform: "none", letterSpacing: 0,
+    }}>
+      <span style={{
+        width: 13, height: 13, borderRadius: "50%", background: "rgba(255,255,255,0.92)",
+        display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8, flexShrink: 0,
+      }}>{ikon}</span>
+      {ad}
+    </span>
+  );
+}
+
 function RaporModal({ rapor, onKapat }) {
   if (!rapor) return null;
   const { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: raporDenemeler, mudahalePlan: raporMudahale, riskListesi: raporRisk, tarih, sinavTuru, testKayitlari: raporTestler, kaynastirma: raporKaynastirma } = rapor;
@@ -4199,7 +4220,7 @@ function RaporModal({ rapor, onKapat }) {
           <div>
             {profil1 && (
               <div style={{ marginBottom: 16 }}>
-                <div style={S.bolumBaslik}>Profil 1 — PDR Değerlendirmesi</div>
+                <div style={S.bolumBaslik}>Profil 1 — PDR Değerlendirmesi<KaynakRozeti ikon="📋" ad="Profil" /></div>
                 <div style={S.bolumIcerik}>
                   <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
                     <RadarChart scores={profil1.scores} size={230} />
@@ -4229,7 +4250,7 @@ function RaporModal({ rapor, onKapat }) {
 
             {gorusmeler && gorusmeler.length > 0 && (
               <div>
-                <div style={{ ...S.bolumBaslik2 }}>Görüşme Geçmişi ({gorusmeler.length} görüşme)</div>
+                <div style={{ ...S.bolumBaslik2 }}>Görüşme Geçmişi ({gorusmeler.length} görüşme)<KaynakRozeti ikon="📝" ad="Görüşme Notu" /></div>
                 <div style={S.bolumIcerik2}>
                   {[...gorusmeler].sort((a, b) => {
                     const parse = d => { const [g,ay,y]=(d||"").split("."); return new Date(y+"-"+ay+"-"+g); };
@@ -4264,7 +4285,7 @@ function RaporModal({ rapor, onKapat }) {
               const sonuc = oogSonucHesapla(oogKayit.cevaplar);
               return (
                 <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}>ÖÖG Ön-Tarama (Tanı Değil — Yalnızca Tarama)</div>
+                  <div style={{ ...S.bolumBaslik2 }}>ÖÖG Ön-Tarama (Tanı Değil — Yalnızca Tarama)<KaynakRozeti ikon="📋" ad="Profil" /></div>
                   <div style={S.bolumIcerik2}>
                     <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
                       <span style={{ fontSize:16, fontWeight:900, color:sonuc.seviye.color }}>%{sonuc.yuzde}</span>
@@ -4287,7 +4308,7 @@ function RaporModal({ rapor, onKapat }) {
               if (!hazirlikMetni || !hazirlikMetni.trim()) return null;
               return (
                 <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}>Seans Hazırlık Notu</div>
+                  <div style={{ ...S.bolumBaslik2 }}>Seans Hazırlık Notu<KaynakRozeti ikon="📋" ad="Profil" /></div>
                   <div style={{ ...S.bolumIcerik2, fontSize:10.5, lineHeight:1.6, whiteSpace:"pre-wrap" }}>{hazirlikMetni}</div>
                 </div>
               );
@@ -4312,7 +4333,7 @@ function RaporModal({ rapor, onKapat }) {
               if (olaylar.length === 0) return null;
               return (
                 <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}>Olay / Tutanak Kaydı ({olaylar.length})</div>
+                  <div style={{ ...S.bolumBaslik2 }}>Olay / Tutanak Kaydı ({olaylar.length})<KaynakRozeti ikon="🚨" ad="Kriz Müdahale" /></div>
                   <div style={S.bolumIcerik2}>
                     {olaylar.map((o,i) => (
                       <div key={i} style={{ marginBottom:6, fontSize:10.5, lineHeight:1.6 }}>
@@ -4331,7 +4352,7 @@ function RaporModal({ rapor, onKapat }) {
               if (ogrSevkler.length === 0) return null;
               return (
                 <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}>Sevk Kayıtları ({ogrSevkler.length})</div>
+                  <div style={{ ...S.bolumBaslik2 }}>Sevk Kayıtları ({ogrSevkler.length})<KaynakRozeti ikon="🏥" ad="Sevk" /></div>
                   <div style={S.bolumIcerik2}>
                     {ogrSevkler.map((s,i) => (
                       <div key={i} style={{ marginBottom:6, fontSize:10.5, lineHeight:1.6 }}>
@@ -4350,7 +4371,7 @@ function RaporModal({ rapor, onKapat }) {
           <div>
             {profil2 && (
               <div>
-                <div style={{ ...S.bolumBaslik2 }}>Profil 2 — Akademik & İlgi Profili</div>
+                <div style={{ ...S.bolumBaslik2 }}>Profil 2 — Akademik & İlgi Profili<KaynakRozeti ikon="📋" ad="Profil" /></div>
                 <div style={S.bolumIcerik2}>
                   {profil2.gecmisYillar && Object.entries(profil2.gecmisYillar).filter(([,v])=>v!=="" && v!=null).length > 0 && (
                     <div style={{ marginBottom: 12 }}>
@@ -4510,7 +4531,7 @@ function RaporModal({ rapor, onKapat }) {
               const gdoDenemeSayisi = Object.keys(gdo.denemeler || {}).length;
               return (
                 <div style={{ marginTop: 16 }}>
-                  <div style={{ ...S.bolumBaslik2 }}>Geçmiş Dönem Ortalaması (GDO){gdoDenemeSayisi > 0 ? ` — ${gdoDenemeSayisi} deneme` : ""}</div>
+                  <div style={{ ...S.bolumBaslik2 }}>Geçmiş Dönem Ortalaması (GDO){gdoDenemeSayisi > 0 ? ` — ${gdoDenemeSayisi} deneme` : ""}<KaynakRozeti ikon="📊" ad="Deneme" /></div>
                   <div style={{ ...S.bolumIcerik2, display:"flex", gap:10 }}>
                     <div style={{ flex:1, textAlign:"center", background:"#f9f9f9", borderRadius:6, padding:"8px 4px" }}>
                       <div style={{ fontSize:18, fontWeight:900, color:ACCENT }}>{gdo.ortalama ?? "—"}</div>
@@ -4555,7 +4576,7 @@ function RaporModal({ rapor, onKapat }) {
               const trend = girilen.length > 1 ? girilen[girilen.length-1].toplam - girilen[0].toplam : 0;
               return (
                 <div style={{ marginTop: 16 }}>
-                  <div style={{ ...S.bolumBaslik2 }}>LGS Deneme Sonuçları ({girilen.length} deneme)</div>
+                  <div style={{ ...S.bolumBaslik2 }}>LGS Deneme Sonuçları ({girilen.length} deneme)<KaynakRozeti ikon="📊" ad="Deneme" /></div>
                   <div style={{ ...S.bolumIcerik2 }}>
                     {/* Özet */}
                     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:6, marginBottom:12 }}>
@@ -4617,7 +4638,7 @@ function RaporModal({ rapor, onKapat }) {
               if (ogrTestleri.length === 0) return null;
               return (
                 <div style={{ marginTop:16, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}>Uygulanan Testler</div>
+                  <div style={{ ...S.bolumBaslik2 }}>Uygulanan Testler<KaynakRozeti ikon="🧪" ad="Testler" /></div>
                   <div style={{ ...S.bolumIcerik2 }}>
                     {ogrTestleri.map(k => (
                       <div key={k.id} style={{ marginBottom:8, paddingBottom:8, borderBottom:"1px solid #eee" }}>
@@ -4643,7 +4664,7 @@ function RaporModal({ rapor, onKapat }) {
               const aktifRisk = (raporRisk || []).filter(r => pdrAyniOgrenci(r.studentName, r.className, ogrenci, ogrenciSinif) && !r.kapandi);
               return (
                 <div style={{ marginTop:16, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}>Bir Sonraki Seans Planı</div>
+                  <div style={{ ...S.bolumBaslik2 }}>Bir Sonraki Seans Planı<KaynakRozeti ikon="🎯" ad="Müdahale" /></div>
                   <div style={{ ...S.bolumIcerik2 }}>
 
                     {/* Aktif müdahale planları */}
