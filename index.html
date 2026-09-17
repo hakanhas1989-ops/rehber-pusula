@@ -15127,31 +15127,6 @@ export default function App() {
 // tek üyeli bir grup anlamsız olurdu. "testler" yine bilerek Akademik
 // grubuna katılmadı (ilkokulda sadece deneme/net_haritasi/konu_haritasi
 // gizleniyor, Testler ilkokulda da görünür kalmalı).
-// Sekme etiketindeki (örn. "📝 Görüşme Notu") emojiyi ayırıp küçük yuvarlak
-// bir rozet içine koymak için — rapor bölümlerindeki KaynakRozeti ile aynı
-// görsel dil (ikon dairesi + metin), sadece burada açık renkli sekme
-// çubuğuna uyacak tonlarla.
-function pdrSekmeAyikla(etiket) {
-  const m = (etiket || "").match(/^([\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F\u200D]+)\s*(.*)$/u);
-  return m ? { ikon: m[1], metin: m[2] } : { ikon: null, metin: etiket || "" };
-}
-function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
-  const { ikon, metin } = pdrSekmeAyikla(etiket);
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-      {ikon && (
-        <span style={{
-          width: 17, height: 17, borderRadius: "50%", background: zeminRenk,
-          border: `1.5px solid ${kenarRenk}`, boxSizing: "border-box",
-          display: "inline-flex", alignItems: "center", justifyContent: "center",
-          fontSize: 10, lineHeight: 1, flexShrink: 0,
-        }}>{ikon}</span>
-      )}
-      <span style={{ color: renk }}>{metin}</span>
-    </span>
-  );
-}
-
 const TABS_TUMU = [
     { key: "ogrenciler", label: "👥 Öğrenciler" },
     { key: "yeni", label: "📝 Görüşme Notu" },
@@ -15438,10 +15413,12 @@ const TABS_TUMU = [
             : pdrSekmeDolulugu[t.key];
           return (
             <button key={t.key} data-pdr-sekme-key={t.key} onClick={() => setTab(t.key)} title={dolu === undefined ? undefined : (aktifOgrenci?.name ? `${aktifOgrenci.name}: ${dolu ? "kayıt var" : "henüz kayıt yok"}` : (dolu ? "Bu yıl için kayıt var" : "Bu yıl için henüz kayıt yok"))} style={{
-              flexShrink: 0, padding: "11px 10px", border: "none", background: "none",
+              flexShrink: 0, padding: "6px 12px", borderRadius: 20, cursor: "pointer",
+              border: `1.5px solid ${grupAktifMi ? ACCENT : BORDER}`,
+              background: grupAktifMi ? "#E9F7F0" : "#fff",
               fontWeight: grupAktifMi ? 800 : 600,
-              fontSize: 9, cursor: "pointer",
-              borderBottom: grupAktifMi ? `3px solid ${ACCENT}` : "3px solid transparent",
+              color: grupAktifMi ? ACCENT : TEXT,
+              fontSize: 9,
               display: "flex", alignItems: "center", gap: 4,
             }}>
               {dolu !== undefined && (
@@ -15452,7 +15429,7 @@ const TABS_TUMU = [
                   opacity: dolu ? 1 : 0.5,
                 }} />
               )}
-              <PdrSekmeRozeti etiket={t.label} renk={grupAktifMi ? ACCENT : TEXT} zeminRenk="#fff" kenarRenk={grupAktifMi ? ACCENT : BORDER} />
+              {t.label}
               {t.key === "onaylar" && <span style={{ background: "#FB923C", color: "#fff", borderRadius: 8, padding: "1px 6px", fontSize: 8, fontWeight: 800, letterSpacing: 0.3 }}>YENİ</span>}
             </button>
           );
@@ -15470,12 +15447,13 @@ const TABS_TUMU = [
             borderBottom: `1px solid ${BORDER}`, overflowX: "auto", position: "sticky", top: 0, zIndex: 7 }}>
             {aktifGrup.grup.map(k => (
               <button key={k} onClick={() => setTab(k)} style={{
-                flexShrink: 0, padding: "6px 12px", borderRadius: 20, border: "none", cursor: "pointer",
+                flexShrink: 0, padding: "6px 12px", borderRadius: 20, cursor: "pointer",
+                border: `1.5px solid ${tab === k ? PURPLE : "#D8CFF0"}`,
                 fontSize: 9, fontWeight: tab === k ? 800 : 700,
                 background: tab === k ? PURPLE : "#fff",
-                display: "flex", alignItems: "center", gap: 4,
+                color: tab === k ? "#fff" : PURPLE,
               }}>
-                <PdrSekmeRozeti etiket={aktifGrup.grupEtiketler?.[k] || k} renk={tab === k ? "#fff" : PURPLE} zeminRenk="#fff" kenarRenk={tab === k ? "#fff" : PURPLE} />
+                {aktifGrup.grupEtiketler?.[k] || k}
               </button>
             ))}
           </div>
