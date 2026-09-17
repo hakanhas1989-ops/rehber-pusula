@@ -3830,17 +3830,22 @@ function pdrKademeUyumlu(className, kademe) {
   return k === kademe;
 }
 
-// Soyadı (ve varsa üçüncü/orta ismi) gizlilik için maskeler: ilk 2 harf
-// görünür kalır, kalanı yıldız olur (örn. "Yılmaz" -> "Yı****"). İlk isim
-// (adın kendisi) hiç dokunulmaz. Yeni öğrenci eklenirken/yüklenirken
-// KAYDEDİLEN veri üzerinde kalıcı olarak uygulanır — kullanıcı isteği
-// gereği resmi belgeler dahil her yerde bu maskelenmiş hal kullanılır,
-// ayrı bir "tam ad" alanı tutulmuyor.
+// Soyadı (ve varsa üçüncü/orta ismi) gizlilik için maskeler: ilk 2 harf (ya
+// da kelime daha kısaysa tamamı) görünür kalır, ardından HER ZAMAN SABİT 4
+// yıldız eklenir (örn. "Yılmaz" -> "Yı****", "Ay" -> "Ay****"). İlk isim
+// (adın kendisi) hiç dokunulmaz.
+// ÖNEMLİ DÜZELTME: eskiden kalan harf sayısı kadar yıldız konuyordu (örn.
+// "Yılmaz" -> "Yı****" ama "Ay" gibi 2 harfli bir soyad hiç maskelenmiyordu,
+// olduğu gibi görünüyordu) — bu hem soyadın uzunluğunu ele veriyordu (yıldız
+// sayısından tahmin edilebiliyordu) hem de kısa soyadları tamamen açık
+// bırakıyordu. Şimdi yıldız sayısı SABİT (4) — soyad ne kadar uzun/kısa
+// olursa olsun aynı görünüyor, tahmin edilecek bir ipucu kalmıyor.
 function pdrSoyadMaskele(adSoyad) {
   const parcalar = (adSoyad || "").trim().split(/\s+/).filter(Boolean);
   if (parcalar.length <= 1) return (adSoyad || "").trim();
   const ilk = parcalar[0];
-  const kalan = parcalar.slice(1).map(p => p.length <= 2 ? p : p.slice(0, 2) + "*".repeat(p.length - 2));
+  const SABIT_YILDIZ = "****";
+  const kalan = parcalar.slice(1).map(p => p.slice(0, Math.min(2, p.length)) + SABIT_YILDIZ);
   return [ilk, ...kalan].join(" ");
 }
 
@@ -15130,15 +15135,16 @@ function pdrSekmeAyikla(etiket) {
   const m = (etiket || "").match(/^([\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F\u200D]+)\s*(.*)$/u);
   return m ? { ikon: m[1], metin: m[2] } : { ikon: null, metin: etiket || "" };
 }
-function PdrSekmeRozeti({ etiket, renk, zeminRenk }) {
+function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
   const { ikon, metin } = pdrSekmeAyikla(etiket);
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
       {ikon && (
         <span style={{
-          width: 15, height: 15, borderRadius: "50%", background: zeminRenk,
+          width: 17, height: 17, borderRadius: "50%", background: zeminRenk,
+          border: `1.5px solid ${kenarRenk}`, boxSizing: "border-box",
           display: "inline-flex", alignItems: "center", justifyContent: "center",
-          fontSize: 9, flexShrink: 0,
+          fontSize: 10, lineHeight: 1, flexShrink: 0,
         }}>{ikon}</span>
       )}
       <span style={{ color: renk }}>{metin}</span>
@@ -15446,7 +15452,7 @@ const TABS_TUMU = [
                   opacity: dolu ? 1 : 0.5,
                 }} />
               )}
-              <PdrSekmeRozeti etiket={t.label} renk={grupAktifMi ? ACCENT : TEXT} zeminRenk={grupAktifMi ? "#DFF3EA" : "#EFEFEF"} />
+              <PdrSekmeRozeti etiket={t.label} renk={grupAktifMi ? ACCENT : TEXT} zeminRenk="#fff" kenarRenk={grupAktifMi ? ACCENT : BORDER} />
               {t.key === "onaylar" && <span style={{ background: "#FB923C", color: "#fff", borderRadius: 8, padding: "1px 6px", fontSize: 8, fontWeight: 800, letterSpacing: 0.3 }}>YENİ</span>}
             </button>
           );
@@ -15469,7 +15475,7 @@ const TABS_TUMU = [
                 background: tab === k ? PURPLE : "#fff",
                 display: "flex", alignItems: "center", gap: 4,
               }}>
-                <PdrSekmeRozeti etiket={aktifGrup.grupEtiketler?.[k] || k} renk={tab === k ? "#fff" : PURPLE} zeminRenk={tab === k ? "rgba(255,255,255,0.25)" : "#F3F0FF"} />
+                <PdrSekmeRozeti etiket={aktifGrup.grupEtiketler?.[k] || k} renk={tab === k ? "#fff" : PURPLE} zeminRenk="#fff" kenarRenk={tab === k ? "#fff" : PURPLE} />
               </button>
             ))}
           </div>
