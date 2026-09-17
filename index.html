@@ -16523,19 +16523,23 @@ const TABS_TUMU = [
                 </div>
               </div>
             )}
-            {/* Yıl Sonu Kapsam Takibi — bu yıl bir kez bile görüşülmemiş öğrenciler */}
+            {/* Yıl Sonu Kapsam Takibi — sınıf seçilince o sınıftaki TÜM öğrenciler
+                listelenir, her biri görüşülüp görüşülmediğine göre etiketlenir. */}
             <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: ACCENT, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>🎯 Yıl Sonu Kapsam Takibi</div>
-              <div style={{ fontSize: 11, color: MUTED, marginBottom: 12, lineHeight: 1.5 }}>{aktifYil} yılında sorumlu olduğun {kapsamYilOgrencileri.length} öğrenciden {kapsamYilOgrencileri.length - kapsamHicGorusulmemis.length} tanesiyle en az bir kez görüştün. Bir sınıfa tıklayarak o sınıfta hiç görüşülmemiş öğrencileri görebilirsin.</div>
+              <div style={{ fontSize: 11, color: MUTED, marginBottom: 12, lineHeight: 1.5 }}>{aktifYil} yılında sorumlu olduğun {kapsamYilOgrencileri.length} öğrenciden {kapsamYilOgrencileri.length - kapsamHicGorusulmemis.length} tanesiyle en az bir kez görüştün. Bir sınıfa tıklayarak o sınıftaki tüm öğrencileri, kimin görüşüldüğünü görebilirsin.</div>
+              {kapsamHicGorusulmemis.length === 0 && (
+                <div style={{ textAlign:"center", color:ACCENT, fontSize:12.5, fontWeight:700, padding:"6px 0 10px" }}>✓ Bu yıl herkesle en az bir kez görüşülmüş</div>
+              )}
               {kapsamSinifListesi.length > 0 && (
                 <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>
                   {kapsamSinifListesi.map(s => {
                     const tamam = s.gorusulen === s.toplam;
                     const secili = kapsamSecilenSinif === s.sinif;
                     return (
-                      <button key={s.sinif} onClick={()=>setKapsamSecilenSinif(secili ? null : s.sinif)} disabled={tamam} style={{
+                      <button key={s.sinif} onClick={()=>setKapsamSecilenSinif(secili ? null : s.sinif)} style={{
                         fontSize:10.5, fontWeight:700, padding:"3px 9px", borderRadius:10, border: secili ? "2px solid #B07D1A" : "2px solid transparent",
-                        background: tamam ? "#E6F5EE" : "#FFF8E7", color: tamam ? ACCENT : "#B07D1A", cursor: tamam ? "default" : "pointer"
+                        background: tamam ? "#E6F5EE" : "#FFF8E7", color: tamam ? ACCENT : "#B07D1A", cursor: "pointer"
                       }}>
                         {s.sinif}: {s.gorusulen}/{s.toplam}
                       </button>
@@ -16543,23 +16547,24 @@ const TABS_TUMU = [
                   })}
                 </div>
               )}
-              {kapsamHicGorusulmemis.length === 0 ? (
-                <div style={{ textAlign:"center", color:ACCENT, fontSize:12.5, fontWeight:700, padding:"10px 0" }}>✓ Bu yıl herkesle en az bir kez görüşülmüş</div>
-              ) : !kapsamSecilenSinif ? (
+              {!kapsamSecilenSinif ? (
                 <div style={{ textAlign:"center", color:MUTED, fontSize:12, padding:"10px 0" }}>↑ Öğrencileri görmek için yukarıdan bir sınıf seç</div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {kapsamHicGorusulmemis.filter(o => (o.className || "Belirtilmemiş") === kapsamSecilenSinif).map(o => (
+                  {kapsamYilOgrencileri.filter(o => (o.className || "Belirtilmemiş") === kapsamSecilenSinif).map(o => {
+                    const gorusuldu = kapsamGorusulenSet.has(pdrOgrAnahtar(o.studentName, o.className, o.numara));
+                    return (
                     <div key={pdrOgrAnahtar(o.studentName, o.className, o.numara)}
                       onClick={()=>{ setAktifOgrenci({ name:o.studentName, className:o.className||"" }); setTab("yeni"); }}
-                      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 10px", background: "#FFF8E7", borderRadius: 8, cursor:"pointer" }}>
+                      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 10px", background: gorusuldu ? "#E6F5EE" : "#FFF8E7", borderRadius: 8, cursor:"pointer" }}>
                       <div>
                         <span style={{ fontSize: 12.5, fontWeight: 700, color: TEXT }}>{o.studentName}</span>
                         <span style={{ fontSize: 11, color: MUTED, marginLeft: 6 }}>{o.className}</span>
                       </div>
-                      <span style={{ fontSize: 10.5, fontWeight: 700, color: "#B07D1A" }}>Hiç görüşülmedi →</span>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, color: gorusuldu ? ACCENT : "#B07D1A" }}>{gorusuldu ? "✓ Görüşüldü" : "Hiç görüşülmedi →"}</span>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
