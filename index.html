@@ -11203,6 +11203,11 @@ function OgrenciYonetim({
                               </div>
                               {gunFark!==null&&<span style={{fontSize:10,color:MUTED}}>{gunFark} gün önce</span>}
                             </div>
+                            {r.grupKatilimcilari?.length > 0 && (
+                              <div style={{ fontSize:10.5, color:PURPLE, fontWeight:700, marginBottom:4 }}>
+                                👥 Grup görüşmesi — {r.grupKatilimcilari.join(", ")} ile birlikte
+                              </div>
+                            )}
                             {duzenlemeId===r.id ? (
                               <div style={{marginTop:6}}>
                                 <div style={{display:"flex",gap:6,marginBottom:6}}>
@@ -14361,6 +14366,12 @@ export default function App() {
   }, [tab]);
   const [form, setForm] = useState({ studentName: "", className: "", numara: "", meetingType: "Öğrenci", topic: "", raw: "", summary: "", tarih: today() });
   const [notOgrenciArama, setNotOgrenciArama] = useState("");
+  // Grup görüşmesi: aynı anda birden fazla öğrenciyle (örn. aralarındaki
+  // çatışma için) yapılan TEK görüşmenin, her öğrencinin kendi profiline de
+  // düşmesi için — ana "form.studentName" dışındaki EK katılımcılar burada.
+  const [digerKatilimcilar, setDigerKatilimcilar] = useState([]); // [{name, className, numara}]
+  const [katilimciArama, setKatilimciArama] = useState("");
+  const [katilimciAramaAcik, setKatilimciAramaAcik] = useState(false);
   const [profForm, setProfForm] = useState({ studentName: "", className: "", numara: "", notes: "", scores: { ...EMPTY_SCORES }, analysis: "" });
   const [prof2Form, setProf2Form] = useState({ ...EMPTY_PROF2 });
   const [scoresSet, setScoresSet] = useState(false);
@@ -14638,11 +14649,16 @@ export default function App() {
 
   async function handleHatirlatmaOnayla() {
     if (!onerilenHatirlatma || !form.studentName.trim()) return;
-    const yeni = {
-      id: uid(), studentName: form.studentName, className: form.className, numara: form.numara,
+    // Grup görüşmesiyse (digerKatilimcilar doluysa), AI'ın önerdiği şey
+    // ortak görüşmeden çıktığı için TÜM katılımcılara aynı şekilde ekleniyor
+    // — sadece ana öğrenciye değil. Yanlış biri için eklendiyse, o öğrencinin
+    // kendi Hatırlatıcı listesinden elle silinebilir.
+    const tumKatilimcilar = [{ name: form.studentName, className: form.className, numara: form.numara }, ...digerKatilimcilar];
+    const yeniler = tumKatilimcilar.map(k => ({
+      id: uid(), studentName: k.name, className: k.className, numara: k.numara,
       metin: onerilenHatirlatma.metin, tarih: onerilenHatirlatma.tarih || today(), kaynak: "ai", olusturmaTarihi: today(), tamamlandi: false
-    };
-    const guncel = [yeni, ...(hatirlatmalar||[])];
+    }));
+    const guncel = [...yeniler, ...(hatirlatmalar||[])];
     setHatirlatmalar(guncel);
     await saveHatirlatmalar(guncel);
     setOnerilenHatirlatma(null);
@@ -14653,15 +14669,18 @@ export default function App() {
   // alanı güncellenir/eklenir.
   async function handleGecmisYilOnayaGonder() {
     if (!onerilenGecmisYil || !form.studentName.trim()) return;
-    const mevcut = profiles2.find(p => pdrAyniOgrenci(p.studentName, p.className, form.studentName, form.className, p.numara, form.numara));
-    const yeniGecmisYillar = { ...(mevcut?.gecmisYillar || {}) };
-    onerilenGecmisYil.forEach(o => { yeniGecmisYillar[o.sinif] = o.ortalama; });
-    let guncel2;
-    if (mevcut) {
-      guncel2 = profiles2.map(p => p.id === mevcut.id ? { ...p, gecmisYillar: yeniGecmisYillar } : p);
-    } else {
-      guncel2 = [{ id: uid(), date: today(), studentName: form.studentName, className: form.className, numara: form.numara || "", ...EMPTY_PROF2, gecmisYillar: yeniGecmisYillar }, ...profiles2];
-    }
+    const tumKatilimcilar = [{ name: form.studentName, className: form.className, numara: form.numara }, ...digerKatilimcilar];
+    let guncel2 = [...profiles2];
+    tumKatilimcilar.forEach(k => {
+      const mevcut = guncel2.find(p => pdrAyniOgrenci(p.studentName, p.className, k.name, k.className, p.numara, k.numara));
+      const yeniGecmisYillar = { ...(mevcut?.gecmisYillar || {}) };
+      onerilenGecmisYil.forEach(o => { yeniGecmisYillar[o.sinif] = o.ortalama; });
+      if (mevcut) {
+        guncel2 = guncel2.map(p => p.id === mevcut.id ? { ...p, gecmisYillar: yeniGecmisYillar } : p);
+      } else {
+        guncel2 = [{ id: uid(), date: today(), studentName: k.name, className: k.className, numara: k.numara || "", ...EMPTY_PROF2, gecmisYillar: yeniGecmisYillar }, ...guncel2];
+      }
+    });
     setProfiles2(guncel2);
     await saveProfiles2(guncel2);
     setOnerilenGecmisYil(null);
@@ -14676,14 +14695,29 @@ export default function App() {
     // adını kullandığı için burada temiz şekilde eşleniyor, form'daki "tarih"
     // kalıntı olarak kayda karışmasın diye ayrıştırılıyor.
     const { tarih: formTarihi, ...formGeri } = form;
-    const rec = { id: uid(), date: formTarihi || today(), ...formGeri, summary: form.summary.trim() || form.raw.trim() };
-    const updated = [rec, ...records];
+    const ortakOzet = form.summary.trim() || form.raw.trim();
+    const tumKatilimcilar = [
+      { name: form.studentName, className: form.className, numara: form.numara },
+      ...digerKatilimcilar,
+    ];
+    // Grup görüşmesi: her katılımcı için AYRI bir kayıt oluşturuluyor (aynı
+    // özet/ham not, kendi kimlik bilgisiyle) — böylece her öğrencinin kendi
+    // profilinde de görünür. "grupKatilimcilari" alanı, o kayıtta DİĞER
+    // katılımcıların adını taşır (sadece bilgi amaçlı, çapraz referans için).
+    const yeniKayitlar = tumKatilimcilar.map(k => ({
+      id: uid(), date: formTarihi || today(), ...formGeri,
+      studentName: k.name, className: k.className, numara: k.numara,
+      summary: ortakOzet,
+      grupKatilimcilari: tumKatilimcilar.length > 1 ? tumKatilimcilar.filter(x => x !== k).map(x => x.name) : undefined,
+    }));
+    const updated = [...yeniKayitlar, ...records];
     setRecords(updated); await saveRecords(updated);
     // Öğrenci bilgisini SİLMİYORUZ — aynı öğrenciye art arda birden fazla
     // görüşme notu eklenebilsin diye (sadece not içeriği temizleniyor).
     // Not: aktifOgrenci değişmediği için yukarıdaki useEffect burada tekrar
     // tetiklenmez, bu yüzden öğrenci bilgisini elle korumak gerekiyor.
     setForm(f => ({ ...f, topic: "", raw: "", summary: "" }));
+    setDigerKatilimcilar([]);
     setSaved(true); setTimeout(() => setSaved(false), 2000); setTab("ogrenciler");
   }
 
@@ -15520,6 +15554,50 @@ const TABS_TUMU = [
                 )}
                 <input placeholder="veya ad yaz..." value={form.studentName} onChange={e=>setForm(f=>({...f,studentName:e.target.value}))} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, boxSizing:"border-box" }} />
               </div>
+              {/* Grup görüşmesi — aynı görüşme notu birden fazla öğrenciye
+                  (aralarındaki bir problem için yapılan ortak görüşme gibi)
+                  aynı anda kaydedilebilsin diye. Her katılımcı kendi profiline
+                  ayrı bir kayıt olarak düşer, sanki tek tek girilmiş gibi. */}
+              {form.studentName.trim() && (
+                <div style={{ marginBottom:12 }}>
+                  {digerKatilimcilar.length > 0 && (
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:6 }}>
+                      {digerKatilimcilar.map((k,ki) => (
+                        <div key={ki} style={{ display:"flex", alignItems:"center", gap:5, background:"#F3F0FF", border:`1px solid ${PURPLE}`, borderRadius:14, padding:"3px 4px 3px 10px" }}>
+                          <span style={{ fontSize:11.5, fontWeight:700, color:PURPLE }}>👥 {k.name}{k.className?` — ${k.className}`:""}</span>
+                          <button onClick={()=>setDigerKatilimcilar(l=>l.filter((_,i)=>i!==ki))} style={{ background:"none", border:"none", color:PURPLE, fontSize:13, fontWeight:800, cursor:"pointer", padding:"0 3px" }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {katilimciAramaAcik ? (
+                    <div>
+                      <input value={katilimciArama} onChange={e=>setKatilimciArama(e.target.value)} placeholder="Grup görüşmesine eklenecek öğrenciyi ara…" autoFocus
+                        style={{ width:"100%", padding:"8px 10px", border:`1px solid ${PURPLE}`, borderRadius:9, fontSize:12.5, boxSizing:"border-box", marginBottom:6 }} />
+                      {katilimciArama.trim().length >= 2 && (
+                        <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:6 }}>
+                          {kayitliListesi.filter(o =>
+                            !pdrAyniOgrenci(o.name, o.className, form.studentName, form.className, o.numara, form.numara) &&
+                            !digerKatilimcilar.some(k => pdrAyniOgrenci(k.name, k.className, o.name, o.className, k.numara, o.numara)) &&
+                            (o.name.toLocaleLowerCase("tr").includes(katilimciArama.toLocaleLowerCase("tr")) ||
+                             o.className?.toLocaleLowerCase("tr").includes(katilimciArama.toLocaleLowerCase("tr")) ||
+                             o.numara?.includes(katilimciArama))
+                          ).slice(0,15).map(o => (
+                            <button key={pdrOgrAnahtar(o.name,o.className,o.numara)} onClick={()=>{ setDigerKatilimcilar(l=>[...l,{name:o.name, className:o.className||"", numara:o.numara||""}]); setKatilimciArama(""); setKatilimciAramaAcik(false); }}
+                              style={{ padding:"5px 10px", borderRadius:16, border:`2px solid ${PURPLE}`, background:"#fff", color:PURPLE, fontSize:12, fontWeight:600, cursor:"pointer" }}>{o.name}{o.className?` — ${o.className}`:""}</button>
+                          ))}
+                        </div>
+                      )}
+                      <button onClick={()=>{setKatilimciAramaAcik(false); setKatilimciArama("");}} style={{ fontSize:11, color:MUTED, background:"none", border:"none", cursor:"pointer", padding:0 }}>Vazgeç</button>
+                    </div>
+                  ) : (
+                    <button onClick={()=>setKatilimciAramaAcik(true)} style={{
+                      width:"100%", padding:"7px", background:"none", border:`1.5px dashed ${PURPLE}`, borderRadius:9,
+                      color:PURPLE, fontSize:11.5, fontWeight:700, cursor:"pointer"
+                    }}>+ Grup Görüşmesi — Diğer Öğrenci Ekle</button>
+                  )}
+                </div>
+              )}
               {/* Görüşme türü */}
               <div style={{ display:"flex", gap:8, marginBottom:12 }}>
                 {["Öğrenci","Veli","Öğretmen"].map(t=>(
@@ -15592,7 +15670,7 @@ const TABS_TUMU = [
               )}
               {/* Kaydet */}
               <button onClick={handleSave} disabled={!form.studentName.trim()||!(form.summary.trim()||form.raw.trim())} style={{ width:"100%", padding:"13px", background:form.studentName&&(form.summary||form.raw)?PURPLE:BORDER, color:form.studentName&&(form.summary||form.raw)?"#fff":MUTED, border:"none", borderRadius:12, fontSize:15, fontWeight:800, cursor:"pointer" }}>
-                {saved?"✓ Kaydedildi!":"💾 Görüşmeyi Kaydet"}
+                {saved?"✓ Kaydedildi!":digerKatilimcilar.length>0?`💾 ${1+digerKatilimcilar.length} Öğrenciye Kaydet`:"💾 Görüşmeyi Kaydet"}
               </button>
             </div>
           </div>
