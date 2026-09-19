@@ -9679,7 +9679,7 @@ function KullaniciOnaylari() {
   );
 }
 
-function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profiles, setProfiles, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, riskListesi, setRiskListesi, denemeler, setDenemeler, sevkler, setSevkler, mudahalePlan, setMudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, profNotlari, setProfNotlari, kutuphane, setKutuphane, yillar, setYillar, sinifListesi, setSinifListesi, aktifYil, setAktifYil, kademe, setKademe, sinavTuru, setSinavTuru, testKayitlari, setTestKayitlari, hatirlatmalar, setHatirlatmalar, netHaritasiKayitlari, setNetHaritasiKayitlari, konuHaritasiVerisi, setKonuHaritasiVerisi, sosyometri, setSosyometri }) {
+function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profiles, setProfiles, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, riskListesi, setRiskListesi, denemeler, setDenemeler, sevkler, setSevkler, mudahalePlan, setMudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, profNotlari, setProfNotlari, kutuphane, setKutuphane, yillar, setYillar, sinifListesi, setSinifListesi, aktifYil, setAktifYil, kademe, setKademe, sinavTuru, setSinavTuru, testKayitlari, setTestKayitlari, hatirlatmalar, setHatirlatmalar, netHaritasiKayitlari, setNetHaritasiKayitlari, konuHaritasiVerisi, setKonuHaritasiVerisi, sosyometri, setSosyometri, onTumOzellikler }) {
   const [key, setKey] = useState(() => pdrGetApiKey());
   const [gosterKey, setGosterKey] = useState(false);
   const [kaydedildi, setKaydedildi] = useState(false);
@@ -9925,6 +9925,19 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
   return (
     <div style={{ maxWidth: 520 }}>
       <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 6 }}>⚙️ Ayarlar</div>
+
+      {onTumOzellikler && (
+        <div style={{ background: "#F3F0FF", borderRadius: 12, padding: 14, marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 14, color: PURPLE }}>📖 Tüm Özellikler</div>
+          <div style={{ fontSize: 13, color: MUTED, marginBottom: 10, lineHeight: 1.5 }}>
+            Programdaki tüm sekmeleri ve içindeki alt bölümleri tek listede gör — bir özelliği bulamıyorsan buraya bak.
+          </div>
+          <button onClick={onTumOzellikler} style={{
+            width: "100%", padding: 11, background: "#fff", color: PURPLE, border: `1.5px solid ${PURPLE}`,
+            borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: "pointer"
+          }}>Sekmeleri Listele</button>
+        </div>
+      )}
 
       <div style={{ background: "#F0FDF4", borderRadius: 12, padding: 14, marginBottom: 16 }}>
         <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 14, color: "#1A8C5B" }}>🎓 Okul Kademesi</div>
@@ -14313,13 +14326,14 @@ const REHBER_ADIMLARI = [
   { ikon: "🔑", baslik: "AI için API anahtarı al", metin: "Yapay zekâ özelliklerini (özet, risk analizi, müdahale planı) kullanabilmek için kendi Anthropic API anahtarını almalısın: console.anthropic.com adresinden ücretsiz hesap aç, küçük bir bakiye yükle (kullandıkça düşer, genelde aylık birkaç dolar civarında kalır), \"API Keys\" bölümünden yeni bir anahtar oluştur ve kopyala. Ayarlar sekmesindeki \"Anthropic API Anahtarı\" kutusuna yapıştırıp kaydet. Anahtar olmadan da programı kullanabilirsin, sadece AI destekli özellikler çalışmaz." },
   { ikon: "⚙️", baslik: "Ayarlar'dan başla", metin: "Okul kademeni (İlkokul/Ortaokul/Lise) ve varsa sınav türünü seç. Bu, AI önerilerinin öğrencinin yaşına uygun olmasını ve doğru deneme türünün kullanılmasını sağlar." },
   { ikon: "🏫", baslik: "Sınıflarını oluştur", metin: "Sınıf sekmesinden sınıf ekle, ya da doğrudan deneme Excel'ini / sınıf listesini yükleyerek öğrencilerini otomatik oluştur." },
-  { ikon: "📝", baslik: "Görüşme notu kaydet", metin: "\"Görüşme Notu\" sekmesinden ilk kaydını gir — AI otomatik özetlesin, öğrenci profiline işlensin." },
+  { ikon: "📝", baslik: "Görüşme notu kaydet", metin: "\"Görüşme Notu\" sekmesinden ilk kaydını gir — AI otomatik özetlesin, öğrenci profiline işlensin. Aynı anda birden fazla öğrenciyle görüştüysen (örn. aralarındaki bir çatışma için) \"Grup Görüşmesi\" ile diğer katılımcıları da ekleyebilirsin — her birine kendi kaydı açılır." },
   { ikon: "⚠️", baslik: "Risk, Müdahale ve Ani Değişim", metin: "Riskli gördüğün öğrencileri Risk sekmesinden işaretle, AI destekli müdahale planı oluştur. Program ayrıca devamsızlık, deneme, görüşme sıklığı gibi verilerde ani değişim olursa öğrenci listesinde seni otomatik uyarır." },
   { ikon: "🧪", baslik: "Test sonuçlarını kaydet", metin: "Uyguladığın standart testlerin (D2, Beck, Frostig, Conners ve daha fazlası) sonucunu Testler sekmesinden gir — rapora otomatik eklenir." },
   { ikon: "📚", baslik: "Kütüphaneyi besle", metin: "İlgili yönetmelik ya da makaleleri yükle — AI önerilerinde otomatik referans olarak kullanılsın." },
+  { ikon: "🗂️", baslik: "Dikkat: bazı sekmelerin içinde alt sekmeler var", metin: "Üst menüdeki \"📊 Akademik\", \"📑 Kayıtlar\" ve \"🏫 Okul Çapı\" sekmelerinin her biri, açılınca hemen altında beliren küçük mor bir şeritle 3 alt bölüme ayrılır (örn. Akademik → Deneme, Net Haritası, Konu Haritası; Okul Çapı → Grup Çalışmaları, Kriz Müdahale, Sosyometri). Bir sekmeye ilk girdiğinde program bunu sana ayrıca hatırlatır. Aradığın bir özelliği bulamıyorsan aşağıdaki \"📖 Tüm Özellikler\"e bak." },
   { ikon: "📥", baslik: "Düzenli yedek al", metin: "Ayarlar'dan \"Tüm Veriyi Yedekle\"ye basıp önemli işlemlerden önce ya da ayda bir dosyanı indir." },
 ];
-function BaslarkenRehberi({ onKapat }) {
+function BaslarkenRehberi({ onKapat, onTumOzellikler }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ background: "#fff", borderRadius: 18, maxWidth: 480, width: "100%", maxHeight: "88vh", overflowY: "auto", padding: 22 }}>
@@ -14336,10 +14350,90 @@ function BaslarkenRehberi({ onKapat }) {
             </div>
           </div>
         ))}
+        {onTumOzellikler && (
+          <button onClick={onTumOzellikler} style={{
+            width: "100%", padding: 11, background: "#fff", color: PURPLE, border: `1.5px solid ${PURPLE}`,
+            borderRadius: 12, fontSize: 13, fontWeight: 800, cursor: "pointer", marginBottom: 8
+          }}>📖 Tüm Sekmeleri ve Özellikleri Gör</button>
+        )}
         <button onClick={onKapat} style={{
           width: "100%", padding: 13, background: ACCENT, color: "#fff", border: "none",
           borderRadius: 12, fontSize: 14, fontWeight: 800, cursor: "pointer", marginTop: 6
         }}>Anladım, Başlayalım</button>
+      </div>
+    </div>
+  );
+}
+
+// Her sekmenin (ve gruplu sekmelerin alt bölümlerinin) tek satırlık açıklaması
+// — hem "Tüm Özellikler" ekranında hem de bir gruba ilk girişte çıkan ipucu
+// balonunda kullanılır.
+const SEKME_ACIKLAMALARI = {
+  ogrenciler: "Tüm öğrenci ve sınıf listeni yönet — ekle, sınıf değiştir, sil ya da toplu Excel ile içe aktar.",
+  yeni: "Yeni görüşme notu gir; AI otomatik özetler ve öğrenci profiline işler. Aynı anda birden fazla öğrenciyle görüştüysen \"Grup Görüşmesi\" ile ekleyebilirsin.",
+  profil_merkez: "Öğrencinin akademik/gelişimsel profili (Profil 1 ve Profil 2) — geçmiş yıl not ortalamaları da buradan girilir.",
+  mudahale: "Seçili öğrenci için AI destekli, bireysel müdahale planı oluşturur.",
+  sinif_profili: "Sınıf bazında genel görünüm: sınıf ekle/sil, sınıfın öğrenci listesi ve genel durumu.",
+  devamsizlik: "Öğrencilerin devamsızlık günlerini kaydet, ani artışları takip et.",
+  risk: "Riskli gördüğün öğrencileri işaretle, önceliklendir ve takip et.",
+  deneme: "Deneme (D1, D2, …) sonuçlarını gir; toplu Excel yükleme de burada.",
+  net_haritasi: "Öğrencinin net gelişimini görsel olarak takip et.",
+  konu_haritasi: "Öğrencinin hangi konuları tamamladığını / tekrar etmesi gerektiğini kaydet.",
+  testler: "D2, Beck, Frostig, Conners gibi standart test sonuçlarını gir — rapora otomatik eklenir.",
+  hatirlatici: "Kendine bıraktığın hatırlatma / yapılacaklar listesi.",
+  belgeler: "Sevk yazısı, MEB dönem raporu, veli mektubu gibi belgeleri oluştur.",
+  kutuphane: "Yönetmelik/makale gibi referans kaynaklarını yükle — AI önerilerinde otomatik kullanılır.",
+  kazanimlar: "Kademeye göre kazanım listelerine göz atmak için.",
+  grup_calismalari: "Sınıfa ya da okula yönelik grup etkinliklerini kaydet (öğrenciye değil sınıfa/yıla bağlıdır).",
+  kriz: "Kriz müdahale kayıtlarını (deprem, kayıp, şiddet olayı vb.) tutar.",
+  sosyometri: "Sınıf içi akran ilişkilerini ölçen anketi uygula ve analiz et — hiç seçilmeyen öğrenciyi burada görürsün.",
+  istatistik: "Görüşme, risk ve kapsam istatistiklerini genel ve sınıf bazında gösterir.",
+  ayarlar: "AI API anahtarı, okul kademesi, yıl yönetimi, yedekleme gibi genel ayarlar.",
+  onaylar: "Yönetici onay ekranı.",
+};
+
+function OzellikRehberiModal({ onKapat, tabs }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div style={{ background: "#fff", borderRadius: 18, maxWidth: 520, width: "100%", maxHeight: "88vh", overflowY: "auto", padding: 22 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <div style={{ fontSize: 20, fontWeight: 900, color: TEXT }}>📖 Tüm Özellikler</div>
+          <button onClick={onKapat} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: MUTED, lineHeight: 1 }}>✕</button>
+        </div>
+        <div style={{ fontSize: 12.5, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
+          Programdaki tüm sekmeler ve içindeki alt bölümler — bir özelliği bulamıyorsan buradan bak.
+        </div>
+        {(tabs || []).map(t => {
+          const { ikon, metin } = pdrSekmeAyikla(t.label);
+          return (
+            <div key={t.key} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${BORDER}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
+                <span style={{ fontSize: 16 }}>{ikon}</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: TEXT }}>{metin}</span>
+              </div>
+              {SEKME_ACIKLAMALARI[t.key] && (
+                <div style={{ fontSize: 12, color: MUTED, lineHeight: 1.5, marginBottom: t.grup ? 8 : 0 }}>{SEKME_ACIKLAMALARI[t.key]}</div>
+              )}
+              {t.grup && (
+                <div style={{ marginLeft: 14, borderLeft: `2px solid ${BORDER}`, paddingLeft: 10 }}>
+                  {t.grup.map(k => {
+                    const alt = pdrSekmeAyikla(t.grupEtiketler?.[k] || k);
+                    return (
+                      <div key={k} style={{ marginBottom: 7 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: TEXT }}>{alt.ikon} {alt.metin}</div>
+                        {SEKME_ACIKLAMALARI[k] && <div style={{ fontSize: 11.5, color: MUTED, lineHeight: 1.45 }}>{SEKME_ACIKLAMALARI[k]}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <button onClick={onKapat} style={{
+          width: "100%", padding: 13, background: ACCENT, color: "#fff", border: "none",
+          borderRadius: 12, fontSize: 14, fontWeight: 800, cursor: "pointer", marginTop: 6
+        }}>Kapat</button>
       </div>
     </div>
   );
@@ -14442,6 +14536,21 @@ export default function App() {
     setAktifOgrenci({ name: "", className: "" });
   }
   const [rehberGoster, setRehberGoster] = useState(false);
+  const [ozellikRehberiGoster, setOzellikRehberiGoster] = useState(false);
+  // Gruplu bir sekmeye (Akademik, Kayıtlar, Okul Çapı) ilk kez girildiğinde,
+  // alt bölümleri olduğunu hatırlatan bir ipucu balonu çıkar — bir kere
+  // görülünce localStorage'a işlenir, tekrar çıkmaz.
+  const [gorulenGruplar, setGorulenGruplar] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("pdr_grup_ipucu_gorulen") || "[]")); }
+    catch (e) { return new Set(); }
+  });
+  function grupIpucuKapat(key) {
+    setGorulenGruplar(prev => {
+      const yeni = new Set(prev); yeni.add(key);
+      try { localStorage.setItem("pdr_grup_ipucu_gorulen", JSON.stringify([...yeni])); } catch (e) {}
+      return yeni;
+    });
+  }
   const [aramaAcik, setAramaAcik] = useState(false);
   const [aramaMetni, setAramaMetni] = useState("");
   const [fabAcik, setFabAcik] = useState(false);
@@ -15292,7 +15401,8 @@ const TABS_TUMU = [
     <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #C6F0DB 0%, #DCE6F0 48%, #C9B6EE 100%)", backgroundAttachment: "fixed", fontFamily: "'Segoe UI', system-ui, sans-serif", color: TEXT }}>
 
       <RaporModal rapor={raporVerisi} onKapat={() => setRaporVerisi(null)} />
-      {rehberGoster && <BaslarkenRehberi onKapat={async () => { setRehberGoster(false); await saveRehberGorunduMu(); }} />}
+      {rehberGoster && <BaslarkenRehberi onKapat={async () => { setRehberGoster(false); await saveRehberGorunduMu(); }} onTumOzellikler={() => { setRehberGoster(false); setOzellikRehberiGoster(true); }} />}
+      {ozellikRehberiGoster && <OzellikRehberiModal tabs={TABS_TUMU} onKapat={() => setOzellikRehberiGoster(false)} />}
 
       {/* ── Canlı Güncelleme Bildirimi ─────────────────────────────────── */}
       {toastMesaj && (
@@ -15402,6 +15512,10 @@ const TABS_TUMU = [
               background:"rgba(255,255,255,0.25)", color:"#fff", border:"1px solid rgba(255,255,255,0.5)",
               borderRadius:"50%", width:26, height:26, fontSize:13, fontWeight:800, cursor:"pointer", lineHeight:1
             }}>?</button>
+            <button onClick={() => setOzellikRehberiGoster(true)} title="Tüm Özellikler" style={{
+              background:"rgba(255,255,255,0.25)", color:"#fff", border:"1px solid rgba(255,255,255,0.5)",
+              borderRadius:"50%", width:26, height:26, fontSize:12, fontWeight:800, cursor:"pointer", lineHeight:1
+            }}>📖</button>
             <button onClick={() => { setTab("ogrenciler"); setYilEkrani(true); }} style={{
               background:"rgba(255,255,255,0.25)", color:"#fff", border:"1px solid rgba(255,255,255,0.5)",
               borderRadius:20, padding:"3px 12px", fontSize:12, fontWeight:800, cursor:"pointer"
@@ -15498,20 +15612,36 @@ const TABS_TUMU = [
       {(() => {
         const aktifGrup = TABS_TUMU.find(t => t.grup && t.grup.includes(tab));
         if (!aktifGrup) return null;
+        const ipucuGoster = !gorulenGruplar.has(aktifGrup.key);
         return (
-          <div style={{ display: "flex", gap: 6, padding: "8px 12px", background: "#F3F0FF",
-            borderBottom: `1px solid ${BORDER}`, overflowX: "auto", position: "sticky", top: 0, zIndex: 7 }}>
-            {aktifGrup.grup.map(k => (
-              <button key={k} onClick={() => setTab(k)} style={{
-                flexShrink: 0, padding: "6px 12px", borderRadius: 20, border: "none", cursor: "pointer",
-                fontSize: 9, fontWeight: tab === k ? 800 : 700,
-                background: tab === k ? PURPLE : "#fff",
-                display: "flex", alignItems: "center", gap: 4,
-              }}>
-                <PdrSekmeRozeti etiket={aktifGrup.grupEtiketler?.[k] || k} renk={tab === k ? "#fff" : PURPLE} zeminRenk="#fff" kenarRenk={tab === k ? "#fff" : PURPLE} />
-              </button>
-            ))}
-          </div>
+          <>
+            {ipucuGoster && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px",
+                background: "#FEF9E7", borderBottom: `1px solid #F5CBA7`, position: "sticky", top: 0, zIndex: 8 }}>
+                <div style={{ fontSize: 11.5, color: "#7E5109", lineHeight: 1.45, flex: 1 }}>
+                  💡 Bu sekme birden fazla bölümden oluşuyor: <b>{aktifGrup.grup.map(k => pdrSekmeAyikla(aktifGrup.grupEtiketler?.[k] || k).metin).join(", ")}</b>.
+                  Aralarında geçiş yapmak için hemen alttaki şeridi kullan.
+                </div>
+                <button onClick={() => grupIpucuKapat(aktifGrup.key)} style={{
+                  flexShrink: 0, background: "#F5CBA7", border: "none", borderRadius: 8,
+                  padding: "5px 10px", fontSize: 11, fontWeight: 800, color: "#7E5109", cursor: "pointer"
+                }}>Anladım</button>
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 6, padding: "8px 12px", background: "#F3F0FF",
+              borderBottom: `1px solid ${BORDER}`, overflowX: "auto", position: "sticky", top: 0, zIndex: 7 }}>
+              {aktifGrup.grup.map(k => (
+                <button key={k} onClick={() => setTab(k)} style={{
+                  flexShrink: 0, padding: "6px 12px", borderRadius: 20, border: "none", cursor: "pointer",
+                  fontSize: 9, fontWeight: tab === k ? 800 : 700,
+                  background: tab === k ? PURPLE : "#fff",
+                  display: "flex", alignItems: "center", gap: 4,
+                }}>
+                  <PdrSekmeRozeti etiket={aktifGrup.grupEtiketler?.[k] || k} renk={tab === k ? "#fff" : PURPLE} zeminRenk="#fff" kenarRenk={tab === k ? "#fff" : PURPLE} />
+                </button>
+              ))}
+            </div>
+          </>
         );
       })()}
 
@@ -16772,6 +16902,7 @@ const TABS_TUMU = [
           netHaritasiKayitlari={netHaritasiKayitlari} setNetHaritasiKayitlari={setNetHaritasiKayitlari}
           konuHaritasiVerisi={konuHaritasiVerisi} setKonuHaritasiVerisi={setKonuHaritasiVerisi}
           sosyometri={sosyometri} setSosyometri={setSosyometri}
+          onTumOzellikler={() => setOzellikRehberiGoster(true)}
         />}
         {tab === "onaylar" && pdrIsAdmin && <KullaniciOnaylari />}
       </div>
