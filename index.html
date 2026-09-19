@@ -4767,13 +4767,42 @@ function exportToExcel(records) {
     const parts = r.date?.split(".");
     if (parts?.length === 3) { const key = `${parts[1]}/${parts[2]}`; monthCount[key] = (monthCount[key] || 0) + 1; }
   });
+  // Sınıf ve ay+sınıf kırılımı — sadece öğrenci görüşmeleri (veli görüşmesi
+  // doğrudan bir sınıfa değil öğrencinin velisine ait olduğu için, ekrandaki
+  // "Sınıflara Göre Görüşme İstatistiği" kartıyla aynı tanımı kullanıyoruz).
+  const classCount = {}, monthClassCount = {}, classSet = new Set();
+  records.forEach(r => {
+    if ((r.meetingType || "Öğrenci") !== "Öğrenci") return;
+    const sinif = r.className || "Sınıf Belirtilmemiş";
+    classSet.add(sinif);
+    classCount[sinif] = (classCount[sinif] || 0) + 1;
+    const parts = r.date?.split(".");
+    if (parts?.length === 3) {
+      const key = `${parts[1]}/${parts[2]}`;
+      if (!monthClassCount[key]) monthClassCount[key] = {};
+      monthClassCount[key][sinif] = (monthClassCount[key][sinif] || 0) + 1;
+    }
+  });
+  const siniflarSirali = Array.from(classSet).sort((a, b) => a.localeCompare(b, "tr"));
+  const aylarSirali = Object.keys(monthClassCount).sort((a, b) => {
+    const [am, ay1] = a.split("/"), [bm, by1] = b.split("/");
+    return (ay1 + am).localeCompare(by1 + bm);
+  });
+  const pivotBaslik = ["Ay/Yıl", ...siniflarSirali, "Toplam"];
+  const pivotSatirlari = aylarSirali.map(ay => {
+    const sayilar = siniflarSirali.map(s => monthClassCount[ay][s] || 0);
+    const toplam = sayilar.reduce((a, b) => a + b, 0);
+    return [ay, ...sayilar, toplam];
+  });
   const statRows = [
     ["PDR SERVİSİ — GÖRÜŞME İSTATİSTİKLERİ"], [],
     ["GENEL"], ["Toplam Görüşme", records.length],
     ["Farklı Öğrenci Sayısı", studentSet.size], ["Farklı Veli Sayısı", parentSet.size], [],
     ["GÖRÜŞME TÜRÜ"], ["Öğrenci Görüşmesi", typeCount["Öğrenci"] || 0], ["Veli Görüşmesi", typeCount["Veli"] || 0], [],
     ["KONULARA GÖRE"], ...Object.entries(topicCount).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, v]), [],
-    ["AYLARA GÖRE"], ...Object.entries(monthCount).sort().map(([k, v]) => [k, v]),
+    ["AYLARA GÖRE"], ...Object.entries(monthCount).sort().map(([k, v]) => [k, v]), [],
+    ["SINIFLARA GÖRE (öğrenci görüşmeleri)"], ...siniflarSirali.map(s => [s, classCount[s]]), [],
+    ["AYLARA VE SINIFLARA GÖRE (öğrenci görüşmeleri)"], pivotBaslik, ...pivotSatirlari,
   ];
   const ws2 = XLSX.utils.aoa_to_sheet(statRows);
   ws2["!cols"] = [{ wch: 28 }, { wch: 12 }];
