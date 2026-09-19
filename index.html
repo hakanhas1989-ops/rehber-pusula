@@ -15397,6 +15397,92 @@ const TABS_TUMU = [
     if (kademe === "ilkokul" && ILKOKULDA_GIZLENECEK_SEKMELER.includes(tab)) setTab("ogrenciler");
   }, [kademe]);
 
+  // Bir yıla ait öğrenci ve tüm ilişkili veriyi temizler — hem "Yıl Sil" hem
+  // "Yıl Sıfırla" AYNI veri temizliğini yapar; aralarındaki fark çağıran
+  // tarafta: Yıl Sil ayrıca yılı "yillar" listesinden çıkarır (bkz.
+  // YilSecimEkrani.handleYilSil), Yıl Sıfırla ise yılı listede tutup sadece
+  // içindeki veriyi boşaltır (bkz. handleYilSifirla).
+  async function pdrYilVerisiTemizle(yil) {
+    // O yıla ait öğrenciler (silinecekler) ve kalacaklar
+    const silinecekler = ogrenciler.filter(o => o.yil === yil);
+    const kalacaklar = ogrenciler.filter(o => o.yil && o.yil !== yil);
+    setOgrenciler(kalacaklar);
+    await saveOgrenciler(kalacaklar);
+
+    // Bu öğrencilerden biri mi? (isim+sınıf+numara ile, sağlam eşleştirme)
+    const silinecekMi = (ad, sinif, no) =>
+      silinecekler.some(s => pdrAyniOgrenci(s.studentName, s.className, ad, sinif, s.numara, no));
+
+    const kalanRecords = records.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
+    setRecords(kalanRecords); await saveRecords(kalanRecords);
+
+    const kalanRisk = riskListesi.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
+    setRiskListesi(kalanRisk); await saveRiskListesi(kalanRisk);
+
+    const kalanProfiles = profiles.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
+    setProfiles(kalanProfiles); await saveProfiles(kalanProfiles);
+
+    const kalanProfiles2 = profiles2.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
+    setProfiles2(kalanProfiles2); await saveProfiles2(kalanProfiles2);
+
+    const kalanSevkler = sevkler.filter(s => !silinecekMi(s.studentName, s.className, s.numara));
+    setSevkler(kalanSevkler); await saveSevkler(kalanSevkler);
+
+    const kalanOog = oogDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
+    setOogDegerlendirmeler(kalanOog); await saveOogDegerlendirmeler(kalanOog);
+
+    // Grup çalışmaları öğrenciye değil doğrudan yıla bağlı — silinen
+    // yılın kayıtları da temizlenmeli.
+    const kalanGrup = (grupCalismalari||[]).filter(g => g.yil !== yil);
+    setGrupCalismalari(kalanGrup); await saveGrupCalismalari(kalanGrup);
+
+    const kalanKriz = (krizKayitlari||[]).filter(k => k.yil !== yil);
+    setKrizKayitlari(kalanKriz); await saveKrizKayitlari(kalanKriz);
+
+    const kalanSosyo = (sosyometri||[]).filter(s => s.yil !== yil);
+    setSosyometri(kalanSosyo); await saveSosyometri(kalanSosyo);
+
+    // Öğrenci silmede zaten temizlenen ama yıl silmede unutulmuş
+    // diziler: hatırlatmalar, net haritası.
+    const kalanHatirlatmalar = (hatirlatmalar||[]).filter(h => !silinecekMi(h.studentName, h.className, h.numara));
+    setHatirlatmalar(kalanHatirlatmalar); await saveHatirlatmalar(kalanHatirlatmalar);
+
+    const kalanNetHaritasi = (netHaritasiKayitlari||[]).filter(k => !silinecekMi(k.studentName, k.className, k.numara));
+    setNetHaritasiKayitlari(kalanNetHaritasi); await saveNetHaritasi(kalanNetHaritasi);
+
+    // İsimle anahtarlanan sözlükler (deneme, müdahale planı, hazırlık/ilerleme notları):
+    // silinen her öğrencinin hem numaralı, hem yeni (isim+sınıf) hem eski (düz isim) anahtarını temizle
+    function pdrSozlukTemizle(sozluk) {
+      const yeni = { ...sozluk };
+      silinecekler.forEach(o => {
+        delete yeni[pdrOgrAnahtar(o.studentName, o.className, o.numara)];
+        delete yeni[pdrOgrAnahtar(o.studentName, o.className)];
+        delete yeni[o.studentName];
+      });
+      return yeni;
+    }
+    const kalanDenemeler = pdrSozlukTemizle(denemeler);
+    setDenemeler(kalanDenemeler); await saveDenemeler(kalanDenemeler);
+
+    const kalanMudahale = pdrSozlukTemizle(mudahalePlan);
+    setMudahalePlan(kalanMudahale); await saveMudahalePlan(kalanMudahale);
+
+    const kalanHazirlik = pdrSozlukTemizle(hazirlikNotlari);
+    setHazirlikNotlari(kalanHazirlik); await saveHazirlikNotlari(kalanHazirlik);
+
+    const kalanIlerleme = pdrSozlukTemizle(ilerlemeNotlari);
+    setIlerlemeNotlari(kalanIlerleme); await saveIlerlemeNotlari(kalanIlerleme);
+
+    const kalanProfNotlari = pdrSozlukTemizle(profNotlari);
+    setProfNotlari(kalanProfNotlari); await saveProfNotlari(kalanProfNotlari);
+
+    const kalanTestKayitlari = pdrSozlukTemizle(testKayitlari);
+    setTestKayitlari(kalanTestKayitlari); await saveTestKayitlari(kalanTestKayitlari);
+
+    const kalanKonuHaritasi = pdrSozlukTemizle(konuHaritasiVerisi);
+    setKonuHaritasiVerisi(kalanKonuHaritasi); await saveKonuHaritasi(kalanKonuHaritasi);
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #C6F0DB 0%, #DCE6F0 48%, #C9B6EE 100%)", backgroundAttachment: "fixed", fontFamily: "'Segoe UI', system-ui, sans-serif", color: TEXT }}>
 
@@ -15936,162 +16022,8 @@ const TABS_TUMU = [
               await saveAktifYil(yil);
               setYilEkrani(false);
             }}
-            onYilSil={async (yil) => {
-              // O yıla ait öğrenciler (silinecekler) ve kalacaklar
-              const silinecekler = ogrenciler.filter(o => o.yil === yil);
-              const kalacaklar = ogrenciler.filter(o => o.yil && o.yil !== yil);
-              setOgrenciler(kalacaklar);
-              await saveOgrenciler(kalacaklar);
-
-              // Bu öğrencilerden biri mi? (isim+sınıf+numara ile, sağlam eşleştirme)
-              const silinecekMi = (ad, sinif, no) =>
-                silinecekler.some(s => pdrAyniOgrenci(s.studentName, s.className, ad, sinif, s.numara, no));
-
-              const kalanRecords = records.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
-              setRecords(kalanRecords); await saveRecords(kalanRecords);
-
-              const kalanRisk = riskListesi.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
-              setRiskListesi(kalanRisk); await saveRiskListesi(kalanRisk);
-
-              const kalanProfiles = profiles.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
-              setProfiles(kalanProfiles); await saveProfiles(kalanProfiles);
-
-              const kalanProfiles2 = profiles2.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
-              setProfiles2(kalanProfiles2); await saveProfiles2(kalanProfiles2);
-
-              const kalanSevkler = sevkler.filter(s => !silinecekMi(s.studentName, s.className, s.numara));
-              setSevkler(kalanSevkler); await saveSevkler(kalanSevkler);
-
-              const kalanOog = oogDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
-              setOogDegerlendirmeler(kalanOog); await saveOogDegerlendirmeler(kalanOog);
-
-              // Grup çalışmaları öğrenciye değil doğrudan yıla bağlı — silinen
-              // yılın kayıtları da temizlenmeli.
-              const kalanGrup = (grupCalismalari||[]).filter(g => g.yil !== yil);
-              setGrupCalismalari(kalanGrup); await saveGrupCalismalari(kalanGrup);
-
-              const kalanKriz = (krizKayitlari||[]).filter(k => k.yil !== yil);
-              setKrizKayitlari(kalanKriz); await saveKrizKayitlari(kalanKriz);
-
-              const kalanSosyo = (sosyometri||[]).filter(s => s.yil !== yil);
-              setSosyometri(kalanSosyo); await saveSosyometri(kalanSosyo);
-
-              // Öğrenci silmede zaten temizlenen ama yıl silmede unutulmuş
-              // diziler: hatırlatmalar, net haritası.
-              const kalanHatirlatmalar = (hatirlatmalar||[]).filter(h => !silinecekMi(h.studentName, h.className, h.numara));
-              setHatirlatmalar(kalanHatirlatmalar); await saveHatirlatmalar(kalanHatirlatmalar);
-
-              const kalanNetHaritasi = (netHaritasiKayitlari||[]).filter(k => !silinecekMi(k.studentName, k.className, k.numara));
-              setNetHaritasiKayitlari(kalanNetHaritasi); await saveNetHaritasi(kalanNetHaritasi);
-
-              // İsimle anahtarlanan sözlükler (deneme, müdahale planı, hazırlık/ilerleme notları):
-              // silinen her öğrencinin hem numaralı, hem yeni (isim+sınıf) hem eski (düz isim) anahtarını temizle
-              function pdrSozlukTemizle(sozluk) {
-                const yeni = { ...sozluk };
-                silinecekler.forEach(o => {
-                  delete yeni[pdrOgrAnahtar(o.studentName, o.className, o.numara)];
-                  delete yeni[pdrOgrAnahtar(o.studentName, o.className)];
-                  delete yeni[o.studentName];
-                });
-                return yeni;
-              }
-              const kalanDenemeler = pdrSozlukTemizle(denemeler);
-              setDenemeler(kalanDenemeler); await saveDenemeler(kalanDenemeler);
-
-              const kalanMudahale = pdrSozlukTemizle(mudahalePlan);
-              setMudahalePlan(kalanMudahale); await saveMudahalePlan(kalanMudahale);
-
-              const kalanHazirlik = pdrSozlukTemizle(hazirlikNotlari);
-              setHazirlikNotlari(kalanHazirlik); await saveHazirlikNotlari(kalanHazirlik);
-
-              const kalanIlerleme = pdrSozlukTemizle(ilerlemeNotlari);
-              setIlerlemeNotlari(kalanIlerleme); await saveIlerlemeNotlari(kalanIlerleme);
-
-              const kalanProfNotlari = pdrSozlukTemizle(profNotlari);
-              setProfNotlari(kalanProfNotlari); await saveProfNotlari(kalanProfNotlari);
-
-              const kalanTestKayitlari = pdrSozlukTemizle(testKayitlari);
-              setTestKayitlari(kalanTestKayitlari); await saveTestKayitlari(kalanTestKayitlari);
-
-              const kalanKonuHaritasi = pdrSozlukTemizle(konuHaritasiVerisi);
-              setKonuHaritasiVerisi(kalanKonuHaritasi); await saveKonuHaritasi(kalanKonuHaritasi);
-            }}
-            onYilSifirla={async (yil) => {
-              // Yılı yıllar listesinden ÇIKARMADAN, sadece o yıla ait öğrenci ve ilişkili
-              // tüm veriyi temizler — bozuk/yanlış yüklenmiş bir içe aktarımı sıfırlamak için.
-              const silinecekler = ogrenciler.filter(o => o.yil === yil);
-              const kalacaklar = ogrenciler.filter(o => o.yil && o.yil !== yil);
-              setOgrenciler(kalacaklar);
-              await saveOgrenciler(kalacaklar);
-
-              const silinecekMi = (ad, sinif, no) =>
-                silinecekler.some(s => pdrAyniOgrenci(s.studentName, s.className, ad, sinif, s.numara, no));
-
-              const kalanRecords = records.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
-              setRecords(kalanRecords); await saveRecords(kalanRecords);
-
-              const kalanRisk = riskListesi.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
-              setRiskListesi(kalanRisk); await saveRiskListesi(kalanRisk);
-
-              const kalanProfiles = profiles.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
-              setProfiles(kalanProfiles); await saveProfiles(kalanProfiles);
-
-              const kalanProfiles2 = profiles2.filter(p => !silinecekMi(p.studentName, p.className, p.numara));
-              setProfiles2(kalanProfiles2); await saveProfiles2(kalanProfiles2);
-
-              const kalanSevkler = sevkler.filter(s => !silinecekMi(s.studentName, s.className, s.numara));
-              setSevkler(kalanSevkler); await saveSevkler(kalanSevkler);
-
-              const kalanOog = oogDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
-              setOogDegerlendirmeler(kalanOog); await saveOogDegerlendirmeler(kalanOog);
-
-              // Grup çalışmaları öğrenciye değil doğrudan yıla bağlı — silinen
-              // yılın kayıtları da temizlenmeli.
-              const kalanGrup = (grupCalismalari||[]).filter(g => g.yil !== yil);
-              setGrupCalismalari(kalanGrup); await saveGrupCalismalari(kalanGrup);
-
-              const kalanKriz = (krizKayitlari||[]).filter(k => k.yil !== yil);
-              setKrizKayitlari(kalanKriz); await saveKrizKayitlari(kalanKriz);
-
-              const kalanSosyo = (sosyometri||[]).filter(s => s.yil !== yil);
-              setSosyometri(kalanSosyo); await saveSosyometri(kalanSosyo);
-
-              const kalanHatirlatmalar2 = (hatirlatmalar||[]).filter(h => !silinecekMi(h.studentName, h.className, h.numara));
-              setHatirlatmalar(kalanHatirlatmalar2); await saveHatirlatmalar(kalanHatirlatmalar2);
-
-              const kalanNetHaritasi2 = (netHaritasiKayitlari||[]).filter(k => !silinecekMi(k.studentName, k.className, k.numara));
-              setNetHaritasiKayitlari(kalanNetHaritasi2); await saveNetHaritasi(kalanNetHaritasi2);
-
-              function pdrSozlukTemizleSifirla(sozluk) {
-                const yeni = { ...sozluk };
-                silinecekler.forEach(o => {
-                  delete yeni[pdrOgrAnahtar(o.studentName, o.className, o.numara)];
-                  delete yeni[pdrOgrAnahtar(o.studentName, o.className)];
-                  delete yeni[o.studentName];
-                });
-                return yeni;
-              }
-              const kalanDenemeler2 = pdrSozlukTemizleSifirla(denemeler);
-              setDenemeler(kalanDenemeler2); await saveDenemeler(kalanDenemeler2);
-
-              const kalanMudahale2 = pdrSozlukTemizleSifirla(mudahalePlan);
-              setMudahalePlan(kalanMudahale2); await saveMudahalePlan(kalanMudahale2);
-
-              const kalanHazirlik2 = pdrSozlukTemizleSifirla(hazirlikNotlari);
-              setHazirlikNotlari(kalanHazirlik2); await saveHazirlikNotlari(kalanHazirlik2);
-
-              const kalanIlerleme2 = pdrSozlukTemizleSifirla(ilerlemeNotlari);
-              setIlerlemeNotlari(kalanIlerleme2); await saveIlerlemeNotlari(kalanIlerleme2);
-
-              const kalanProfNotlari2 = pdrSozlukTemizleSifirla(profNotlari);
-              setProfNotlari(kalanProfNotlari2); await saveProfNotlari(kalanProfNotlari2);
-
-              const kalanTestKayitlari2 = pdrSozlukTemizleSifirla(testKayitlari);
-              setTestKayitlari(kalanTestKayitlari2); await saveTestKayitlari(kalanTestKayitlari2);
-
-              const kalanKonuHaritasi2 = pdrSozlukTemizleSifirla(konuHaritasiVerisi);
-              setKonuHaritasiVerisi(kalanKonuHaritasi2); await saveKonuHaritasi(kalanKonuHaritasi2);
-            }}
+            onYilSil={async (yil) => { await pdrYilVerisiTemizle(yil); }}
+            onYilSifirla={async (yil) => { await pdrYilVerisiTemizle(yil); }}
           />
         )}
 
