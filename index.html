@@ -14330,7 +14330,7 @@ const REHBER_ADIMLARI = [
   { ikon: "⚠️", baslik: "Risk, Müdahale ve Ani Değişim", metin: "Riskli gördüğün öğrencileri Risk sekmesinden işaretle, AI destekli müdahale planı oluştur. Program ayrıca devamsızlık, deneme, görüşme sıklığı gibi verilerde ani değişim olursa öğrenci listesinde seni otomatik uyarır." },
   { ikon: "🧪", baslik: "Test sonuçlarını kaydet", metin: "Uyguladığın standart testlerin (D2, Beck, Frostig, Conners ve daha fazlası) sonucunu Testler sekmesinden gir — rapora otomatik eklenir." },
   { ikon: "📚", baslik: "Kütüphaneyi besle", metin: "İlgili yönetmelik ya da makaleleri yükle — AI önerilerinde otomatik referans olarak kullanılsın." },
-  { ikon: "🗂️", baslik: "Dikkat: bazı sekmelerin içinde alt sekmeler var", metin: "Üst menüdeki \"📊 Akademik\", \"📑 Kayıtlar\" ve \"🏫 Okul Çapı\" sekmelerinin her biri, açılınca hemen altında beliren küçük mor bir şeritle 3 alt bölüme ayrılır (örn. Akademik → Deneme, Net Haritası, Konu Haritası; Okul Çapı → Grup Çalışmaları, Kriz Müdahale, Sosyometri). Bir sekmeye ilk girdiğinde program bunu sana ayrıca hatırlatır. Aradığın bir özelliği bulamıyorsan aşağıdaki \"📖 Tüm Özellikler\"e bak." },
+  { ikon: "🗂️", baslik: "Dikkat: üst menüdeki her başlığın içinde alt sekmeler var", metin: "Sekme kalabalığını azaltmak için üst menü az sayıda ana başlığa indirildi: \"👥 Öğrenci\" (Öğrenciler, Profil, Devamsızlık), \"📝 Görüşme\" (Görüşme Notu, Hatırlatıcı), \"⚠️ Risk & Müdahale\" (Risk, Müdahale), \"📊 Akademik\" (Deneme, Net Haritası, Konu Haritası, Testler), \"📑 Kayıtlar\" (Belgeler, Kütüphane, Kazanımlar) ve \"🏫 Okul Çapı\" (Sınıf, Grup Çalışmaları, Kriz Müdahale, Sosyometri). Bir başlığa dokunduğunda hemen altında küçük mor bir şerit çıkar, alt bölümler arasında oradan geçersin — hiçbir özellik kaybolmadı, sadece nerede durduğu değişti. Bir başlığa ilk girdiğinde program bunu ayrıca hatırlatır. Aradığın bir özelliği bulamıyorsan aşağıdaki \"📖 Tüm Özellikler\"e bak." },
   { ikon: "📥", baslik: "Düzenli yedek al", metin: "Ayarlar'dan \"Tüm Veriyi Yedekle\"ye basıp önemli işlemlerden önce ya da ayda bir dosyanı indir." },
 ];
 function BaslarkenRehberi({ onKapat, onTumOzellikler }) {
@@ -15264,13 +15264,16 @@ export default function App() {
   // verisiyle dolu — sadece ilkokulda gizlenir.
   const ILKOKULDA_GIZLENECEK_SEKMELER = ["net_haritasi", "deneme", "konu_haritasi"];
   // Sekme kalabalığını azaltmak için birbirine yakın işlevdeki sekmeler tek bir
-// üst sekmenin altında gruplandı — pdr-program'daki AYNI mantık, ama bu
-// programda "Müdahale Programları" ve "Takvim" sekmeleri hiç YOK (kişisel
-// programa özel), o yüzden Müdahale ve Zaman grupları burada kurulmadı —
-// tek üyeli bir grup anlamsız olurdu. "testler" yine bilerek Akademik
-// grubuna katılmadı (ilkokulda sadece deneme/net_haritasi/konu_haritasi
-// gizleniyor, Testler ilkokulda da görünür kalmalı).
-// Sekme etiketindeki (örn. "📝 Görüşme Notu") emojiyi ayırıp küçük yuvarlak
+  // üst sekmenin altında gruplandı (bkz. TABS_TUMU). "Akademik" grubu artık
+  // Testler'i de içeriyor — bu ilkokulda GİZLENMEMELİ, sadece Deneme/Net
+  // Haritası/Konu Haritası gizlenmeli. Bu yüzden aşağıdaki pdrSekmeGizliMi +
+  // TABS hesaplaması, bir grubu bütün olarak gizlemek yerine sadece
+  // gizlenmesi gereken ÜYEyi elden çıkarır; grubun geri kalanı (ve üst
+  // sekmenin kendisi) görünür kalmaya devam eder.
+  function pdrSekmeGizliMi(key) {
+    return kademe === "ilkokul" && ILKOKULDA_GIZLENECEK_SEKMELER.includes(key);
+  }
+  // Sekme etiketindeki (örn. "📝 Görüşme Notu") emojiyi ayırıp küçük yuvarlak
 // bir rozet içine koymak için — sadece logo/emoji dairenin içinde, yazı
 // dairenin dışında serbest akıyor.
 function pdrSekmeAyikla(etiket) {
@@ -15294,23 +15297,25 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
   );
 }
 
+// NOT (sadeleştirme): Aşağıdaki gruplar, önceden 14-15 ayrı üst sekmeyi
+// azaltmak için bilinçli olarak genişletildi. Hiçbir sekme/anahtar SİLİNMEDİ
+// — sadece hangi üst başlığın altında göründükleri değişti. "key" alanı hâlâ
+// o grubun GERÇEK bir üyesinin sekme anahtarıdır; bir üye kademeye göre
+// gizlendiğinde grubun geri kalanı kaybolmuyor (bkz. pdrSekmeGizliMi / TABS).
 const TABS_TUMU = [
-    { key: "ogrenciler", label: "👥 Öğrenciler" },
-    { key: "yeni", label: "📝 Görüşme Notu" },
-    { key: "profil_merkez", label: "📋 Profil" },
-    { key: "mudahale", label: "🎯 Müdahale" },
-    { key: "sinif_profili", label: "🏫 Sınıf" },
-    { key: "devamsizlik", label: "📅 Devamsızlık" },
-    { key: "risk", label: "⚠ Risk" },
-    { key: "deneme", label: "📊 Akademik", grup: ["deneme","net_haritasi","konu_haritasi"],
-      grupEtiketler: { deneme: "📊 Deneme", net_haritasi: "🎯 Net Haritası", konu_haritasi: "📚 Konu Haritası" } },
-    { key: "testler", label: "🧪 Testler" },
-    { key: "hatirlatici", label: "🔔 Hatırlatıcı" },
+    { key: "ogrenciler", label: "👥 Öğrenci", grup: ["ogrenciler","profil_merkez","devamsizlik"],
+      grupEtiketler: { ogrenciler: "👥 Öğrenciler", profil_merkez: "📋 Profil", devamsizlik: "📅 Devamsızlık" } },
+    { key: "yeni", label: "📝 Görüşme", grup: ["yeni","hatirlatici"],
+      grupEtiketler: { yeni: "📝 Görüşme Notu", hatirlatici: "🔔 Hatırlatıcı" } },
+    { key: "risk", label: "⚠️ Risk & Müdahale", grup: ["risk","mudahale"],
+      grupEtiketler: { risk: "⚠ Risk", mudahale: "🎯 Müdahale" } },
+    { key: "deneme", label: "📊 Akademik", grup: ["deneme","net_haritasi","konu_haritasi","testler"],
+      grupEtiketler: { deneme: "📊 Deneme", net_haritasi: "🎯 Net Haritası", konu_haritasi: "📚 Konu Haritası", testler: "🧪 Testler" } },
     { key: "belgeler", label: "📑 Kayıtlar", grup: ["belgeler","kutuphane","kazanimlar"],
       grupEtiketler: { belgeler: "📑 Belgeler", kutuphane: "📚 Kütüphane", kazanimlar: "📘 Kazanımlar" } },
-    { key: "grup_calismalari", label: "🏫 Okul Çapı", grup: ["grup_calismalari","kriz","sosyometri"],
-      grupEtiketler: { grup_calismalari: "👪 Grup Çalışmaları", kriz: "🚨 Kriz Müdahale", sosyometri: "🤝 Sosyometri" } },
-    { key: "istatistik", label: "İstatistik" },
+    { key: "grup_calismalari", label: "🏫 Okul Çapı", grup: ["sinif_profili","grup_calismalari","kriz","sosyometri"],
+      grupEtiketler: { sinif_profili: "🏫 Sınıf", grup_calismalari: "👪 Grup Çalışmaları", kriz: "🚨 Kriz Müdahale", sosyometri: "🤝 Sosyometri" } },
+    { key: "istatistik", label: "📈 İstatistik" },
     { key: "ayarlar", label: "⚙️ Ayarlar" },
     ...(pdrIsAdmin ? [{ key: "onaylar", label: "🛠 Onaylar" }] : []),
   ];
@@ -15387,9 +15392,9 @@ const TABS_TUMU = [
       grupCalismalari, krizKayitlari, sosyometri, aktifYil,
       aktifOgrenci?.name, aktifOgrenci?.className, aktifOgrenci?.numara]);
 
-  const TABS = TABS_TUMU.filter(t =>
-    !(kademe === "ilkokul" && ILKOKULDA_GIZLENECEK_SEKMELER.includes(t.key))
-  );
+  const TABS = TABS_TUMU
+    .map(t => t.grup ? { ...t, grup: t.grup.filter(k => !pdrSekmeGizliMi(k)) } : t)
+    .filter(t => t.grup ? t.grup.length > 0 : !pdrSekmeGizliMi(t.key));
 
   // Kademe değiştiğinde, o an açık olan sekme yeni kademede gizlenen
   // sekmelerden biriyse boş ekranda kalmamak için Öğrenciler'e yönlendir.
@@ -15579,12 +15584,16 @@ const TABS_TUMU = [
           // aktifse öyle görünür — tek bir üyeye değil tüm gruba bakar.
           const grupUyeleri = t.grup || [t.key];
           const grupAktifMi = grupUyeleri.includes(tab);
+          // t.key her zaman grubun bir üyesi olmayabilir (o üye bu kademede
+          // gizlenmiş olabilir) — bu yüzden üst sekmeye tıklanınca, o an
+          // GERÇEKTEN görünür olan ilk üyeye gidiyoruz.
+          const hedefKey = t.grup ? (t.grup.includes(t.key) ? t.key : t.grup[0]) : t.key;
           const dolu = t.grup
             ? (grupUyeleri.some(k => pdrSekmeDolulugu[k] === true) ? true
                : grupUyeleri.some(k => pdrSekmeDolulugu[k] === false) ? false : undefined)
             : pdrSekmeDolulugu[t.key];
           return (
-            <button key={t.key} data-pdr-sekme-key={t.key} onClick={() => setTab(t.key)} title={dolu === undefined ? undefined : (aktifOgrenci?.name ? `${aktifOgrenci.name}: ${dolu ? "kayıt var" : "henüz kayıt yok"}` : (dolu ? "Bu yıl için kayıt var" : "Bu yıl için henüz kayıt yok"))} style={{
+            <button key={t.key} data-pdr-sekme-key={t.key} onClick={() => setTab(hedefKey)} title={dolu === undefined ? undefined : (aktifOgrenci?.name ? `${aktifOgrenci.name}: ${dolu ? "kayıt var" : "henüz kayıt yok"}` : (dolu ? "Bu yıl için kayıt var" : "Bu yıl için henüz kayıt yok"))} style={{
               flexShrink: 0, padding: "11px 10px", border: "none", background: "none",
               fontWeight: grupAktifMi ? 800 : 600,
               fontSize: 9, cursor: "pointer",
@@ -15610,7 +15619,7 @@ const TABS_TUMU = [
           aitse (bkz. TABS_TUMU'daki "grup" alanı), o grubun kardeşleri arasında
           ana sekme çubuğuna dönmeden geçiş yapılabilsin diye çıkar. */}
       {(() => {
-        const aktifGrup = TABS_TUMU.find(t => t.grup && t.grup.includes(tab));
+        const aktifGrup = TABS.find(t => t.grup && t.grup.includes(tab));
         if (!aktifGrup) return null;
         const ipucuGoster = !gorulenGruplar.has(aktifGrup.key);
         return (
