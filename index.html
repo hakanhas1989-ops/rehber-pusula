@@ -1762,85 +1762,17 @@ function oogSonucHesapla(cevaplar) {
   return { yuzde, seviye, kategoriPuan, tamamlananSoru: Object.keys(cevaplar).length, gozlenemeyenSayisi, puanlananSoru: toplamSoru - gozlenemeyenSayisi, toplamSoru };
 }
 
-// ── OSB (Otizm Spektrum Bozukluğu) Ön-Tarama Soru Bankası ──────────────────────
-// Bu bir TARAMA aracıdır, TANI KOYMAZ. Kesin tanı için RAM/uzman (çocuk psikiyatristi vb.) değerlendirmesi gerekir.
-const OSB_KATEGORILER = [
-  { key: "sosyal_etkilesim", label: "🗣️ Sosyal Etkileşim", sorular: [
-    "Göz teması kurmakta zorlanır",
-    "Akranlarıyla ortak oyun kurmakta/sürdürmekte zorlanır",
-    "Başkalarının duygularını fark etmekte veya buna tepki vermekte zorlanır",
-    "Yalnız kalmayı gruba tercih eder",
-  ]},
-  { key: "sosyal_iletisim", label: "💬 Sosyal İletişim", sorular: [
-    "Karşılıklı sohbeti başlatmakta veya sürdürmekte zorlanır",
-    "Konuşurken/dinlerken beden dili ve mimikleri okumakta zorlanır",
-    "Konuşması resmi, tekdüze ya da \"küçük bir yetişkin\" gibi olabilir",
-    "Sözleri çok gerçek/birebir anlamda algılar (mecaz, şaka, deyimi anlamakta güçlük)",
-  ]},
-  { key: "tekrarlayici_davranis", label: "🔁 Tekrarlayıcı Davranış / Kısıtlı İlgi", sorular: [
-    "Belirli bir konuya/nesneye yoğun ve sıra dışı bir ilgi gösterir",
-    "Günlük rutin değiştiğinde belirgin sıkıntı yaşar",
-    "Tekrarlayan hareketler yapar (el çırpma, sallanma, parmak ucunda yürüme vb.)",
-    "Eşyaları/nesneleri belirli bir düzende dizmekten hoşlanır, düzenin bozulmasına tepki gösterir",
-  ]},
-  { key: "oyun_hayal_gucu", label: "🎨 Oyun / Hayal Gücü", sorular: [
-    "Sembolik/hayali oyunlar kurmakta zorlanır (örn. rol yapma oyunları)",
-    "Oyuncakları amacı dışında, tekrarlayıcı biçimde kullanır (örn. tekerlek çevirme)",
-    "Grup oyunlarında kuralları anlamakta veya sırasını beklemekte zorlanır",
-  ]},
-  { key: "duyusal_duyarlilik", label: "🌡️ Duyusal Duyarlılık", sorular: [
-    "Belirli seslere/ışığa/dokulara aşırı tepki verir ya da fark etmez",
-    "Belirli yiyecek dokularını/tatlarını reddeder, seçici beslenir",
-    "Ağrıya veya sıcak/soğuğa karşı beklenenden az/çok tepki verir",
-  ]},
-  { key: "okul_uyum", label: "🏫 Okul / Akademik Uyum", sorular: [
-    "Sınıf kurallarına ve geçişlere (ders arası, etkinlik değişimi) uyum sağlamakta zorlanır",
-    "Grup çalışmalarında iş birliği yapmakta zorlanır",
-    "Belirli bir konuda (sayılar, haritalar, tarihler vb.) yaşıtlarına göre olağanüstü bilgi/ilgiye sahip",
-  ]},
-  { key: "gelisimsel_oyku", label: "👪 Gelişimsel Öykü", sorular: [
-    "Konuşmaya yaşıtlarına göre geç başladı",
-    "Erken çocuklukta ortak dikkat kurma (parmakla gösterilen yöne bakma vb.) zayıftı",
-    "Ailede benzer sosyal/iletişim güçlüğü öyküsü var",
-  ]},
-];
-const OSB_SECENEKLER = [
-  { val: 0, label: "Hiç" },
-  { val: 1, label: "Nadiren" },
-  { val: 2, label: "Sıklıkla" },
-  { val: 3, label: "Çok Sık" },
-];
-const OSB_GOZLENEMEDI = "gozlenemedi";
-function osbSonucHesapla(cevaplar) {
-  let toplam = 0, maks = 0, gozlenemeyenSayisi = 0;
-  const kategoriPuan = {};
-  OSB_KATEGORILER.forEach(k => {
-    let kToplam = 0, kMaks = 0;
-    k.sorular.forEach((_, i) => {
-      const v = cevaplar[k.key + "_" + i];
-      if (v === OSB_GOZLENEMEDI) { gozlenemeyenSayisi++; return; }
-      if (typeof v === "number") { kToplam += v; kMaks += 3; }
-    });
-    kategoriPuan[k.key] = kMaks > 0 ? Math.round((kToplam / kMaks) * 100) : null;
-    toplam += kToplam; maks += kMaks;
-  });
-  const yuzde = maks > 0 ? Math.round((toplam / maks) * 100) : 0;
-  const seviye = yuzde >= 66 ? { label: "Yüksek Şüphe", color: "#C0392B", bg: "#FDECEA" }
-    : yuzde >= 41 ? { label: "Orta Şüphe", color: "#B07D1A", bg: "#FDF6E3" }
-    : yuzde >= 21 ? { label: "Düşük-Orta Şüphe", color: "#457B9D", bg: "#EEF2FF" }
-    : { label: "Düşük Şüphe", color: "#1A8C5B", bg: "#E6F5EE" };
-  const toplamSoru = OSB_KATEGORILER.reduce((s,k)=>s+k.sorular.length,0);
-  return { yuzde, seviye, kategoriPuan, tamamlananSoru: Object.keys(cevaplar).length, gozlenemeyenSayisi, puanlananSoru: toplamSoru - gozlenemeyenSayisi, toplamSoru };
-}
-
-// ── CAST Tarzı Otizm Spektrumu Tarama Ölçeği ────────────────────────────────
+// ── Otizm Spektrumu Kapsamlı Tarama Ölçeği ──────────────────────────────────
 // Bu bir TARAMA aracıdır, TANI KOYMAZ. Uluslararası "Childhood Autism Spectrum
 // Test (CAST)" ölçeğinin YAPISINDAN (39 evet/hayır madde, 4 alan + ek gözlem
 // bölümü, yüzdesel kesme puanı yaklaşımı) esinlenilerek hazırlanmış ÖZGÜN bir
 // sorudur; CAST'in kendi (telifli) maddeleri kullanılmamıştır. Puanlanan 4
 // alanda toplam 32 madde, puanlamaya dahil edilmeyen "Ek Gelişimsel Gözlemler"
-// bölümünde 7 madde bulunur (CAST'teki puanlanan/puanlanmayan madde ayrımına
-// paralel bir tasarım).
+// bölümünde 10 madde bulunur (CAST'teki puanlanan/puanlanmayan madde ayrımına
+// paralel bir tasarım). Daha önce ayrı bir araç olan "OSB Ön-Tarama" ile
+// içerik çakışması olduğu için o araç kaldırıldı; ona özgü, burada karşılığı
+// olmayan 3 madde (duyusal ağrı tepkisi, sınıf/geçiş uyumu, grup iş birliği)
+// ek gözlemler bölümüne taşındı.
 const CAST_KATEGORILER = [
   { key: "sosyal_etkilesim", label: "🗣️ Sosyal Etkileşim", sorular: [
     "Göz teması kurmaktan kaçınır ya da çok kısa süreli göz teması kurar",
@@ -1893,6 +1825,9 @@ const CAST_EK_KATEGORI = { key: "ek_gelisim", label: "👪 Ek Gelişimsel Gözle
   "Uyku düzeninde belirgin ve süregelen bir güçlük yaşanmakta/yaşandı",
   "Ailede benzer sosyal-iletişim güçlüğü öyküsü bulunmaktadır",
   "Erken çocuklukta ortak dikkat kurma (parmakla gösterilen yöne bakma) zayıftı",
+  "Ağrıya veya sıcak/soğuğa karşı beklenenden az/çok tepki verir",
+  "Sınıf kurallarına ve geçişlere (ders arası, etkinlik değişimi) uyum sağlamakta zorlanır",
+  "Grup çalışmalarında iş birliği yapmakta zorlanır",
 ]};
 const CAST_SECENEKLER = [
   { val: 1, label: "Evet" },
@@ -2249,12 +2184,6 @@ async function loadOogDegerlendirmeler() {
 }
 async function saveOogDegerlendirmeler(items) {
   try { await window.storage.set("pdr-oog", JSON.stringify(items)); } catch(e) { console.warn(e); }
-}
-async function loadOsbDegerlendirmeler() {
-  try { const r = await window.storage.get("pdr-osb"); return r ? JSON.parse(r.value) : []; } catch { return []; }
-}
-async function saveOsbDegerlendirmeler(items) {
-  try { await window.storage.set("pdr-osb", JSON.stringify(items)); } catch(e) { console.warn(e); }
 }
 async function loadCastDegerlendirmeler() {
   try { const r = await window.storage.get("pdr-cast"); return r ? JSON.parse(r.value) : []; } catch { return []; }
@@ -4314,8 +4243,8 @@ function raporCizgiGrafik(noktalar, { genislik = 460, yukseklik = 130, renk = "#
   );
 }
 
-function raporVerisiOlustur({ ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler, mudahalePlan, riskListesi, sinavTuru, testKayitlari, kaynastirma, oogDegerlendirmeler, osbDegerlendirmeler, castDegerlendirmeler, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }) {
-  return { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: denemeler || {}, mudahalePlan: mudahalePlan || {}, riskListesi: riskListesi || [], sinavTuru, testKayitlari: testKayitlari || [], kaynastirma: kaynastirma || [], oogDegerlendirmeler: oogDegerlendirmeler || [], osbDegerlendirmeler: osbDegerlendirmeler || [], castDegerlendirmeler: castDegerlendirmeler || [], hazirlikNotlari: hazirlikNotlari || {}, ilerlemeNotlari: ilerlemeNotlari || {}, sevkler: sevkler || [], ogrenciler: ogrenciler || [], tarih: new Date().toLocaleDateString("tr-TR") };
+function raporVerisiOlustur({ ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler, mudahalePlan, riskListesi, sinavTuru, testKayitlari, kaynastirma, oogDegerlendirmeler, castDegerlendirmeler, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }) {
+  return { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: denemeler || {}, mudahalePlan: mudahalePlan || {}, riskListesi: riskListesi || [], sinavTuru, testKayitlari: testKayitlari || [], kaynastirma: kaynastirma || [], oogDegerlendirmeler: oogDegerlendirmeler || [], castDegerlendirmeler: castDegerlendirmeler || [], hazirlikNotlari: hazirlikNotlari || {}, ilerlemeNotlari: ilerlemeNotlari || {}, sevkler: sevkler || [], ogrenciler: ogrenciler || [], tarih: new Date().toLocaleDateString("tr-TR") };
 }
 
 // ── PDF Rapor Bileşeni ────────────────────────────────────────────────────────
@@ -4492,32 +4421,7 @@ function RaporModal({ rapor, onKapat }) {
               );
             })()}
 
-            {/* OSB (Otizm Spektrum Bozukluğu) Ön-Tarama — bu bir tarama aracıdır,
-                tanı koymaz; sadece doldurulmuşsa gösterilir. */}
-            {(() => {
-              const osbKayit = (rapor.osbDegerlendirmeler||[]).find(o => pdrAyniOgrenci(o.studentName, o.className, ogrenci, ogrenciSinif));
-              if (!osbKayit || !osbKayit.cevaplar || Object.keys(osbKayit.cevaplar).length === 0) return null;
-              const sonuc = osbSonucHesapla(osbKayit.cevaplar);
-              return (
-                <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />OSB Ön-Tarama (Tanı Değil — Yalnızca Tarama)</div>
-                  <div style={S.bolumIcerik2}>
-                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-                      <span style={{ fontSize:16, fontWeight:900, color:sonuc.seviye.color }}>%{sonuc.yuzde}</span>
-                      <span style={{ fontSize:10.5, fontWeight:700, color:sonuc.seviye.color, background:sonuc.seviye.bg, borderRadius:8, padding:"2px 8px" }}>{sonuc.seviye.label}</span>
-                      <span style={{ fontSize:9, color:"#888" }}>({osbKayit.date})</span>
-                    </div>
-                    <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-                      {OSB_KATEGORILER.filter(k => sonuc.kategoriPuan[k.key] !== null && sonuc.kategoriPuan[k.key] !== undefined).map(k => (
-                        <span key={k.key} style={{ fontSize:9.5, background:"#f5f5f5", borderRadius:4, padding:"2px 7px" }}>{k.label}: %{sonuc.kategoriPuan[k.key]}</span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* CAST Tarzı Otizm Spektrumu Tarama Ölçeği — bu bir tarama aracıdır,
+            {/* Otizm Spektrumu Kapsamlı Tarama Ölçeği — bu bir tarama aracıdır,
                 tanı koymaz; sadece doldurulmuşsa gösterilir. */}
             {(() => {
               const castKayit = (rapor.castDegerlendirmeler||[]).find(o => pdrAyniOgrenci(o.studentName, o.className, ogrenci, ogrenciSinif));
@@ -4525,7 +4429,7 @@ function RaporModal({ rapor, onKapat }) {
               const sonuc = castSonucHesapla(castKayit.cevaplar);
               return (
                 <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />CAST Tarzı Otizm Taraması (Tanı Değil — Yalnızca Tarama)</div>
+                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />Otizm Spektrumu Kapsamlı Taraması (Tanı Değil — Yalnızca Tarama)</div>
                   <div style={S.bolumIcerik2}>
                     <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
                       <span style={{ fontSize:16, fontWeight:900, color:sonuc.seviye.color }}>{sonuc.toplamEvet}/{sonuc.toplamSoru}</span>
@@ -6131,7 +6035,7 @@ function D2Paneli({ seciliAd, seciliSinif, seciliNumara, profiles2, setProfiles2
   );
 }
 
-function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayitlari, setTestKayitlari, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, osbDegerlendirmeler, setOsbDegerlendirmeler, castDegerlendirmeler, setCastDegerlendirmeler }) {
+function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayitlari, setTestKayitlari, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, castDegerlendirmeler, setCastDegerlendirmeler }) {
   const [seciliAd, setSeciliAd] = useState(aktifOgrenci?.name || "");
   const [ogrenciArama, setOgrenciArama] = useState("");
   const [kategori, setKategori] = useState(null); // "objektif" | "projektif" | null
@@ -6316,10 +6220,9 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                   <div style={{ display:"flex", gap:8 }}>
                     <button onClick={()=>setKategori("d2panel")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid ${PURPLE}`, background:"#F3F0FF", color:PURPLE, fontSize:13, fontWeight:800, cursor:"pointer" }}>🎯 D2 Dikkat Testi</button>
                     <button onClick={()=>setKategori("oog")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #8B5A00`, background:"#FFF4E5", color:"#8B5A00", fontSize:13, fontWeight:800, cursor:"pointer" }}>🧩 ÖÖG Ön-Tarama</button>
-                    <button onClick={()=>setKategori("osb")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #6A4C93`, background:"#F0EAFB", color:"#6A4C93", fontSize:13, fontWeight:800, cursor:"pointer" }}>🧬 OSB Ön-Tarama</button>
                   </div>
                   <div style={{ display:"flex", gap:8, marginTop:8 }}>
-                    <button onClick={()=>setKategori("cast")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #2A6F77`, background:"#E7F5F6", color:"#2A6F77", fontSize:13, fontWeight:800, cursor:"pointer" }}>🔬 CAST Tarzı Otizm Taraması</button>
+                    <button onClick={()=>setKategori("cast")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #2A6F77`, background:"#E7F5F6", color:"#2A6F77", fontSize:13, fontWeight:800, cursor:"pointer" }}>🔬 Otizm Spektrumu Kapsamlı Taraması</button>
                   </div>
                 </div>
               ) : kategori === "d2panel" ? (
@@ -6331,11 +6234,6 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                 <div>
                   <button onClick={()=>setKategori(null)} style={{ background:"none", border:"none", color:MUTED, fontSize:12, cursor:"pointer", marginBottom:8, padding:0 }}>← Kategoriyi değiştir</button>
                   <OOGPaneli seciliAd={seciliAd} seciliSinif={seciliSinif} seciliNumara={seciliNumara} oogDegerlendirmeler={oogDegerlendirmeler} setOogDegerlendirmeler={setOogDegerlendirmeler} />
-                </div>
-              ) : kategori === "osb" ? (
-                <div>
-                  <button onClick={()=>setKategori(null)} style={{ background:"none", border:"none", color:MUTED, fontSize:12, cursor:"pointer", marginBottom:8, padding:0 }}>← Kategoriyi değiştir</button>
-                  <OSBPaneli seciliAd={seciliAd} seciliSinif={seciliSinif} seciliNumara={seciliNumara} osbDegerlendirmeler={osbDegerlendirmeler} setOsbDegerlendirmeler={setOsbDegerlendirmeler} />
                 </div>
               ) : kategori === "cast" ? (
                 <div>
@@ -9960,7 +9858,7 @@ function KullaniciOnaylari() {
   );
 }
 
-function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profiles, setProfiles, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, osbDegerlendirmeler, setOsbDegerlendirmeler, castDegerlendirmeler, setCastDegerlendirmeler, riskListesi, setRiskListesi, denemeler, setDenemeler, sevkler, setSevkler, mudahalePlan, setMudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, profNotlari, setProfNotlari, kutuphane, setKutuphane, yillar, setYillar, sinifListesi, setSinifListesi, aktifYil, setAktifYil, kademe, setKademe, sinavTuru, setSinavTuru, testKayitlari, setTestKayitlari, hatirlatmalar, setHatirlatmalar, netHaritasiKayitlari, setNetHaritasiKayitlari, konuHaritasiVerisi, setKonuHaritasiVerisi, sosyometri, setSosyometri, onTumOzellikler }) {
+function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profiles, setProfiles, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, castDegerlendirmeler, setCastDegerlendirmeler, riskListesi, setRiskListesi, denemeler, setDenemeler, sevkler, setSevkler, mudahalePlan, setMudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, profNotlari, setProfNotlari, kutuphane, setKutuphane, yillar, setYillar, sinifListesi, setSinifListesi, aktifYil, setAktifYil, kademe, setKademe, sinavTuru, setSinavTuru, testKayitlari, setTestKayitlari, hatirlatmalar, setHatirlatmalar, netHaritasiKayitlari, setNetHaritasiKayitlari, konuHaritasiVerisi, setKonuHaritasiVerisi, sosyometri, setSosyometri, onTumOzellikler }) {
   const [key, setKey] = useState(() => pdrGetApiKey());
   const [gosterKey, setGosterKey] = useState(false);
   const [kaydedildi, setKaydedildi] = useState(false);
@@ -10023,7 +9921,6 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
     const yeniP2 = diziGuncelle(profiles2);
     const yeniSevkler = diziGuncelle(sevkler);
     const yeniOog = diziGuncelle(oogDegerlendirmeler);
-    const yeniOsb = diziGuncelle(osbDegerlendirmeler);
     const yeniCast = diziGuncelle(castDegerlendirmeler);
     const yeniNetHaritasi = diziGuncelle(netHaritasiKayitlari);
     const yeniHatirlatmalar = diziGuncelle(hatirlatmalar);
@@ -10091,7 +9988,6 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
     setProfiles2(yeniP2); await saveProfiles2(yeniP2);
     setSevkler(yeniSevkler); await saveSevkler(yeniSevkler);
     setOogDegerlendirmeler(yeniOog); await saveOogDegerlendirmeler(yeniOog);
-    setOsbDegerlendirmeler(yeniOsb); await saveOsbDegerlendirmeler(yeniOsb);
     setCastDegerlendirmeler(yeniCast); await saveCastDegerlendirmeler(yeniCast);
     setNetHaritasiKayitlari(yeniNetHaritasi); await saveNetHaritasi(yeniNetHaritasi);
     setHatirlatmalar(yeniHatirlatmalar); await saveHatirlatmalar(yeniHatirlatmalar);
@@ -10147,7 +10043,6 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
         ["profiles", setProfiles, saveProfiles],
         ["profiles2", setProfiles2, saveProfiles2],
         ["oogDegerlendirmeler", setOogDegerlendirmeler, saveOogDegerlendirmeler],
-        ["osbDegerlendirmeler", setOsbDegerlendirmeler, saveOsbDegerlendirmeler],
         ["castDegerlendirmeler", setCastDegerlendirmeler, saveCastDegerlendirmeler],
         ["riskListesi", setRiskListesi, saveRiskListesi],
         ["denemeler", setDenemeler, saveDenemeler],
@@ -10191,7 +10086,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
       const yedek = {
         yedekTarihi: new Date().toISOString(),
         aktifYil, yillar, sinifListesi,
-        ogrenciler, records, profiles, profiles2, oogDegerlendirmeler, osbDegerlendirmeler, castDegerlendirmeler,
+        ogrenciler, records, profiles, profiles2, oogDegerlendirmeler, castDegerlendirmeler,
         riskListesi, denemeler, sevkler, mudahalePlan,
         hazirlikNotlari, ilerlemeNotlari, profNotlari, kutuphane,
         testKayitlari, hatirlatmalar, netHaritasiKayitlari, konuHaritasiVerisi,
@@ -12764,108 +12659,7 @@ function OOGPaneli({ seciliAd, seciliSinif, seciliNumara, oogDegerlendirmeler, s
   );
 }
 
-// ── OSB (Otizm Spektrum Bozukluğu) Ön-Tarama Paneli ───────────────────────────
-function OSBPaneli({ seciliAd, seciliSinif, seciliNumara, osbDegerlendirmeler, setOsbDegerlendirmeler }) {
-  const mevcut = osbDegerlendirmeler.find(o => pdrAyniOgrenci(o.studentName, o.className, seciliAd, seciliSinif, o.numara, seciliNumara));
-  const [cevaplar, setCevaplar] = useState(mevcut?.cevaplar || {});
-  const [kaydedildi, setKaydedildi] = useState(false);
-
-  useEffect(() => {
-    const m = osbDegerlendirmeler.find(o => pdrAyniOgrenci(o.studentName, o.className, seciliAd, seciliSinif, o.numara, seciliNumara));
-    setCevaplar(m?.cevaplar || {});
-    setKaydedildi(false);
-  }, [seciliAd, seciliSinif, seciliNumara]);
-
-  function cevapVer(kategoriKey, soruIndex, val) {
-    setCevaplar(c => ({ ...c, [kategoriKey + "_" + soruIndex]: val }));
-  }
-
-  const sonuc = osbSonucHesapla(cevaplar);
-
-  async function handleKaydet() {
-    if (!seciliAd.trim()) return;
-    const kayit = {
-      id: mevcut?.id || uid(),
-      date: today(),
-      studentName: seciliAd, className: seciliSinif, numara: seciliNumara,
-      cevaplar, yuzde: sonuc.yuzde, kategoriPuan: sonuc.kategoriPuan,
-    };
-    const updated = mevcut
-      ? osbDegerlendirmeler.map(o => o.id === mevcut.id ? kayit : o)
-      : [kayit, ...osbDegerlendirmeler];
-    setOsbDegerlendirmeler(updated);
-    await saveOsbDegerlendirmeler(updated);
-    setKaydedildi(true);
-    setTimeout(() => setKaydedildi(false), 2500);
-  }
-
-  if (!seciliAd.trim()) {
-    return <div style={{textAlign:"center", color:MUTED, padding:20, fontSize:13}}>Önce bir öğrenci seçin</div>;
-  }
-
-  return (
-    <div>
-      <div style={{background:"#F0EAFB", border:`1px solid #c9b3e6`, borderRadius:10, padding:"10px 12px", marginBottom:14, fontSize:11, color:"#6A4C93", lineHeight:1.6}}>
-        🧬 Bu bir <b>tarama aracıdır, tanı koymaz</b>. Öğrenciyi gözlemleyerek her maddeyi işaretle. Şüphe düzeyi yüksek çıkarsa RAM/uzman (çocuk psikiyatristi vb.) yönlendirmesi önerilir.
-      </div>
-
-      {sonuc.tamamlananSoru > 0 && (
-        <div style={{background:sonuc.seviye.bg, border:`1px solid ${sonuc.seviye.color}33`, borderRadius:12, padding:14, marginBottom:16, textAlign:"center"}}>
-          <div style={{fontSize:32, fontWeight:900, color:sonuc.seviye.color}}>%{sonuc.yuzde}</div>
-          <div style={{fontSize:13, fontWeight:700, color:sonuc.seviye.color, marginBottom:4}}>{sonuc.seviye.label}</div>
-          <div style={{fontSize:11, color:MUTED}}>
-            {sonuc.puanlananSoru}/{sonuc.toplamSoru} soru puanlandı
-            {sonuc.gozlenemeyenSayisi > 0 && ` · ${sonuc.gozlenemeyenSayisi} madde gözlenemedi (hesaba katılmadı)`}
-          </div>
-          <div style={{display:"flex", flexWrap:"wrap", gap:6, justifyContent:"center", marginTop:10}}>
-            {OSB_KATEGORILER.map(k => (
-              <span key={k.key} style={{fontSize:10, fontWeight:700, padding:"3px 8px", borderRadius:10, background:"#fff", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", color:TEXT}}>
-                {k.label.split(" ")[0]} {sonuc.kategoriPuan[k.key] === null ? "—" : `%${sonuc.kategoriPuan[k.key]}`}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {OSB_KATEGORILER.map(kategori => (
-        <div key={kategori.key} style={{marginBottom:16}}>
-          <div style={{fontSize:12, fontWeight:800, color:ACCENT, marginBottom:8}}>{kategori.label}</div>
-          {kategori.sorular.map((soru, i) => {
-            const key = kategori.key + "_" + i;
-            return (
-              <div key={key} style={{marginBottom:10}}>
-                <div style={{fontSize:12, color:TEXT, marginBottom:5}}>{soru}</div>
-                <div style={{display:"flex", gap:5}}>
-                  {OSB_SECENEKLER.map(sec => (
-                    <button key={sec.val} onClick={() => cevapVer(kategori.key, i, sec.val)} style={{
-                      flex:1, padding:"7px 4px", borderRadius:8, fontSize:10, fontWeight:700, cursor:"pointer",
-                      border:`1.5px solid ${cevaplar[key]===sec.val?ACCENT:BORDER}`,
-                      background:cevaplar[key]===sec.val?ACCENT_LIGHT:CARD,
-                      color:cevaplar[key]===sec.val?ACCENT:MUTED,
-                    }}>{sec.label}</button>
-                  ))}
-                  <button onClick={() => cevapVer(kategori.key, i, OSB_GOZLENEMEDI)} style={{
-                    flex:0.85, padding:"7px 4px", borderRadius:8, fontSize:9, fontWeight:700, cursor:"pointer",
-                    border:`1.5px dashed ${cevaplar[key]===OSB_GOZLENEMEDI?"#457B9D":BORDER}`,
-                    background:cevaplar[key]===OSB_GOZLENEMEDI?"#EEF2FF":CARD,
-                    color:cevaplar[key]===OSB_GOZLENEMEDI?"#457B9D":MUTED,
-                  }}>🔍 Gözlenemedi</button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ))}
-
-      <button onClick={handleKaydet} style={{
-        width:"100%", padding:13, background:ACCENT, color:"#fff", border:"none", borderRadius:12,
-        fontSize:15, fontWeight:800, cursor:"pointer", marginTop:4
-      }}>{kaydedildi ? "✓ Kaydedildi" : "💾 Kaydet"}</button>
-    </div>
-  );
-}
-
-// ── CAST Tarzı Otizm Spektrumu Tarama Ölçeği Paneli ───────────────────────────
+// ── Otizm Spektrumu Kapsamlı Tarama Ölçeği Paneli ──────────────────────────
 // Uluslararası "Childhood Autism Spectrum Test (CAST)" ölçeğinin yapısından
 // (evet/hayır formatı, puanlanan/puanlanmayan madde ayrımı, yüzdesel kesme
 // puanı) esinlenilmiş, özgün maddeler içeren bir tarama paneli.
@@ -14966,7 +14760,6 @@ export default function App() {
   const [profiles, setProfiles] = useState([]);
   const [profiles2, setProfiles2] = useState([]);
   const [oogDegerlendirmeler, setOogDegerlendirmeler] = useState([]);
-  const [osbDegerlendirmeler, setOsbDegerlendirmeler] = useState([]);
   const [castDegerlendirmeler, setCastDegerlendirmeler] = useState([]);
   const [tab, setTab] = useState("ogrenci");
   // Sekme çubuğunu tıklanan sekme etrafında ortalamak için kullanılıyor —
@@ -15125,7 +14918,6 @@ export default function App() {
     loadProfiles().then(setProfiles);
     loadProfiles2().then(setProfiles2);
     loadOogDegerlendirmeler().then(setOogDegerlendirmeler);
-    loadOsbDegerlendirmeler().then(setOsbDegerlendirmeler);
     loadCastDegerlendirmeler().then(setCastDegerlendirmeler);
     loadKutuphane().then(setKutuphane);
     loadRiskListesi().then(setRiskListesi);
@@ -15167,7 +14959,6 @@ export default function App() {
       "pdr-profiles-meta": () => loadProfiles().then(setProfiles),
       "pdr-profiles2": () => loadProfiles2().then(setProfiles2),
       "pdr-oog": () => loadOogDegerlendirmeler().then(setOogDegerlendirmeler),
-      "pdr-osb": () => loadOsbDegerlendirmeler().then(setOsbDegerlendirmeler),
       "pdr-cast": () => loadCastDegerlendirmeler().then(setCastDegerlendirmeler),
       "pdr-kutuphane": () => loadKutuphane().then(setKutuphane),
       "pdr-risk": () => loadRiskListesi().then(setRiskListesi),
@@ -15541,10 +15332,6 @@ export default function App() {
 
     const updOog = oogDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
     setOogDegerlendirmeler(updOog); await saveOogDegerlendirmeler(updOog);
-
-    const updOsb = osbDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
-    setOsbDegerlendirmeler(updOsb); await saveOsbDegerlendirmeler(updOsb);
-
     const updCast = castDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
     setCastDegerlendirmeler(updCast); await saveCastDegerlendirmeler(updCast);
 
@@ -15605,7 +15392,7 @@ export default function App() {
         const parse = d => { const [g, ay, y] = (d||"").split("."); return new Date(`${y}-${ay}-${g}`); };
         return parse(a.date) - parse(b.date);
       });
-    setRaporVerisi(raporVerisiOlustur({ ogrenci: ogrenciAdi, ogrenciSinif: profil1.className, profil1, profil2, gorusmeler, denemeler: pdrSozlukOku(denemeler, ogrenciAdi, profil1.className, profil1.numara) || {}, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, osbDegerlendirmeler, castDegerlendirmeler, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }));
+    setRaporVerisi(raporVerisiOlustur({ ogrenci: ogrenciAdi, ogrenciSinif: profil1.className, profil1, profil2, gorusmeler, denemeler: pdrSozlukOku(denemeler, ogrenciAdi, profil1.className, profil1.numara) || {}, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }));
   }
 
   async function handleProf2Analiz() {
@@ -15963,10 +15750,6 @@ const TABS_TUMU = [
 
     const kalanOog = oogDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
     setOogDegerlendirmeler(kalanOog); await saveOogDegerlendirmeler(kalanOog);
-
-    const kalanOsb = osbDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
-    setOsbDegerlendirmeler(kalanOsb); await saveOsbDegerlendirmeler(kalanOsb);
-
     const kalanCast = castDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
     setCastDegerlendirmeler(kalanCast); await saveCastDegerlendirmeler(kalanCast);
 
@@ -16443,8 +16226,6 @@ const TABS_TUMU = [
             setProfiles2={setProfiles2}
             oogDegerlendirmeler={oogDegerlendirmeler}
             setOogDegerlendirmeler={setOogDegerlendirmeler}
-            osbDegerlendirmeler={osbDegerlendirmeler}
-            setOsbDegerlendirmeler={setOsbDegerlendirmeler}
             castDegerlendirmeler={castDegerlendirmeler}
             setCastDegerlendirmeler={setCastDegerlendirmeler}
           />
@@ -16545,7 +16326,7 @@ const TABS_TUMU = [
             records={records}
             kutuphane={kutuphane}
             sinavTuru={sinavTuru}
-            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, osbDegerlendirmeler, castDegerlendirmeler, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
             onDegerlendirmeAc={() => setDegerlendirmeAcik(true)}
           />
         )}
@@ -16613,7 +16394,7 @@ const TABS_TUMU = [
             setHatirlatmalar={setHatirlatmalar}
             ilerlemeNotlari={ilerlemeNotlari}
             setIlerlemeNotlari={setIlerlemeNotlari}
-            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, osbDegerlendirmeler, castDegerlendirmeler, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
             onSinifGuncelle={async (eskiAd, eskiSinif, eskiNumara, yeniAd, yeniSinif) => {
               const ayniMi = (ad, sinif, no) => pdrAyniOgrenci(eskiAd, eskiSinif, ad, sinif, eskiNumara, no);
 
@@ -16709,10 +16490,6 @@ const TABS_TUMU = [
 
               const yeniOog = oogDegerlendirmeler.map(o => ayniMi(o.studentName, o.className, o.numara) ? { ...o, studentName: yeniAd, className: yeniSinif } : o);
               setOogDegerlendirmeler(yeniOog); await saveOogDegerlendirmeler(yeniOog);
-
-              const yeniOsb = osbDegerlendirmeler.map(o => ayniMi(o.studentName, o.className, o.numara) ? { ...o, studentName: yeniAd, className: yeniSinif } : o);
-              setOsbDegerlendirmeler(yeniOsb); await saveOsbDegerlendirmeler(yeniOsb);
-
               const yeniCast = castDegerlendirmeler.map(o => ayniMi(o.studentName, o.className, o.numara) ? { ...o, studentName: yeniAd, className: yeniSinif } : o);
               setCastDegerlendirmeler(yeniCast); await saveCastDegerlendirmeler(yeniCast);
             }}
@@ -16745,10 +16522,6 @@ const TABS_TUMU = [
 
               const updOog = oogDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
               setOogDegerlendirmeler(updOog); await saveOogDegerlendirmeler(updOog);
-
-              const updOsb = osbDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
-              setOsbDegerlendirmeler(updOsb); await saveOsbDegerlendirmeler(updOsb);
-
               const updCast = castDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
               setCastDegerlendirmeler(updCast); await saveCastDegerlendirmeler(updCast);
 
@@ -16881,7 +16654,7 @@ const TABS_TUMU = [
             profiles={profiles}
             profiles2={profiles2}
             sosyometri={sosyometri}
-            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, osbDegerlendirmeler, castDegerlendirmeler, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
           />
         )}
 
@@ -17371,7 +17144,6 @@ const TABS_TUMU = [
           profiles={profiles} setProfiles={setProfiles}
           profiles2={profiles2} setProfiles2={setProfiles2}
           oogDegerlendirmeler={oogDegerlendirmeler} setOogDegerlendirmeler={setOogDegerlendirmeler}
-          osbDegerlendirmeler={osbDegerlendirmeler} setOsbDegerlendirmeler={setOsbDegerlendirmeler}
           castDegerlendirmeler={castDegerlendirmeler} setCastDegerlendirmeler={setCastDegerlendirmeler}
           riskListesi={riskListesi} setRiskListesi={setRiskListesi}
           denemeler={denemeler} setDenemeler={setDenemeler}
