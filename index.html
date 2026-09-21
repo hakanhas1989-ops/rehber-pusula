@@ -4015,6 +4015,28 @@ function pdrOgrAnahtar(name, className, numara) {
   if (c && no) return n + " || " + c + " || " + no;
   return c ? n + " || " + c : n;
 }
+// AI cagrilarinda ogrenci tam adi yerine kullanilan anonim kimlik.
+// NOT: bu fonksiyon ticari surumde hic tanimli degildi; 5 cagri yeri
+// ReferenceError firlatiyordu (21.09.2026'da kisisel surumden tasindi).
+function pdrAnonimKimlik(adSoyad, sinif, numara) {
+  const parcalar = (adSoyad || "").trim().split(/\s+/).filter(Boolean);
+  const ad = parcalar[0] || "";
+  const soyadBaslari = parcalar.slice(1).map(k => k[0] + ".").join("");
+  const kimlik = [ad, soyadBaslari].filter(Boolean).join(" ");
+  const sinifNo = [sinif, numara ? `No:${numara}` : ""].filter(Boolean).join(", ");
+  return sinifNo ? `${kimlik} (${sinifNo})` : kimlik;
+}
+// Sekme etiketindeki (orn. "📝 Görüşme Notu") emojiyi ayirip kucuk yuvarlak
+// bir rozet icine koymak icin.
+// NOT: bu fonksiyon App() govdesinin ICINE yapistirilmisti; App disindaki
+// OzellikRehberiModal bileseni onu cagirdigi icin o pencere aciliyordu ve
+// "pdrSekmeAyikla is not defined" ile coküyordu. 21.09.2026: ust seviyeye
+// tasindi. Govde saf (yalnizca kendi parametresini kullanir), tasima guvenli.
+function pdrSekmeAyikla(etiket) {
+  const m = (etiket || "").match(/^([\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F\u200D]+)\s*(.*)$/u);
+  return m ? { ikon: m[1], metin: m[2] } : { ikon: null, metin: etiket || "" };
+}
+
 function pdrSozlukOku(sozluk, name, className, numara) {
   if (!sozluk) return undefined;
   if (numara) {
@@ -15613,31 +15635,6 @@ export default function App() {
     setProfAiLoading(false);
   }
 
-  async function handleProfileSave() {
-    if (!profForm.studentName.trim()) return;
-    const p = { id: uid(), date: today(), ...profForm };
-    const updated = [p, ...profiles];
-    setProfiles(updated); await saveProfiles(updated);
-    setProfForm({ studentName: "", className: "", numara: "", notes: "", scores: { ...EMPTY_SCORES }, analysis: "" });
-    setScoresSet(false);
-    setProfSaved(true); setTimeout(() => setProfSaved(false), 2000); setTab("profil_merkez");
-  }
-
-  async function handleProfileDelete(id) { const u = profiles.filter(p => p.id !== id); setProfiles(u); await saveProfiles(u); }
-
-  async function handlePdfYukle(file) {
-    if (!file || file.type !== "application/pdf") { alert("Lütfen PDF dosyası seçin."); return; }
-    setPdfYukleniyor(true);
-    try {
-      const ozet = await pdfMetinCikar(file);
-      const yeni = { id: uid(), baslik: file.name.replace(".pdf", ""), dosyaAdi: file.name, ozet, tarih: today() };
-      const updated = [yeni, ...kutuphane];
-      setKutuphane(updated);
-      await saveKutuphane(updated);
-    } catch(e) { alert("PDF okunamadı: " + e.message); }
-    setPdfYukleniyor(false);
-  }
-
   // Risk Listesi
   // Elle kaydet — AI hiç çağrılmaz, danışmanın yukarıda kendi seçtiği risk
   // türü/öncelik aynen kaydedilir. "AI Analiz Et ve Kaydet" ile aynı listeye
@@ -15834,32 +15831,6 @@ export default function App() {
     setRaporVerisi(raporVerisiOlustur({ ogrenci: ogrenciAdi, ogrenciSinif: profil1.className, profil1, profil2, gorusmeler, denemeler: pdrSozlukOku(denemeler, ogrenciAdi, profil1.className, profil1.numara) || {}, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }));
   }
 
-  async function handleProf2Analiz() {
-    setProf2AiLoading(true);
-    const gorusmeBolum2 = ogrRec2.length > 0
-      ? "GÖRÜŞME NOTLARI:\n" + ogrRec2.map((r,i)=>`Görüşme ${i+1} (${r.date}): ${r.summary}`).join("\n\n")
-      : "";
-    const ogrDen2 = pdrSozlukOku(denemeler, seciliAd, seciliSinif, seciliNumara) || {};
-    const girilen2 = Object.entries(ogrDen2).sort((a,b)=>a[0]-b[0]).map(([no,nets])=>({
-      no:parseInt(no), nets, toplam: aktifDenemeDersleri.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
-    }));
-    const analiz = await getP2Analiz({ ...prof2Form, studentName: seciliAd, className: seciliSinif, numara: seciliNumara, gorusmeler: gorusmeBolum2, denemeGirilen: girilen2, sinavTuru });
-    setProf2Analiz(analiz);
-    setProf2AiLoading(false);
-  }
-
-  async function handleProf2Save() {
-    if (!prof2Form.studentName.trim()) return;
-    const p = { id: uid(), date: today(), ...prof2Form, d2_analiz: prof2Analiz };
-    const updated = [p, ...profiles2];
-    setProfiles2(updated); await saveProfiles2(updated);
-    setProf2Form({ ...EMPTY_PROF2 });
-    setProf2Analiz("");
-    setProf2Saved(true); setTimeout(() => setProf2Saved(false), 2000); setTab("profiller2");
-  }
-
-  async function handleProf2Delete(id) { const u = profiles2.filter(p => p.id !== id); setProfiles2(u); await saveProfiles2(u); }
-
   // Değerlendirmeden Profil 1'e aktar
   // "Gözlem Sorularıyla AI Destekli Değerlendir" akışından dönen puan ve analizi
   // artık DOĞRUDAN AYRI BİR PROFİL OLARAK KAYDETMİYOR — bunun yerine, o an açık
@@ -16029,13 +16000,6 @@ export default function App() {
   // tek üyeli bir grup anlamsız olurdu. "testler" yine bilerek Akademik
   // grubuna katılmadı (ilkokulda sadece deneme/net_haritasi/konu_haritasi
   // gizleniyor, Testler ilkokulda da görünür kalmalı).
-  // Sekme etiketindeki (örn. "📝 Görüşme Notu") emojiyi ayırıp küçük yuvarlak
-// bir rozet içine koymak için — sadece logo/emoji dairenin içinde, yazı
-// dairenin dışında serbest akıyor.
-function pdrSekmeAyikla(etiket) {
-  const m = (etiket || "").match(/^([\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F\u200D]+)\s*(.*)$/u);
-  return m ? { ikon: m[1], metin: m[2] } : { ikon: null, metin: etiket || "" };
-}
 function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
   const { ikon, metin } = pdrSekmeAyikla(etiket);
   return (
@@ -16053,7 +16017,7 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
   );
 }
 
-const TABS_TUMU = [
+  const TABS_TUMU = [
     { key: "ogrenciler", label: "👥 Öğrenciler" },
     { key: "yeni", label: "📝 Görüşme Notu" },
     { key: "profil_merkez", label: "📋 Profil" },
