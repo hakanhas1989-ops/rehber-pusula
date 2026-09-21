@@ -13989,6 +13989,87 @@ function OOGPaneli({ seciliAd, seciliSinif, seciliNumara, oogDegerlendirmeler, s
 // Uluslararası "Childhood Autism Spectrum Test (CAST)" ölçeğinin yapısından
 // (evet/hayır formatı, puanlanan/puanlanmayan madde ayrımı, yüzdesel kesme
 // puanı) esinlenilmiş, özgün maddeler içeren bir tarama paneli.
+// ── Akademik Düzey Profili — basamak matrisi ──────────────────────────────
+// Satır: ders · Sütun: sınıf seti (5-8) · Hücre: o settteki doğruluk yüzdesi
+// (her set 5 soru: %100=5/5, %80=4/5, %60=3/5 eşik, %40=2/5 kalır).
+// Dikey kesik çizgi öğrencinin BULUNDUĞU sınıfı gösterir; grafiğin asıl değeri
+// odur — hangi dersin çizginin solunda kaldığı bakışta görünür.
+function akademikDersKisaAd(ders) {
+  // AKADEMIK_DERSLER'deki kısa adlar emoji ile başlıyor; dar SVG hücresinde
+  // emoji yer kaplamasın diye baştaki harf olmayan karakterler atılır.
+  return String(ders.kisa || ders.label || "").replace(/^[^A-Za-zÇĞİÖŞÜçğıöşü]+/, "").trim();
+}
+
+function AkademikDuzeyProfili({ dersSonuclari, ogrenciSinif, esik }) {
+  const gecmeEsigi = esik || AKADEMIK_ESIK_YUZDE;
+  const sinifDuzeyi = (() => {
+    const m = String(ogrenciSinif || "").match(/(\d+)/);
+    const n = m ? parseInt(m[1], 10) : null;
+    return n >= 5 && n <= 8 ? n : null;
+  })();
+  const dersler = AKADEMIK_DERSLER.filter(d => dersSonuclari[d.key] && !dersSonuclari[d.key].hicUygulanmadi);
+  if (dersler.length === 0) return null;
+
+  const G = 320, solStun = 62, sagStun = 46, ustBaslik = 40, satirY = 30;
+  const gw = G - solStun - sagStun;
+  const hucreG = gw / AKADEMIK_SINIFLAR.length;
+  const yukseklik = ustBaslik + dersler.length * satirY + 6;
+  const X = i => solStun + i * hucreG;
+  const cizgiX = sinifDuzeyi ? X(AKADEMIK_SINIFLAR.indexOf(sinifDuzeyi)) + hucreG / 2 : null;
+
+  return (
+    <svg viewBox={`0 0 ${G} ${yukseklik}`} width="100%" height={yukseklik}
+         style={{ display: "block", overflow: "visible" }} role="img"
+         aria-label="Derslere göre akademik düzey profili">
+      {AKADEMIK_SINIFLAR.map((s, i) => (
+        <text key={s} x={X(i) + hucreG / 2} y={31} textAnchor="middle"
+              fontSize="10" fontWeight="700" fill="#7A7A72">{s}. sınıf</text>
+      ))}
+
+      {cizgiX !== null && (
+        <g>
+          <line x1={cizgiX} y1={34} x2={cizgiX} y2={yukseklik - 2}
+                stroke="#6A4C93" strokeWidth="1.6" strokeDasharray="4 3" />
+          <rect x={cizgiX - 27} y={2} width="54" height="15" rx="7.5" fill="#6A4C93" />
+          <text x={cizgiX} y={13} textAnchor="middle" fontSize="9"
+                fontWeight="800" fill="#fff">buradasın</text>
+        </g>
+      )}
+
+      {dersler.map((ders, r) => {
+        const ds = dersSonuclari[ders.key];
+        const y = ustBaslik + r * satirY;
+        return (
+          <g key={ders.key}>
+            <text x={0} y={y + 15} fontSize="9" fontWeight="700" fill="#1F2421">{akademikDersKisaAd(ders)}</text>
+            {AKADEMIK_SINIFLAR.map((s, i) => {
+              const kp = ds.kademePuanlari[s];
+              const gecti = kp && kp.yuzde >= gecmeEsigi;
+              return (
+                <g key={s}>
+                  <rect x={X(i) + 2} y={y + 2} width={hucreG - 4} height={satirY - 8} rx="4"
+                        fill={!kp ? "#F4F4F2" : gecti ? "#1A8C5B" : "#FDECEA"}
+                        stroke={!kp ? "#DDD" : gecti ? "#1A8C5B" : "#E8A9A1"}
+                        strokeWidth="1" strokeDasharray={!kp ? "3 2" : "0"} />
+                  <text x={X(i) + hucreG / 2} y={y + satirY / 2 + 1} textAnchor="middle"
+                        fontSize={kp ? "9.5" : "9"} fontWeight="800"
+                        fill={!kp ? "#BBB" : gecti ? "#fff" : "#C0392B"}>
+                    {kp ? `%${kp.yuzde}` : "–"}
+                  </text>
+                </g>
+              );
+            })}
+            <text x={G - sagStun + 4} y={y + 15} fontSize="9.5" fontWeight="900"
+                  fill={ds.islevselSeviye === null ? "#C0392B" : "#1A8C5B"}>
+              {ds.islevselSeviye === null ? "5 altı" : `${ds.islevselSeviye}. sınıf`}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 function AkademikTaramaPaneli({ seciliAd, seciliSinif, seciliNumara, akademikTaramalar, setAkademikTaramalar }) {
   const mevcut = akademikTaramalar.find(o => pdrAyniOgrenci(o.studentName, o.className, seciliAd, seciliSinif, o.numara, seciliNumara));
   const [cevaplar, setCevaplar] = useState(mevcut?.cevaplar || {});
@@ -14047,6 +14128,13 @@ function AkademikTaramaPaneli({ seciliAd, seciliSinif, seciliNumara, akademikTar
       {toplamCevaplanan > 0 && (
         <div style={{background:"#fff", border:`1px solid ${BORDER}`, borderRadius:12, padding:14, marginBottom:16}}>
           <div style={{fontSize:12, fontWeight:800, color:ACCENT, marginBottom:10, textAlign:"center"}}>📊 Özet — İşlevsel Düzey</div>
+          <div style={{marginBottom:12}}>
+            <AkademikDuzeyProfili dersSonuclari={sonuc} ogrenciSinif={seciliSinif} />
+            <div style={{fontSize:9, color:MUTED, lineHeight:1.6, marginTop:6, textAlign:"center"}}>
+              Her set 5 soru · %100=5/5 · %80=4/5 · <b>%60=3/5 (geçme eşiği)</b> · %40=2/5<br/>
+              Yeşil: eşiği geçti · Kırmızı: takıldığı set · Kesik: uygulanmadı · Sağdaki: işlevsel düzey
+            </div>
+          </div>
           <div style={{display:"flex", flexDirection:"column", gap:10}}>
             {AKADEMIK_DERSLER.map(ders => {
               const ds = sonuc[ders.key];
