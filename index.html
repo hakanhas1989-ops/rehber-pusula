@@ -2174,6 +2174,12 @@ async function loadOogDegerlendirmeler() {
 async function saveOogDegerlendirmeler(items) {
   try { await window.storage.set("pdr-oog", JSON.stringify(items)); } catch(e) { console.warn(e); }
 }
+async function loadLiseTaramalar() {
+  try { const r = await window.storage.get("pdr-lise"); return r ? JSON.parse(r.value) : []; } catch { return []; }
+}
+async function saveLiseTaramalar(items) {
+  try { await window.storage.set("pdr-lise", JSON.stringify(items)); } catch(e) { console.warn(e); }
+}
 async function loadIlkokulTaramalar() {
   try { const r = await window.storage.get("pdr-ilkokul"); return r ? JSON.parse(r.value) : []; } catch { return []; }
 }
@@ -4243,6 +4249,579 @@ function raporCizgiGrafik(noktalar, { genislik = 460, yukseklik = 130, renk = "#
   );
 }
 
+// ===== LISE TARAMA BASLANGIC (otomatik uretildi) =====
+// ── Lise Akademik Düzey Taraması (9-12. Sınıf) ───────────────────────────
+// Ortaokul aracindan farki: dersler TYT/AYT mantigina gore ORTAK
+// (Edebiyat, Matematik) ve ALAN (Fen, Sosyal) diye ayrilir. Genel
+// islevsel duzey yalnizca ORTAK derslerden hesaplanir; ogrencinin alani
+// disindaki dersten dusuk almasi 'geride' oldugu anlamina gelmez.
+// Maddeler MEB 2018 sonrasi programindaki unite yerlesimine gore
+// siniflara dagitilmistir. Resmi basari olcumu, sinav tahmini ya da
+// tani araci DEGILDIR.
+const LISE_DERSLER = [
+  {
+    key: "edebiyat",
+    label: "📖 Türk Dili ve Edebiyatı",
+    kisa: "📖 Edebiyat",
+    tip: "ortak",
+    aciklama: "TYT'nin ve her AYT alanının ortak bileşeni. Sorular ağırlıklı olarak okuduğunu anlama, çıkarım ve dil bilgisi üzerinedir; ezber bilgiden çok metni işleyebilme ölçülür.",
+  },
+  {
+    key: "matematik",
+    label: "🔢 Matematik",
+    kisa: "🔢 Matematik",
+    tip: "ortak",
+    aciklama: "9-10. sınıf soruları TYT temel matematik düzeyindedir; 11-12. sınıf soruları AYT matematik kazanımlarına dayanır. Sözel alan öğrencisinde 11-12 setinin düşük çıkması beklenen bir sonuçtur, zorlanma göstergesi sayılmamalıdır.",
+  },
+  {
+    key: "fen",
+    label: "🔬 Fen Bilimleri (Fizik-Kimya-Biyoloji)",
+    kisa: "🔬 Fen",
+    tip: "sayisal",
+    aciklama: "Sayısal alanın çekirdeği. 9-10. sınıf soruları tüm öğrencilerin gördüğü ortak müfredattandır; 11-12. sınıf soruları yalnızca sayısal alan öğrencisinin gördüğü konulardandır. Sözel/eşit ağırlık öğrencisinde 11-12 setini uygulama, 'uygulanmadı' olarak bırak.",
+  },
+  {
+    key: "sosyal",
+    label: "🏛️ Sosyal Bilimler (Tarih-Coğrafya-Felsefe)",
+    kisa: "🏛️ Sosyal",
+    tip: "sozel",
+    aciklama: "Sözel alanın çekirdeği. 9-10. sınıf soruları ortak müfredattandır; 11-12. sınıf soruları sözel/eşit ağırlık öğrencisinin yoğun gördüğü konulardandır. Sayısal alan öğrencisinde 11-12 setini 'uygulanmadı' bırakabilirsin.",
+  },
+];
+const LISE_SINIFLAR = [9, 10, 11, 12];
+const LISE_SORU_HAVUZU = {
+  edebiyat: {
+    9: [
+      {"metin": "Bir kentin belleği yalnızca müzelerinde durmaz. Bir kentin belleği, yıkılmayı bekleyen eski bir evin kapı tokmağında, adı değişmiş bir sokağın eski tabelasında, yıllardır aynı yerde duran çınarın gölgesindedir. Kent yenilenirken bunlar tek tek silinir ve kimse fark etmez; çünkü her biri tek başına önemsiz görünür.", "soru": "Bu parçada yazarın asıl anlatmak istediği aşağıdakilerden hangisidir?", "secenekler": ["Kentsel belleğin, önemsiz görünen küçük ayrıntılarda taşındığı", "Eski binaların yıkılmasının ekonomik bir zorunluluk olduğu", "Kentlerin müzelerine daha fazla yatırım yapması gerektiği", "Çınar ağaçlarının kent yaşamındaki yeri"], "dogru": 0, "kazanim": "paragrafta ana düşünce"},
+      {"metin": "Ali sınavdan çıkınca \"Sorular çok ağırdı\" dedi.", "soru": "Bu cümledeki \"ağır\" sözcüğü, aşağıdaki cümlelerin hangisinde aynı anlamda kullanılmıştır?", "secenekler": ["Valizi çok ağır olduğu için taşıyamadı.", "Bu konu benim için oldukça ağır, anlayamıyorum.", "Ağır ağır yürüyerek merdivenleri çıktı.", "Hasta ağır olduğu için yoğun bakıma alındı."], "dogru": 1, "kazanim": "sözcükte anlam / çok anlamlılık"},
+      {"metin": "Sabah erkenden yola çıkan gezginler, akşam olmadan köye ulaştı.", "soru": "Bu cümlenin ögeleri sırasıyla aşağıdakilerden hangisidir?", "secenekler": ["Zarf tümleci – özne – belirtili nesne – yüklem", "Yer tamlayıcısı – özne – zarf tümleci – yüklem", "Özne – belirtisiz nesne – zarf tümleci – yüklem", "Özne – zarf tümleci – yer tamlayıcısı – yüklem"], "dogru": 3, "kazanim": "cümlenin ögeleri"},
+      {"metin": "Odanın penceresi bahçeye bakıyordu. Duvarlar yıllar önce sarıya boyanmış ama artık solmuştu. Köşedeki demir karyolanın üstünde katlanmış gri bir battaniye duruyordu. Pencerenin hemen yanında, ayağı kırık küçük bir masa vardı.", "soru": "Bu parçanın anlatımında ağırlıklı olarak hangi anlatım biçimi kullanılmıştır?", "secenekler": ["Betimleyici anlatım", "Tartışmacı anlatım", "Öyküleyici anlatım", "Açıklayıcı anlatım"], "dogru": 0, "kazanim": "anlatım biçimleri"},
+      {"soru": "Aşağıdaki cümlelerin hangisinde bir yazım yanlışı vardır?", "secenekler": ["Toplantı 15 Mayıs Çarşamba günü yapılacak.", "Yarın ki toplantıya katılamayacağım.", "Herkes bir şey söylemek istiyordu.", "Türkçenin kuralları öğretmenimizce anlatıldı."], "dogru": 1, "kazanim": "yazım kuralları"},
+    ],
+    10: [
+      {"metin": "Bir romanı ilk okuyuşta yazarın kurduğu olayı izleriz; ikinci okuyuşta ise olayın nasıl kurulduğunu fark ederiz. Bu yüzden iyi bir roman ikinci okumada eskimez, tersine genişler. Kötü roman ise ikinci okumayı kaldıramaz; çünkü onu ayakta tutan tek şey, sonunda ne olacağı merakıdır.", "soru": "Bu parçadan aşağıdakilerin hangisi çıkarılamaz?", "secenekler": ["İyi romanın değeri yalnızca olay örgüsünden gelmez.", "Merak ögesi, kötü romanın başlıca dayanağıdır.", "İkinci okuma, okurun dikkatini kurgunun kendisine yöneltir.", "Romanlar, öykülere göre daha katmanlı yapıtlardır."], "dogru": 3, "kazanim": "paragrafta çıkarım / çıkarılamaz"},
+      {"metin": "Yağmur dinince çocuklar sokağa çıktı.", "soru": "Bu cümlenin yapısı ve türü ile ilgili aşağıdakilerden hangisi doğrudur?", "secenekler": ["Basit, kurallı, olumlu, fiil cümlesi", "Sıralı, devrik, olumlu, isim cümlesi", "Birleşik, kurallı, olumlu, fiil cümlesi", "Bağlı, kurallı, olumsuz, fiil cümlesi"], "dogru": 2, "kazanim": "cümle çeşitleri"},
+      {"metin": "Bir ozan sazıyla köy köy dolaşır; sevdiğini, gurbeti ve doğayı hece ölçüsüyle, dörtlüklerle anlatır. Şiirinin son dörtlüğünde adını söyler.", "soru": "Bu parçada özellikleri verilen şiir geleneği aşağıdakilerden hangisidir?", "secenekler": ["Divan edebiyatı", "Anonim halk edebiyatı", "Servet-i Fünun şiiri", "Âşık tarzı halk edebiyatı"], "dogru": 3, "kazanim": "halk edebiyatı nazım geleneği"},
+      {"soru": "Aşağıdaki cümlelerin hangisinde noktalama yanlışı yapılmıştır?", "secenekler": ["Öğretmen; \"Sessiz olun.\" dedi.", "Kitabı okudum, çok beğendim.", "Ali, Ayşe ve Mehmet toplantıya katıldı.", "\"Ne zaman geleceksin?\" diye sordu."], "dogru": 0, "kazanim": "noktalama işaretleri"},
+      {"metin": "Koşarak gelen çocuk, yorulduğunu söylemedi.", "soru": "Bu cümlede kaç fiilimsi vardır?", "secenekler": ["1", "2", "3", "4"], "dogru": 2, "kazanim": "fiilimsiler"},
+    ],
+    11: [
+      {"soru": "Aşağıdaki cümlelerin hangisinde bir anlatım bozukluğu vardır?", "secenekler": ["Toplantıya öğretmenler ve veliler katıldı.", "Bu olaydan ne annesi ne de babası haberdar olmadı.", "Sınavda başarılı olmak için uzun süre çalıştı.", "Kitabı okudukça olaya daha çok ilgi duydu."], "dogru": 1, "kazanim": "anlatım bozukluğu"},
+      {"metin": "Bu dönemin sanatçıları edebiyatı, halkı eğitmenin bir aracı olarak gördüler. Romanlarında yanlış Batılılaşmayı, esaret kurumunu ve görücü usulü evliliği eleştirdiler; olayın akışını kesip okura doğrudan seslenmekten çekinmediler.", "soru": "Bu parçada söz edilen edebî dönem aşağıdakilerden hangisidir?", "secenekler": ["Servet-i Fünun edebiyatı", "Millî Edebiyat", "Tanzimat edebiyatı I. Dönem", "Fecr-i Âti"], "dogru": 2, "kazanim": "Tanzimat edebiyatının genel özellikleri"},
+      {"metin": "\"Ağlarım hatıra geldikçe gülüştüklerimiz\"", "soru": "Bu dizede ağır basan söz sanatı aşağıdakilerden hangisidir?", "secenekler": ["Teşbih", "Tecahül-i arif", "Hüsn-i talil", "Tezat"], "dogru": 3, "kazanim": "söz sanatları"},
+      {"metin": "(I) Bir yazarın üslubu, kullandığı sözcüklerden çok kurduğu cümlelerin ritminde gizlidir. (II) Kısa cümleler metne hız, uzun cümleler ağırlık katar. (III) Okurun bir metni beğenip beğenmemesi çoğunlukla bu ritmi fark etmeden yaşadığı bir histir. (IV) Günümüzde en çok satan kitaplar genellikle çeviri romanlardır. (V) Bu yüzden üslup, tanımlanması güç ama varlığı hemen sezilen bir şeydir.", "soru": "Bu parçada numaralanmış cümlelerden hangisi düşüncenin akışını bozmaktadır?", "secenekler": ["I", "III", "IV", "V"], "dogru": 2, "kazanim": "paragrafta anlam akışı"},
+      {"soru": "Aşağıdakilerden hangisi Servet-i Fünun edebiyatının özelliklerinden biri DEĞİLDİR?", "secenekler": ["Halkın anlayacağı sade bir dille toplumsal sorunların işlenmesi", "\"Sanat sanat içindir\" anlayışının benimsenmesi", "Ağır, sanatlı ve yabancı sözcüklerle yüklü bir dil kullanılması", "Batılı anlamda roman ve öykü tekniğinin başarıyla uygulanması"], "dogru": 0, "kazanim": "Servet-i Fünun edebiyatı"},
+    ],
+    12: [
+      {"metin": "Şiiri ölçüden, kafiyeden ve şairaneliğin her türlüsünden arındırmak istediler. Sıradan insanın gündelik diliyle, mizahı da kullanarak yazdılar; şiire kapıcıyı, işsizi, küçük memuru soktular.", "soru": "Bu parçada tanıtılan şiir akımı ve bir temsilcisi aşağıdakilerin hangisinde birlikte verilmiştir?", "secenekler": ["İkinci Yeni – Cemal Süreya", "Garip (Birinci Yeni) – Orhan Veli Kanık", "Yedi Meşaleciler – Ziya Osman Saba", "Millî Edebiyat – Mehmet Emin Yurdakul"], "dogru": 1, "kazanim": "Cumhuriyet dönemi şiiri"},
+      {"metin": "Deneme yazarı kendi kanısını savunmaz, kanısını yoklar. Makale yazarı ise bir savı kanıtlamak için yola çıkar; okuru ikna edemezse yazısı amacına ulaşmamış sayılır. Bu nedenle deneme, bitmiş bir düşünce değil, düşünmenin kendisidir.", "soru": "Bu parçaya göre deneme ile makale arasındaki temel fark aşağıdakilerden hangisidir?", "secenekler": ["Denemenin kısa, makalenin uzun olması", "Makalede öznel, denemede nesnel anlatımın kullanılması", "Denemede düşüncenin süreç, makalede sonuç olarak sunulması", "Denemenin edebî, makalenin bilimsel bir tür sayılması"], "dogru": 2, "kazanim": "öğretici metin türleri"},
+      {"metin": "Yazar, kahramanın zihninden geçenleri düşüncelerin birbirini tetiklediği düzensiz akışıyla, çoğu yerde noktalama bile kullanmadan aktarır. Okur olayı dışarıdan izlemez; kahramanın kafasının içindedir.", "soru": "Bu parçada sözü edilen anlatım tekniği aşağıdakilerden hangisidir?", "secenekler": ["İç çözümleme", "Geriye dönüş", "Diyalog", "Bilinç akışı"], "dogru": 3, "kazanim": "romanda anlatım teknikleri"},
+      {"metin": "(I) Bir yapıtı değerlendirirken yazarın yaşamına bakmak bazen yol gösterir. (II) Ancak yapıtı yalnızca yazarın yaşamıyla açıklamak, onu bir belgeye indirger. (III) Oysa kurmaca, yaşananın aynısı değil, yaşanabilir olanın tasarımıdır. (IV) Bu nedenle iyi bir eleştirmen, öncelikle metnin kendisinden aldığı kanıtlara dayanır.", "soru": "Bu parçada savunulan görüş aşağıdakilerden hangisidir?", "secenekler": ["Eleştiri, öncelikle metnin kendi verilerine dayanmalıdır.", "Kurmaca yapıtlar gerçek olayları birebir yansıtmalıdır.", "Yazarın yaşamı, yapıtın tek açıklayıcısıdır.", "Eleştirmenler yazarların yaşamını hiç dikkate almamalıdır."], "dogru": 0, "kazanim": "metin yorumlama / eleştiri"},
+      {"metin": "Kapı rüzgârdan açıldı.", "soru": "Bu cümledeki yüklemin çatısı aşağıdakilerin hangisinde doğru verilmiştir?", "secenekler": ["Etken – geçişli", "Edilgen – geçişsiz", "Dönüşlü – geçişli", "İşteş – geçişsiz"], "dogru": 1, "kazanim": "fiillerde çatı"},
+    ],
+  },
+  matematik: {
+    9: [
+      {"metin": "Bir sınıftaki 30 öğrencinin 18'i satranç, 15'i basketbol kulübüne üyedir. 5 öğrenci ise hiçbir kulübe üye değildir.", "soru": "Her iki kulübe birden üye olan kaç öğrenci vardır?", "secenekler": ["3", "5", "7", "8"], "dogru": 3, "kazanim": "kümelerde birleşim-kesişim"},
+      {"metin": "Bir kırtasiyede defterin fiyatı, kalemin fiyatının 3 katıdır. Berk 2 defter ve 4 kalem alıp toplam 150 TL ödemiştir.", "soru": "Bir defterin fiyatı kaç TL'dir?", "secenekler": ["15", "30", "45", "60"], "dogru": 2, "kazanim": "birinci dereceden denklem kurma"},
+      {"soru": "|x - 3| < 5 eşitsizliğini sağlayan kaç tane tam sayı vardır?", "secenekler": ["7", "8", "9", "10"], "dogru": 2, "kazanim": "mutlak değerli eşitsizlik"},
+      {"metin": "Bir üçgenin iki kenarının uzunluğu 7 cm ve 11 cm'dir.", "soru": "Üçüncü kenarın uzunluğu tam sayı ise kaç farklı değer alabilir?", "secenekler": ["13", "14", "17", "18"], "dogru": 0, "kazanim": "üçgen eşitsizliği"},
+      {"metin": "Bir sınıftaki 5 öğrencinin bir haftada okuduğu sayfa sayıları şöyledir:\n40, 50, 60, 70, 130", "soru": "Bu verilerle ilgili aşağıdakilerden hangisi doğrudur?", "secenekler": ["Aritmetik ortalama medyandan küçüktür.", "Aritmetik ortalama ile medyan birbirine eşittir.", "Aritmetik ortalama medyandan 10 fazladır.", "Verilerin medyanı 70'tir."], "dogru": 2, "kazanim": "veri – merkezî eğilim ölçüleri (aykırı değerin ortalamaya etkisi)"},
+    ],
+    10: [
+      {"metin": "f(x) = 2x - 5 fonksiyonu veriliyor.", "soru": "f⁻¹(3) değeri kaçtır?", "secenekler": ["1", "3", "4", "11"], "dogru": 2, "kazanim": "ters fonksiyon"},
+      {"metin": "Bir dikdörtgenin uzun kenarı, kısa kenarından 4 m fazladır ve alanı 96 m²'dir.", "soru": "Bu dikdörtgenin çevresi kaç metredir?", "secenekler": ["24", "32", "36", "40"], "dogru": 3, "kazanim": "ikinci dereceden denklem kurma"},
+      {"soru": "P(x) = x³ - 2x² + ax - 6 polinomu (x - 3) ile kalansız bölünüyorsa a kaçtır?", "secenekler": ["-3", "-1", "1", "3"], "dogru": 1, "kazanim": "polinomlarda bölme / kalan teoremi"},
+      {"metin": "Paralelkenar şeklindeki bir bahçenin taban uzunluğu 18 m, bu tabana ait yüksekliği 12 m'dir. Bahçenin tamamına çim ekilecek ve 1 m² çim 45 TL'dir.", "soru": "Çim maliyeti toplam kaç TL olur?", "secenekler": ["8.100", "9.720", "10.800", "12.960"], "dogru": 1, "kazanim": "dörtgenlerde alan / gerçek yaşam problemi"},
+      {"metin": "\"KALEM\" kelimesinin harfleri, her biri yalnız bir kez kullanılarak 5 harfli dizilişler oluşturulacaktır.", "soru": "Bu dizilişlerin kaç tanesi K harfi ile başlar?", "secenekler": ["12", "24", "60", "120"], "dogru": 1, "kazanim": "permütasyon"},
+    ],
+    11: [
+      {"metin": "sin x = 3/5 olduğu ve x açısının II. bölgede bulunduğu biliniyor.", "soru": "cos x değeri kaçtır?", "secenekler": ["4/5", "-3/4", "3/4", "-4/5"], "dogru": 3, "kazanim": "trigonometrik oranlar ve bölgeler"},
+      {"metin": "Analitik düzlemde A(1, 2) ve B(5, 10) noktaları veriliyor.", "soru": "[AB] doğru parçasının orta dikmesinin denklemi aşağıdakilerden hangisidir?", "secenekler": ["x + 2y - 15 = 0", "2x + y - 12 = 0", "x - 2y + 9 = 0", "2x - y = 0"], "dogru": 0, "kazanim": "analitik geometri / orta dikme"},
+      {"metin": "Merkezi O olan bir çemberde AB kirişinin merkeze uzaklığı 5 cm, çemberin yarıçapı 13 cm'dir.", "soru": "AB kirişinin uzunluğu kaç cm'dir?", "secenekler": ["12", "13", "18", "24"], "dogru": 3, "kazanim": "çemberde kiriş - merkez uzaklığı"},
+      {"metin": "Bir torbada 4 kırmızı, 6 mavi bilye vardır. Torbadan rastgele bir bilye çekiliyor, geri atılmadan ikinci bir bilye daha çekiliyor.", "soru": "Çekilen iki bilyenin de mavi olma olasılığı kaçtır?", "secenekler": ["1/3", "3/10", "9/25", "2/5"], "dogru": 0, "kazanim": "iadesiz seçimde olasılık"},
+      {"metin": "Bir dik koninin taban yarıçapı 6 cm, yüksekliği 8 cm'dir.", "soru": "Bu koninin yanal alanı kaç π cm²'dir?", "secenekler": ["36", "48", "60", "96"], "dogru": 2, "kazanim": "uzay geometrisi – konide yanal alan"},
+    ],
+    12: [
+      {"soru": "lim (x→2) [(x² - 4) / (x - 2)] limitinin değeri kaçtır?", "secenekler": ["0", "2", "4", "Tanımsız"], "dogru": 2, "kazanim": "limit / belirsizlik"},
+      {"metin": "Bir çiftçi, bir kenarı duvar olan dikdörtgen bir alanı 40 m tel çitle çevirecektir; duvar tarafına çit çekilmeyecektir.", "soru": "Çevrilebilecek en büyük alan kaç m²'dir?", "secenekler": ["100", "150", "200", "400"], "dogru": 2, "kazanim": "türevle maksimum-minimum problemi"},
+      {"soru": "∫₀² (3x² + 2) dx integralinin değeri kaçtır?", "secenekler": ["8", "10", "12", "14"], "dogru": 2, "kazanim": "belirli integral"},
+      {"metin": "Bir çalışan ilk ay 4.000 TL maaş almakta ve her ay maaşına 250 TL zam yapılmaktadır.", "soru": "Bu çalışanın 12. aydaki maaşı kaç TL olur?", "secenekler": ["6.500", "6.750", "7.000", "7.250"], "dogru": 1, "kazanim": "aritmetik dizi"},
+      {"soru": "log₂(x - 1) + log₂(x + 1) = 3 denklemini sağlayan x değeri kaçtır?", "secenekler": ["2", "3", "4", "9"], "dogru": 1, "kazanim": "logaritmik denklem"},
+    ],
+  },
+  fen: {
+    9: [
+      {"metin": "Bir otomobil durgun hâlden hareket ederek 10 saniyede 20 m/s hıza ulaşıyor.", "soru": "Otomobilin bu süredeki ortalama ivmesi kaç m/s²'dir?", "secenekler": ["0,5", "2", "10", "200"], "dogru": 1, "kazanim": "Fizik – hareket ve ivme"},
+      {"metin": "X atomunun katman elektron dizilimi 2 – 8 – 7 şeklindedir.", "soru": "X elementi ile ilgili aşağıdakilerden hangisi doğrudur?", "secenekler": ["2. periyot 5A grubundadır.", "Soy gazdır, bileşik oluşturmaz.", "Metaldir ve kolayca elektron verir.", "3. periyot 7A grubundadır."], "dogru": 3, "kazanim": "Kimya – elektron dizilimi ve periyodik sistem"},
+      {"metin": "Bir öğrenci mikroskopta incelediği hücrede hücre duvarı, kloroplast ve büyük bir merkezî koful gözlemlemiştir.", "soru": "Bu hücreyle ilgili en doğru çıkarım aşağıdakilerden hangisidir?", "secenekler": ["Olgun bir bitki hücresidir.", "Bir hayvan hücresidir.", "Bir bakteri hücresidir.", "Bir mantar hücresidir."], "dogru": 0, "kazanim": "Biyoloji – hücre yapısı"},
+      {"metin": "Kütlesi 2 kg olan bir cisim yerden 5 m yükseklikten serbest bırakılıyor. (g = 10 m/s², sürtünme ihmal ediliyor.)", "soru": "Cisim yere çarpmadan hemen önce kinetik enerjisi kaç joule olur?", "secenekler": ["10", "50", "100", "200"], "dogru": 2, "kazanim": "Fizik – enerjinin korunumu"},
+      {"metin": "Bir öğrenci tuzlu su karışımından saf su elde etmek istemektedir.", "soru": "Bu amaçla kullanması gereken ayırma yöntemi aşağıdakilerden hangisidir?", "secenekler": ["Süzme", "Mıknatısla ayırma", "Eleme", "Damıtma"], "dogru": 3, "kazanim": "Kimya – karışımların ayrılması"},
+    ],
+    10: [
+      {"metin": "İçi su dolu bir kabın tabanındaki sıvı basıncı ölçülüyor. Sonra bu suyun tamamı tabanı daha geniş başka bir kaba aktarılıyor ve sudaki yükseklik azalıyor.", "soru": "Yeni kabın tabanındaki sıvı basıncı için ne söylenebilir?", "secenekler": ["Su yüksekliği azaldığı için basınç azalır.", "Taban alanı arttığı için basınç artar.", "Su miktarı değişmediği için basınç değişmez.", "Basınç yalnızca kabın şekline bağlıdır."], "dogru": 0, "kazanim": "Fizik – sıvı basıncı"},
+      {"soru": "44 gram CO₂ gazı kaç moldür? (C: 12, O: 16)", "secenekler": ["0,5", "1", "2", "44"], "dogru": 1, "kazanim": "Kimya – mol kavramı"},
+      {"metin": "Anne ve babanın ikisi de kahverengi gözlü (Aa) olmasına rağmen çocuklarının gözü mavidir. (Kahverengi göz A, mavi göz a alleliyle belirlenmektedir.)", "soru": "Bu ailenin doğacak bir sonraki çocuğunun mavi gözlü olma olasılığı kaçtır?", "secenekler": ["1/2", "1/3", "1/4", "0"], "dogru": 2, "kazanim": "Biyoloji – Mendel genetiği"},
+      {"metin": "2n = 24 kromozomlu bir hücre mayoz bölünme geçirmektedir.", "soru": "Mayoz sonunda oluşan hücre sayısı ve her birindeki kromozom sayısı aşağıdakilerin hangisinde doğru verilmiştir?", "secenekler": ["2 hücre – 24 kromozom", "2 hücre – 12 kromozom", "4 hücre – 24 kromozom", "4 hücre – 12 kromozom"], "dogru": 3, "kazanim": "Biyoloji – mayoz bölünme"},
+      {"metin": "Bir öğrenci, mavi turnusol kâğıdını incelediği çözeltiye batırdığında kâğıdın kırmızıya döndüğünü görmüştür.", "soru": "Bu çözeltiyle ilgili kesinlikle doğru olan aşağıdakilerden hangisidir?", "secenekler": ["pH değeri 7'den büyüktür.", "Nötr bir çözeltidir.", "pH değeri 7'den küçüktür.", "Elektrik akımını hiç iletmez."], "dogru": 2, "kazanim": "Kimya – asit-baz ve pH"},
+    ],
+    11: [
+      {"metin": "Kütlesi 2 kg olan bir top, 5 m/s hızla duvara dik olarak çarpmakta ve aynı doğrultuda 3 m/s hızla geri dönmektedir.", "soru": "Topun momentumundaki değişimin büyüklüğü kaç kg·m/s'dir?", "secenekler": ["4", "6", "10", "16"], "dogru": 3, "kazanim": "Fizik – itme ve momentum değişimi"},
+      {"metin": "50 sarımlı bir bobinin içinden geçen manyetik akı, düzgün bir şekilde 0,4 saniyede 0,8 Wb azalarak sıfırlanmıştır.", "soru": "Bobinde indüklenen elektromotor kuvvetin büyüklüğü kaç volttur?", "secenekler": ["2", "40", "100", "125"], "dogru": 2, "kazanim": "Fizik – elektromanyetik indüklenme"},
+      {"soru": "200 mL hacmindeki 0,5 M NaOH çözeltisinde kaç mol NaOH bulunur?", "secenekler": ["0,1", "0,5", "1", "100"], "dogru": 0, "kazanim": "Kimya – molarite"},
+      {"metin": "Bir kişi, elinin sıcak bir yüzeye değdiğini fark etmeden önce elini geri çekmiştir.", "soru": "Bu tepkinin kontrol merkezi aşağıdakilerden hangisidir?", "secenekler": ["Beyin kabuğu", "Hipofiz bezi", "Beyincik", "Omurilik"], "dogru": 3, "kazanim": "Biyoloji – refleks ve sinir sistemi"},
+      {"metin": "Yemek sonrası kan şekeri yükseldiğinde, kandaki fazla glikoz karaciğerde glikojene dönüştürülerek depolanır.", "soru": "Bu düzenlemeyi sağlayan hormon ve salgılandığı bez aşağıdakilerin hangisinde birlikte doğru verilmiştir?", "secenekler": ["İnsülin – pankreas", "Glukagon – pankreas", "Adrenalin – böbrek üstü bezi", "Tiroksin – tiroit bezi"], "dogru": 0, "kazanim": "Biyoloji – endokrin sistem"},
+    ],
+    12: [
+      {"metin": "Yarıçapı 2 m olan çember üzerinde sabit süratle dönen bir cisim, bir turu 4 saniyede tamamlamaktadır. (π ≈ 3 alınız.)", "soru": "Cismin çizgisel hızı kaç m/s'dir?", "secenekler": ["1,5", "3", "6", "12"], "dogru": 1, "kazanim": "Fizik – düzgün çembersel hareket"},
+      {"metin": "Bir metal yüzeye düşürülen ışığın frekansı artırıldığında koparılan elektronların kinetik enerjisi artmakta; ışığın şiddeti artırıldığında ise kinetik enerji değişmemektedir.", "soru": "Bu gözlem aşağıdakilerden hangisini destekler?", "secenekler": ["Işığın yalnızca dalga özelliği gösterdiğini", "Elektronların çekirdekte bulunduğunu", "Işığın, enerjisi frekansla orantılı taneciklerden (foton) oluştuğunu", "Metalin sıcaklığının belirleyici olduğunu"], "dogru": 2, "kazanim": "Fizik – fotoelektrik olay"},
+      {"soru": "C₄H₁₀ molekülünün kaç farklı yapı izomeri vardır?", "secenekler": ["1", "2", "3", "4"], "dogru": 1, "kazanim": "Kimya – organik kimya / izomeri"},
+      {"metin": "Bir mRNA zincirinde 90 nükleotit bulunmaktadır.", "soru": "Bu mRNA'daki kodonların tamamı amino asit şifreliyorsa sentezlenecek polipeptit zincirinde kaç amino asit bulunur?", "secenekler": ["15", "30", "45", "90"], "dogru": 1, "kazanim": "Biyoloji – genden proteine"},
+      {"metin": "Yapraklı bir bitki, içinde hava bulunan kapalı bir cam fanusa konulup uzun süre tamamen karanlıkta tutulmuştur.", "soru": "Bu sürede fanus içindeki gazlarla ilgili aşağıdakilerden hangisi beklenir?", "secenekler": ["Oksijen artar, karbondioksit azalır.", "Gaz oranları hiç değişmez.", "Her iki gaz da artar.", "Karbondioksit artar, oksijen azalır."], "dogru": 3, "kazanim": "Biyoloji – fotosentez ve solunum"},
+    ],
+  },
+  sosyal: {
+    9: [
+      {"metin": "İslamiyet öncesi Türk devletlerinde hükümdarın yönetme yetkisi \"kut\" anlayışına dayanırdı. Kut Tanrı tarafından verildiği için, hükümdarın bütün erkek çocuklarında bulunduğu kabul edilirdi.", "soru": "Bu anlayışın aşağıdakilerden hangisine yol açtığı söylenebilir?", "secenekler": ["Taht kavgalarının yaşanmasına ve devletlerin parçalanmasına", "Devletlerin uzun ömürlü olmasına", "Hükümdarın yetkilerinin sınırlandırılmasına", "Yerleşik hayata geçişin hızlanmasına"], "dogru": 0, "kazanim": "Tarih – İlk Türk devletlerinde yönetim"},
+      {"metin": "Bir uygarlık, yazıyı ilk kez kullanarak ticari kayıtlarını tutmuş ve bilinen ilk yazılı kanunları hazırlamıştır.", "soru": "Bu bilgilere dayanarak bu uygarlıkla ilgili aşağıdakilerden hangisi söylenebilir?", "secenekler": ["Yönetimde halkın söz sahibi olduğu", "Ekonomik ve hukuki ilişkilerin, kayıt tutmayı gerektirecek kadar geliştiği", "Halkın tamamının okuma yazma bildiği", "Komşu uygarlıklarla hiçbir ilişki kurmadığı"], "dogru": 1, "kazanim": "Tarih – yazının icadı ve toplumsal sonuçları"},
+      {"metin": "Bir yerleşim biriminde yazlar sıcak ve kurak, kışlar ılık ve yağışlı geçmekte; doğal bitki örtüsünü maki oluşturmaktadır.", "soru": "Bu yerleşim birimi Türkiye'nin hangi bölgesinde yer alır?", "secenekler": ["Doğu Anadolu", "Karadeniz", "Akdeniz", "İç Anadolu"], "dogru": 2, "kazanim": "Coğrafya – Türkiye'de iklim ve bitki örtüsü"},
+      {"metin": "Aynı alanı gösteren iki haritadan birinin ölçeği 1/100.000, diğerininki 1/500.000'dir.", "soru": "1/100.000 ölçekli harita ile ilgili aşağıdakilerden hangisi doğrudur?", "secenekler": ["Ayrıntı gösterme gücü daha azdır.", "Kapladığı kâğıt alanı daha küçüktür.", "İzohips (eş yükselti) aralığı daha büyüktür.", "Ayrıntı gösterme gücü daha fazladır."], "dogru": 3, "kazanim": "Coğrafya – harita bilgisi ve ölçek"},
+      {"metin": "Türkiye'nin en doğusu ile en batısı arasındaki yerel saat farkı yaklaşık 76 dakikadır.", "soru": "Bu durumun temel nedeni aşağıdakilerden hangisidir?", "secenekler": ["Türkiye'nin yaklaşık 19° boylam genişliğine sahip olması", "Türkiye'nin Kuzey Yarım Küre'de yer alması", "Türkiye'nin ortalama yükseltisinin fazla olması", "Türkiye'nin üç tarafının denizlerle çevrili olması"], "dogru": 0, "kazanim": "Coğrafya – matematik konum sonuçları"},
+    ],
+    10: [
+      {"metin": "Osmanlı Devleti kuruluş döneminde Balkanlarda fethettiği topraklara Anadolu'dan Türkmen ailelerini yerleştirmiş, bölge halkının inancına ve yerel geleneklerine karışmamıştır.", "soru": "Bu uygulamaların temel amacı aşağıdakilerden hangisidir?", "secenekler": ["Vergi gelirlerini kısa sürede artırmak", "Fethedilen yerleri kalıcı hâle getirmek ve halkın tepkisini azaltmak", "Ordunun asker ihtiyacını tamamen karşılamak", "Denizcilik faaliyetlerini geliştirmek"], "dogru": 1, "kazanim": "Tarih – Osmanlı iskân ve hoşgörü politikası"},
+      {"metin": "İstanbul'un fethiyle birlikte Orta Çağ sona ermiş, İpek Yolu'nun önemli bir bölümünün denetimi Osmanlı'ya geçmiş ve Bizanslı bilginlerin bir kısmı İtalya'ya göç etmiştir.", "soru": "Bu bilgilerden aşağıdakilerin hangisi çıkarılamaz?", "secenekler": ["Fethin Avrupa'da kültürel etkileri olmuştur.", "Osmanlı'nın ticaret yolları üzerindeki etkisi artmıştır.", "Osmanlı bu fetihten sonra Avrupa'da toprak kaybetmiştir.", "Çağ değiştirecek kadar önemli bir olaydır."], "dogru": 2, "kazanim": "Tarih – İstanbul'un fethi ve sonuçları"},
+      {"metin": "Bir ülkenin nüfus piramidinin tabanı oldukça geniş, tepesi ise dardır.", "soru": "Bu ülkeyle ilgili aşağıdakilerden hangisi söylenebilir?", "secenekler": ["Doğum oranı düşük, ortalama yaşam süresi uzundur.", "Sanayileşmesini tamamlamış gelişmiş bir ülkedir.", "Nüfus artış hızı sıfıra çok yakındır.", "Doğum oranı yüksek, genç nüfus oranı fazladır."], "dogru": 3, "kazanim": "Coğrafya – nüfus piramitleri"},
+      {"metin": "Bir düşünür, \"Kesin bilgiye ulaşmak mümkün değildir; ileri sürülen her yargı hakkında karşıt bir yargı da ileri sürülebilir\" demektedir.", "soru": "Bu düşünürün savunduğu yaklaşım aşağıdakilerden hangisidir?", "secenekler": ["Septisizm (şüphecilik)", "Empirizm", "Rasyonalizm", "Dogmatizm"], "dogru": 0, "kazanim": "Felsefe – bilgi felsefesi"},
+      {"metin": "Bir ülkede çalışan nüfusun %65'i hizmet, %30'u sanayi, %5'i tarım sektöründe çalışmaktadır.", "soru": "Bu ülkeyle ilgili aşağıdakilerden hangisine ulaşılabilir?", "secenekler": ["Hiç tarımsal üretim yapılmamaktadır.", "Ekonomik olarak gelişmiş bir ülkedir.", "Nüfusun büyük bölümü kırsal alanda yaşamaktadır.", "Yer altı kaynakları bakımından yoksuldur."], "dogru": 1, "kazanim": "Coğrafya – ekonomik faaliyetlerin dağılımı"},
+    ],
+    11: [
+      {"metin": "III. Selim döneminde kurulan Nizam-ı Cedid ordusu Avrupa tarzında eğitilmiş ve donatılmıştır. Ancak bu ordu, Kabakçı Mustafa İsyanı sonucunda kaldırılmıştır.", "soru": "Bu durum Osmanlı yenileşme hareketleriyle ilgili aşağıdakilerden hangisini gösterir?", "secenekler": ["Yenilikler toplumun tamamı tarafından benimsenmiştir.", "Avrupa ile askerî ilişkiler tamamen kesilmiştir.", "Yenileşme çabaları iç direnişlerle karşılaşmıştır.", "Ekonomik sorunlar bu dönemde tamamen çözülmüştür."], "dogru": 2, "kazanim": "Tarih – Osmanlı'da yenileşme çabaları"},
+      {"metin": "II. Meşrutiyet'in ilanıyla birlikte Osmanlı Devleti'nde siyasi partiler kurulmuş, seçimler yapılmış ve basında farklı görüşler tartışılmaya başlanmıştır.", "soru": "Bu gelişmeler aşağıdakilerden hangisinin göstergesidir?", "secenekler": ["Saltanatın kaldırıldığının", "Ekonomik bağımsızlığın sağlandığının", "Hukuk birliğinin tamamlandığının", "Siyasi katılımın ve çok sesliliğin arttığının"], "dogru": 3, "kazanim": "Tarih – II. Meşrutiyet dönemi"},
+      {"metin": "Türkiye'nin bir bölgesinde fındık, çay ve mısır tarımı yaygın olarak yapılmakta; ayrıca ormancılık önemli bir geçim kaynağı oluşturmaktadır.", "soru": "Bu bölgede tarımın bu şekilde şekillenmesinde en etkili faktör aşağıdakilerden hangisidir?", "secenekler": ["Her mevsim yağışlı ve nemli iklim koşulları", "Yer şekillerinin düz olması", "Toprakların alüvyal olması", "Nüfus yoğunluğunun az olması"], "dogru": 0, "kazanim": "Coğrafya – Türkiye'de tarım ve iklim ilişkisi"},
+      {"metin": "Bir düşünür, \"Bir eylemin ahlaki değeri sonuçlarında değil, ödeve uygun olarak yapılıp yapılmadığındadır\" demektedir.", "soru": "Bu görüş aşağıdaki ahlak anlayışlarından hangisine aittir?", "secenekler": ["Hazcılık (hedonizm)", "Ödev ahlakı (deontoloji)", "Faydacılık (utilitarizm)", "Nihilizm"], "dogru": 1, "kazanim": "Felsefe – ahlak felsefesi"},
+      {"metin": "Bir düşünür, insanların doğa durumunda sürekli çatışma hâlinde olduğunu; bu nedenle güvenliklerini sağlamak için haklarının bir kısmını bir otoriteye devrettiklerini savunur.", "soru": "Bu görüş aşağıdaki kavramlardan hangisiyle açıklanır?", "secenekler": ["Erdemli toplum", "Kuvvetler ayrılığı", "Toplum sözleşmesi", "Sivil itaatsizlik"], "dogru": 2, "kazanim": "Felsefe – siyaset felsefesi"},
+    ],
+    12: [
+      {"metin": "Amasya Genelgesi'nde \"Milletin istiklalini yine milletin azim ve kararı kurtaracaktır\" ifadesi yer almıştır.", "soru": "Bu ifade aşağıdakilerden hangisinin ilk kez ortaya konulduğunu gösterir?", "secenekler": ["Cumhuriyetin ilan edileceğinin", "TBMM'nin açılacağının", "Saltanatın kaldırılacağının", "Ulusal egemenlik ve bağımsızlık düşüncesinin"], "dogru": 3, "kazanim": "İnkılap Tarihi – Amasya Genelgesi"},
+      {"metin": "Medeni Kanun'un kabulüyle kadınlara mirasta ve boşanmada erkeklerle eşit haklar tanınmış, tek eşlilik zorunlu hâle getirilmiştir.", "soru": "Bu inkılap doğrudan hangi Atatürk ilkeleriyle ilişkilendirilebilir?", "secenekler": ["Laiklik ve halkçılık", "Milliyetçilik ve devletçilik", "İnkılapçılık ve devletçilik", "Devletçilik ve milliyetçilik"], "dogru": 0, "kazanim": "İnkılap Tarihi – Atatürk ilkeleri"},
+      {"metin": "II. Dünya Savaşı boyunca Türkiye savaşa girmemek için dengeli bir dış politika izlemiş; savaşın sonuna doğru ise Birleşmiş Milletler'e kurucu üye olabilmek amacıyla Almanya ve Japonya'ya savaş ilan etmiştir.", "soru": "Bu durum Türkiye'nin dış politikasıyla ilgili aşağıdakilerden hangisini gösterir?", "secenekler": ["Askerî bir güç gösterisinde bulunduğunu", "Ulusal çıkarlarını gözeten gerçekçi bir politika izlediğini", "Tarafsızlık ilkesinden hiç ödün vermediğini", "Uluslararası örgütlerden uzak durmayı tercih ettiğini"], "dogru": 1, "kazanim": "İnkılap Tarihi – II. Dünya Savaşı'nda Türkiye"},
+      {"metin": "Bir bölgede aşırı otlatma bitki örtüsünün tahrip olmasına; bu da üst toprağın yağmur ve rüzgârla taşınmasına yol açmıştır.", "soru": "Bu süreç aşağıdakilerden hangisiyle adlandırılır?", "secenekler": ["Asit yağmurları", "Küresel ısınma", "Erozyon ve çölleşme", "Sera etkisi"], "dogru": 2, "kazanim": "Coğrafya – çevre sorunları"},
+      {"metin": "Derse hiç çalışmadığı hâlde sınavdan düşük not alan bir öğrenci, bu durumu \"Öğretmen beni sevmiyor, o yüzden düşük verdi\" diyerek açıklamaktadır.", "soru": "Bu öğrencinin kullandığı savunma mekanizması aşağıdakilerden hangisidir?", "secenekler": ["Bastırma", "Ödünleme (telafi)", "Yüceltme", "Yansıtma"], "dogru": 3, "kazanim": "Psikoloji – savunma mekanizmaları"},
+    ],
+  },
+};
+
+const LISE_UYGULANMADI = "uygulanmadi";
+// Her ders-sınıf setinde 5 madde var; 3/5 geçer, 2/5 geçmez.
+const LISE_ESIK_YUZDE = 60;
+// Sayısal-sözel farkının "eğilim" sayılması için gereken en az puan farkı.
+// Bunun altındaki farklar ölçüm gürültüsünden ayırt edilemez.
+const LISE_ALAN_FARK_ESIGI = 10;
+
+function liseSeviyeBandi(yuzde) {
+  if (yuzde >= 80) return { label: "Güçlü", color: "#1A8C5B", bg: "#E6F5EE" };
+  if (yuzde >= 60) return { label: "Yeterli", color: "#457B9D", bg: "#EEF2FF" };
+  if (yuzde >= 40) return { label: "Sınırda", color: "#B07D1A", bg: "#FDF6E3" };
+  return { label: "Belirgin Zorlanma", color: "#C0392B", bg: "#FDECEA" };
+}
+
+// "11-A", "9/B", "12. sınıf" gibi yazımlardan sınıf düzeyini (9-12) çıkarır.
+function liseSinifDuzeyiCikar(sinifAdi) {
+  const m = String(sinifAdi || "").match(/(\d+)/);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return n >= 9 && n <= 12 ? n : null;
+}
+
+function liseTaramaSonucHesapla(cevaplar, ogrenciSinifAdi) {
+  const dersSonuclari = {};
+  let uygulananToplam = 0;
+
+  LISE_DERSLER.forEach(ders => {
+    const sinifPuanlari = {};
+    let dogruT = 0, uygulananT = 0;
+    LISE_SINIFLAR.forEach(sinif => {
+      const sorular = (LISE_SORU_HAVUZU[ders.key] && LISE_SORU_HAVUZU[ders.key][sinif]) || [];
+      let dogru = 0, uygulanan = 0;
+      sorular.forEach((_, i) => {
+        const v = cevaplar[`${ders.key}_${sinif}_${i}`];
+        if (v === undefined || v === LISE_UYGULANMADI) return;
+        uygulanan++;
+        if (v === true) dogru++;
+      });
+      uygulananToplam += uygulanan;
+      dogruT += dogru; uygulananT += uygulanan;
+      sinifPuanlari[sinif] = uygulanan > 0
+        ? { yuzde: Math.round((dogru / uygulanan) * 100), dogru, uygulanan, toplam: sorular.length }
+        : null;
+    });
+
+    // İşlevsel düzey: 9'dan başlayarak eşiği geçtiği en yüksek ardışık sınıf.
+    // Uygulanmamış set zinciri kırmaz, atlanır.
+    let islevselSinif = null;
+    for (const sinif of LISE_SINIFLAR) {
+      const sp = sinifPuanlari[sinif];
+      if (sp === null) continue;
+      if (sp.yuzde >= LISE_ESIK_YUZDE) islevselSinif = sinif;
+      else break;
+    }
+
+    const hicUygulanmadi = LISE_SINIFLAR.every(s => sinifPuanlari[s] === null);
+    let seviyeMetni;
+    if (hicUygulanmadi) seviyeMetni = "Bu derste henüz soru uygulanmadı.";
+    else if (islevselSinif === null) seviyeMetni = `9. sınıf kazanımlarında %${LISE_ESIK_YUZDE} eşiğine ulaşılamadı; bu derste ortaokul düzeyine inen bir boşluk olabilir.`;
+    else if (islevselSinif === 12) seviyeMetni = "12. sınıf kazanımlarında işlevsel görünüyor.";
+    else seviyeMetni = `İşlevsel düzeyi yaklaşık ${islevselSinif}. sınıf kazanımları civarında.`;
+
+    dersSonuclari[ders.key] = {
+      key: ders.key, ad: ders.label, kisa: ders.kisa, tip: ders.tip,
+      sinifPuanlari, islevselSinif, seviyeMetni, hicUygulanmadi,
+      genelYuzde: uygulananT > 0 ? Math.round((dogruT / uygulananT) * 100) : null,
+    };
+  });
+
+  const hicUygulanmadi = LISE_DERSLER.every(d => dersSonuclari[d.key].hicUygulanmadi);
+  const bulunduguSinif = liseSinifDuzeyiCikar(ogrenciSinifAdi);
+
+  // ── Genel işlevsel düzey: yalnızca ORTAK derslerden (edebiyat + matematik).
+  // Fen/sosyal alan dersleridir; öğrencinin alanı dışındaki dersten düşük
+  // puan alması "geride" olduğu anlamına gelmez, o yüzden genel düzeye
+  // katılmaz.
+  const ortakDersler = LISE_DERSLER.filter(d => d.tip === "ortak")
+    .map(d => dersSonuclari[d.key]).filter(d => !d.hicUygulanmadi);
+  let genelIslevsel = null;
+  if (ortakDersler.length > 0) {
+    const seviyeler = ortakDersler.map(d => d.islevselSinif);
+    genelIslevsel = seviyeler.some(s => s === null) ? null : Math.min(...seviyeler);
+  }
+
+  let genelMetin, fark = null;
+  if (hicUygulanmadi) {
+    genelMetin = "Henüz hiçbir ders seti uygulanmadı.";
+  } else if (ortakDersler.length === 0) {
+    genelMetin = "Genel düzey, ortak derslerden (Edebiyat ve Matematik) hesaplanır; bu derslerde henüz soru uygulanmamış.";
+  } else if (genelIslevsel === null) {
+    genelMetin = `Ortak derslerin en az birinde 9. sınıf kazanımlarında %${LISE_ESIK_YUZDE} eşiğine ulaşılamadı. Lise düzeyinde bu tablo, boşluğun ortaokuldan taşınmış olabileceğini düşündürür; temel okuma-anlama ve işlem becerisi ayrıca kontrol edilmeli.`;
+  } else {
+    genelMetin = `Ortak derslerdeki işlevsel düzeyi yaklaşık ${genelIslevsel}. sınıf kazanımları civarında.`;
+    if (bulunduguSinif !== null) {
+      fark = bulunduguSinif - genelIslevsel;
+      if (fark >= 3) genelMetin += ` Öğrenci ${bulunduguSinif}. sınıfta olduğu hâlde işlevsel düzeyi ${fark} yıl geride. Bu, ders içi destekle kapanması güç bir açıktır; devamsızlık, okul dışı çalışma koşulları ve varsa öğrenme güçlüğü birlikte değerlendirilmeli.`;
+      else if (fark === 2) genelMetin += ` Öğrenci ${bulunduguSinif}. sınıfta; iki yıllık bir gecikme var. Hedefli ve planlı bir telafi çalışması gerekir.`;
+      else if (fark === 1) genelMetin += ` Öğrenci ${bulunduguSinif}. sınıfta; bir yıllık bir gecikme var, kapatılabilir bir açıktır.`;
+      else if (fark === 0) genelMetin += ` Bulunduğu sınıf düzeyiyle uyumlu.`;
+      else genelMetin += ` Bulunduğu sınıf düzeyinin üzerinde performans gösteriyor.`;
+    }
+  }
+
+  // ── Alan eğilimi (sayısal / sözel / eşit ağırlık) ────────────────────────
+  // Bu bir İLGİ ENVANTERİ DEĞİL, performans karşılaştırmasıdır. Alan seçimi
+  // ilgi, değer ve performansın birlikte değerlendirilmesini gerektirir; bu
+  // yüzden aşağıdaki metin her zaman bu uyarıyı taşır.
+  const ort = (a, b) => {
+    const v = [a, b].filter(x => x !== null && x !== undefined);
+    return v.length ? v.reduce((x, y) => x + y, 0) / v.length : null;
+  };
+  const mat = dersSonuclari.matematik.genelYuzde;
+  const fen = dersSonuclari.fen.genelYuzde;
+  const edb = dersSonuclari.edebiyat.genelYuzde;
+  const sos = dersSonuclari.sosyal.genelYuzde;
+  const sayisalG = ort(mat, fen);
+  const sozelG = ort(edb, sos);
+
+  let alanEgilimi = null;
+  if (sayisalG !== null && sozelG !== null) {
+    const d = Math.round(sayisalG - sozelG);
+    let etiket, renk, yorum;
+    if (Math.abs(d) < LISE_ALAN_FARK_ESIGI) {
+      etiket = "Eşit ağırlıklı profil"; renk = "#457B9D";
+      yorum = "Sayısal ve sözel taraf arasında anlamlı bir fark görünmüyor. Bu, eşit ağırlık alanının uygun olabileceğini düşündürür; ancak alan seçimi tek başına performansla değil, öğrencinin ilgisi ve hedeflediği meslekle birlikte kararlaştırılmalıdır.";
+    } else if (d > 0) {
+      etiket = "Sayısal tarafa eğilim"; renk = "#1A8C5B";
+      yorum = `Matematik ve Fen tarafındaki performans, Edebiyat ve Sosyal tarafından ${Math.abs(d)} puan yüksek. Bu bir ilgi ölçümü değil, yalnızca bugünkü performans farkıdır; öğrencinin kendi ilgisi bu yönü desteklemiyorsa fark, çalışma alışkanlığından da kaynaklanıyor olabilir.`;
+    } else {
+      etiket = "Sözel tarafa eğilim"; renk = "#8E44AD";
+      yorum = `Edebiyat ve Sosyal tarafındaki performans, Matematik ve Fen tarafından ${Math.abs(d)} puan yüksek. Bu bir ilgi ölçümü değil, yalnızca bugünkü performans farkıdır; öğrencinin kendi ilgisi bu yönü desteklemiyorsa fark, çalışma alışkanlığından da kaynaklanıyor olabilir.`;
+    }
+    alanEgilimi = { etiket, renk, yorum, sayisal: Math.round(sayisalG), sozel: Math.round(sozelG), fark: d };
+  }
+
+  // ── Güçlü / zayıf dersler ────────────────────────────────────────────────
+  const zayifDersler = [], gucluDersler = [];
+  LISE_DERSLER.forEach(ders => {
+    const ds = dersSonuclari[ders.key];
+    if (ds.hicUygulanmadi || ds.genelYuzde === null) return;
+    if (ds.genelYuzde < LISE_ESIK_YUZDE) zayifDersler.push(ds);
+    else if (ds.genelYuzde >= 80) gucluDersler.push(ds);
+  });
+
+  // ── Sevk ve sonraki adım ────────────────────────────────────────────────
+  const sevkOnerileri = [];
+  if (!hicUygulanmadi) {
+    const edbZayif = zayifDersler.some(z => z.key === "edebiyat");
+    const matZayif = zayifDersler.some(z => z.key === "matematik");
+    if (edbZayif && matZayif) sevkOnerileri.push("Hem Edebiyat hem Matematik tarafında eşik altı performans var. Lisede bu ikisinin birlikte düşük olması çoğu zaman tek bir dersin değil, okuma-anlama ve temel işlem becerisinin sorunudur; sınav kaygısı, devamsızlık ve varsa özgül öğrenme güçlüğü geçmişi birlikte değerlendirilmeli.");
+    else if (edbZayif) sevkOnerileri.push("Edebiyat tarafındaki düşüklük, lisede yalnızca bu dersi değil bütün derslerin soru köklerini anlamayı etkiler. Okuduğunu anlama çalışması, diğer derslerdeki performansı da yukarı çeker.");
+    else if (matZayif) sevkOnerileri.push("Matematikteki düşüklük genelde bir üst konuda değil, alttaki bir basamakta başlar. Hangi sınıf setinde eşiğin altına düştüğüne bak ve telafiyi o basamaktan başlat.");
+    if (fark !== null && fark >= 2) sevkOnerileri.push("İşlevsel düzey ile bulunduğu sınıf arasındaki fark iki yıl veya daha fazla. Aileyle görüşülmeli; devamsızlık kaydı, çalışma koşulları ve varsa daha önce yapılmış RAM değerlendirmesi mutlaka kontrol edilmeli.");
+    if (alanEgilimi && Math.abs(alanEgilimi.fark) >= 20) sevkOnerileri.push("Sayısal ve sözel taraf arasındaki fark belirgin. Alan seçimi henüz yapılmadıysa bu bulguyu bir ilgi envanteri ve öğrencinin kendi hedefiyle birlikte ele al; performans farkı tek başına yönlendirme gerekçesi değildir.");
+    if (gucluDersler.length > 0) sevkOnerileri.push("Güçlü çıkan derslerden en az birini öğrenciyle konuş: lisede motivasyonu yukarı çeken şey çoğu zaman zayıf alanı kapatmak değil, güçlü alanda bir hedef görebilmektir.");
+    sevkOnerileri.push("Bu sonucu yılsonu notları ve varsa deneme sınavı verileriyle birlikte yorumla. Tek oturumluk bir tarama, öğrencinin o günkü durumundan etkilenir ve resmî bir başarı ölçümü değildir.");
+  }
+
+  return {
+    dersSonuclari, genelIslevsel, genelMetin, bulunduguSinif, fark,
+    alanEgilimi, zayifDersler, gucluDersler, sevkOnerileri,
+    uygulananToplam, hicUygulanmadi,
+    toplamMadde: LISE_DERSLER.reduce((t, d) => t + LISE_SINIFLAR.reduce(
+      (x, s) => x + (((LISE_SORU_HAVUZU[d.key] || {})[s] || []).length), 0), 0),
+  };
+}
+
+// ── Lise Akademik Düzey Taraması Paneli (9-12. sınıf) ─────────────────────
+// Ortaokul aracından iki farkı var:
+//  1) Dersler TYT/AYT mantığına göre ORTAK (Edebiyat, Matematik) ve ALAN
+//     (Fen, Sosyal) diye ayrılır; genel düzey yalnızca ortak derslerden
+//     hesaplanır — alanı dışındaki dersten düşük almak "geride" demek değil.
+//  2) Ek çıktı olarak sayısal/sözel eğilim verir. Bu bir ilgi envanteri
+//     değildir ve tek başına alan yönlendirmesi için kullanılamaz.
+function LiseTaramaPaneli({ seciliAd, seciliSinif, seciliNumara, liseTaramalar, setLiseTaramalar }) {
+  const mevcut = liseTaramalar.find(o => pdrAyniOgrenci(o.studentName, o.className, seciliAd, seciliSinif, o.numara, seciliNumara));
+  const [cevaplar, setCevaplar] = useState(mevcut?.cevaplar || {});
+  const [aktifDers, setAktifDers] = useState("edebiyat");
+  const [kaydedildi, setKaydedildi] = useState(false);
+
+  useEffect(() => {
+    const m = liseTaramalar.find(o => pdrAyniOgrenci(o.studentName, o.className, seciliAd, seciliSinif, o.numara, seciliNumara));
+    setCevaplar(m?.cevaplar || {});
+    setAktifDers("edebiyat");
+    setKaydedildi(false);
+  }, [seciliAd, seciliSinif, seciliNumara]);
+
+  function cevapVer(ders, sinif, soruIndex, val) {
+    setCevaplar(c => ({ ...c, [`${ders}_${sinif}_${soruIndex}`]: val }));
+  }
+
+  const sonuc = liseTaramaSonucHesapla(cevaplar, seciliSinif);
+  const dersTanim = LISE_DERSLER.find(d => d.key === aktifDers) || LISE_DERSLER[0];
+  const dersSonuc = sonuc.dersSonuclari[dersTanim.key];
+
+  async function handleKaydet() {
+    if (!seciliAd.trim()) return;
+    const kayit = {
+      id: mevcut?.id || uid(), date: today(),
+      studentName: seciliAd, className: seciliSinif, numara: seciliNumara,
+      cevaplar, sonuc,
+    };
+    const updated = mevcut
+      ? liseTaramalar.map(o => o.id === mevcut.id ? kayit : o)
+      : [kayit, ...liseTaramalar];
+    setLiseTaramalar(updated);
+    await saveLiseTaramalar(updated);
+    setKaydedildi(true);
+    setTimeout(() => setKaydedildi(false), 2500);
+  }
+
+  async function handleSil() {
+    if (!mevcut) return;
+    if (!confirm("Bu öğrencinin kayıtlı lise düzey tarama sonucunu silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")) return;
+    const updated = liseTaramalar.filter(o => o.id !== mevcut.id);
+    setLiseTaramalar(updated);
+    await saveLiseTaramalar(updated);
+    setCevaplar({});
+  }
+
+  if (!seciliAd.trim()) {
+    return <div style={{textAlign:"center", color:MUTED, padding:20, fontSize:13}}>Önce bir öğrenci seçin</div>;
+  }
+
+  return (
+    <div>
+      <div style={{background:"#EEF2FF", border:"1px solid #c7d2fe", borderRadius:10, padding:"10px 12px", marginBottom:14, fontSize:11, color:"#3730A3", lineHeight:1.6}}>
+        🎓 <b>Lise Akademik Düzey Taraması (9-12. Sınıf).</b> Dersler TYT/AYT mantığına göre ayrılmıştır: <b>Edebiyat ve Matematik ortak</b>, <b>Fen ve Sosyal alan dersidir</b>. Genel işlevsel düzey yalnızca <b>ortak derslerden</b> hesaplanır — öğrencinin alanı dışındaki bir dersten düşük alması onun "geride" olduğu anlamına gelmez.
+        <div style={{marginTop:6, background:"#fff", borderRadius:8, padding:"7px 9px", border:"1px solid #dbe1ff"}}>
+          <b>⚠️ Resmî bir başarı ölçümü, sınav tahmini ya da tanı aracı değildir.</b> Tek oturumluk bir tarama, öğrencinin o günkü durumundan etkilenir. Sonucu karne notları ve varsa deneme verileriyle birlikte yorumla.
+        </div>
+        <div style={{marginTop:6}}>
+          <b>Nasıl uygulanır:</b> Öğrencinin bulunduğu sınıf setinden başla. O sette %{LISE_ESIK_YUZDE} eşiğini geçemezse bir alt sınıf setini uygula; geçerse bir üstünü deneyebilirsin. <b>Öğrencinin alanı dışındaki setleri boş bırak</b> (örn. sözel alan öğrencisine 11-12. sınıf Fen setini uygulama).
+        </div>
+      </div>
+
+      {sonuc.uygulananToplam > 0 && (
+        <div style={{background:"#fff", border:`1px solid ${BORDER}`, borderRadius:12, padding:14, marginBottom:16}}>
+          <div style={{textAlign:"center", marginBottom:12}}>
+            <div style={{fontSize:26, fontWeight:900, color: sonuc.genelIslevsel ? "#1A8C5B" : "#C0392B"}}>
+              {sonuc.genelIslevsel ? `${sonuc.genelIslevsel}. Sınıf Düzeyi` : "9. Sınıf Altı"}
+            </div>
+            <div style={{fontSize:11, fontWeight:700, color:MUTED}}>Genel İşlevsel Düzey (ortak dersler)</div>
+            <div style={{fontSize:9.5, color:MUTED, marginTop:3}}>
+              {sonuc.uygulananToplam}/{sonuc.toplamMadde} madde uygulandı
+              {sonuc.bulunduguSinif !== null && ` · öğrenci ${sonuc.bulunduguSinif}. sınıfta`}
+            </div>
+          </div>
+
+          <div style={{display:"flex", flexDirection:"column", gap:9, marginBottom:12}}>
+            {LISE_DERSLER.map(d => {
+              const ds = sonuc.dersSonuclari[d.key];
+              return (
+                <div key={d.key}>
+                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", fontSize:11, marginBottom:3, gap:6}}>
+                    <span style={{fontWeight:700, color:TEXT}}>
+                      {d.kisa}
+                      <span style={{fontSize:8.5, fontWeight:800, marginLeft:5, padding:"1px 5px", borderRadius:6,
+                        background: d.tip === "ortak" ? "#EEF2FF" : "#F7F5F0",
+                        color: d.tip === "ortak" ? "#3730A3" : MUTED}}>
+                        {d.tip === "ortak" ? "ORTAK" : d.tip === "sayisal" ? "SAYISAL" : "SÖZEL"}
+                      </span>
+                    </span>
+                    <span style={{fontWeight:800, color: ds.genelYuzde === null ? MUTED : liseSeviyeBandi(ds.genelYuzde).color, whiteSpace:"nowrap"}}>
+                      {ds.genelYuzde === null ? "uygulanmadı" : `%${ds.genelYuzde} · ${ds.islevselSinif ? ds.islevselSinif + ". sınıf" : "9 altı"}`}
+                    </span>
+                  </div>
+                  <div style={{display:"flex", gap:3}}>
+                    {LISE_SINIFLAR.map(s => {
+                      const sp = ds.sinifPuanlari[s];
+                      return (
+                        <div key={s} style={{flex:1, textAlign:"center"}}>
+                          <div style={{height:7, borderRadius:5, background: sp === null ? "#EFEFEF" : liseSeviyeBandi(sp.yuzde).color}} />
+                          <div style={{fontSize:8, color:MUTED, marginTop:2}}>{s}{sp !== null && `: %${sp.yuzde}`}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {sonuc.alanEgilimi && (
+            <div style={{background:`${sonuc.alanEgilimi.renk}10`, border:`1px solid ${sonuc.alanEgilimi.renk}44`, borderRadius:10, padding:"10px 12px", marginBottom:10}}>
+              <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", flexWrap:"wrap", gap:6, marginBottom:5}}>
+                <span style={{fontSize:12.5, fontWeight:900, color:sonuc.alanEgilimi.renk}}>🧭 {sonuc.alanEgilimi.etiket}</span>
+                <span style={{fontSize:10, color:MUTED}}>
+                  Sayısal %{sonuc.alanEgilimi.sayisal} · Sözel %{sonuc.alanEgilimi.sozel}
+                </span>
+              </div>
+              <div style={{fontSize:10.5, color:TEXT, lineHeight:1.65}}>{sonuc.alanEgilimi.yorum}</div>
+            </div>
+          )}
+
+          <div style={{background:"#FAFAF8", borderRadius:8, padding:"10px 12px", fontSize:11, color:TEXT, lineHeight:1.65}}>
+            <div style={{fontWeight:800, marginBottom:4, color:ACCENT}}>📝 Değerlendirme</div>
+            <div style={{marginBottom: (sonuc.zayifDersler.length || sonuc.gucluDersler.length) ? 8 : 0}}>{sonuc.genelMetin}</div>
+
+            {sonuc.gucluDersler.length > 0 && (
+              <div style={{marginBottom:8}}>
+                <b>Güçlü dersler:</b> {sonuc.gucluDersler.map(g => `${g.kisa} (%${g.genelYuzde})`).join(", ")}
+              </div>
+            )}
+
+            {sonuc.zayifDersler.map((z, i) => (
+              <div key={i} style={{marginBottom:8, paddingLeft:8, borderLeft:"3px solid #C0392B"}}>
+                <div style={{fontWeight:700}}>{z.kisa} — %{z.genelYuzde}</div>
+                <div style={{color:MUTED}}>{z.seviyeMetni}</div>
+              </div>
+            ))}
+
+            {sonuc.sevkOnerileri.length > 0 && (
+              <div style={{marginTop:8, paddingTop:8, borderTop:`1px dashed ${BORDER}`}}>
+                <div style={{fontWeight:800, marginBottom:4, color:PURPLE}}>➡️ Sonraki Adım</div>
+                {sonuc.sevkOnerileri.map((s, i) => <div key={i} style={{marginBottom:4}}>• {s}</div>)}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div style={{display:"flex", flexWrap:"wrap", gap:6, marginBottom:10}}>
+        {LISE_DERSLER.map(d => (
+          <button key={d.key} onClick={() => setAktifDers(d.key)} style={{
+            flex:"1 1 44%", minWidth:120, padding:"9px 6px", borderRadius:10, fontSize:11.5, fontWeight:800, cursor:"pointer",
+            border:`2px solid ${aktifDers===d.key ? ACCENT : BORDER}`,
+            background: aktifDers===d.key ? `${ACCENT}14` : CARD,
+            color: aktifDers===d.key ? ACCENT : MUTED,
+          }}>{d.kisa}</button>
+        ))}
+      </div>
+
+      <div style={{fontSize:10.5, color:MUTED, background:"#F7F5F0", border:`1px solid ${BORDER}`, borderRadius:8, padding:"8px 10px", marginBottom:12, lineHeight:1.6}}>
+        ℹ️ <b>{dersTanim.label}:</b> {dersTanim.aciklama}
+      </div>
+
+      {LISE_SINIFLAR.map(sinif => {
+        const sorular = (LISE_SORU_HAVUZU[dersTanim.key] && LISE_SORU_HAVUZU[dersTanim.key][sinif]) || [];
+        const sp = dersSonuc.sinifPuanlari[sinif];
+        return (
+          <div key={sinif} style={{marginBottom:18}}>
+            <div style={{display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:8, paddingBottom:5, borderBottom:`2px solid ${BORDER}`}}>
+              <span style={{fontSize:13, fontWeight:900, color:ACCENT}}>{sinif}. Sınıf Düzeyi</span>
+              {sp && (
+                <span style={{fontSize:9.5, fontWeight:800, padding:"2px 8px", borderRadius:10,
+                  background:liseSeviyeBandi(sp.yuzde).bg, color:liseSeviyeBandi(sp.yuzde).color}}>
+                  {sp.dogru}/{sp.uygulanan} · %{sp.yuzde}
+                </span>
+              )}
+            </div>
+
+            {sorular.map((m, i) => {
+              const key = `${dersTanim.key}_${sinif}_${i}`;
+              const secili = cevaplar[key];
+              return (
+                <div key={key} style={{marginBottom:12, background:CARD, border:`1px solid ${BORDER}`, borderRadius:10, padding:"10px 12px"}}>
+                  {m.metin && (
+                    <div style={{fontSize:11.5, color:TEXT, background:"#F7F5F0", border:`1px solid ${BORDER}`, borderRadius:8, padding:"7px 9px", marginBottom:6, whiteSpace:"pre-wrap", lineHeight:1.65}}>{m.metin}</div>
+                  )}
+                  <div style={{fontSize:12, color:TEXT, marginBottom:6, fontWeight:600}}>{i + 1}. {m.soru}</div>
+                  <div style={{fontSize:11, color:MUTED, marginBottom:8, lineHeight:1.7}}>
+                    {m.secenekler.map((sec, si) => (
+                      <div key={si}>{String.fromCharCode(65 + si)}) {sec}</div>
+                    ))}
+                  </div>
+                  <div style={{display:"flex", gap:5}}>
+                    <button onClick={() => cevapVer(dersTanim.key, sinif, i, true)} style={{
+                      flex:1, padding:"7px 4px", borderRadius:8, fontSize:11, fontWeight:700, cursor:"pointer",
+                      border:`1.5px solid ${secili===true?"#1A8C5B":BORDER}`,
+                      background:secili===true?"#E6F5EE":"#fff", color:secili===true?"#1A8C5B":MUTED,
+                    }}>✓ Doğru</button>
+                    <button onClick={() => cevapVer(dersTanim.key, sinif, i, false)} style={{
+                      flex:1, padding:"7px 4px", borderRadius:8, fontSize:11, fontWeight:700, cursor:"pointer",
+                      border:`1.5px solid ${secili===false?"#C0392B":BORDER}`,
+                      background:secili===false?"#FDECEA":"#fff", color:secili===false?"#C0392B":MUTED,
+                    }}>✗ Yanlış</button>
+                    <button onClick={() => cevapVer(dersTanim.key, sinif, i, LISE_UYGULANMADI)} style={{
+                      flex:0.9, padding:"7px 4px", borderRadius:8, fontSize:9, fontWeight:700, cursor:"pointer",
+                      border:`1.5px dashed ${secili===LISE_UYGULANMADI?"#457B9D":BORDER}`,
+                      background:secili===LISE_UYGULANMADI?"#EEF2FF":"#fff",
+                      color:secili===LISE_UYGULANMADI?"#457B9D":MUTED,
+                    }}>🔍 Uygulanmadı</button>
+                  </div>
+                  <div style={{fontSize:9, color:MUTED, marginTop:5}}>
+                    Doğru cevap: {String.fromCharCode(65 + m.dogru)}) {m.secenekler[m.dogru]}
+                    {m.kazanim && <span style={{marginLeft:6, fontStyle:"italic"}}>· {m.kazanim}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+
+      <button onClick={handleKaydet} style={{
+        width:"100%", padding:13, background:ACCENT, color:"#fff", border:"none", borderRadius:12,
+        fontSize:15, fontWeight:800, cursor:"pointer", marginTop:4
+      }}>{kaydedildi ? "✓ Kaydedildi" : "💾 Kaydet"}</button>
+      {mevcut && (
+        <button onClick={handleSil} style={{
+          width:"100%", padding:10, background:"transparent", color:"#C0392B", border:"1px solid #F5B7B1", borderRadius:12,
+          fontSize:12, fontWeight:700, cursor:"pointer", marginTop:8
+        }}>🗑️ Kaydı Sil</button>
+      )}
+    </div>
+  );
+}
+// ===== LISE TARAMA BITIS =====
+
 // ===== ILKOKUL TARAMA BASLANGIC (otomatik uretildi) =====
 // ── İlkokul Akademik Düzey Taraması (1-4. Sınıf) ──────────────────────────
 // Ortaokul aracindan farki: her sinifin KENDINE OZGU alanlari var.
@@ -5006,8 +5585,8 @@ function akademikTaramaSonucHesapla(cevaplar) {
   return dersSonuclari;
 }
 
-function raporVerisiOlustur({ ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler, mudahalePlan, riskListesi, sinavTuru, testKayitlari, kaynastirma, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }) {
-  return { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: denemeler || {}, mudahalePlan: mudahalePlan || {}, riskListesi: riskListesi || [], sinavTuru, testKayitlari: testKayitlari || [], kaynastirma: kaynastirma || [], oogDegerlendirmeler: oogDegerlendirmeler || [], castDegerlendirmeler: castDegerlendirmeler || [], akademikTaramalar: akademikTaramalar || [], ilkokulTaramalar: ilkokulTaramalar || [], kademe: kademe || null, hazirlikNotlari: hazirlikNotlari || {}, ilerlemeNotlari: ilerlemeNotlari || {}, sevkler: sevkler || [], ogrenciler: ogrenciler || [], tarih: new Date().toLocaleDateString("tr-TR") };
+function raporVerisiOlustur({ ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler, mudahalePlan, riskListesi, sinavTuru, testKayitlari, kaynastirma, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, liseTaramalar, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }) {
+  return { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: denemeler || {}, mudahalePlan: mudahalePlan || {}, riskListesi: riskListesi || [], sinavTuru, testKayitlari: testKayitlari || [], kaynastirma: kaynastirma || [], oogDegerlendirmeler: oogDegerlendirmeler || [], castDegerlendirmeler: castDegerlendirmeler || [], akademikTaramalar: akademikTaramalar || [], ilkokulTaramalar: ilkokulTaramalar || [], liseTaramalar: liseTaramalar || [], kademe: kademe || null, hazirlikNotlari: hazirlikNotlari || {}, ilerlemeNotlari: ilerlemeNotlari || {}, sevkler: sevkler || [], ogrenciler: ogrenciler || [], tarih: new Date().toLocaleDateString("tr-TR") };
 }
 
 // ── PDF Rapor Bileşeni ────────────────────────────────────────────────────────
@@ -5280,6 +5859,63 @@ function RaporModal({ rapor, onKapat }) {
                     {(s.zayifAlanlar||[]).map((z, i) => (
                       <div key={i} style={{ fontSize:10, color:"#555", lineHeight:1.5, marginTop:5 }}>
                         <b>{z.sinif}. sınıf — {z.ad} (%{z.yuzde}):</b> {z.egitselOneri}
+                      </div>
+                    ))}
+                    {(s.sevkOnerileri||[]).length > 0 && (
+                      <div style={{ marginTop:8, paddingTop:6, borderTop:"1px dashed #ddd" }}>
+                        <div style={{ fontSize:9.5, fontWeight:800, color:PURPLE, marginBottom:3 }}>Sonraki Adım</div>
+                        {s.sevkOnerileri.map((o, i) => <div key={i} style={{ fontSize:9.5, color:"#555", lineHeight:1.5 }}>• {o}</div>)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Lise Düzey Taraması (9-12. sınıf) — resmî başarı ölçümü ya da
+                sınav tahmini değildir; yalnızca doldurulmuşsa gösterilir. */}
+            {(() => {
+              // Kademe duyarliligi: once OGRENCININ KENDI sinif duzeyine bakilir
+              // (11-A -> lise, 8-A -> ortaokul); sinif adindan cikarilamazsa
+              // uygulamada secili kademeye dusulur. Ikisi de bilinmiyorsa kayit
+              // neyse o gosterilir — veri gizlenmez.
+              const liseKademe = sinifKademesi(ogrenciSinif) || rapor.kademe || null;
+              if (liseKademe && liseKademe !== "lise") return null;
+              const liseKayit = (rapor.liseTaramalar||[]).find(o => pdrAyniOgrenci(o.studentName, o.className, ogrenci, ogrenciSinif));
+              if (!liseKayit || !liseKayit.cevaplar || Object.keys(liseKayit.cevaplar).length === 0) return null;
+              const s = liseKayit.sonuc || liseTaramaSonucHesapla(liseKayit.cevaplar, ogrenciSinif);
+              if (!s || s.hicUygulanmadi) return null;
+              return (
+                <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
+                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />Lise Düzey Taraması (9-12. Sınıf)</div>
+                  <div style={S.bolumIcerik2}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8, flexWrap:"wrap" }}>
+                      <span style={{ fontSize:14, fontWeight:900, color: s.genelIslevsel ? "#1A8C5B" : "#C0392B" }}>
+                        {s.genelIslevsel ? `İşlevsel düzey: ${s.genelIslevsel}. sınıf` : "İşlevsel düzey: 9. sınıf altı"}
+                      </span>
+                      {s.alanEgilimi && (
+                        <span style={{ fontSize:9.5, fontWeight:800, padding:"2px 7px", borderRadius:9, background:`${s.alanEgilimi.renk}18`, color:s.alanEgilimi.renk }}>
+                          {s.alanEgilimi.etiket}
+                        </span>
+                      )}
+                      <span style={{ fontSize:9, color:"#888" }}>({liseKayit.date})</span>
+                    </div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:8 }}>
+                      {LISE_DERSLER.filter(d => s.dersSonuclari[d.key] && s.dersSonuclari[d.key].genelYuzde !== null).map(d => (
+                        <span key={d.key} style={{ fontSize:9.5, background:"#f5f5f5", borderRadius:4, padding:"2px 7px" }}>
+                          {d.kisa}: %{s.dersSonuclari[d.key].genelYuzde}
+                        </span>
+                      ))}
+                    </div>
+                    <div style={{ fontSize:10, color:"#555", lineHeight:1.5 }}>{s.genelMetin}</div>
+                    {s.alanEgilimi && (
+                      <div style={{ fontSize:10, color:"#555", lineHeight:1.5, marginTop:5 }}>
+                        <b>Alan eğilimi:</b> {s.alanEgilimi.yorum}
+                      </div>
+                    )}
+                    {(s.zayifDersler||[]).map((z, i) => (
+                      <div key={i} style={{ fontSize:10, color:"#555", lineHeight:1.5, marginTop:5 }}>
+                        <b>{z.kisa} (%{z.genelYuzde}):</b> {z.seviyeMetni}
                       </div>
                     ))}
                     {(s.sevkOnerileri||[]).length > 0 && (
@@ -6663,7 +7299,7 @@ function D2Paneli({ seciliAd, seciliSinif, seciliNumara, profiles2, setProfiles2
   );
 }
 
-function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayitlari, setTestKayitlari, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, castDegerlendirmeler, setCastDegerlendirmeler, akademikTaramalar, setAkademikTaramalar, ilkokulTaramalar, setIlkokulTaramalar, kademe }) {
+function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayitlari, setTestKayitlari, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, castDegerlendirmeler, setCastDegerlendirmeler, akademikTaramalar, setAkademikTaramalar, ilkokulTaramalar, setIlkokulTaramalar, liseTaramalar, setLiseTaramalar, kademe }) {
   const [seciliAd, setSeciliAd] = useState(aktifOgrenci?.name || "");
   const [ogrenciArama, setOgrenciArama] = useState("");
   const [kategori, setKategori] = useState(null); // "objektif" | "projektif" | null
@@ -6849,6 +7485,11 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                     <button onClick={()=>setKategori("d2panel")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid ${PURPLE}`, background:"#F3F0FF", color:PURPLE, fontSize:13, fontWeight:800, cursor:"pointer" }}>🎯 D2 Dikkat Testi</button>
                     <button onClick={()=>setKategori("oog")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #8B5A00`, background:"#FFF4E5", color:"#8B5A00", fontSize:13, fontWeight:800, cursor:"pointer" }}>🧩 ÖÖG Ön-Tarama</button>
                   </div>
+                  {kademe === "lise" && (
+                    <div style={{ display:"flex", gap:8, marginTop:8 }}>
+                      <button onClick={()=>setKategori("lise")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #4338CA`, background:"#EEF2FF", color:"#3730A3", fontSize:13, fontWeight:800, cursor:"pointer" }}>🎓 Lise Düzey Taraması (9-12. Sınıf)</button>
+                    </div>
+                  )}
                   {kademe === "ilkokul" && (
                     <div style={{ display:"flex", gap:8, marginTop:8 }}>
                       <button onClick={()=>setKategori("ilkokul")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #C2410C`, background:"#FEF3E2", color:"#C2410C", fontSize:13, fontWeight:800, cursor:"pointer" }}>🎒 İlkokul Düzey Taraması (1-4. Sınıf)</button>
@@ -6872,6 +7513,11 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                 <div>
                   <button onClick={()=>setKategori(null)} style={{ background:"none", border:"none", color:MUTED, fontSize:12, cursor:"pointer", marginBottom:8, padding:0 }}>← Kategoriyi değiştir</button>
                   <OOGPaneli seciliAd={seciliAd} seciliSinif={seciliSinif} seciliNumara={seciliNumara} oogDegerlendirmeler={oogDegerlendirmeler} setOogDegerlendirmeler={setOogDegerlendirmeler} />
+                </div>
+              ) : kategori === "lise" ? (
+                <div>
+                  <button onClick={()=>setKategori(null)} style={{ background:"none", border:"none", color:MUTED, fontSize:12, cursor:"pointer", marginBottom:8, padding:0 }}>← Kategoriyi değiştir</button>
+                  <LiseTaramaPaneli seciliAd={seciliAd} seciliSinif={seciliSinif} seciliNumara={seciliNumara} liseTaramalar={liseTaramalar} setLiseTaramalar={setLiseTaramalar} />
                 </div>
               ) : kategori === "ilkokul" ? (
                 <div>
@@ -10501,7 +11147,7 @@ function KullaniciOnaylari() {
   );
 }
 
-function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profiles, setProfiles, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, castDegerlendirmeler, setCastDegerlendirmeler, akademikTaramalar, setAkademikTaramalar, ilkokulTaramalar, setIlkokulTaramalar, riskListesi, setRiskListesi, denemeler, setDenemeler, sevkler, setSevkler, mudahalePlan, setMudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, profNotlari, setProfNotlari, kutuphane, setKutuphane, yillar, setYillar, sinifListesi, setSinifListesi, aktifYil, setAktifYil, kademe, setKademe, sinavTuru, setSinavTuru, testKayitlari, setTestKayitlari, hatirlatmalar, setHatirlatmalar, netHaritasiKayitlari, setNetHaritasiKayitlari, konuHaritasiVerisi, setKonuHaritasiVerisi, sosyometri, setSosyometri, onTumOzellikler }) {
+function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profiles, setProfiles, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, castDegerlendirmeler, setCastDegerlendirmeler, akademikTaramalar, setAkademikTaramalar, ilkokulTaramalar, setIlkokulTaramalar, liseTaramalar, setLiseTaramalar, riskListesi, setRiskListesi, denemeler, setDenemeler, sevkler, setSevkler, mudahalePlan, setMudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, profNotlari, setProfNotlari, kutuphane, setKutuphane, yillar, setYillar, sinifListesi, setSinifListesi, aktifYil, setAktifYil, kademe, setKademe, sinavTuru, setSinavTuru, testKayitlari, setTestKayitlari, hatirlatmalar, setHatirlatmalar, netHaritasiKayitlari, setNetHaritasiKayitlari, konuHaritasiVerisi, setKonuHaritasiVerisi, sosyometri, setSosyometri, onTumOzellikler }) {
   const [key, setKey] = useState(() => pdrGetApiKey());
   const [gosterKey, setGosterKey] = useState(false);
   const [kaydedildi, setKaydedildi] = useState(false);
@@ -10567,6 +11213,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
     const yeniCast = diziGuncelle(castDegerlendirmeler);
     const yeniAkademik = diziGuncelle(akademikTaramalar);
     const yeniIlkokul = diziGuncelle(ilkokulTaramalar);
+    const yeniLise = diziGuncelle(liseTaramalar);
     const yeniNetHaritasi = diziGuncelle(netHaritasiKayitlari);
     const yeniHatirlatmalar = diziGuncelle(hatirlatmalar);
 
@@ -10636,6 +11283,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
     setCastDegerlendirmeler(yeniCast); await saveCastDegerlendirmeler(yeniCast);
     setAkademikTaramalar(yeniAkademik); await saveAkademikTaramalar(yeniAkademik);
     setIlkokulTaramalar(yeniIlkokul); await saveIlkokulTaramalar(yeniIlkokul);
+    setLiseTaramalar(yeniLise); await saveLiseTaramalar(yeniLise);
     setNetHaritasiKayitlari(yeniNetHaritasi); await saveNetHaritasi(yeniNetHaritasi);
     setHatirlatmalar(yeniHatirlatmalar); await saveHatirlatmalar(yeniHatirlatmalar);
     setDenemeler(yeniDenemeler); await saveDenemeler(yeniDenemeler);
@@ -10693,6 +11341,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
         ["castDegerlendirmeler", setCastDegerlendirmeler, saveCastDegerlendirmeler],
         ["akademikTaramalar", setAkademikTaramalar, saveAkademikTaramalar],
         ["ilkokulTaramalar", setIlkokulTaramalar, saveIlkokulTaramalar],
+        ["liseTaramalar", setLiseTaramalar, saveLiseTaramalar],
         ["riskListesi", setRiskListesi, saveRiskListesi],
         ["denemeler", setDenemeler, saveDenemeler],
         ["sevkler", setSevkler, saveSevkler],
@@ -10735,7 +11384,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
       const yedek = {
         yedekTarihi: new Date().toISOString(),
         aktifYil, yillar, sinifListesi,
-        ogrenciler, records, profiles, profiles2, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar,
+        ogrenciler, records, profiles, profiles2, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, liseTaramalar,
         riskListesi, denemeler, sevkler, mudahalePlan,
         hazirlikNotlari, ilerlemeNotlari, profNotlari, kutuphane,
         testKayitlari, hatirlatmalar, netHaritasiKayitlari, konuHaritasiVerisi,
@@ -15481,6 +16130,7 @@ export default function App() {
   const [castDegerlendirmeler, setCastDegerlendirmeler] = useState([]);
   const [akademikTaramalar, setAkademikTaramalar] = useState([]);
   const [ilkokulTaramalar, setIlkokulTaramalar] = useState([]);
+  const [liseTaramalar, setLiseTaramalar] = useState([]);
   const [tab, setTab] = useState("ogrenci");
   // Sekme çubuğunu tıklanan sekme etrafında ortalamak için kullanılıyor —
   // kullanıcı artık elle kaydırmak zorunda kalmadan, seçtiği sekme her zaman
@@ -15641,6 +16291,7 @@ export default function App() {
     loadCastDegerlendirmeler().then(setCastDegerlendirmeler);
     loadAkademikTaramalar().then(setAkademikTaramalar);
     loadIlkokulTaramalar().then(setIlkokulTaramalar);
+    loadLiseTaramalar().then(setLiseTaramalar);
     loadKutuphane().then(setKutuphane);
     loadRiskListesi().then(setRiskListesi);
     loadDenemeler().then(setDenemeler);
@@ -15684,6 +16335,7 @@ export default function App() {
       "pdr-cast": () => loadCastDegerlendirmeler().then(setCastDegerlendirmeler),
       "pdr-akademik": () => loadAkademikTaramalar().then(setAkademikTaramalar),
       "pdr-ilkokul": () => loadIlkokulTaramalar().then(setIlkokulTaramalar),
+      "pdr-lise": () => loadLiseTaramalar().then(setLiseTaramalar),
       "pdr-kutuphane": () => loadKutuphane().then(setKutuphane),
       "pdr-risk": () => loadRiskListesi().then(setRiskListesi),
       "pdr-denemeler": () => loadDenemeler().then(setDenemeler),
@@ -16008,6 +16660,8 @@ export default function App() {
     setAkademikTaramalar(updAkademik); await saveAkademikTaramalar(updAkademik);
     const updIlkokul = ilkokulTaramalar.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
     setIlkokulTaramalar(updIlkokul); await saveIlkokulTaramalar(updIlkokul);
+    const updLise = liseTaramalar.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
+    setLiseTaramalar(updLise); await saveLiseTaramalar(updLise);
     const updCast = castDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
     setCastDegerlendirmeler(updCast); await saveCastDegerlendirmeler(updCast);
 
@@ -16378,6 +17032,8 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
     setAkademikTaramalar(kalanAkademik); await saveAkademikTaramalar(kalanAkademik);
     const kalanIlkokul = ilkokulTaramalar.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
     setIlkokulTaramalar(kalanIlkokul); await saveIlkokulTaramalar(kalanIlkokul);
+    const kalanLise = liseTaramalar.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
+    setLiseTaramalar(kalanLise); await saveLiseTaramalar(kalanLise);
     const kalanCast = castDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
     setCastDegerlendirmeler(kalanCast); await saveCastDegerlendirmeler(kalanCast);
 
@@ -16858,6 +17514,8 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
             setAkademikTaramalar={setAkademikTaramalar}
             ilkokulTaramalar={ilkokulTaramalar}
             setIlkokulTaramalar={setIlkokulTaramalar}
+            liseTaramalar={liseTaramalar}
+            setLiseTaramalar={setLiseTaramalar}
             kademe={kademe}
             castDegerlendirmeler={castDegerlendirmeler}
             setCastDegerlendirmeler={setCastDegerlendirmeler}
@@ -16959,7 +17617,7 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
             records={records}
             kutuphane={kutuphane}
             sinavTuru={sinavTuru}
-            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, liseTaramalar, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
             onDegerlendirmeAc={() => setDegerlendirmeAcik(true)}
           />
         )}
@@ -17027,7 +17685,7 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
             setHatirlatmalar={setHatirlatmalar}
             ilerlemeNotlari={ilerlemeNotlari}
             setIlerlemeNotlari={setIlerlemeNotlari}
-            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, liseTaramalar, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
             onSinifGuncelle={async (eskiAd, eskiSinif, eskiNumara, yeniAd, yeniSinif) => {
               const ayniMi = (ad, sinif, no) => pdrAyniOgrenci(eskiAd, eskiSinif, ad, sinif, eskiNumara, no);
 
@@ -17129,6 +17787,9 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
               const yeniIlkokul = ilkokulTaramalar.map(o => ayniMi(o.studentName, o.className, o.numara) ? { ...o, studentName: yeniAd, className: yeniSinif } : o);
               setIlkokulTaramalar(yeniIlkokul); await saveIlkokulTaramalar(yeniIlkokul);
 
+              const yeniLise = liseTaramalar.map(o => ayniMi(o.studentName, o.className, o.numara) ? { ...o, studentName: yeniAd, className: yeniSinif } : o);
+              setLiseTaramalar(yeniLise); await saveLiseTaramalar(yeniLise);
+
               const yeniCast = castDegerlendirmeler.map(o => ayniMi(o.studentName, o.className, o.numara) ? { ...o, studentName: yeniAd, className: yeniSinif } : o);
               setCastDegerlendirmeler(yeniCast); await saveCastDegerlendirmeler(yeniCast);
             }}
@@ -17165,6 +17826,9 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
 
               const updIlkokul = ilkokulTaramalar.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
               setIlkokulTaramalar(updIlkokul); await saveIlkokulTaramalar(updIlkokul);
+
+              const updLise = liseTaramalar.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
+              setLiseTaramalar(updLise); await saveLiseTaramalar(updLise);
 
               const updCast = castDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
               setCastDegerlendirmeler(updCast); await saveCastDegerlendirmeler(updCast);
@@ -17298,7 +17962,7 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
             profiles={profiles}
             profiles2={profiles2}
             sosyometri={sosyometri}
-            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, liseTaramalar, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
           />
         )}
 
@@ -17791,6 +18455,7 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
           castDegerlendirmeler={castDegerlendirmeler} setCastDegerlendirmeler={setCastDegerlendirmeler}
           akademikTaramalar={akademikTaramalar} setAkademikTaramalar={setAkademikTaramalar}
           ilkokulTaramalar={ilkokulTaramalar} setIlkokulTaramalar={setIlkokulTaramalar}
+          liseTaramalar={liseTaramalar} setLiseTaramalar={setLiseTaramalar}
           riskListesi={riskListesi} setRiskListesi={setRiskListesi}
           denemeler={denemeler} setDenemeler={setDenemeler}
           sevkler={sevkler} setSevkler={setSevkler}
