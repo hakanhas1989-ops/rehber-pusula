@@ -2082,17 +2082,6 @@ async function getProfileAnalysis(studentName, className, numara, scores, notes,
 // ── Storage (450 öğrenci için optimize) ──────────────────────────────────────
 
 // Kapasite kontrolü
-async function storageKapasite() {
-  try {
-    let total = 0;
-    for (let i=0; i<localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith("rpusula__")) total += (localStorage.getItem(k)||"").length * 2;
-    }
-    const mb = (total/1024/1024).toFixed(2);
-    return { used: parseFloat(mb), limit: 5, yuzde: Math.round((parseFloat(mb)/5)*100) };
-  } catch { return { used:0, limit:5, yuzde:0 }; }
-}
 
 // Büyük array'leri chunk'lara böl (görüşme notları için)
 async function saveChunked(baseKey, items) {
@@ -2184,6 +2173,12 @@ async function loadOogDegerlendirmeler() {
 }
 async function saveOogDegerlendirmeler(items) {
   try { await window.storage.set("pdr-oog", JSON.stringify(items)); } catch(e) { console.warn(e); }
+}
+async function loadIlkokulTaramalar() {
+  try { const r = await window.storage.get("pdr-ilkokul"); return r ? JSON.parse(r.value) : []; } catch { return []; }
+}
+async function saveIlkokulTaramalar(items) {
+  try { await window.storage.set("pdr-ilkokul", JSON.stringify(items)); } catch(e) { console.warn(e); }
 }
 async function loadAkademikTaramalar() {
   try { const r = await window.storage.get("pdr-akademik"); return r ? JSON.parse(r.value) : []; } catch { return []; }
@@ -3394,29 +3389,6 @@ function degTamamlanma(cevaplar) {
   return Math.round((done / total) * 100);
 }
 
-async function pdfMetinCikar(file) {
-  // PDF'i base64'e çevir
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const base64 = e.target.result.split(",")[1];
-      try {
-        const apiKey = pdrGetApiKey();
-        if (!apiKey) throw new Error("API_KEY_MISSING");
-        const res = await fetch(PDR_AI_WORKER_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "pdf_analiz", apiKey, data: { pdfBase64: base64 } }),
-        });
-        const data = await res.json();
-        resolve(data.content?.[0]?.text || "Metin çıkarılamadı.");
-      } catch(err) { reject(err); }
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
 async function getDegerlendirmeAnalysis(studentName, className, numara, cevaplar, notlar) {
   const boyutMetni = DEG_SORULAR.map(b => {
     const bC = cevaplar[b.key] || {};
@@ -4271,6 +4243,561 @@ function raporCizgiGrafik(noktalar, { genislik = 460, yukseklik = 130, renk = "#
   );
 }
 
+// ===== ILKOKUL TARAMA BASLANGIC (otomatik uretildi) =====
+// ── İlkokul Akademik Düzey Taraması (1-4. Sınıf) ──────────────────────────
+// Ortaokul aracindan farki: her sinifin KENDINE OZGU alanlari var.
+// 1. sinifta hicbir madde cocugun okumasini gerektirmez; danisman okur,
+// sikklar gorseldir. Resmi basari olcumu ya da tani araci DEGILDIR.
+const ILKOKUL_TARAMA = {
+  siniflar: [
+    {
+      sinif: 1,
+      ad: "1. Sınıf",
+      renk: "#C2410C",
+      aciklama: "Okuma-yazmaya geçiş dönemi. Ölçülen şey akademik bilgi değil, okuma-yazmanın ve matematiğin ALTYAPISIDIR: ses farkındalığı, sayı hissi, kavram ve görsel dikkat.",
+      uygulamaNotu: "Bu sınıf düzeyinde öğrencinin okuma becerisi henüz oturmamıştır. Hiçbir maddeyi öğrenciye OKUTMA — soruyu ve şıkları sen sesli oku, görsel olan maddelerde ekranı çocuğa çevir ve parmağıyla göstermesine izin ver.",
+      alanlar: [
+        {
+          key: "ses_harf",
+          ad: "Ses ve Harf Farkındalığı",
+          olctugu: "Fonolojik farkındalık — kelimeyi seslere/hecelere ayırabilme. Okuma güçlüğünün en erken ve en güçlü göstergesidir.",
+          yonerge: "Tamamen sözel uygula, ekranı gösterme. Kelimeyi net söyle, gerekirse bir kez tekrar et. Çocuk sesi söyleyerek de cevaplayabilir.",
+          egitselOneri: "Ses çalışmalarını oyunlaştır: aynı sesle başlayan kelime bulma, hece alkışlama, kafiyeli tekerlemeler. Sınıf öğretmeniyle paylaş — bu alandaki düşüklük ilerideki okuma güçlüğünün habercisi olabilir, erken destek en etkili dönemdir.",
+          maddeler: [
+            {"soru": "\"Kedi\" kelimesi hangi sesle başlıyor?", "secenekler": ["k sesi", "d sesi", "e sesi", "i sesi"], "dogru": 0},
+            {"soru": "Aşağıdaki kelimelerden hangisi \"top\" kelimesiyle AYNI sesle başlar?", "secenekler": ["araba", "tavşan", "kalem", "elma"], "dogru": 1},
+            {"soru": "Şimdi heceleri tek tek söyleyeceğim, sen birleştir: \"ka\" — \"pı\". Hangi kelime oldu?", "secenekler": ["kapı", "kaba", "kapak", "kadı"], "dogru": 0},
+            {"soru": "\"Ba-lık\" kelimesi kaç hecedir? (İstersen alkışlayarak say)", "secenekler": ["1", "2", "3", "4"], "dogru": 1},
+            {"soru": "\"Araba\" kelimesi hangi sesle biter?", "secenekler": ["r sesi", "b sesi", "e sesi", "a sesi"], "dogru": 3},
+          ],
+        },
+        {
+          key: "sayi_hissi",
+          ad: "Sayı Hissi ve Sayma",
+          olctugu: "20'ye kadar sayma, nesne-sayı eşleme, büyük-küçük karşılaştırma ve 10 içinde basit toplama",
+          yonerge: "Görsel maddelerde ekranı çocuğa çevir, nesneleri parmağıyla sayabilir. Acele ettirme; parmakla saymasına izin ver.",
+          egitselOneri: "Somut nesneyle (fasulye, kapak, blok) sayma çalışmaları yaptır. Sayıyı yazmadan önce miktarı hissetmesi gerekir. Günlük hayatta saydır: merdiven basamağı, tabaktaki zeytin. Parmakla sayma bu yaşta normaldir, engelleme.",
+          maddeler: [
+            {"soru": "Ekranda kaç elma var? (Ekranı çocuğa göster)", "izgara": ["🍎", "🍎", "🍎"], "sutun": 3, "secenekler": ["2", "3", "4", "5"], "dogru": 1},
+            {"soru": "Bu sayılardan hangisi EN BÜYÜK? (Sesli oku)", "secenekler": ["3", "7", "5", "2"], "dogru": 1},
+            {"soru": "Sayarken 5, 6, 7 dedik. Sonra hangi sayı gelir?", "secenekler": ["4", "8", "9", "10"], "dogru": 1},
+            {"soru": "Kavanozda iki balık vardı, bir balık daha geldi. Şimdi kaç balık var? (Ekranı göster)", "izgara": ["🐟", "🐟", "➕", "🐟"], "sutun": 4, "secenekler": ["2", "4", "3", "5"], "dogru": 2},
+            {"soru": "10'dan geriye sayıyoruz: 10, 9, 8... Sonra hangi sayı gelir?", "secenekler": ["6", "5", "9", "7"], "dogru": 3},
+          ],
+        },
+        {
+          key: "kavram_dikkat",
+          ad: "Kavram ve Görsel Dikkat",
+          olctugu: "Temel kavramlar (büyük-küçük, önce-sonra), görsel ayırt etme ve basit örüntü — sınıf içi yönergeleri anlamanın altyapısı",
+          yonerge: "Görsel maddelerde ekranı çocuğa çevir. Soruyu sen oku; çocuk göstererek de cevaplayabilir.",
+          egitselOneri: "Kavramları hareketle öğret: masanın altına gir, kutunun üstüne koy, önce-sonra sıralı günlük rutin kartları. Görsel dikkat için eşleştirme ve farkı bulma oyunları; ekran yerine kağıt-kalem tercih et.",
+          maddeler: [
+            {"soru": "Bu şekillerden hangisi diğerlerinden FARKLI? (Ekranı göster)", "izgara": ["🔴", "🔴", "🔵", "🔴"], "sutun": 4, "secenekler": ["🔴", "🟡", "🔵", "🟢"], "dogru": 2},
+            {"soru": "Sıradaki şekil hangisi olmalı? (Ekranı göster)", "izgara": ["🔺", "⬛", "🔺", "⬛", "❓"], "sutun": 5, "secenekler": ["⬛", "⭐", "🔵", "🔺"], "dogru": 3},
+            {"soru": "Hangisi daha BÜYÜKTÜR?", "secenekler": ["Fil", "Karınca", "İkisi de aynıdır", "Bilinemez"], "dogru": 0},
+            {"soru": "Bir günde ÖNCE hangisi olur?", "secenekler": ["Akşam yemeği", "Sabah kahvaltısı", "Gece uykusu", "Öğle yemeği"], "dogru": 1},
+            {"soru": "Bunlardan hangisi KARE şeklindedir? (Ekranı göster)", "secenekler": ["🔴", "🔺", "⬛", "⭐"], "dogru": 2},
+          ],
+        },
+      ],
+    },
+    {
+      sinif: 2,
+      ad: "2. Sınıf",
+      renk: "#B45309",
+      aciklama: "Okumanın akıcılaştığı, işlemlerin 100'e çıktığı yıl. Artık okuduğunu/dinlediğini anlama ve iki basamaklı işlem beklenir.",
+      uygulamaNotu: "Metinli maddelerde önce SEN oku. İstersen ardından öğrenciden de okumasını iste — okuma akıcılığını böylece gözlemleyebilirsin, ama puanlamayı anlama üzerinden yap.",
+      alanlar: [
+        {
+          key: "okuma_anlama2",
+          ad: "Okuma ve Dinlediğini Anlama",
+          olctugu: "Kısa bir metinde geçen bilgiyi bulma, kelime anlamı ve olay sıralaması",
+          yonerge: "Metni öğrenciye sesli oku. Sorular metne dönmeden cevaplanmalı; gerekirse metni bir kez daha oku ve bunu not al.",
+          egitselOneri: "Her gün kısa metin okuyup üç soru sorma alışkanlığı kur (kim, nerede, sonra ne oldu). Okuma akıcılığı düşükse sesli okuma tekrarları (aynı metni 3 kez) etkili olur. Anlamadan okuma varsa hız değil anlama üzerine çalış.",
+          maddeler: [
+            {"metin": "Ali bahçede topunu kaybetti. Annesi ona yardım etti. Topu çiçeklerin arkasında buldular.", "soru": "Ali'nin topu bulmasına kim yardım etti?", "secenekler": ["Annesi", "Babası", "Öğretmeni", "Arkadaşı"], "dogru": 0},
+            {"metin": "Ali bahçede topunu kaybetti. Annesi ona yardım etti. Topu çiçeklerin arkasında buldular.", "soru": "Top nerede bulundu?", "secenekler": ["Ağacın üstünde", "Çiçeklerin arkasında", "Evin içinde", "Okulda"], "dogru": 1},
+            {"soru": "\"Sevinçli\" ne demektir?", "secenekler": ["Üzgün", "Yorgun", "Mutlu", "Hasta"], "dogru": 2},
+            {"metin": "Ayşe sabah okula gitti, derste öğretmeni dinledi, sonra eve döndü.", "soru": "Ayşe EN SON ne yaptı?", "secenekler": ["Okula gitti", "Öğretmeni dinledi", "Uyudu", "Eve döndü"], "dogru": 3},
+            {"soru": "\"Okul\" kelimesi kaç harflidir?", "secenekler": ["3", "4", "5", "6"], "dogru": 1},
+          ],
+        },
+        {
+          key: "islem2",
+          ad: "Toplama, Çıkarma ve Ritmik Sayma",
+          olctugu: "100 içinde toplama-çıkarma, onluk-birlik kavramı, ritmik sayma ve tek adımlı problem",
+          yonerge: "Kâğıt kalem kullanmasına izin ver ve hangi maddede ihtiyaç duyduğunu not al. Parmakla saymaya devam ediyorsa bunu da kaydet.",
+          egitselOneri: "Onluk-birlik kavramını somut materyalle (onluk çubuk, kibrit demeti) çalıştır. İşlemi ezberletmeden önce anlamını kurdur. Ritmik sayma için 2'şer, 5'er, 10'ar sayma oyunları.",
+          maddeler: [
+            {"soru": "24 + 13 kaç eder?", "secenekler": ["35", "37", "36", "27"], "dogru": 1},
+            {"soru": "45 - 20 kaç eder?", "secenekler": ["20", "35", "25", "15"], "dogru": 2},
+            {"soru": "2'şer sayıyoruz: 2, 4, 6, 8... Sonra hangi sayı gelir?", "secenekler": ["9", "12", "16", "10"], "dogru": 3},
+            {"soru": "36 sayısında kaç ONLUK vardır?", "secenekler": ["3", "6", "36", "9"], "dogru": 0},
+            {"soru": "Bir sepette 15 elma vardı, 6 tanesi yendi. Kaç elma kaldı?", "secenekler": ["8", "11", "21", "9"], "dogru": 3},
+          ],
+        },
+        {
+          key: "olcu_zaman",
+          ad: "Zaman, Para ve Ölçü Kavramları",
+          olctugu: "Saat, takvim, para ve uzunluk gibi günlük hayat ölçülerini kavrama",
+          yonerge: "Günlük hayatla bağ kurarak sor. Gerçek para/saat varsa göstererek sorabilirsin.",
+          egitselOneri: "Evde ve sınıfta gerçek materyalle çalış: gerçek saat, gerçek para, metre. Haftalık takvim panosu tut. Alışveriş oyunu para kavramı için en etkili yöntemdir.",
+          maddeler: [
+            {"soru": "Saat tam 3'ü gösteriyorsa, kısa kol (akrep) hangi sayıyı gösterir?", "secenekler": ["12", "3", "6", "9"], "dogru": 1},
+            {"soru": "Bir kalem 5 TL. İki kalem kaç TL eder?", "secenekler": ["7", "15", "10", "5"], "dogru": 2},
+            {"soru": "Bir haftada kaç gün vardır?", "secenekler": ["5", "6", "7", "30"], "dogru": 2},
+            {"soru": "Hangisi daha UZUNDUR?", "secenekler": ["1 santimetre", "İkisi eşittir", "1 metre", "Bilinemez"], "dogru": 2},
+            {"soru": "Bir yılda kaç ay vardır?", "secenekler": ["7", "10", "365", "12"], "dogru": 3},
+          ],
+        },
+      ],
+    },
+    {
+      sinif: 3,
+      ad: "3. Sınıf",
+      renk: "#0E7490",
+      aciklama: "Okumanın araç hâline geldiği yıl: artık okuyarak öğrenir. Dört işlem tamamlanır, kesir kavramı girer.",
+      uygulamaNotu: "Bu düzeyden itibaren metni öğrencinin kendisinin okumasını isteyebilirsin. Okuyamıyorsa sen oku ama bunu MUTLAKA not al — okuyamama ile anlayamama farklı sorunlardır ve farklı destek gerektirir.",
+      alanlar: [
+        {
+          key: "okuma_anlama3",
+          ad: "Okuduğunu Anlama",
+          olctugu: "Bilgi metninden doğrudan bilgi bulma, ana fikir, kelime anlamı ve temel yazım-noktalama",
+          yonerge: "Metni önce öğrencinin okumasını iste. Okuma akıcılığını (takılma, hece hece okuma, satır atlama) gözlemleyip not al, sonra soruları sor.",
+          egitselOneri: "Okuduğunu anlama için metni bölümlere ayırıp her bölümden sonra 'ne anladın' sordur. Altını çizme ve kenara not alma alışkanlığı kazandır. Okuma akıcılığı düşükse önce onu çalış; anlama kendiliğinden yükselir.",
+          maddeler: [
+            {"metin": "Arılar çiçeklerden topladıkları nektardan bal yapar. Bir kovanda binlerce arı yaşar. Kraliçe arı yumurta bırakır, işçi arılar ise bal toplar.", "soru": "Bu metne göre işçi arıların görevi nedir?", "secenekler": ["Bal toplamak", "Yumurta bırakmak", "Kovanı yıkmak", "Kraliçeyi seçmek"], "dogru": 0},
+            {"metin": "Arılar çiçeklerden topladıkları nektardan bal yapar. Bir kovanda binlerce arı yaşar. Kraliçe arı yumurta bırakır, işçi arılar ise bal toplar.", "soru": "Kovanda yumurtayı kim bırakır?", "secenekler": ["İşçi arı", "Kraliçe arı", "Çiçek", "Erkek arı"], "dogru": 1},
+            {"metin": "Arılar çiçeklerden topladıkları nektardan bal yapar. Bir kovanda binlerce arı yaşar. Kraliçe arı yumurta bırakır, işçi arılar ise bal toplar.", "soru": "Bu metin ne hakkındadır?", "secenekler": ["Çiçek çeşitleri", "Hava durumu", "Arıların yaşamı ve görevleri", "Okul hayatı"], "dogru": 2},
+            {"soru": "\"Hızlı\" kelimesinin eş anlamlısı hangisidir?", "secenekler": ["Yavaş", "Ağır", "Sessiz", "Çabuk"], "dogru": 3},
+            {"soru": "Soru cümlesinin sonuna hangi işaret konur?", "secenekler": ["Soru işareti (?)", "Nokta (.)", "Virgül (,)", "Ünlem (!)"], "dogru": 0},
+          ],
+        },
+        {
+          key: "islem3",
+          ad: "Dört İşlem ve Problem",
+          olctugu: "Üç basamaklı toplama, çarpım tablosu, bölme ve tek adımlı problem çözme",
+          yonerge: "Kâğıt kalem serbest. Çarpım tablosunu ezberden mi yoksa sayarak mı bulduğunu gözlemle ve not al.",
+          egitselOneri: "Çarpım tablosu eksikse günde 5 dakikalık kısa tekrarlar yap (uzun seanslardan etkilidir). Problemde 'ne biliyoruz / ne soruyor' şemasını alışkanlık hâline getir. Bölmeyi paylaştırma ile somutlaştır.",
+          maddeler: [
+            {"soru": "125 + 236 kaç eder?", "secenekler": ["351", "361", "461", "341"], "dogru": 1},
+            {"soru": "7 × 8 kaç eder?", "secenekler": ["48", "54", "56", "64"], "dogru": 2},
+            {"soru": "36 ÷ 4 kaç eder?", "secenekler": ["6", "8", "9", "12"], "dogru": 2},
+            {"soru": "Bir sınıftaki 24 öğrenci 3'er kişilik gruplara ayrılıyor. Kaç grup olur?", "secenekler": ["6", "8", "9", "12"], "dogru": 1},
+            {"soru": "Bir pastanın YARISI hangi kesirle gösterilir?", "secenekler": ["1/4", "1/3", "1/2", "2/2"], "dogru": 2},
+          ],
+        },
+        {
+          key: "hayat_fen3",
+          ad: "Hayat Bilgisi ve Fen Temel Kavramları",
+          olctugu: "Canlıların ihtiyaçları, duyu organları, mevsimler, trafik güvenliği ve geri dönüşüm gibi temel kazanımlar",
+          yonerge: "Günlük hayattan örnek vererek sor. Cevabı bilmiyorsa kısa bir ipucu verip yeniden deneyebilir; bunu not al.",
+          egitselOneri: "Bu alandaki eksiklik genellikle bilgi değil, DENEYİM eksikliğidir. Gezi, gözlem, belgesel ve deney; kitaptan ezberlemekten çok daha kalıcıdır. Aileye günlük hayatta konuşarak öğretmeyi öner.",
+          maddeler: [
+            {"soru": "Canlıların yaşaması için aşağıdakilerden hangisi MUTLAKA gereklidir?", "secenekler": ["Su", "Televizyon", "Oyuncak", "Telefon"], "dogru": 0},
+            {"soru": "Aşağıdakilerden hangisi bir DUYU ORGANIDIR?", "secenekler": ["Kalp", "Göz", "Mide", "Akciğer"], "dogru": 1},
+            {"soru": "Bir yılda kaç mevsim vardır?", "secenekler": ["2", "3", "4", "12"], "dogru": 2},
+            {"soru": "Trafikte yayalar karşıya nereden geçmelidir?", "secenekler": ["Arabaların arasından", "Koşarak yoldan", "Yaya geçidinden", "Orta refüjden"], "dogru": 2},
+            {"soru": "Aşağıdakilerden hangisi GERİ DÖNÜŞTÜRÜLEBİLİR?", "secenekler": ["Yemek artığı", "Toprak", "Yağmur suyu", "Kâğıt"], "dogru": 3},
+          ],
+        },
+      ],
+    },
+    {
+      sinif: 4,
+      ad: "4. Sınıf",
+      renk: "#4D7C0F",
+      aciklama: "Ortaokula hazırlık yılı. Metinden çıkarım yapma, kesir-geometri ve çok adımlı problem beklenir.",
+      uygulamaNotu: "Bu düzey ortaokul taramasının 5. sınıf setiyle doğrudan karşılaştırılabilir. 4. sınıfta güçlü çıkan bir öğrenciye, isterseniz ortaokul aracının 5. sınıf setini de uygulayabilirsiniz.",
+      alanlar: [
+        {
+          key: "okuma_anlama4",
+          ad: "Okuduğunu Anlama ve Çıkarım",
+          olctugu: "Metinde doğrudan yazmayan sonucu çıkarma, yazarın amacını bulma, deyim anlamı ve yazım kuralları",
+          yonerge: "Metni öğrenci okusun. Çıkarım sorularında 'nereden anladın' diye sor — cevabı doğru olsa bile gerekçesi yoksa bunu not al.",
+          egitselOneri: "Çıkarım için 'metinde yazmıyor ama anlıyoruz ki...' kalıbıyla çalış. Tahmin etme ve kanıt gösterme alıştırmaları yaptır. Ortaokulda 'yeni nesil' sorular bu beceriyi ölçtüğü için bu alan kritik.",
+          maddeler: [
+            {"metin": "Ormanlar havayı temizler, toprağı tutar ve pek çok canlıya ev olur. Ağaçlar kesildiğinde yalnızca odun elde edilmez; toprak kayar, hayvanlar yaşam alanını kaybeder ve hava kirlenir.", "soru": "Bu metne göre ağaç kesmenin sonuçlarından biri DEĞİLDİR?", "secenekler": ["Havanın temizlenmesi", "Toprağın kayması", "Hayvanların yaşam alanını kaybetmesi", "Havanın kirlenmesi"], "dogru": 0},
+            {"metin": "Ormanlar havayı temizler, toprağı tutar ve pek çok canlıya ev olur. Ağaçlar kesildiğinde yalnızca odun elde edilmez; toprak kayar, hayvanlar yaşam alanını kaybeder ve hava kirlenir.", "soru": "Yazar bu metinde okuyucuya asıl ne anlatmak istemiştir?", "secenekler": ["Odunun nasıl kesileceğini", "Hayvanların nasıl besleneceğini", "Ormanların ne kadar önemli olduğunu", "Hava durumunun nasıl tahmin edileceğini"], "dogru": 2},
+            {"soru": "\"Ali sabah şemsiyesini alıp evden çıktı.\" Buna göre aşağıdakilerden hangisi söylenebilir?", "secenekler": ["Ali okula gitmemiştir", "Ali şemsiyeyi kaybetmiştir", "Hava çok sıcaktır", "Hava yağmurlu olabilir"], "dogru": 3},
+            {"soru": "\"Göz atmak\" deyimi ne anlama gelir?", "secenekler": ["Kısaca bakmak", "Uzun uzun incelemek", "Gözünü kapatmak", "Dikkatle dinlemek"], "dogru": 0},
+            {"soru": "Aşağıdaki kelimelerden hangisi DOĞRU yazılmıştır?", "secenekler": ["herkez", "herkes", "herkeş", "erkes"], "dogru": 1},
+          ],
+        },
+        {
+          key: "islem4",
+          ad: "Kesirler, Geometri ve Problem",
+          olctugu: "Kesirlerle işlem, çevre hesabı, çarpma ve çok adımlı problem çözme",
+          yonerge: "Kâğıt kalem serbest. Çok adımlı problemde adımları sesli düşünmesini iste; nerede tıkandığını böyle görürsün.",
+          egitselOneri: "Kesirleri somut materyalle (kesir takımı, kâğıt katlama) öğret. Geometride şekli çizdirerek çalıştır. Çok adımlı problemde her adımı ayrı yazdırmak, hatayı hem sana hem öğrenciye görünür kılar.",
+          maddeler: [
+            {"soru": "1/2 + 1/4 kaç eder?", "secenekler": ["2/6", "1/6", "2/4", "3/4"], "dogru": 3},
+            {"soru": "Kısa kenarı 4 cm, uzun kenarı 9 cm olan dikdörtgenin çevresi kaç cm'dir?", "secenekler": ["13", "22", "26", "36"], "dogru": 2},
+            {"soru": "3 × 24 kaç eder?", "secenekler": ["62", "72", "82", "64"], "dogru": 1},
+            {"soru": "120 sayfalık bir kitabı her gün 15 sayfa okuyan Ayşe kaç günde bitirir?", "secenekler": ["6", "8", "10", "12"], "dogru": 1},
+            {"soru": "Karenin kaç kenarı ve kaç köşesi vardır?", "secenekler": ["4 kenar, 4 köşe", "3 kenar, 3 köşe", "4 kenar, 3 köşe", "5 kenar, 5 köşe"], "dogru": 0},
+          ],
+        },
+        {
+          key: "fen_sosyal4",
+          ad: "Fen ve Sosyal Bilgiler Temel Kavramları",
+          olctugu: "Maddenin hâlleri, besin zinciri, ülke bilgisi, millî bayramlar ve yenilenebilir enerji",
+          yonerge: "Bilmediği maddede ipucu verip yeniden denemesine izin verebilirsin; ipuçlu doğruları ayrıca not al.",
+          egitselOneri: "Bu alandaki eksik genellikle okuma alışkanlığı ve merakla kapanır. Çocuk ansiklopedisi, belgesel ve müze/gezi önerisi ver. Ortaokulda Fen ve Sosyal Bilgiler bu temelin üzerine kurulacağı için boşluklar şimdi kapatılmalı.",
+          maddeler: [
+            {"soru": "Aşağıdakilerden hangisi maddenin hâllerinden biri DEĞİLDİR?", "secenekler": ["Katı", "Sıvı", "Işık", "Gaz"], "dogru": 2},
+            {"soru": "Besin zincirinin başında (ilk sırada) hangisi bulunur?", "secenekler": ["Otçul hayvan", "Etçil hayvan", "İnsan", "Bitki"], "dogru": 3},
+            {"soru": "Türkiye'nin başkenti neresidir?", "secenekler": ["Ankara", "İstanbul", "İzmir", "Bursa"], "dogru": 0},
+            {"soru": "23 Nisan hangi bayram olarak kutlanır?", "secenekler": ["Cumhuriyet Bayramı", "Ulusal Egemenlik ve Çocuk Bayramı", "Zafer Bayramı", "Gençlik ve Spor Bayramı"], "dogru": 1},
+            {"soru": "Aşağıdakilerden hangisi YENİLENEBİLİR enerji kaynağıdır?", "secenekler": ["Kömür", "Petrol", "Güneş", "Doğal gaz"], "dogru": 2},
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+const ILKOKUL_UYGULANMADI = "uygulanmadi";
+// Bir sınıf setinin "geçildi" sayılması için gereken doğruluk eşiği.
+// Her alanda 5 madde olduğundan 3/5 geçer, 2/5 geçmez.
+const ILKOKUL_ESIK_YUZDE = 60;
+
+function ilkokulSeviyeBandi(yuzde) {
+  if (yuzde >= 80) return { label: "Güçlü", color: "#1A8C5B", bg: "#E6F5EE" };
+  if (yuzde >= 60) return { label: "Yeterli", color: "#457B9D", bg: "#EEF2FF" };
+  if (yuzde >= 40) return { label: "Sınırda", color: "#B07D1A", bg: "#FDF6E3" };
+  return { label: "Belirgin Zorlanma", color: "#C0392B", bg: "#FDECEA" };
+}
+
+// "3-A", "3/B", "3. sınıf" gibi yazımlardan sınıf düzeyini (1-4) çıkarır.
+// Öğrencinin BULUNDUĞU sınıf ile işlevsel düzeyi karşılaştırabilmek için.
+function ilkokulSinifDuzeyiCikar(sinifAdi) {
+  const m = String(sinifAdi || "").match(/(\d+)/);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return n >= 1 && n <= 4 ? n : null;
+}
+
+function ilkokulTaramaSonucHesapla(cevaplar, ogrenciSinifAdi) {
+  const sinifSonuclari = {};
+  let uygulananToplam = 0;
+  const zayifAlanlar = [], gucluAlanlar = [];
+
+  ILKOKUL_TARAMA.siniflar.forEach(sinifTanim => {
+    const alanSonuclari = {};
+    const olculenler = [];
+    sinifTanim.alanlar.forEach(alan => {
+      let dogru = 0, uygulanan = 0;
+      alan.maddeler.forEach((m, i) => {
+        const v = cevaplar[`${alan.key}_${i}`];
+        if (v === undefined || v === ILKOKUL_UYGULANMADI) return;
+        uygulanan++;
+        if (v === true) dogru++;
+      });
+      uygulananToplam += uygulanan;
+      const yuzde = uygulanan > 0 ? Math.round((dogru / uygulanan) * 100) : null;
+      const s = { key: alan.key, ad: alan.ad, sinif: sinifTanim.sinif, dogru, uygulanan, toplam: alan.maddeler.length, yuzde };
+      alanSonuclari[alan.key] = s;
+      if (yuzde !== null) {
+        olculenler.push(yuzde);
+        if (yuzde < ILKOKUL_ESIK_YUZDE) zayifAlanlar.push({ ...s, egitselOneri: alan.egitselOneri, olctugu: alan.olctugu });
+        else if (yuzde >= 80) gucluAlanlar.push(s);
+      }
+    });
+    const sinifYuzde = olculenler.length > 0
+      ? Math.round(olculenler.reduce((a, b) => a + b, 0) / olculenler.length) : null;
+    sinifSonuclari[sinifTanim.sinif] = {
+      sinif: sinifTanim.sinif, ad: sinifTanim.ad, renk: sinifTanim.renk,
+      alanSonuclari, yuzde: sinifYuzde,
+      seviye: sinifYuzde === null ? null : ilkokulSeviyeBandi(sinifYuzde),
+      hicUygulanmadi: olculenler.length === 0,
+    };
+  });
+
+  // ── İşlevsel düzey: 1'den başlayarak eşiği geçtiği en yüksek ardışık sınıf.
+  // Uygulanmamış sınıf seti zinciri kırmaz, atlanır.
+  let islevselSinif = null;
+  for (const st of ILKOKUL_TARAMA.siniflar) {
+    const ss = sinifSonuclari[st.sinif];
+    if (ss.yuzde === null) continue;
+    if (ss.yuzde >= ILKOKUL_ESIK_YUZDE) islevselSinif = st.sinif;
+    else break;
+  }
+
+  const hicUygulanmadi = ILKOKUL_TARAMA.siniflar.every(st => sinifSonuclari[st.sinif].hicUygulanmadi);
+  const bulunduguSinif = ilkokulSinifDuzeyiCikar(ogrenciSinifAdi);
+
+  let seviyeMetni, fark = null;
+  if (hicUygulanmadi) {
+    seviyeMetni = "Henüz hiçbir sınıf seti uygulanmadı.";
+  } else if (islevselSinif === null) {
+    seviyeMetni = `1. sınıf setinde %${ILKOKUL_ESIK_YUZDE} eşiğine ulaşılamadı. Bu, okuma-yazma ve sayı hissinin temelinde boşluk olduğunu düşündürür; acele etmeden, temelden başlayan bireysel bir destek planı gerekir.`;
+  } else {
+    seviyeMetni = `İşlevsel düzeyi ${islevselSinif}. sınıf kazanımları civarında görünüyor.`;
+    if (bulunduguSinif !== null) {
+      fark = bulunduguSinif - islevselSinif;
+      if (fark >= 2) seviyeMetni += ` Öğrenci ${bulunduguSinif}. sınıfta olduğu hâlde işlevsel düzeyi ${fark} yıl geride — bu, sınıf içi destekle kapatılması zor bir açıktır ve bireysel/yoğunlaştırılmış destek gerektirir.`;
+      else if (fark === 1) seviyeMetni += ` Öğrenci ${bulunduguSinif}. sınıfta; bir yıllık bir gecikme var. Erken ve hedefli destekle kapanabilecek bir açıktır.`;
+      else if (fark === 0) seviyeMetni += ` Bulunduğu sınıf düzeyiyle uyumlu.`;
+      else seviyeMetni += ` Bulunduğu sınıf düzeyinin üzerinde performans gösteriyor.`;
+    }
+  }
+
+  // ── Sevk ve sonraki adım önerileri ─────────────────────────────────────
+  const sevkOnerileri = [];
+  if (!hicUygulanmadi) {
+    const sesZayif = zayifAlanlar.some(z => z.key === "ses_harf");
+    const okumaZayif = zayifAlanlar.some(z => z.key.indexOf("okuma") === 0);
+    const sayiZayif = zayifAlanlar.some(z => ["sayi_hissi", "islem2", "islem3", "islem4"].indexOf(z.key) >= 0);
+    if (sesZayif) sevkOnerileri.push("Ses ve harf farkındalığı zayıf. İlkokulda okuma güçlüğünün EN ERKEN göstergesi budur ve müdahalenin en etkili olduğu dönem şimdidir. Sınıf öğretmeniyle paylaş, fonolojik farkındalık çalışması başlat ve birkaç ay içinde yeniden ölç.");
+    if (okumaZayif && sayiZayif) sevkOnerileri.push("Hem okuma hem matematik alanında zorlanma var. Genel bir gelişimsel gecikme ya da öğrenme güçlüğü açısından RAM'a eğitsel değerlendirme sevki gündeme alınmalı; öncesinde görme ve işitme taramasının yapıldığından emin ol.");
+    else if (okumaZayif) sevkOnerileri.push("Zorlanma ağırlıklı olarak okuma/dil tarafında. Özgül öğrenme güçlüğü (disleksi) açısından ÖÖG Ön-Tarama aracını da uygula.");
+    else if (sayiZayif) sevkOnerileri.push("Zorlanma ağırlıklı olarak sayı/işlem tarafında. Diskalkuli açısından ÖÖG Ön-Tarama aracını da uygula.");
+    if (fark !== null && fark >= 2) sevkOnerileri.push("İşlevsel düzey ile bulunduğu sınıf arasındaki fark iki yıl veya daha fazla. Aileyle görüşülmeli ve RAM süreci konuşulmalı; ayrıca devamsızlık geçmişi ve okula başlama yaşı mutlaka kontrol edilmeli.");
+    sevkOnerileri.push("Bu sonucu tek başına değil, sınıf öğretmeninin gözlemi ve varsa devamsızlık kaydıyla birlikte yorumla. İlkokulda tek oturumluk ölçüm, çocuğun o günkü hâlinden kolayca etkilenir.");
+  }
+
+  return {
+    sinifSonuclari, islevselSinif, seviyeMetni, bulunduguSinif, fark,
+    zayifAlanlar, gucluAlanlar, sevkOnerileri, uygulananToplam, hicUygulanmadi,
+    toplamMadde: ILKOKUL_TARAMA.siniflar.reduce((t, s) => t + s.alanlar.reduce((x, a) => x + a.maddeler.length, 0), 0),
+  };
+}
+
+// ── İlkokul Akademik Düzey Taraması Paneli (1-4. sınıf) ───────────────────
+// Ortaokul aracından farkı: her sınıfın KENDİ alanları var (1. sınıfta ses
+// farkındalığı ve sayı hissi, 4. sınıfta çıkarım ve kesir gibi). 1. sınıfta
+// hiçbir madde çocuğun okumasını gerektirmez; danışman okur, şıklar görseldir.
+function IlkokulTaramaPaneli({ seciliAd, seciliSinif, seciliNumara, ilkokulTaramalar, setIlkokulTaramalar }) {
+  const mevcut = ilkokulTaramalar.find(o => pdrAyniOgrenci(o.studentName, o.className, seciliAd, seciliSinif, o.numara, seciliNumara));
+  const [cevaplar, setCevaplar] = useState(mevcut?.cevaplar || {});
+  const [aktifSinif, setAktifSinif] = useState(() => ilkokulSinifDuzeyiCikar(seciliSinif) || 1);
+  const [kaydedildi, setKaydedildi] = useState(false);
+
+  useEffect(() => {
+    const m = ilkokulTaramalar.find(o => pdrAyniOgrenci(o.studentName, o.className, seciliAd, seciliSinif, o.numara, seciliNumara));
+    setCevaplar(m?.cevaplar || {});
+    setAktifSinif(ilkokulSinifDuzeyiCikar(seciliSinif) || 1);
+    setKaydedildi(false);
+  }, [seciliAd, seciliSinif, seciliNumara]);
+
+  function cevapVer(alanKey, maddeIndex, val) {
+    setCevaplar(c => ({ ...c, [`${alanKey}_${maddeIndex}`]: val }));
+  }
+
+  const sonuc = ilkokulTaramaSonucHesapla(cevaplar, seciliSinif);
+  const sinifTanim = ILKOKUL_TARAMA.siniflar.find(s => s.sinif === aktifSinif) || ILKOKUL_TARAMA.siniflar[0];
+
+  async function handleKaydet() {
+    if (!seciliAd.trim()) return;
+    const kayit = {
+      id: mevcut?.id || uid(), date: today(),
+      studentName: seciliAd, className: seciliSinif, numara: seciliNumara,
+      cevaplar, sonuc,
+    };
+    const updated = mevcut
+      ? ilkokulTaramalar.map(o => o.id === mevcut.id ? kayit : o)
+      : [kayit, ...ilkokulTaramalar];
+    setIlkokulTaramalar(updated);
+    await saveIlkokulTaramalar(updated);
+    setKaydedildi(true);
+    setTimeout(() => setKaydedildi(false), 2500);
+  }
+
+  async function handleSil() {
+    if (!mevcut) return;
+    if (!confirm("Bu öğrencinin kayıtlı ilkokul düzey tarama sonucunu silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")) return;
+    const updated = ilkokulTaramalar.filter(o => o.id !== mevcut.id);
+    setIlkokulTaramalar(updated);
+    await saveIlkokulTaramalar(updated);
+    setCevaplar({});
+  }
+
+  if (!seciliAd.trim()) {
+    return <div style={{textAlign:"center", color:MUTED, padding:20, fontSize:13}}>Önce bir öğrenci seçin</div>;
+  }
+
+  return (
+    <div>
+      <div style={{background:"#FEF3E2", border:"1px solid #e5c08a", borderRadius:10, padding:"10px 12px", marginBottom:14, fontSize:11, color:"#92400E", lineHeight:1.6}}>
+        🎒 <b>İlkokul Düzey Taraması (1-4. Sınıf).</b> Her sınıfın <b>kendine özgü</b> değerlendirmesi vardır: 1. sınıfta ses farkındalığı ve sayı hissi ölçülür, 4. sınıfta çıkarım ve kesir. Bu yüzden bu araç, ortaokul aracının küçültülmüş hâli değildir.
+        <div style={{marginTop:6, background:"#fff", borderRadius:8, padding:"7px 9px", border:"1px solid #ead8b5"}}>
+          <b>⚠️ Resmî bir başarı ölçümü ya da tanı aracı değildir.</b> İlkokulda tek oturumluk ölçüm çocuğun o günkü hâlinden kolayca etkilenir; sonucu sınıf öğretmeninin gözlemiyle birlikte yorumla.
+        </div>
+        <div style={{marginTop:6}}>
+          <b>Nasıl uygulanır:</b> Öğrencinin bulunduğu sınıf setinden başla. O sette %{ILKOKUL_ESIK_YUZDE} eşiğini geçemezse bir alt sınıf setini uygula; geçerse istersen bir üstünü dene. Uygulamadığın seti boş bırak.
+        </div>
+      </div>
+
+      {sonuc.uygulananToplam > 0 && (
+        <div style={{background:"#fff", border:`1px solid ${BORDER}`, borderRadius:12, padding:14, marginBottom:16}}>
+          <div style={{textAlign:"center", marginBottom:12}}>
+            <div style={{fontSize:26, fontWeight:900, color: sonuc.islevselSinif ? "#1A8C5B" : "#C0392B"}}>
+              {sonuc.islevselSinif ? `${sonuc.islevselSinif}. Sınıf Düzeyi` : "1. Sınıf Altı"}
+            </div>
+            <div style={{fontSize:11, fontWeight:700, color:MUTED}}>İşlevsel Düzey</div>
+            <div style={{fontSize:9.5, color:MUTED, marginTop:3}}>
+              {sonuc.uygulananToplam}/{sonuc.toplamMadde} madde uygulandı
+              {sonuc.bulunduguSinif !== null && ` · öğrenci ${sonuc.bulunduguSinif}. sınıfta`}
+            </div>
+          </div>
+
+          <div style={{display:"flex", flexDirection:"column", gap:8, marginBottom:12}}>
+            {ILKOKUL_TARAMA.siniflar.map(st => {
+              const ss = sonuc.sinifSonuclari[st.sinif];
+              return (
+                <div key={st.sinif}>
+                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", fontSize:11, marginBottom:3}}>
+                    <span style={{fontWeight:700, color:TEXT}}>{st.ad}</span>
+                    <span style={{fontWeight:800, color: ss.yuzde === null ? MUTED : ss.seviye.color}}>
+                      {ss.yuzde === null ? "uygulanmadı" : `%${ss.yuzde} · ${ss.seviye.label}`}
+                    </span>
+                  </div>
+                  <div style={{height:8, background:"#EFEFEF", borderRadius:6, overflow:"hidden"}}>
+                    <div style={{width:`${ss.yuzde === null ? 0 : ss.yuzde}%`, height:"100%", background: ss.yuzde === null ? "#ddd" : st.renk, borderRadius:6}} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{background:"#FAFAF8", borderRadius:8, padding:"10px 12px", fontSize:11, color:TEXT, lineHeight:1.65}}>
+            <div style={{fontWeight:800, marginBottom:4, color:ACCENT}}>📝 Değerlendirme</div>
+            <div style={{marginBottom: sonuc.zayifAlanlar.length > 0 ? 8 : 0}}>{sonuc.seviyeMetni}</div>
+
+            {sonuc.gucluAlanlar.length > 0 && (
+              <div style={{marginBottom:8}}>
+                <b>Güçlü alanlar:</b> {sonuc.gucluAlanlar.map(g => `${g.ad} (%${g.yuzde})`).join(", ")}
+              </div>
+            )}
+
+            {sonuc.zayifAlanlar.map((z, i) => (
+              <div key={i} style={{marginBottom:8, paddingLeft:8, borderLeft:"3px solid #C0392B"}}>
+                <div style={{fontWeight:700}}>{z.sinif}. sınıf — {z.ad} (%{z.yuzde})</div>
+                <div style={{color:MUTED}}>{z.olctugu}</div>
+                <div style={{marginTop:4}}><b>Ne yapmalı:</b> {z.egitselOneri}</div>
+              </div>
+            ))}
+
+            {sonuc.sevkOnerileri.length > 0 && (
+              <div style={{marginTop:8, paddingTop:8, borderTop:`1px dashed ${BORDER}`}}>
+                <div style={{fontWeight:800, marginBottom:4, color:PURPLE}}>➡️ Sonraki Adım</div>
+                {sonuc.sevkOnerileri.map((s, i) => <div key={i} style={{marginBottom:4}}>• {s}</div>)}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div style={{display:"flex", flexWrap:"wrap", gap:6, marginBottom:10}}>
+        {ILKOKUL_TARAMA.siniflar.map(st => (
+          <button key={st.sinif} onClick={() => setAktifSinif(st.sinif)} style={{
+            flex:"1 1 22%", minWidth:74, padding:"9px 4px", borderRadius:10, fontSize:11.5, fontWeight:800, cursor:"pointer",
+            border:`2px solid ${aktifSinif===st.sinif ? st.renk : BORDER}`,
+            background: aktifSinif===st.sinif ? `${st.renk}14` : CARD,
+            color: aktifSinif===st.sinif ? st.renk : MUTED,
+          }}>{st.ad}</button>
+        ))}
+      </div>
+
+      <div style={{fontSize:10.5, color:MUTED, background:"#F7F5F0", border:`1px solid ${BORDER}`, borderRadius:8, padding:"8px 10px", marginBottom:12, lineHeight:1.6}}>
+        <div style={{marginBottom:4}}>ℹ️ <b>{sinifTanim.ad}:</b> {sinifTanim.aciklama}</div>
+        <div style={{color:"#92400E"}}>🗣️ <b>Uygulama:</b> {sinifTanim.uygulamaNotu}</div>
+      </div>
+
+      {sinifTanim.alanlar.map(alan => {
+        const as = sonuc.sinifSonuclari[sinifTanim.sinif].alanSonuclari[alan.key];
+        return (
+          <div key={alan.key} style={{marginBottom:18}}>
+            <div style={{display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:4}}>
+              <span style={{fontSize:12.5, fontWeight:800, color:sinifTanim.renk}}>{alan.ad}</span>
+              {as && as.uygulanan > 0 && (
+                <span style={{fontSize:9.5, fontWeight:800, padding:"2px 8px", borderRadius:10,
+                  background:ilkokulSeviyeBandi(as.yuzde).bg, color:ilkokulSeviyeBandi(as.yuzde).color}}>
+                  {as.dogru}/{as.uygulanan} · %{as.yuzde}
+                </span>
+              )}
+            </div>
+            <div style={{fontSize:10, color:MUTED, marginBottom:6, fontStyle:"italic"}}>{alan.olctugu}</div>
+            <div style={{fontSize:10.5, color:"#92400E", background:"#FEF3E2", border:"1px solid #ead8b5", borderRadius:8, padding:"6px 9px", marginBottom:8, lineHeight:1.6}}>
+              🗣️ <b>Yönerge:</b> {alan.yonerge}
+            </div>
+
+            {alan.maddeler.map((m, i) => {
+              const key = `${alan.key}_${i}`;
+              const secili = cevaplar[key];
+              return (
+                <div key={key} style={{marginBottom:12, background:CARD, border:`1px solid ${BORDER}`, borderRadius:10, padding:"10px 12px"}}>
+                  {m.metin && (
+                    <div style={{fontSize:11.5, color:TEXT, background:"#F7F5F0", border:`1px solid ${BORDER}`, borderRadius:8, padding:"7px 9px", marginBottom:6, whiteSpace:"pre-wrap", lineHeight:1.65}}>{m.metin}</div>
+                  )}
+                  <div style={{fontSize:12, color:TEXT, marginBottom:6, fontWeight:600}}>{i + 1}. {m.soru}</div>
+
+                  {m.izgara && (
+                    <div style={{
+                      display:"grid", gridTemplateColumns:`repeat(${m.sutun || 3}, minmax(0, 1fr))`, gap:5,
+                      maxWidth:(m.sutun || 3) * 60, margin:"0 auto 8px", background:"#fff",
+                      border:`2px solid ${sinifTanim.renk}55`, borderRadius:10, padding:8,
+                    }}>
+                      {m.izgara.map((h, hi) => (
+                        <div key={hi} style={{
+                          textAlign:"center", fontSize:26, lineHeight:1.2, padding:"6px 2px",
+                          background:h === "❓" ? "#FDF6E3" : "#FAFAF8", borderRadius:6,
+                          border:h === "❓" ? "1px dashed #B07D1A" : `1px solid ${BORDER}`,
+                        }}>{h}</div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{fontSize:11, color:MUTED, marginBottom:8, lineHeight:1.7}}>
+                    {m.secenekler.map((sec, si) => (
+                      <div key={si}>{String.fromCharCode(65 + si)}) {sec}</div>
+                    ))}
+                  </div>
+
+                  <div style={{display:"flex", gap:5}}>
+                    <button onClick={() => cevapVer(alan.key, i, true)} style={{
+                      flex:1, padding:"7px 4px", borderRadius:8, fontSize:11, fontWeight:700, cursor:"pointer",
+                      border:`1.5px solid ${secili===true?"#1A8C5B":BORDER}`,
+                      background:secili===true?"#E6F5EE":"#fff", color:secili===true?"#1A8C5B":MUTED,
+                    }}>✓ Doğru</button>
+                    <button onClick={() => cevapVer(alan.key, i, false)} style={{
+                      flex:1, padding:"7px 4px", borderRadius:8, fontSize:11, fontWeight:700, cursor:"pointer",
+                      border:`1.5px solid ${secili===false?"#C0392B":BORDER}`,
+                      background:secili===false?"#FDECEA":"#fff", color:secili===false?"#C0392B":MUTED,
+                    }}>✗ Yanlış</button>
+                    <button onClick={() => cevapVer(alan.key, i, ILKOKUL_UYGULANMADI)} style={{
+                      flex:0.9, padding:"7px 4px", borderRadius:8, fontSize:9, fontWeight:700, cursor:"pointer",
+                      border:`1.5px dashed ${secili===ILKOKUL_UYGULANMADI?"#457B9D":BORDER}`,
+                      background:secili===ILKOKUL_UYGULANMADI?"#EEF2FF":"#fff",
+                      color:secili===ILKOKUL_UYGULANMADI?"#457B9D":MUTED,
+                    }}>🔍 Uygulanmadı</button>
+                  </div>
+                  <div style={{fontSize:9, color:MUTED, marginTop:5}}>
+                    Doğru cevap: {String.fromCharCode(65 + m.dogru)}) {m.secenekler[m.dogru]}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+
+      <button onClick={handleKaydet} style={{
+        width:"100%", padding:13, background:ACCENT, color:"#fff", border:"none", borderRadius:12,
+        fontSize:15, fontWeight:800, cursor:"pointer", marginTop:4
+      }}>{kaydedildi ? "✓ Kaydedildi" : "💾 Kaydet"}</button>
+      {mevcut && (
+        <button onClick={handleSil} style={{
+          width:"100%", padding:10, background:"transparent", color:"#C0392B", border:"1px solid #F5B7B1", borderRadius:12,
+          fontSize:12, fontWeight:700, cursor:"pointer", marginTop:8
+        }}>🗑️ Kaydı Sil</button>
+      )}
+    </div>
+  );
+}
+// ===== ILKOKUL TARAMA BITIS =====
+
 // ── Akademik Düzey Tarama Soru Havuzu (5-8. Sınıf Kademeli Tanılama) ──────────
 // Görüşme sırasında danışman öğrenciye sesli sorar, öğrencinin cevabını
 // Doğru/Yanlış/Uygulanmadı olarak işaretler. Amaç tanı değil, öğrencinin
@@ -4479,8 +5006,8 @@ function akademikTaramaSonucHesapla(cevaplar) {
   return dersSonuclari;
 }
 
-function raporVerisiOlustur({ ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler, mudahalePlan, riskListesi, sinavTuru, testKayitlari, kaynastirma, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }) {
-  return { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: denemeler || {}, mudahalePlan: mudahalePlan || {}, riskListesi: riskListesi || [], sinavTuru, testKayitlari: testKayitlari || [], kaynastirma: kaynastirma || [], oogDegerlendirmeler: oogDegerlendirmeler || [], castDegerlendirmeler: castDegerlendirmeler || [], akademikTaramalar: akademikTaramalar || [], hazirlikNotlari: hazirlikNotlari || {}, ilerlemeNotlari: ilerlemeNotlari || {}, sevkler: sevkler || [], ogrenciler: ogrenciler || [], tarih: new Date().toLocaleDateString("tr-TR") };
+function raporVerisiOlustur({ ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler, mudahalePlan, riskListesi, sinavTuru, testKayitlari, kaynastirma, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }) {
+  return { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: denemeler || {}, mudahalePlan: mudahalePlan || {}, riskListesi: riskListesi || [], sinavTuru, testKayitlari: testKayitlari || [], kaynastirma: kaynastirma || [], oogDegerlendirmeler: oogDegerlendirmeler || [], castDegerlendirmeler: castDegerlendirmeler || [], akademikTaramalar: akademikTaramalar || [], ilkokulTaramalar: ilkokulTaramalar || [], kademe: kademe || null, hazirlikNotlari: hazirlikNotlari || {}, ilerlemeNotlari: ilerlemeNotlari || {}, sevkler: sevkler || [], ogrenciler: ogrenciler || [], tarih: new Date().toLocaleDateString("tr-TR") };
 }
 
 // ── PDF Rapor Bileşeni ────────────────────────────────────────────────────────
@@ -4689,6 +5216,12 @@ function RaporModal({ rapor, onKapat }) {
                 Matematik/Fen Bilimleri; resmî bir başarı ölçümü değildir, sadece
                 doldurulmuşsa gösterilir. */}
             {(() => {
+              // Kademe duyarliligi: once OGRENCININ KENDI sinif duzeyine bakilir
+              // (3-A -> ilkokul, 8-A -> ortaokul); sinif adindan cikarilamazsa
+              // uygulamada secili kademeye dusulur. Ikisi de bilinmiyorsa kayit
+              // neyse o gosterilir — veri gizlenmez.
+              const akadKademe = sinifKademesi(ogrenciSinif) || rapor.kademe || null;
+              if (akadKademe && akadKademe !== "ortaokul") return null;
               const akadKayit = (rapor.akademikTaramalar||[]).find(o => pdrAyniOgrenci(o.studentName, o.className, ogrenci, ogrenciSinif));
               if (!akadKayit || !akadKayit.cevaplar || Object.keys(akadKayit.cevaplar).length === 0) return null;
               const sonuc = akadKayit.sonuc || akademikTaramaSonucHesapla(akadKayit.cevaplar);
@@ -4712,6 +5245,49 @@ function RaporModal({ rapor, onKapat }) {
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* İlkokul Düzey Taraması (1-4. sınıf) — resmî başarı ölçümü
+                değildir; yalnızca doldurulmuşsa gösterilir. */}
+            {(() => {
+              const ilkKademe = sinifKademesi(ogrenciSinif) || rapor.kademe || null;
+              if (ilkKademe && ilkKademe !== "ilkokul") return null;
+              const ilkKayit = (rapor.ilkokulTaramalar||[]).find(o => pdrAyniOgrenci(o.studentName, o.className, ogrenci, ogrenciSinif));
+              if (!ilkKayit || !ilkKayit.cevaplar || Object.keys(ilkKayit.cevaplar).length === 0) return null;
+              const s = ilkKayit.sonuc || ilkokulTaramaSonucHesapla(ilkKayit.cevaplar, ogrenciSinif);
+              if (!s || s.hicUygulanmadi) return null;
+              return (
+                <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
+                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />İlkokul Düzey Taraması (1-4. Sınıf)</div>
+                  <div style={S.bolumIcerik2}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8, flexWrap:"wrap" }}>
+                      <span style={{ fontSize:14, fontWeight:900, color: s.islevselSinif ? "#1A8C5B" : "#C0392B" }}>
+                        {s.islevselSinif ? `İşlevsel düzey: ${s.islevselSinif}. sınıf` : "İşlevsel düzey: 1. sınıf altı"}
+                      </span>
+                      <span style={{ fontSize:9, color:"#888" }}>({ilkKayit.date})</span>
+                    </div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:8 }}>
+                      {ILKOKUL_TARAMA.siniflar.filter(st => s.sinifSonuclari[st.sinif] && s.sinifSonuclari[st.sinif].yuzde !== null).map(st => (
+                        <span key={st.sinif} style={{ fontSize:9.5, background:"#f5f5f5", borderRadius:4, padding:"2px 7px" }}>
+                          {st.ad}: %{s.sinifSonuclari[st.sinif].yuzde}
+                        </span>
+                      ))}
+                    </div>
+                    <div style={{ fontSize:10, color:"#555", lineHeight:1.5 }}>{s.seviyeMetni}</div>
+                    {(s.zayifAlanlar||[]).map((z, i) => (
+                      <div key={i} style={{ fontSize:10, color:"#555", lineHeight:1.5, marginTop:5 }}>
+                        <b>{z.sinif}. sınıf — {z.ad} (%{z.yuzde}):</b> {z.egitselOneri}
+                      </div>
+                    ))}
+                    {(s.sevkOnerileri||[]).length > 0 && (
+                      <div style={{ marginTop:8, paddingTop:6, borderTop:"1px dashed #ddd" }}>
+                        <div style={{ fontSize:9.5, fontWeight:800, color:PURPLE, marginBottom:3 }}>Sonraki Adım</div>
+                        {s.sevkOnerileri.map((o, i) => <div key={i} style={{ fontSize:9.5, color:"#555", lineHeight:1.5 }}>• {o}</div>)}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -5323,224 +5899,8 @@ function ScoreSlider({ dim, value, onChange }) {
 }
 
 // ── ProfileCard ───────────────────────────────────────────────────────────────
-function ProfileCard({ profile, onDelete, onReport }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 12, marginBottom: 10, overflow: "hidden" }}>
-      <div onClick={() => setOpen(o => !o)} style={{
-        display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", cursor: "pointer",
-        borderBottom: open ? `1px solid ${BORDER}` : "none"
-      }}>
-        <div style={{
-          width: 36, height: 36, borderRadius: "50%", background: ACCENT_LIGHT, color: ACCENT,
-          display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 15
-        }}>{profile.studentName.charAt(0).toUpperCase()}</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: TEXT }}>{profile.studentName}</div>
-          <div style={{ fontSize: 12, color: MUTED }}>{profile.date} · {profile.className}</div>
-        </div>
-        <div style={{ display: "flex", gap: 4 }}>
-          {DIMENSIONS.map(d => (
-            <div key={d.key} title={d.label} style={{
-              width: 6, height: 20, borderRadius: 3, background: d.color,
-              opacity: 0.3 + ((profile.scores[d.key] || 1) / 5) * 0.7
-            }} />
-          ))}
-        </div>
-        <span style={{ color: MUTED, fontSize: 18 }}>{open ? "▲" : "▼"}</span>
-      </div>
-      {open && (
-        <div style={{ padding: 16 }}>
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
-            <RadarChart scores={profile.scores} />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 12 }}>
-            {DIMENSIONS.map(d => (
-              <div key={d.key} style={{
-                background: BG, borderRadius: 8, padding: "6px 10px",
-                display: "flex", justifyContent: "space-between", alignItems: "center"
-              }}>
-                <span style={{ fontSize: 11, color: TEXT }}>{d.label}</span>
-                <span style={{ fontSize: 13, fontWeight: 800, color: d.color }}>{profile.scores[d.key] || 0}</span>
-              </div>
-            ))}
-          </div>
-          {profile.analysis && (
-            <div style={{
-              background: "#F0FAF4", borderRadius: 10, padding: 12,
-              fontSize: 13, color: TEXT, lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 10
-            }}>{profile.analysis}</div>
-          )}
-          {profile.notes && (
-            <div style={{ fontSize: 12, color: MUTED, marginBottom: 10 }}>📝 {profile.notes}</div>
-          )}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <button onClick={() => onReport(profile)} style={{
-              background: ACCENT_LIGHT, border: "none", color: ACCENT,
-              borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer"
-            }}>📄 PDF Rapor</button>
-            <button onClick={() => onDelete(profile.id)} style={{
-              background: "none", border: "1px solid #F28B82", color: "#C5221F",
-              borderRadius: 8, padding: "4px 14px", fontSize: 12, cursor: "pointer"
-            }}>Sil</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Profile2Card ──────────────────────────────────────────────────────────────
-function Profile2Card({ p, onDelete }) {
-  const [open, setOpen] = useState(false);
-  const dersOrtalama = () => {
-    const vals = DERSLER.map(d => parseFloat(p.sinavlar?.[d.key])).filter(v => !isNaN(v));
-    if (!vals.length) return null;
-    return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
-  };
-  const ort = dersOrtalama();
-  return (
-    <div style={{ background: CARD, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 12, marginBottom: 10, overflow: "hidden" }}>
-      <div onClick={() => setOpen(o => !o)} style={{
-        display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", cursor: "pointer",
-        borderBottom: open ? `1px solid ${BORDER}` : "none"
-      }}>
-        <div style={{
-          width: 36, height: 36, borderRadius: "50%", background: "#EEF2FF", color: BLUE,
-          display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 15
-        }}>{p.studentName.charAt(0).toUpperCase()}</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: TEXT }}>{p.studentName}</div>
-          <div style={{ fontSize: 12, color: MUTED }}>{p.date} · {p.className}</div>
-        </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          {ort && <span style={{ background: BLUE, color:"#fff", borderRadius: 20, padding: "2px 10px", fontSize: 12, fontWeight: 800 }}>Ort: {ort}</span>}
-          {p.ilgiler?.length > 0 && <span style={{ background: "#FEF9C3", color:"#92400E", borderRadius: 20, padding: "2px 10px", fontSize: 11, fontWeight: 700 }}>{p.ilgiler.length} ilgi</span>}
-        </div>
-        <span style={{ color: MUTED, fontSize: 18 }}>{open ? "▲" : "▼"}</span>
-      </div>
-      {open && (
-        <div style={{ padding: 16 }}>
-          {/* Sınav Puanları */}
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: ACCENT, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Sınav Puanları</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-              {DERSLER.map(d => {
-                const val = parseFloat(p.sinavlar?.[d.key]);
-                if (!p.sinavlar?.[d.key] && p.sinavlar?.[d.key] !== 0) return null;
-                const pct = Math.min(100, (val / 100) * 100);
-                return (
-                  <div key={d.key} style={{ background: BG, borderRadius: 8, padding: "8px 10px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                      <span style={{ fontSize: 11, color: TEXT, fontWeight: 600 }}>{d.label}</span>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: d.color }}>{val}</span>
-                    </div>
-                    <div style={{ height: 4, background: BORDER, borderRadius: 3 }}>
-                      <div style={{ width: `${pct}%`, height: "100%", background: d.color, borderRadius: 3 }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            {ort && <div style={{ marginTop: 8, textAlign: "right", fontSize: 13, color: BLUE, fontWeight: 700 }}>Genel Ortalama: {ort}</div>}
-          </div>
-
-          {/* İlgi Alanları */}
-          {p.ilgiler?.length > 0 && (
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: ACCENT, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Kişisel Gelişim & İlgi Profili</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {p.ilgiler.map(ilgi => (
-                  <span key={ilgi} style={{ background: "#FEF9C3", color: "#92400E", borderRadius: 20, padding: "3px 10px", fontSize: 12, fontWeight: 600 }}>{ilgi}</span>
-                ))}
-              </div>
-              {p.ilgiNot && <div style={{ marginTop: 8, fontSize: 12, color: MUTED, lineHeight: 1.6 }}>{p.ilgiNot}</div>}
-            </div>
-          )}
-
-          {/* D2 Dikkat Testi */}
-          {p.d2 && (p.d2.TN || p.d2.TN_E) && (
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: PURPLE, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>D2 Dikkat Testi</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 8 }}>
-                {[
-                  { label: "TN", val: p.d2.TN, acik: "Psikomotor hız" },
-                  { label: "E1", val: p.d2.E1, acik: "Seçici dikkat" },
-                  { label: "E2", val: p.d2.E2, acik: "Öğrenme güçlüğü" },
-                  { label: "CP", val: p.d2.CP, acik: "Perf. kalitesi" },
-                  { label: "FR", val: p.d2.FR, acik: "Hız salınımı" },
-                  { label: "PR", val: p.d2.PR, acik: "Yüzdelik" },
-                ].filter(x => x.val).map(x => (
-                  <div key={x.label} style={{ background: "#F3F0FF", borderRadius: 8, padding: "6px 8px", textAlign: "center" }}>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: PURPLE }}>{x.val}</div>
-                    <div style={{ fontSize: 10, color: PURPLE, fontWeight: 700 }}>{x.label}</div>
-                    <div style={{ fontSize: 9, color: MUTED }}>{x.acik}</div>
-                  </div>
-                ))}
-              </div>
-              {(p.d2.TN_E || p.d2.E_yuzde) && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 8 }}>
-                  {p.d2.TN_E && <div style={{ background: "#EDE9FF", borderRadius: 8, padding: "8px", textAlign: "center" }}>
-                    <div style={{ fontSize: 18, fontWeight: 900, color: PURPLE }}>{p.d2.TN_E}</div>
-                    <div style={{ fontSize: 10, color: PURPLE, fontWeight: 700 }}>TN-E</div>
-                    <div style={{ fontSize: 9, color: MUTED }}>Test Performansı</div>
-                  </div>}
-                  {p.d2.E_yuzde && <div style={{ background: "#EDE9FF", borderRadius: 8, padding: "8px", textAlign: "center" }}>
-                    <div style={{ fontSize: 18, fontWeight: 900, color: PURPLE }}>%{p.d2.E_yuzde}</div>
-                    <div style={{ fontSize: 10, color: PURPLE, fontWeight: 700 }}>E%</div>
-                    <div style={{ fontSize: 9, color: MUTED }}>Hata Oranı</div>
-                  </div>}
-                </div>
-              )}
-              {p.d2.PR && (
-                <div style={{ background: (() => { const pr = parseFloat(p.d2.PR); return pr >= 85 ? "#E6F5EE" : pr >= 70 ? "#EEF2FF" : pr >= 60 ? "#FDF6E3" : "#FDECEA"; })(), borderRadius: 8, padding: "6px 10px", marginBottom: 6, fontSize: 12, fontWeight: 700, color: (() => { const pr = parseFloat(p.d2.PR); return pr >= 85 ? "#1A8C5B" : pr >= 70 ? "#3B4FD8" : pr >= 60 ? "#B07D1A" : "#C0392B"; })() }}>
-                  TN-E → PR {p.d2.PR} — {(() => { const pr = parseFloat(p.d2.PR); return pr >= 85 ? "İYİ (≥85)" : pr >= 70 ? "NORMAL (70-85)" : pr >= 60 ? "VASAT (60-70)" : "AVERAJ (50-60)"; })()}
-                </div>
-              )}
-              {p.d2.E_yuzde && (
-                <div style={{ borderRadius: 8, padding: "8px 12px", marginBottom: 6, border: "2px solid", ...(() => {
-                  const e = parseFloat(p.d2.E_yuzde);
-                  if (e <= 1.5) return { background: "#E6F5EE", borderColor: "#1A8C5B", color: "#1A8C5B" };
-                  if (e <= 2.5) return { background: "#FDF6E3", borderColor: "#B07D1A", color: "#B07D1A" };
-                  return { background: "#FDECEA", borderColor: "#C0392B", color: "#C0392B" };
-                })() }}>
-                  <span style={{ fontSize: 13, fontWeight: 800 }}>E = {p.d2.E_yuzde}% → </span>
-                  <span style={{ fontSize: 12 }}>{(() => {
-                    const e = parseFloat(p.d2.E_yuzde);
-                    if (e <= 1.5) return "NORMAL (0–1,5)";
-                    if (e <= 2.5) return "DİKKAT EDİLMELİ (1,5–2,5)";
-                    return "DİKKAT PROBLEMİ (2,5+)";
-                  })()}</span>
-                </div>
-              )}
-              {p.d2.yorum && <div style={{ fontSize: 12, color: TEXT, background: "#F3F0FF", borderRadius: 8, padding: "8px 10px", lineHeight: 1.6 }}>{p.d2.yorum}</div>}
-              {p.d2_analiz && <div style={{ fontSize: 12, color: TEXT, background: "#EDE9FF", borderRadius: 8, padding: "10px", lineHeight: 1.7, marginTop: 6, whiteSpace: "pre-wrap" }}>{p.d2_analiz}</div>}
-            </div>
-          )}
-
-          {/* Kariyer Hedef */}
-          {p.kariyer_hedef && (
-            <div style={{ marginBottom: 10, background: "#F0FAF4", borderRadius: 8, padding: "8px 12px" }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: ACCENT }}>Kariyer Hedefi: </span>
-              <span style={{ fontSize: 13, color: TEXT }}>{p.kariyer_hedef}</span>
-            </div>
-          )}
-
-          {/* Aile Notu */}
-          {p.aile_notu && (
-            <div style={{ marginBottom: 10, fontSize: 12, color: MUTED, lineHeight: 1.6 }}>
-              <span style={{ fontWeight: 700 }}>Aile Notu: </span>{p.aile_notu}
-            </div>
-          )}
-
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button onClick={() => onDelete(p.id)} style={{ background: "none", border: "1px solid #F28B82", color: "#C5221F", borderRadius: 8, padding: "4px 14px", fontSize: 12, cursor: "pointer" }}>Sil</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 
 // ── Öğrenci Yönetim Bileşeni ─────────────────────────────────────────────────
@@ -6303,7 +6663,7 @@ function D2Paneli({ seciliAd, seciliSinif, seciliNumara, profiles2, setProfiles2
   );
 }
 
-function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayitlari, setTestKayitlari, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, castDegerlendirmeler, setCastDegerlendirmeler, akademikTaramalar, setAkademikTaramalar, kademe }) {
+function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayitlari, setTestKayitlari, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, castDegerlendirmeler, setCastDegerlendirmeler, akademikTaramalar, setAkademikTaramalar, ilkokulTaramalar, setIlkokulTaramalar, kademe }) {
   const [seciliAd, setSeciliAd] = useState(aktifOgrenci?.name || "");
   const [ogrenciArama, setOgrenciArama] = useState("");
   const [kategori, setKategori] = useState(null); // "objektif" | "projektif" | null
@@ -6489,6 +6849,11 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                     <button onClick={()=>setKategori("d2panel")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid ${PURPLE}`, background:"#F3F0FF", color:PURPLE, fontSize:13, fontWeight:800, cursor:"pointer" }}>🎯 D2 Dikkat Testi</button>
                     <button onClick={()=>setKategori("oog")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #8B5A00`, background:"#FFF4E5", color:"#8B5A00", fontSize:13, fontWeight:800, cursor:"pointer" }}>🧩 ÖÖG Ön-Tarama</button>
                   </div>
+                  {kademe === "ilkokul" && (
+                    <div style={{ display:"flex", gap:8, marginTop:8 }}>
+                      <button onClick={()=>setKategori("ilkokul")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #C2410C`, background:"#FEF3E2", color:"#C2410C", fontSize:13, fontWeight:800, cursor:"pointer" }}>🎒 İlkokul Düzey Taraması (1-4. Sınıf)</button>
+                    </div>
+                  )}
                   {kademe === "ortaokul" && (
                     <div style={{ display:"flex", gap:8, marginTop:8 }}>
                       <button onClick={()=>setKategori("akademik")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #8B5A00`, background:"#FFF4E5", color:"#8B5A00", fontSize:13, fontWeight:800, cursor:"pointer" }}>📚 Akademik Düzey Taraması (5-8. Sınıf)</button>
@@ -6507,6 +6872,11 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                 <div>
                   <button onClick={()=>setKategori(null)} style={{ background:"none", border:"none", color:MUTED, fontSize:12, cursor:"pointer", marginBottom:8, padding:0 }}>← Kategoriyi değiştir</button>
                   <OOGPaneli seciliAd={seciliAd} seciliSinif={seciliSinif} seciliNumara={seciliNumara} oogDegerlendirmeler={oogDegerlendirmeler} setOogDegerlendirmeler={setOogDegerlendirmeler} />
+                </div>
+              ) : kategori === "ilkokul" ? (
+                <div>
+                  <button onClick={()=>setKategori(null)} style={{ background:"none", border:"none", color:MUTED, fontSize:12, cursor:"pointer", marginBottom:8, padding:0 }}>← Kategoriyi değiştir</button>
+                  <IlkokulTaramaPaneli seciliAd={seciliAd} seciliSinif={seciliSinif} seciliNumara={seciliNumara} ilkokulTaramalar={ilkokulTaramalar} setIlkokulTaramalar={setIlkokulTaramalar} />
                 </div>
               ) : kategori === "akademik" ? (
                 <div>
@@ -8162,11 +8532,6 @@ function konuDegeriAl(checkedMap, konu) {
 // O konunun EN SON hangi tarihte güncellendiğini döner — sadece yeni
 // {yuzde, tarih} formatında saklanan kayıtlar için bilinir, eski düz sayı ya
 // da true/false kayıtlarında tarih hiç tutulmadığı için null döner.
-function konuTarihiAl(checkedMap, konu) {
-  const v = checkedMap && checkedMap[konu];
-  if (v && typeof v === "object" && v.tarih) return v.tarih;
-  return null;
-}
 // Bir öğrencinin bir dersteki konuların ORTALAMA tamamlanma yüzdesini
 // hesaplar (her konu 0/25/50/75/100 olabilir, tam bitmiş/bitmemiş değil).
 // konuKaynagi verilmezse LGS_KONU_HARITASI kullanılır (geriye dönük uyum);
@@ -10136,7 +10501,7 @@ function KullaniciOnaylari() {
   );
 }
 
-function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profiles, setProfiles, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, castDegerlendirmeler, setCastDegerlendirmeler, akademikTaramalar, setAkademikTaramalar, riskListesi, setRiskListesi, denemeler, setDenemeler, sevkler, setSevkler, mudahalePlan, setMudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, profNotlari, setProfNotlari, kutuphane, setKutuphane, yillar, setYillar, sinifListesi, setSinifListesi, aktifYil, setAktifYil, kademe, setKademe, sinavTuru, setSinavTuru, testKayitlari, setTestKayitlari, hatirlatmalar, setHatirlatmalar, netHaritasiKayitlari, setNetHaritasiKayitlari, konuHaritasiVerisi, setKonuHaritasiVerisi, sosyometri, setSosyometri, onTumOzellikler }) {
+function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profiles, setProfiles, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, castDegerlendirmeler, setCastDegerlendirmeler, akademikTaramalar, setAkademikTaramalar, ilkokulTaramalar, setIlkokulTaramalar, riskListesi, setRiskListesi, denemeler, setDenemeler, sevkler, setSevkler, mudahalePlan, setMudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, profNotlari, setProfNotlari, kutuphane, setKutuphane, yillar, setYillar, sinifListesi, setSinifListesi, aktifYil, setAktifYil, kademe, setKademe, sinavTuru, setSinavTuru, testKayitlari, setTestKayitlari, hatirlatmalar, setHatirlatmalar, netHaritasiKayitlari, setNetHaritasiKayitlari, konuHaritasiVerisi, setKonuHaritasiVerisi, sosyometri, setSosyometri, onTumOzellikler }) {
   const [key, setKey] = useState(() => pdrGetApiKey());
   const [gosterKey, setGosterKey] = useState(false);
   const [kaydedildi, setKaydedildi] = useState(false);
@@ -10201,6 +10566,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
     const yeniOog = diziGuncelle(oogDegerlendirmeler);
     const yeniCast = diziGuncelle(castDegerlendirmeler);
     const yeniAkademik = diziGuncelle(akademikTaramalar);
+    const yeniIlkokul = diziGuncelle(ilkokulTaramalar);
     const yeniNetHaritasi = diziGuncelle(netHaritasiKayitlari);
     const yeniHatirlatmalar = diziGuncelle(hatirlatmalar);
 
@@ -10269,6 +10635,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
     setOogDegerlendirmeler(yeniOog); await saveOogDegerlendirmeler(yeniOog);
     setCastDegerlendirmeler(yeniCast); await saveCastDegerlendirmeler(yeniCast);
     setAkademikTaramalar(yeniAkademik); await saveAkademikTaramalar(yeniAkademik);
+    setIlkokulTaramalar(yeniIlkokul); await saveIlkokulTaramalar(yeniIlkokul);
     setNetHaritasiKayitlari(yeniNetHaritasi); await saveNetHaritasi(yeniNetHaritasi);
     setHatirlatmalar(yeniHatirlatmalar); await saveHatirlatmalar(yeniHatirlatmalar);
     setDenemeler(yeniDenemeler); await saveDenemeler(yeniDenemeler);
@@ -10325,6 +10692,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
         ["oogDegerlendirmeler", setOogDegerlendirmeler, saveOogDegerlendirmeler],
         ["castDegerlendirmeler", setCastDegerlendirmeler, saveCastDegerlendirmeler],
         ["akademikTaramalar", setAkademikTaramalar, saveAkademikTaramalar],
+        ["ilkokulTaramalar", setIlkokulTaramalar, saveIlkokulTaramalar],
         ["riskListesi", setRiskListesi, saveRiskListesi],
         ["denemeler", setDenemeler, saveDenemeler],
         ["sevkler", setSevkler, saveSevkler],
@@ -10367,7 +10735,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
       const yedek = {
         yedekTarihi: new Date().toISOString(),
         aktifYil, yillar, sinifListesi,
-        ogrenciler, records, profiles, profiles2, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar,
+        ogrenciler, records, profiles, profiles2, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar,
         riskListesi, denemeler, sevkler, mudahalePlan,
         hazirlikNotlari, ilerlemeNotlari, profNotlari, kutuphane,
         testKayitlari, hatirlatmalar, netHaritasiKayitlari, konuHaritasiVerisi,
@@ -14971,11 +15339,6 @@ function KutuphaneEkle({ kutuphane, setKutuphane }) {
   );
 }
 // ── Badge / StatBar ───────────────────────────────────────────────────────────
-function Badge({ label, type }) {
-  const color = type === "Veli" ? ORANGE : ACCENT;
-  const bg = type === "Veli" ? "#FDEBD0" : ACCENT_LIGHT;
-  return <span style={{ background: bg, color, borderRadius: 20, padding: "2px 10px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>{label}</span>;
-}
 function StatBar({ label, value, max, color = ACCENT }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
@@ -14987,108 +15350,6 @@ function StatBar({ label, value, max, color = ACCENT }) {
       <div style={{ height: 6, background: BORDER, borderRadius: 4 }}>
         <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 4 }} />
       </div>
-    </div>
-  );
-}
-
-function RecordCard({ rec, onDelete, onUpdate }) {
-  const [open, setOpen] = useState(false);
-  const [duzenle, setDuzenle] = useState(false);
-  const [editForm, setEditForm] = useState({ summary: rec.summary, topic: rec.topic || "", raw: rec.raw || "" });
-  const [aiLoading, setAiLoading] = useState(false);
-  const [kaydedildi, setKaydedildi] = useState(false);
-  const isVeli = rec.meetingType === "Veli";
-
-  async function handleAiRewrite() {
-    if (!editForm.raw.trim()) return;
-    setAiLoading(true);
-    const tamCevap = await getAISummary(editForm.raw);
-    const summary = tamCevap.split(/---HATIRLATMA---/i)[0].trim();
-    setEditForm(f => ({ ...f, summary }));
-    setAiLoading(false);
-  }
-
-  function handleSave() {
-    onUpdate(rec.id, { summary: editForm.summary, topic: editForm.topic, raw: editForm.raw });
-    setDuzenle(false);
-    setKaydedildi(true);
-    setTimeout(() => setKaydedildi(false), 2000);
-  }
-
-  return (
-    <div style={{ background: CARD, border: `1px solid ${duzenle ? ACCENT : BORDER}`, borderRadius: 12, marginBottom: 10, overflow: "hidden", transition: "border .2s" }}>
-      <div onClick={() => { if (!duzenle) setOpen(o => !o); }} style={{
-        display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", cursor: duzenle ? "default" : "pointer",
-        borderBottom: open ? `1px solid ${BORDER}` : "none"
-      }}>
-        <div style={{
-          width: 36, height: 36, borderRadius: "50%",
-          background: isVeli ? "#FDEBD0" : ACCENT_LIGHT, color: isVeli ? ORANGE : ACCENT,
-          display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 15
-        }}>{rec.studentName.charAt(0).toUpperCase()}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: TEXT }}>{rec.studentName}</div>
-          <div style={{ fontSize: 12, color: MUTED }}>{rec.date} · {rec.className}</div>
-        </div>
-        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-          <Badge label={rec.meetingType || "Öğrenci"} type={rec.meetingType} />
-          {(editForm.topic || rec.topic) && <Badge label={editForm.topic || rec.topic} />}
-        </div>
-        {!duzenle && <span style={{ color: MUTED, fontSize: 18 }}>{open ? "▲" : "▼"}</span>}
-      </div>
-
-      {open && !duzenle && (
-        <div style={{ padding: "14px 16px" }}>
-          <div style={{ fontSize: 13, color: TEXT, lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 12 }}>{rec.summary}</div>
-          {rec.raw && (
-            <details style={{ marginBottom: 8 }}>
-              <summary style={{ fontSize: 12, color: MUTED, cursor: "pointer" }}>Ham not →</summary>
-              <div style={{ marginTop: 8, fontSize: 12, color: MUTED, background: BG, borderRadius: 8, padding: 10, lineHeight: 1.6 }}>{rec.raw}</div>
-            </details>
-          )}
-          {kaydedildi && <div style={{ fontSize: 12, color: ACCENT, fontWeight: 700, marginBottom: 8 }}>✓ Güncellendi</div>}
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <button onClick={() => { setDuzenle(true); setOpen(true); }} style={{ background: ACCENT_LIGHT, border: "none", color: ACCENT, borderRadius: 8, padding: "4px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>✏ Düzenle</button>
-            <button onClick={() => onDelete(rec.id)} style={{ background: "none", border: "1px solid #F28B82", color: "#C5221F", borderRadius: 8, padding: "4px 14px", fontSize: 12, cursor: "pointer" }}>Sil</button>
-          </div>
-        </div>
-      )}
-
-      {duzenle && (
-        <div style={{ padding: "14px 16px", borderTop: `1px solid ${BORDER}` }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: ACCENT, marginBottom: 10 }}>✏ Görüşmeyi Düzenle</div>
-
-          <label style={{ fontSize: 11, fontWeight: 600, color: MUTED, display: "block", marginBottom: 4 }}>KONU</label>
-          <select value={editForm.topic} onChange={e => setEditForm(f => ({ ...f, topic: e.target.value }))}
-            style={{ width: "100%", padding: "8px 10px", border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 8, fontSize: 13, marginBottom: 10, boxSizing: "border-box", fontFamily: "inherit", background:"#fff" }}>
-            <option value="">Konu seçilmedi</option>
-            {KONU_LISTESI.map(k => <option key={k} value={k}>{k}</option>)}
-          </select>
-
-          <label style={{ fontSize: 11, fontWeight: 600, color: MUTED, display: "block", marginBottom: 4 }}>HAM NOT / EK GÖRÜŞME</label>
-          <textarea value={editForm.raw} onChange={e => setEditForm(f => ({ ...f, raw: e.target.value }))}
-            placeholder="Yeni görüşme notlarını buraya ekleyin…"
-            rows={4} style={{ width: "100%", padding: "8px 10px", border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 8, fontSize: 13, resize: "vertical", marginBottom: 8, boxSizing: "border-box", fontFamily: "inherit", lineHeight: 1.6 }} />
-
-          <button onClick={handleAiRewrite} disabled={!editForm.raw.trim() || aiLoading} style={{
-            background: aiLoading ? BORDER : PURPLE, color: "#fff", border: "none",
-            borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", marginBottom: 10
-          }}>{aiLoading ? "AI yeniden özetliyor…" : "✦ AI ile Özeti Güncelle"}</button>
-
-          <label style={{ fontSize: 11, fontWeight: 600, color: MUTED, display: "block", marginBottom: 4 }}>ÖZET</label>
-          <textarea value={editForm.summary} onChange={e => setEditForm(f => ({ ...f, summary: e.target.value }))}
-            rows={5} style={{ width: "100%", padding: "8px 10px", border: `1px solid ${ACCENT_LIGHT}`, background: "#F0FAF4", borderRadius: 8, fontSize: 13, resize: "vertical", marginBottom: 12, boxSizing: "border-box", fontFamily: "inherit", lineHeight: 1.7 }} />
-
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => { setDuzenle(false); setEditForm({ summary: rec.summary, topic: rec.topic || "", raw: rec.raw || "" }); }} style={{
-              flex: 1, padding: "9px", background: CARD, color: MUTED, border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer"
-            }}>İptal</button>
-            <button onClick={handleSave} style={{
-              flex: 2, padding: "9px", background: ACCENT, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: "pointer"
-            }}>Kaydet</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -15219,6 +15480,7 @@ export default function App() {
   const [oogDegerlendirmeler, setOogDegerlendirmeler] = useState([]);
   const [castDegerlendirmeler, setCastDegerlendirmeler] = useState([]);
   const [akademikTaramalar, setAkademikTaramalar] = useState([]);
+  const [ilkokulTaramalar, setIlkokulTaramalar] = useState([]);
   const [tab, setTab] = useState("ogrenci");
   // Sekme çubuğunu tıklanan sekme etrafında ortalamak için kullanılıyor —
   // kullanıcı artık elle kaydırmak zorunda kalmadan, seçtiği sekme her zaman
@@ -15378,6 +15640,7 @@ export default function App() {
     loadOogDegerlendirmeler().then(setOogDegerlendirmeler);
     loadCastDegerlendirmeler().then(setCastDegerlendirmeler);
     loadAkademikTaramalar().then(setAkademikTaramalar);
+    loadIlkokulTaramalar().then(setIlkokulTaramalar);
     loadKutuphane().then(setKutuphane);
     loadRiskListesi().then(setRiskListesi);
     loadDenemeler().then(setDenemeler);
@@ -15420,6 +15683,7 @@ export default function App() {
       "pdr-oog": () => loadOogDegerlendirmeler().then(setOogDegerlendirmeler),
       "pdr-cast": () => loadCastDegerlendirmeler().then(setCastDegerlendirmeler),
       "pdr-akademik": () => loadAkademikTaramalar().then(setAkademikTaramalar),
+      "pdr-ilkokul": () => loadIlkokulTaramalar().then(setIlkokulTaramalar),
       "pdr-kutuphane": () => loadKutuphane().then(setKutuphane),
       "pdr-risk": () => loadRiskListesi().then(setRiskListesi),
       "pdr-denemeler": () => loadDenemeler().then(setDenemeler),
@@ -15608,32 +15872,6 @@ export default function App() {
     setSaved(true); setTimeout(() => setSaved(false), 2000); setTab("ogrenciler");
   }
 
-  async function handleDelete(id) { const u = records.filter(r => r.id !== id); setRecords(u); await saveRecords(u); }
-
-  async function handleUpdate(id, fields) {
-    const u = records.map(r => r.id === id ? { ...r, ...fields } : r);
-    setRecords(u); await saveRecords(u);
-  }
-
-
-  async function handleProfileAnalyze() {
-    setProfAiLoading(true);
-    // Öğrencinin deneme verilerini de bağlama ekle
-    const ogrenciDenemeler = pdrSozlukOku(denemeler, profForm.studentName, profForm.className) || {};
-    const denemeOzeti = Object.entries(ogrenciDenemeler).filter(([k])=>k!=="7sinif").length > 0
-      ? "DENEME SONUÇLARI: " + Object.entries(ogrenciDenemeler)
-          .filter(([k])=>k!=="7sinif")
-          .sort((a,b) => a[0]-b[0])
-          .map(([no, nets]) => {
-            const toplam = aktifDenemeDersleri.reduce((s,d) => s+(parseFloat(nets[d.key])||0), 0);
-            return `D${no}: ${toplam.toFixed(1)} net`;
-          }).join(", ")
-      : "";
-    const notlarVeDeneme = [profForm.notes, denemeOzeti].filter(Boolean).join("\n");
-    const analysis = await getProfileAnalysis(profForm.studentName, profForm.className, profForm.numara, profForm.scores, notlarVeDeneme, kutuphane);
-    setProfForm(f => ({ ...f, analysis }));
-    setProfAiLoading(false);
-  }
 
   // Risk Listesi
   // Elle kaydet — AI hiç çağrılmaz, danışmanın yukarıda kendi seçtiği risk
@@ -15768,6 +16006,8 @@ export default function App() {
     const updOog = oogDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
     setOogDegerlendirmeler(updOog); await saveOogDegerlendirmeler(updOog);    const updAkademik = akademikTaramalar.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
     setAkademikTaramalar(updAkademik); await saveAkademikTaramalar(updAkademik);
+    const updIlkokul = ilkokulTaramalar.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
+    setIlkokulTaramalar(updIlkokul); await saveIlkokulTaramalar(updIlkokul);
     const updCast = castDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
     setCastDegerlendirmeler(updCast); await saveCastDegerlendirmeler(updCast);
 
@@ -15819,18 +16059,6 @@ export default function App() {
     await saveKutuphane(u);
   }
 
-  function handleReport(profil1) {
-    const ogrenciAdi = profil1.studentName;
-    const profil2 = profiles2.find(p => pdrAyniOgrenci(p.studentName, p.className, profil1.studentName, profil1.className, p.numara, profil1.numara)) || null;
-    const gorusmeler = records
-      .filter(r => pdrAyniOgrenci(r.studentName, r.className, profil1.studentName, profil1.className, r.numara, profil1.numara))
-      .sort((a, b) => {
-        const parse = d => { const [g, ay, y] = (d||"").split("."); return new Date(`${y}-${ay}-${g}`); };
-        return parse(a.date) - parse(b.date);
-      });
-    setRaporVerisi(raporVerisiOlustur({ ogrenci: ogrenciAdi, ogrenciSinif: profil1.className, profil1, profil2, gorusmeler, denemeler: pdrSozlukOku(denemeler, ogrenciAdi, profil1.className, profil1.numara) || {}, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }));
-  }
-
   // Değerlendirmeden Profil 1'e aktar
   // "Gözlem Sorularıyla AI Destekli Değerlendir" akışından dönen puan ve analizi
   // artık DOĞRUDAN AYRI BİR PROFİL OLARAK KAYDETMİYOR — bunun yerine, o an açık
@@ -15842,13 +16070,6 @@ export default function App() {
   // (handleKaydet'in yaptığı gibi) ikinci, ayrı bir profil kaydı oluşuyordu.
   function handleDegerlendirmeTransfer({ scores, analysis }) {
     setProfForm(f => ({ ...f, scores: { ...scores }, analysis: analysis || f.analysis }));
-  }
-
-  function toggleIlgi(ilgi) {
-    setProf2Form(f => {
-      const ilgiler = f.ilgiler.includes(ilgi) ? f.ilgiler.filter(x => x !== ilgi) : [...f.ilgiler, ilgi];
-      return { ...f, ilgiler };
-    });
   }
 
   const filtered = records.filter(r =>
@@ -16155,6 +16376,8 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
     setOogDegerlendirmeler(kalanOog); await saveOogDegerlendirmeler(kalanOog);
     const kalanAkademik = akademikTaramalar.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
     setAkademikTaramalar(kalanAkademik); await saveAkademikTaramalar(kalanAkademik);
+    const kalanIlkokul = ilkokulTaramalar.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
+    setIlkokulTaramalar(kalanIlkokul); await saveIlkokulTaramalar(kalanIlkokul);
     const kalanCast = castDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
     setCastDegerlendirmeler(kalanCast); await saveCastDegerlendirmeler(kalanCast);
 
@@ -16633,6 +16856,8 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
             setOogDegerlendirmeler={setOogDegerlendirmeler}
             akademikTaramalar={akademikTaramalar}
             setAkademikTaramalar={setAkademikTaramalar}
+            ilkokulTaramalar={ilkokulTaramalar}
+            setIlkokulTaramalar={setIlkokulTaramalar}
             kademe={kademe}
             castDegerlendirmeler={castDegerlendirmeler}
             setCastDegerlendirmeler={setCastDegerlendirmeler}
@@ -16734,7 +16959,7 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
             records={records}
             kutuphane={kutuphane}
             sinavTuru={sinavTuru}
-            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
             onDegerlendirmeAc={() => setDegerlendirmeAcik(true)}
           />
         )}
@@ -16802,7 +17027,7 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
             setHatirlatmalar={setHatirlatmalar}
             ilerlemeNotlari={ilerlemeNotlari}
             setIlerlemeNotlari={setIlerlemeNotlari}
-            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
             onSinifGuncelle={async (eskiAd, eskiSinif, eskiNumara, yeniAd, yeniSinif) => {
               const ayniMi = (ad, sinif, no) => pdrAyniOgrenci(eskiAd, eskiSinif, ad, sinif, eskiNumara, no);
 
@@ -16901,6 +17126,9 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
               const yeniAkademik = akademikTaramalar.map(o => ayniMi(o.studentName, o.className, o.numara) ? { ...o, studentName: yeniAd, className: yeniSinif } : o);
               setAkademikTaramalar(yeniAkademik); await saveAkademikTaramalar(yeniAkademik);
 
+              const yeniIlkokul = ilkokulTaramalar.map(o => ayniMi(o.studentName, o.className, o.numara) ? { ...o, studentName: yeniAd, className: yeniSinif } : o);
+              setIlkokulTaramalar(yeniIlkokul); await saveIlkokulTaramalar(yeniIlkokul);
+
               const yeniCast = castDegerlendirmeler.map(o => ayniMi(o.studentName, o.className, o.numara) ? { ...o, studentName: yeniAd, className: yeniSinif } : o);
               setCastDegerlendirmeler(yeniCast); await saveCastDegerlendirmeler(yeniCast);
             }}
@@ -16934,6 +17162,9 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
               const updOog = oogDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
               setOogDegerlendirmeler(updOog); await saveOogDegerlendirmeler(updOog);              const updAkademik = akademikTaramalar.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
               setAkademikTaramalar(updAkademik); await saveAkademikTaramalar(updAkademik);
+
+              const updIlkokul = ilkokulTaramalar.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
+              setIlkokulTaramalar(updIlkokul); await saveIlkokulTaramalar(updIlkokul);
 
               const updCast = castDegerlendirmeler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
               setCastDegerlendirmeler(updCast); await saveCastDegerlendirmeler(updCast);
@@ -17067,7 +17298,7 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
             profiles={profiles}
             profiles2={profiles2}
             sosyometri={sosyometri}
-            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
           />
         )}
 
@@ -17559,6 +17790,7 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
           oogDegerlendirmeler={oogDegerlendirmeler} setOogDegerlendirmeler={setOogDegerlendirmeler}
           castDegerlendirmeler={castDegerlendirmeler} setCastDegerlendirmeler={setCastDegerlendirmeler}
           akademikTaramalar={akademikTaramalar} setAkademikTaramalar={setAkademikTaramalar}
+          ilkokulTaramalar={ilkokulTaramalar} setIlkokulTaramalar={setIlkokulTaramalar}
           riskListesi={riskListesi} setRiskListesi={setRiskListesi}
           denemeler={denemeler} setDenemeler={setDenemeler}
           sevkler={sevkler} setSevkler={setSevkler}
