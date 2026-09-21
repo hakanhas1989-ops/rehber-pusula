@@ -3728,6 +3728,21 @@ function pdrTarihMs(tarihStr) {
   const t = new Date(`${y}-${ay}-${g}`).getTime();
   return isNaN(t) ? 0 : t;
 }
+// "14.09.2026" -> "pazartesi". Gorusme listelerinde tarihin altinda kucuk
+// harflerle gosterilir. Tarih yerel bilesenlerle kuruluyor (pdrTarihMs'teki
+// gibi ISO string ile DEGIL): ISO string UTC gece yarisi olarak ayristirilir
+// ve UTC'nin gerisindeki saat dilimlerinde gun bir gun geri kayar.
+function pdrGunAdi(tarihStr) {
+  const p = String(tarihStr || "").split(".");
+  if (p.length !== 3) return "";
+  const g = +p[0], ay = +p[1], y = +p[2];
+  const d = new Date(y, ay - 1, g);
+  // Tasma kontrolu: new Date(2026, 12, 32) hata vermez, 01.02.2027'ye kayar.
+  // Bilesenleri geri okuyup dogrulamazsak bozuk bir tarih (ornegin bozulmus
+  // bir yedekten gelen) sessizce YANLIS gun adi basar. Bos donmek yegdir.
+  if (d.getDate() !== g || d.getMonth() !== ay - 1 || d.getFullYear() !== y) return "";
+  return ["pazar","pazartesi","salı","çarşamba","perşembe","cuma","cumartesi"][d.getDay()];
+}
 
 // ── Ani Değişim Algılayıcısı ────────────────────────────────────────────────
 // AMAÇ: "Bu öğrenciye şiddet potansiyeli var" gibi hiçbir etiket koymaz —
@@ -12263,7 +12278,10 @@ function OgrenciYonetim({
                             .map(k => (
                             <div key={k.id} data-pdr-ogrenci-satir={pdrOgrAnahtar(k.studentName, k.className, k.numara)} onClick={() => { donulecekOgrenciRef.current = pdrOgrAnahtar(k.studentName, k.className, k.numara); setSeciliOgrenci(k.studentName); if(setAktifOgrenci) setAktifOgrenci({ name:k.studentName, className:k.className||"" }); }}
                               style={{ background:BG, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:"9px 12px", display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
-                              <span style={{ fontSize:10.5, color:MUTED, flexShrink:0 }}>{k.date}</span>
+                              <span style={{ flexShrink:0, lineHeight:1.2, textAlign:"center" }}>
+                                <span style={{ display:"block", fontSize:10.5, color:MUTED }}>{k.date}</span>
+                                <span style={{ display:"block", fontSize:8.5, color:MUTED, opacity:0.75 }}>{pdrGunAdi(k.date)}</span>
+                              </span>
                               <span style={{ flex:1, minWidth:0, fontSize:12, fontWeight:700, color:TEXT, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{k.studentName}</span>
                               <span style={{ fontSize:10.5, color:MUTED, flexShrink:0 }}>{k.className}{k.numara ? ` · No: ${k.numara}` : ""}</span>
                             </div>
@@ -12688,7 +12706,10 @@ function OgrenciYonetim({
                           <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:10,padding:"10px 12px"}}>
                             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4,flexWrap:"wrap",gap:4}}>
                               <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
-                                <span style={{fontSize:12,fontWeight:700,color:TEXT}}>{r.date}</span>
+                                <span style={{lineHeight:1.15}}>
+                                  <span style={{display:"block",fontSize:12,fontWeight:700,color:TEXT}}>{r.date}</span>
+                                  <span style={{display:"block",fontSize:8.5,fontWeight:600,color:MUTED}}>{pdrGunAdi(r.date)}</span>
+                                </span>
                                 <span style={{background:isVeli?"#FDEBD0":ACCENT_LIGHT,color:isVeli?ORANGE:ACCENT,borderRadius:12,padding:"1px 8px",fontSize:10,fontWeight:700}}>
                                   {r.meetingType||"Öğrenci"}
                                 </span>
@@ -14912,7 +14933,8 @@ function ProfilMerkez({
                   <div style={{fontSize:12,fontWeight:700,color:MUTED,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>Görüşme Geçmişi ({ogrRec.length})</div>
                   {ogrRec.slice(0,3).map(r=>(
                     <div key={r.id} style={{marginBottom:8,padding:8,background:BG,borderRadius:6,borderLeft:`3px solid ${ACCENT}`}}>
-                      <div style={{fontSize:10,color:MUTED,marginBottom:3}}>{r.date} · {r.topic||"Genel"}</div>
+                      <div style={{fontSize:10,color:MUTED}}>{r.date} · {r.topic||"Genel"}</div>
+                      <div style={{fontSize:8.5,color:MUTED,opacity:0.75,marginBottom:3}}>{pdrGunAdi(r.date)}</div>
                       <div style={{fontSize:12,color:TEXT,lineHeight:1.6}}>{r.summary}</div>
                     </div>
                   ))}
