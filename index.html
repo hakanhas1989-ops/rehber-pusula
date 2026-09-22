@@ -4937,54 +4937,84 @@ function butunlesikHesapla({ kademe, ad, sinif, numara, akademikTaramalar, liseT
   };
 }
 
-// ── AI istemi ────────────────────────────────────────────────────────────
+// ── AI'a giden VERİ (talimat içermez) ────────────────────────────────────
+// Rehber Pusula'da istemler worker'da, sunucu tarafında durur; tarayıcı
+// yalnızca ham veriyi gönderir. Bu yüzden "ne hesaplandı" (burası) ile
+// "AI'a nasıl soruluyor" (aşağıdaki istem / Pusula'da worker) ayrılmıştır.
+// Sayıların tek kaynağı yine burasıdır — iki program da aynı veriyi üretir.
+function butunlesikVeriOlustur(b, ad, sinif) {
+  return {
+    kimlik: pdrAnonimKimlik(ad, sinif),
+    kademe: b.kademe,
+    esik: b.perfEsik,
+    satirlar: (b.satirlar || [])
+      .filter(r => r.olculen !== null || r.algi !== null)
+      .map(r => ({ ad: r.ad, olculen: r.olculen, algi: r.algi, fark: r.fark })),
+    meslek: b.meslek ? {
+      tarih: b.meslek.kayit.tarih,
+      sutunlar: b.meslek.sirali.filter(s => s.puan > 0).slice(0, 4)
+        .map(s => ({ harf: s.harf, puan: s.puan, duzey: s.duzey.ad, meslekler: s.meslekler })),
+      liseOnerisi: b.meslek.liseOnerisi ? b.meslek.liseOnerisi.liseler.map(l => l.lise) : [],
+    } : null,
+    baglam: b.baglam,
+    hedefAciklari: (b.hedefAciklari || []).map(h => ({
+      harf: h.harf, meslekler: h.meslekler, zayifDersler: h.zayifDersler })),
+    gizliGucler: (b.gizliGucler || []).map(g => ({
+      ad: g.ad, olculen: g.olculen, algi: g.algi, hedefDersi: !!g.hedefDersi })),
+    eksikler: b.eksikler || [],
+  };
+}
+
+// ── AI istemi (KİŞİSEL program) ──────────────────────────────────────────
+// Rehber Pusula bu fonksiyonu kullanmaz; birebir aynı metin worker'da,
+// "butunlesik_yorum" builder'ında durur.
 // KRİTİK: AI'a yalnızca HESAPLANMIŞ değerler ve kodun bulduğu çelişkiler
 // gider. AI sayı üretmez, tablo yazmaz, eksik aracı yorumlamaz. Üç aracın
 // kanıt ağırlığının farklı olduğu isteme açıkça yazılır — yoksa model üçünü
 // eşit sayıp en zayıf veriyi en sağlamıyla aynı cümleye koyar.
-function butunlesikIstemOlustur(b, ad, sinif) {
+function butunlesikIstemOlustur(v) {
   const L = [];
-  L.push(`Öğrenci: ${pdrAnonimKimlik(ad, sinif)} · Kademe: ${b.kademe === "lise" ? "Lise" : "Ortaokul"}`);
+  L.push(`Öğrenci: ${v.kimlik} · Kademe: ${v.kademe === "lise" ? "Lise" : "Ortaokul"}`);
   L.push("");
   L.push("TABLO (bütün değerler programda hesaplandı, DEĞİŞTİRME):");
   L.push("Ders | Ölçülen düzey (yapabiliyor) | Benlik algısı (inanıyor) | Fark");
-  b.satirlar.forEach(r => {
+  v.satirlar.forEach(r => {
     L.push(`${r.ad} | ${r.olculen === null ? "ölçülmedi" : "%" + r.olculen} | ${r.algi === null ? "yanıtlanmadı" : "%" + r.algi} | ${r.fark === null ? "—" : (r.fark > 0 ? "+" + r.fark : r.fark)}`);
   });
-  L.push(`(Geçme eşiği: %${b.perfEsik})`);
+  L.push(`(Geçme eşiği: %${v.esik})`);
 
-  if (b.meslek) {
+  if (v.meslek) {
     L.push("");
     L.push("MESLEKİ EĞİLİM (160 madde, yerel puanlama — istiyor):");
-    b.meslek.sirali.filter(s => s.puan > 0).slice(0, 4).forEach(s => {
-      L.push(`${s.harf} sütunu: ${s.puan} puan — ${s.duzey.ad} → ${s.meslekler}`);
+    v.meslek.sutunlar.forEach(s => {
+      L.push(`${s.harf} sütunu: ${s.puan} puan — ${s.duzey} → ${s.meslekler}`);
     });
-    if (b.meslek.liseOnerisi) {
-      L.push(`Lise türü ipucu: ${b.meslek.liseOnerisi.liseler.map(l => l.lise).join(", ")}`);
+    if (v.meslek.liseOnerisi.length) {
+      L.push(`Lise türü ipucu: ${v.meslek.liseOnerisi.join(", ")}`);
     }
   }
 
-  if (b.baglam.kariyerHedefi || b.baglam.ilgiler.length) {
+  if (v.baglam.kariyerHedefi || v.baglam.ilgiler.length) {
     L.push("");
     L.push("BAĞLAM (danışmanın girdiği, puanlanmış veri DEĞİL):");
-    if (b.baglam.kariyerHedefi) L.push(`Kariyer hedefi: ${b.baglam.kariyerHedefi}`);
-    if (b.baglam.ilgiler.length) L.push(`İlgi alanları: ${b.baglam.ilgiler.join(", ")}`);
+    if (v.baglam.kariyerHedefi) L.push(`Kariyer hedefi: ${v.baglam.kariyerHedefi}`);
+    if (v.baglam.ilgiler.length) L.push(`İlgi alanları: ${v.baglam.ilgiler.join(", ")}`);
   }
 
-  if (b.hedefAciklari.length || b.gizliGucler.length) {
+  if (v.hedefAciklari.length || v.gizliGucler.length) {
     L.push("");
     L.push("PROGRAMIN BULDUĞU ÇELİŞKİLER (yorumlaman gereken şey bunlar):");
-    b.hedefAciklari.forEach(h => {
+    v.hedefAciklari.forEach(h => {
       L.push(`- İlgi duyduğu ${h.harf} sütunundaki meslekler (${h.meslekler}) şu derslere dayanıyor ama ölçülen düzeyi eşiğin altında: ${h.zayifDersler.map(z => `${z.ad} %${z.olculen}`).join(", ")}`);
     });
-    b.gizliGucler.forEach(g => {
+    v.gizliGucler.forEach(g => {
       L.push(`- ${g.ad}: ölçülen düzeyi yeterli (%${g.olculen}) ama kendini yetersiz görüyor (%${g.algi})${g.hedefDersi ? " — ve bu ders ilgi duyduğu meslek grubunun temel dersi" : ""}`);
     });
   }
 
-  if (b.eksikler.length) {
+  if (v.eksikler.length) {
     L.push("");
-    L.push(`UYGULANMAMIŞ ARAÇLAR: ${b.eksikler.join(", ")} — bunlar hakkında YORUM YAPMA, sadece eksik olduğunu bir cümleyle belirt.`);
+    L.push(`UYGULANMAMIŞ ARAÇLAR: ${v.eksikler.join(", ")} — bunlar hakkında YORUM YAPMA, sadece eksik olduğunu bir cümleyle belirt.`);
   }
 
   L.push("");
@@ -5085,23 +5115,24 @@ function ButunlesikPaneli({ seciliAd, seciliSinif, seciliNumara, kademe,
   async function handleAiYorum() {
     setAiYukleniyor(true); setAiHata("");
     try {
-      const istem = butunlesikIstemOlustur(b, seciliAd, seciliSinif);
-      const sistem = "Sen okul PDR danismanisin. Sana verilen sayilar programda hesaplanmistir; onlari degistirmez, yeni sayi uretmezsin. Tani koymaz, kesin yonlendirme yapmazsin. Turkce, sade, markdownsuz yazarsin.";
+      // Tek kaynak: sayılar her iki programda da burada hesaplanır.
+      const veri = butunlesikVeriOlustur(b, seciliAd, seciliSinif);
       let res;
       if (pusulaMi) {
+        // Pusula'da SADECE veri gider; istem worker'da durur.
         const apiKey = pdrGetApiKey();
         if (!apiKey) throw new Error("API_KEY_MISSING");
         res = await fetch(PDR_AI_WORKER_URL, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "butunlesik_yorum", apiKey, data: { istem, sistem } }),
+          body: JSON.stringify({ action: "butunlesik_yorum", apiKey, data: { veri } }),
         });
       } else {
         res = await fetch("https://pdr-api.hakanhas1989.workers.dev", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             model: "claude-sonnet-4-6", max_tokens: 1600,
-            system: sistem,
-            messages: [{ role: "user", content: istem }],
+            system: "Sen okul PDR danismanisin. Sana verilen sayilar programda hesaplanmistir; onlari degistirmez, yeni sayi uretmezsin. Tani koymaz, kesin yonlendirme yapmazsin. Turkce, sade, markdownsuz yazarsin.",
+            messages: [{ role: "user", content: butunlesikIstemOlustur(veri) }],
           }),
         });
       }
