@@ -17038,8 +17038,13 @@ export default function App() {
   const totalRecs = records.length;
   const studentRecs = records.filter(r => (r.meetingType || "Öğrenci") === "Öğrenci");
   const veliRecs = records.filter(r => r.meetingType === "Veli");
-  const uniqueStudents = new Set(studentRecs.map(r => r.studentName)).size;
-  const uniqueParents = new Set(veliRecs.map(r => r.studentName)).size;
+  // Tekillestirme isim+sinif+numara ile yapilir. Yalnizca isimle yapilirsa
+  // ayni isimli iki AYRI ogrenci tek kisi sayilir ve sayac eksik gosterir;
+  // soyadi maskelemesi ("Ahmet Yılmaz" -> "Ahmet Yı****") bu cakisma
+  // ihtimalini ayrica artiriyor. Programin geri kalani zaten pdrOgrAnahtar
+  // kullaniyor, bu iki sayac atlanmisti.
+  const uniqueStudents = new Set(studentRecs.map(r => pdrOgrAnahtar(r.studentName, r.className, r.numara))).size;
+  const uniqueParents = new Set(veliRecs.map(r => pdrOgrAnahtar(r.studentName, r.className, r.numara))).size;
   const bekleyenSevk = sevkler.filter(s => s.sonucBekleniyor).length;
   const bugunkuHatirlatma = (hatirlatmalar||[]).filter(h => !h.tamamlandi && pdrKalanGunHesapla(pdrHatirlatmaEfektifTarih(h)) <= 0).length;
   const tickerItems = [
