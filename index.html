@@ -5910,14 +5910,41 @@ function RaporModal({ rapor, onKapat }) {
                         {r.meetingType==="Veli" && <span style={{ background:"#FDEBD0", color:"#E76F51", borderRadius:10, padding:"1px 7px", fontSize:9, fontWeight:700 }}>Veli</span>}
                         {r.topic && <span style={{ background:"#f0f0f0", color:"#555", borderRadius:10, padding:"1px 7px", fontSize:9 }}>{r.topic}</span>}
                       </div>
-                      {r.raw && (
-                        <div style={{ marginBottom:6 }}>
-                          <div style={{ fontSize:9, fontWeight:700, color:"#888", textTransform:"uppercase", marginBottom:3 }}>Geliş Nedeni / Ham Not</div>
-                          <div style={{ fontSize:10, color:"#555", lineHeight:1.6, background:"#fafafa", borderRadius:4, padding:"4px 7px", fontStyle:"italic" }}>{r.raw}</div>
-                        </div>
-                      )}
-                      <div style={{ fontSize:9, fontWeight:700, color:"#127C56", textTransform:"uppercase", marginBottom:3 }}>Bir Sonraki Seans Planlaması</div>
-                      <div style={{ fontSize:11, color:"#333", lineHeight:1.7 }}>{r.summary}</div>
+                      {(() => {
+                        // r.summary = AI'nin GORUSME OZETI. "Bir sonraki seans
+                        // planlamasi" DEGIL — o ayri bir ozellik (Seans Hazirlik
+                        // Notu) ve raporda kendi bolumunde duruyor.
+                        // AI ozeti calistirilmadiysa kayit sirasinda summary
+                        // alanina ham not yaziliyor; o durumda ayni metni iki
+                        // basligin altinda iki kez basmak yerine TEK blok.
+                        const ham = (r.raw || "").trim();
+                        const ozet = (r.summary || "").trim();
+                        if (!ham && !ozet) return null;
+                        if (ozet && ham && ozet === ham) {
+                          return (
+                            <div>
+                              <div style={{ fontSize:9, fontWeight:700, color:"#127C56", textTransform:"uppercase", marginBottom:3 }}>Görüşme Notu</div>
+                              <div style={{ fontSize:11, color:"#333", lineHeight:1.7 }}>{r.summary}</div>
+                            </div>
+                          );
+                        }
+                        return (
+                          <div>
+                            {ham && (
+                              <div style={{ marginBottom:6 }}>
+                                <div style={{ fontSize:9, fontWeight:700, color:"#888", textTransform:"uppercase", marginBottom:3 }}>Geliş Nedeni / Ham Not</div>
+                                <div style={{ fontSize:10, color:"#555", lineHeight:1.6, background:"#fafafa", borderRadius:4, padding:"4px 7px", fontStyle:"italic" }}>{r.raw}</div>
+                              </div>
+                            )}
+                            {ozet && (
+                              <div>
+                                <div style={{ fontSize:9, fontWeight:700, color:"#127C56", textTransform:"uppercase", marginBottom:3 }}>Görüşme Özeti</div>
+                                <div style={{ fontSize:11, color:"#333", lineHeight:1.7 }}>{r.summary}</div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>
