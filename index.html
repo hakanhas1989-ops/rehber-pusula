@@ -4676,39 +4676,14 @@ function LiseTaramaPaneli({ seciliAd, seciliSinif, seciliNumara, liseTaramalar, 
             </div>
           </div>
 
-          <div style={{display:"flex", flexDirection:"column", gap:9, marginBottom:12}}>
-            {LISE_DERSLER.map(d => {
-              const ds = sonuc.dersSonuclari[d.key];
-              return (
-                <div key={d.key}>
-                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", fontSize:11, marginBottom:3, gap:6}}>
-                    <span style={{fontWeight:700, color:TEXT}}>
-                      {d.kisa}
-                      <span style={{fontSize:8.5, fontWeight:800, marginLeft:5, padding:"1px 5px", borderRadius:6,
-                        background: d.tip === "ortak" ? "#EEF2FF" : "#F7F5F0",
-                        color: d.tip === "ortak" ? "#3730A3" : MUTED}}>
-                        {d.tip === "ortak" ? "ORTAK" : d.tip === "sayisal" ? "SAYISAL" : "SÖZEL"}
-                      </span>
-                    </span>
-                    <span style={{fontWeight:800, color: ds.genelYuzde === null ? MUTED : liseSeviyeBandi(ds.genelYuzde).color, whiteSpace:"nowrap"}}>
-                      {ds.genelYuzde === null ? "uygulanmadı" : `%${ds.genelYuzde} · ${ds.islevselSinif ? ds.islevselSinif + ". sınıf" : "9 altı"}`}
-                    </span>
-                  </div>
-                  <div style={{display:"flex", gap:3}}>
-                    {LISE_SINIFLAR.map(s => {
-                      const sp = ds.sinifPuanlari[s];
-                      return (
-                        <div key={s} style={{flex:1, textAlign:"center"}}>
-                          <div style={{height:7, borderRadius:5, background: sp === null ? "#EFEFEF" : liseSeviyeBandi(sp.yuzde).color}} />
-                          <div style={{fontSize:8, color:MUTED, marginTop:2}}>{s}{sp !== null && `: %${sp.yuzde}`}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
+          <div style={{marginBottom:12}}>
+            <LiseDuzeyProfili dersSonuclari={sonuc.dersSonuclari} ogrenciSinif={seciliSinif} />
+            <div style={{fontSize:9, color:MUTED, lineHeight:1.6, marginTop:6, textAlign:"center"}}>
+              Her set 5 soru · %100=5/5 · %80=4/5 · <b>%60=3/5 (geçme eşiği)</b> · %40=2/5<br/>
+              Koyu satırlar <b>ortak ders</b> — genel düzey yalnızca onlardan hesaplanır · Sağdaki: işlevsel düzey
+            </div>
           </div>
+
 
           {sonuc.alanEgilimi && (
             <div style={{background:`${sonuc.alanEgilimi.renk}10`, border:`1px solid ${sonuc.alanEgilimi.renk}44`, borderRadius:10, padding:"10px 12px", marginBottom:10}}>
@@ -4718,7 +4693,8 @@ function LiseTaramaPaneli({ seciliAd, seciliSinif, seciliNumara, liseTaramalar, 
                   Sayısal %{sonuc.alanEgilimi.sayisal} · Sözel %{sonuc.alanEgilimi.sozel}
                 </span>
               </div>
-              <div style={{fontSize:10.5, color:TEXT, lineHeight:1.65}}>{sonuc.alanEgilimi.yorum}</div>
+              <LiseAlanDengesi alanEgilimi={sonuc.alanEgilimi} />
+              <div style={{fontSize:10.5, color:TEXT, lineHeight:1.65, marginTop:4}}>{sonuc.alanEgilimi.yorum}</div>
             </div>
           )}
 
@@ -5162,6 +5138,193 @@ function ilkokulTaramaSonucHesapla(cevaplar, ogrenciSinifAdi) {
 // Ortaokul aracından farkı: her sınıfın KENDİ alanları var (1. sınıfta ses
 // farkındalığı ve sayı hissi, 4. sınıfta çıkarım ve kesir gibi). 1. sınıfta
 // hiçbir madde çocuğun okumasını gerektirmez; danışman okur, şıklar görseldir.
+// Kisa ders adi — LISE_DERSLER'deki kisa adlar emoji ile basliyor; dar SVG
+// hucresinde emoji yer kaplamasin diye bastaki harf olmayanlar atilir.
+function liseDersKisaAd(ders) {
+  return String(ders.kisa || ders.label || "").replace(/^[^A-Za-zÇĞİÖŞÜçğıöşü]+/, "").trim();
+}
+
+// ── İlkokul Düzey Eğrisi ──────────────────────────────────────────────────
+// Ortaokul/lise matrisinin ilkokul karşılığı DEĞİLDİR: burada her sınıfın
+// alanları birbirinden farklı olduğu için satırlar karşılaştırılamaz.
+// Onun yerine tek bir eğri çizilir: x = sınıf seti (1-4), y = o setin yüzdesi.
+// Yatay kesik çizgi %60 geçme eşiği, dikey mor çizgi öğrencinin bulunduğu sınıf.
+function IlkokulDuzeyEgrisi({ sonuc, ogrenciSinif, esik }) {
+  const gecmeEsigi = esik || ILKOKUL_ESIK_YUZDE;
+  const siniflar = ILKOKUL_TARAMA.siniflar.map(st => st.sinif);
+  const noktalar = siniflar
+    .map(s => ({ sinif: s, yuzde: (sonuc.sinifSonuclari[s] || {}).yuzde }))
+    .filter(p => p.yuzde !== null && p.yuzde !== undefined);
+  if (noktalar.length === 0) return null;
+
+  const G = 320, Y = 158, sol = 30, sag = 12, ust = 34, alt = 24;
+  const gw = G - sol - sag, gh = Y - ust - alt;
+  const X = s => sol + ((s - siniflar[0]) / (siniflar.length - 1)) * gw;
+  const Yp = y => ust + gh - (Math.max(0, Math.min(100, y)) / 100) * gh;
+  const bulundugu = sonuc.bulunduguSinif;
+  const cizgiX = (bulundugu >= 1 && bulundugu <= 4) ? X(bulundugu) : null;
+
+  return (
+    <svg viewBox={`0 0 ${G} ${Y}`} width="100%" height={Y}
+         style={{ display: "block", overflow: "visible" }} role="img"
+         aria-label="Sınıf setlerine göre düzey eğrisi">
+      {[0, 25, 50, 75, 100].map(v => (
+        <g key={v}>
+          <line x1={sol} y1={Yp(v)} x2={G - sag} y2={Yp(v)} stroke="#EEE" strokeWidth="1" />
+          <text x={sol - 4} y={Yp(v) + 3} textAnchor="end" fontSize="7.5" fill="#AAA">{v}</text>
+        </g>
+      ))}
+      <line x1={sol} y1={Yp(gecmeEsigi)} x2={G - sag} y2={Yp(gecmeEsigi)}
+            stroke="#B07D1A" strokeWidth="1.3" strokeDasharray="5 3" />
+      <text x={G - sag} y={Yp(gecmeEsigi) - 4} textAnchor="end" fontSize="8"
+            fontWeight="800" fill="#B07D1A">%{gecmeEsigi} geçme eşiği</text>
+
+      {cizgiX !== null && (
+        <g>
+          <line x1={cizgiX} y1={20} x2={cizgiX} y2={Y - alt + 4}
+                stroke="#6A4C93" strokeWidth="1.6" strokeDasharray="4 3" />
+          <rect x={Math.max(0, Math.min(G - 54, cizgiX - 27))} y={0} width="54" height="15" rx="7.5" fill="#6A4C93" />
+          <text x={Math.max(27, Math.min(G - 27, cizgiX))} y={11} textAnchor="middle"
+                fontSize="9" fontWeight="800" fill="#fff">buradasın</text>
+        </g>
+      )}
+
+      <polyline fill="none" stroke="#C2410C" strokeWidth="2"
+                points={noktalar.map(p => `${X(p.sinif)},${Yp(p.yuzde)}`).join(" ")} />
+      {noktalar.map(p => (
+        <g key={p.sinif}>
+          <circle cx={X(p.sinif)} cy={Yp(p.yuzde)} r="4.5"
+                  fill={p.yuzde >= gecmeEsigi ? "#1A8C5B" : "#C0392B"} stroke="#fff" strokeWidth="1.5" />
+          <text x={X(p.sinif)} y={Yp(p.yuzde) + (p.yuzde >= 85 ? 15 : -9)} textAnchor="middle"
+                fontSize="8.5" fontWeight="800" stroke="#fff" strokeWidth="3" paintOrder="stroke"
+                fill={p.yuzde >= gecmeEsigi ? "#1A8C5B" : "#C0392B"}>%{p.yuzde}</text>
+        </g>
+      ))}
+      {siniflar.map(s => (
+        <text key={s} x={X(s)} y={Y - 7} textAnchor="middle" fontSize="9"
+              fontWeight={s === bulundugu ? "800" : "600"}
+              fill={s === bulundugu ? "#6A4C93" : "#7A7A72"}>{s}. sınıf</text>
+      ))}
+    </svg>
+  );
+}
+
+// ── Lise Düzey Profili — basamak matrisi ──────────────────────────────────
+// Ortaokuldaki matrisin aynısı, iki farkla: ORTAK dersler (Edebiyat,
+// Matematik) sol kenarında bir şeritle vurgulanır — genel işlevsel düzey
+// yalnızca onlardan hesaplandığı için; ALAN dersleri soluk çizilir.
+function LiseDuzeyProfili({ dersSonuclari, ogrenciSinif, esik }) {
+  const gecmeEsigi = esik || LISE_ESIK_YUZDE;
+  const sinifDuzeyi = liseSinifDuzeyiCikar(ogrenciSinif);
+  const dersler = LISE_DERSLER.filter(d => dersSonuclari[d.key] && !dersSonuclari[d.key].hicUygulanmadi);
+  if (dersler.length === 0) return null;
+
+  const G = 320, solStun = 66, sagStun = 46, ustBaslik = 40, satirY = 30;
+  const gw = G - solStun - sagStun;
+  const hucreG = gw / LISE_SINIFLAR.length;
+  const yukseklik = ustBaslik + dersler.length * satirY + 6;
+  const X = i => solStun + i * hucreG;
+  const cizgiX = sinifDuzeyi ? X(LISE_SINIFLAR.indexOf(sinifDuzeyi)) + hucreG / 2 : null;
+
+  return (
+    <svg viewBox={`0 0 ${G} ${yukseklik}`} width="100%" height={yukseklik}
+         style={{ display: "block", overflow: "visible" }} role="img"
+         aria-label="Derslere göre lise düzey profili">
+      {LISE_SINIFLAR.map((s, i) => (
+        <text key={s} x={X(i) + hucreG / 2} y={31} textAnchor="middle"
+              fontSize="9.5" fontWeight="700" fill="#7A7A72">{s}. sınıf</text>
+      ))}
+      {cizgiX !== null && (
+        <g>
+          <line x1={cizgiX} y1={34} x2={cizgiX} y2={yukseklik - 2}
+                stroke="#6A4C93" strokeWidth="1.6" strokeDasharray="4 3" />
+          <rect x={cizgiX - 27} y={2} width="54" height="15" rx="7.5" fill="#6A4C93" />
+          <text x={cizgiX} y={13} textAnchor="middle" fontSize="9"
+                fontWeight="800" fill="#fff">buradasın</text>
+        </g>
+      )}
+      {dersler.map((ders, r) => {
+        const ds = dersSonuclari[ders.key];
+        const ortak = ders.tip === "ortak";
+        const y = ustBaslik + r * satirY;
+        // Alan dersleri soluk cizilir ama OKUNAKLI kalmali: 0.62 saydamlikta
+        // rakamlar telefonda yanlis okunabiliyordu. Ayrim artik agirlikli
+        // olarak sol seritten ve ALAN etiketinden geliyor.
+        return (
+          <g key={ders.key} opacity={ortak ? 1 : 0.82}>
+            <rect x={0} y={y + 3} width="2.5" height={satirY - 10} rx="1.2"
+                  fill={ortak ? "#3730A3" : "#CCC"} />
+            <text x={6} y={y + 12} fontSize="8.5" fontWeight="700" fill="#1F2421">
+              {liseDersKisaAd(ders)}
+            </text>
+            <text x={6} y={y + 21} fontSize="6.8" fontWeight="800"
+                  fill={ortak ? "#3730A3" : "#999"}>{ortak ? "ORTAK" : "ALAN"}</text>
+            {LISE_SINIFLAR.map((s, i) => {
+              const sp = ds.sinifPuanlari[s];
+              const gecti = sp && sp.yuzde >= gecmeEsigi;
+              return (
+                <g key={s}>
+                  <rect x={X(i) + 2} y={y + 2} width={hucreG - 4} height={satirY - 8} rx="4"
+                        fill={!sp ? "#F4F4F2" : gecti ? "#1A8C5B" : "#FDECEA"}
+                        stroke={!sp ? "#DDD" : gecti ? "#1A8C5B" : "#E8A9A1"}
+                        strokeWidth="1" strokeDasharray={!sp ? "3 2" : "0"} />
+                  <text x={X(i) + hucreG / 2} y={y + satirY / 2 + 1} textAnchor="middle"
+                        fontSize={sp ? "9.5" : "9"} fontWeight="800"
+                        fill={!sp ? "#BBB" : gecti ? "#fff" : "#C0392B"}>
+                    {sp ? `%${sp.yuzde}` : "–"}
+                  </text>
+                </g>
+              );
+            })}
+            <text x={G - sagStun + 4} y={y + 15} fontSize="9.5" fontWeight="900"
+                  fill={ds.islevselSinif === null ? "#C0392B" : "#1A8C5B"}>
+              {ds.islevselSinif === null ? "9 altı" : `${ds.islevselSinif}. sınıf`}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// ── Lise Alan Dengesi — sayısal ↔ sözel ───────────────────────────────────
+// Ortadan sıfırla başlayan çift yönlü tek çubuk. Taralı bant, eğilim
+// sayılmayan nötr aralıktır (±LISE_ALAN_FARK_ESIGI); fark bandın içinde
+// kalıyorsa "eşit ağırlık" olduğu okumadan görünür.
+function LiseAlanDengesi({ alanEgilimi, esik }) {
+  if (!alanEgilimi) return null;
+  const notr = esik || LISE_ALAN_FARK_ESIGI;
+  const G = 320, Y = 66, sol = 10, sag = 10, merkezY = 34, ENBUYUK = 40;
+  const gw = G - sol - sag, orta = sol + gw / 2;
+  const X = f => orta + (Math.max(-ENBUYUK, Math.min(ENBUYUK, f)) / ENBUYUK) * (gw / 2);
+  const fark = alanEgilimi.fark;
+
+  return (
+    <svg viewBox={`0 0 ${G} ${Y}`} width="100%" height={Y}
+         style={{ display: "block", overflow: "visible" }} role="img"
+         aria-label="Sayısal ve sözel taraf arasındaki fark">
+      <text x={sol} y={11} fontSize="8.5" fontWeight="800" fill="#8E44AD">← SÖZEL</text>
+      <text x={G - sag} y={11} textAnchor="end" fontSize="8.5" fontWeight="800" fill="#1A8C5B">SAYISAL →</text>
+      <rect x={sol} y={merkezY - 9} width={gw} height="18" rx="9" fill="#F0F0EE" />
+      <rect x={X(-notr)} y={merkezY - 9} width={X(notr) - X(-notr)} height="18"
+            fill="#E3E8F5" stroke="#C2CCF5" strokeWidth="1" />
+      <text x={orta} y={Y - 4} textAnchor="middle" fontSize="7.5" fill="#7A7A72">
+        ±{notr} puan: fark sayılmaz
+      </text>
+      {fark !== 0 && (
+        <rect x={fark > 0 ? orta : X(fark)} y={merkezY - 5}
+              width={Math.abs(X(fark) - orta)} height="10" rx="5" fill={alanEgilimi.renk} />
+      )}
+      <rect x={X(-notr)} y={merkezY - 9} width={X(notr) - X(-notr)} height="18"
+            fill="none" stroke="#8C9BD6" strokeWidth="1.2" strokeDasharray="3 2" />
+      <line x1={orta} y1={merkezY - 13} x2={orta} y2={merkezY + 13} stroke="#666" strokeWidth="1.4" />
+      <circle cx={X(fark)} cy={merkezY} r="6" fill={alanEgilimi.renk} stroke="#fff" strokeWidth="2" />
+      <text x={X(fark)} y={merkezY - 13} textAnchor="middle" fontSize="9" fontWeight="900"
+            fill={alanEgilimi.renk}>{fark > 0 ? `+${fark}` : fark}</text>
+    </svg>
+  );
+}
+
 function IlkokulTaramaPaneli({ seciliAd, seciliSinif, seciliNumara, ilkokulTaramalar, setIlkokulTaramalar }) {
   const mevcut = ilkokulTaramalar.find(o => pdrAyniOgrenci(o.studentName, o.className, seciliAd, seciliSinif, o.numara, seciliNumara));
   const [cevaplar, setCevaplar] = useState(mevcut?.cevaplar || {});
@@ -5236,24 +5399,25 @@ function IlkokulTaramaPaneli({ seciliAd, seciliSinif, seciliNumara, ilkokulTaram
             </div>
           </div>
 
-          <div style={{display:"flex", flexDirection:"column", gap:8, marginBottom:12}}>
-            {ILKOKUL_TARAMA.siniflar.map(st => {
-              const ss = sonuc.sinifSonuclari[st.sinif];
-              return (
-                <div key={st.sinif}>
-                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", fontSize:11, marginBottom:3}}>
-                    <span style={{fontWeight:700, color:TEXT}}>{st.ad}</span>
-                    <span style={{fontWeight:800, color: ss.yuzde === null ? MUTED : ss.seviye.color}}>
-                      {ss.yuzde === null ? "uygulanmadı" : `%${ss.yuzde} · ${ss.seviye.label}`}
-                    </span>
-                  </div>
-                  <div style={{height:8, background:"#EFEFEF", borderRadius:6, overflow:"hidden"}}>
-                    <div style={{width:`${ss.yuzde === null ? 0 : ss.yuzde}%`, height:"100%", background: ss.yuzde === null ? "#ddd" : st.renk, borderRadius:6}} />
-                  </div>
-                </div>
-              );
-            })}
+          <div style={{marginBottom:12}}>
+            <IlkokulDuzeyEgrisi sonuc={sonuc} ogrenciSinif={seciliSinif} />
+            <div style={{display:"flex", flexWrap:"wrap", gap:5, justifyContent:"center", marginTop:4}}>
+              {ILKOKUL_TARAMA.siniflar.map(st => {
+                const ss = sonuc.sinifSonuclari[st.sinif];
+                if (ss.yuzde === null) return null;
+                return (
+                  <span key={st.sinif} style={{fontSize:9, fontWeight:800, padding:"2px 7px", borderRadius:9,
+                    background:ss.seviye.bg, color:ss.seviye.color}}>
+                    {st.sinif}. sınıf: {ss.seviye.label}
+                  </span>
+                );
+              })}
+            </div>
+            <div style={{fontSize:9, color:MUTED, textAlign:"center", marginTop:5, lineHeight:1.6}}>
+              Mor kesik çizgi öğrencinin bulunduğu sınıf · Yeşil nokta eşiği geçti · Kırmızı nokta geçemedi
+            </div>
           </div>
+
 
           <div style={{background:"#FAFAF8", borderRadius:8, padding:"10px 12px", fontSize:11, color:TEXT, lineHeight:1.65}}>
             <div style={{fontWeight:800, marginBottom:4, color:ACCENT}}>📝 Değerlendirme</div>
