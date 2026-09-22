@@ -4756,6 +4756,484 @@ function BenlikOlcegiPaneli({ seciliAd, seciliSinif, seciliNumara, kademe,
 }
 // ===== BENLIK OLCEGI BITIS =====
 
+// ===== BUTUNLESIK BASLANGIC (otomatik uretildi) =====
+// ── Bütünleşik Değerlendirme: üç aracın TEK tabloda birleşmesi ───────────
+// Üç araç üç ayrı soruya cevap verir ve KANIT AĞIRLIKLARI EŞİT DEĞİLDİR:
+//   1) Düzey Taraması        -> "yapabiliyor"  : ölçülmüş performans (en sağlam)
+//   2) Akademik Benlik Ölçeği-> "inanıyor"     : öz bildirim / algı
+//   3) Mesleki Eğilim Testi  -> "istiyor"      : ilgi beyanı
+// Tablonun bütün hücreleri BURADA, kodla hesaplanır. AI'a yalnızca hesaplanmış
+// sayılar ve bu motorun bulduğu çelişkiler gider; AI hücre üretmez.
+
+// Her meslek sütununun (A-İ) okulda hangi derslere DAYANDIĞI.
+// Amaç: "istediği alan" ile "o alanın gerektirdiği derslerdeki ölçülen düzey"
+// arasındaki açığı tespit etmek. Bu eşleme kaba bir dayanaktır, kesin değildir;
+// D sütunu (sanat/spor) bilerek boştur — yetenek alanı akademik ders
+// taramasıyla ölçülmez.
+const BUTUNLESIK_SUTUN_DERS = {
+  A: ["matematik", "fen"],
+  B: ["matematik", "fen"],
+  C: ["turkce", "edebiyat", "sosyal"],
+  D: [],
+  E: ["turkce", "edebiyat"],
+  F: ["turkce", "edebiyat", "sosyal"],
+  G: ["turkce", "edebiyat"],
+  H: ["fen", "matematik"],
+  I: ["matematik", "sosyal"],
+  "İ": ["matematik", "fen"],
+};
+// Resmî formdaki "normal" ve "ideal" bantlarının alt sınırı. 100 ve altı
+// ("ilginiz yok / yeterli değil / bir kez daha düşünün") bir hedef sayılacak
+// kadar güçlü sinyal değildir.
+const BUTUNLESIK_MESLEK_ESIGI = 101;
+
+// Öğrencinin ölçülen ders yüzdelerini kademeye göre tek biçime indirger.
+function butunlesikPerformans(kademe, akademikTaramalar, liseTaramalar, ad, sinif, numara) {
+  const bos = { yuzdeler: {}, kayit: null, esik: 60 };
+  if (kademe === "ortaokul") {
+    const k = (akademikTaramalar || []).find(o => pdrAyniOgrenci(o.studentName, o.className, ad, sinif, o.numara, numara));
+    if (!k || !k.cevaplar) return bos;
+    const ds = k.sonuc || akademikTaramaSonucHesapla(k.cevaplar);
+    const out = {};
+    AKADEMIK_DERSLER.forEach(d => { out[d.key] = benlikOrtaokulDersYuzdesi(ds[d.key]); });
+    return { yuzdeler: out, kayit: k, esik: AKADEMIK_ESIK_YUZDE };
+  }
+  if (kademe === "lise") {
+    const k = (liseTaramalar || []).find(o => pdrAyniOgrenci(o.studentName, o.className, ad, sinif, o.numara, numara));
+    if (!k || !k.cevaplar) return bos;
+    const s = k.sonuc || liseTaramaSonucHesapla(k.cevaplar, sinif);
+    const out = {};
+    LISE_DERSLER.forEach(d => {
+      const ds = (s.dersSonuclari || {})[d.key];
+      out[d.key] = ds ? ds.genelYuzde : null;
+    });
+    return { yuzdeler: out, kayit: k, esik: LISE_ESIK_YUZDE, liseSonuc: s };
+  }
+  return bos;
+}
+
+// testKayitlari bir SÖZLÜKtür (öğrenci anahtarlı), dizi değil. Anahtar
+// biçimi: "ad || sınıf || no", numara yoksa "ad || sınıf", eski kayıtlarda
+// yalnızca "ad".
+function butunlesikTestKayitlari(testKayitlari, ad, sinif, numara) {
+  const dogrudan = pdrSozlukOku(testKayitlari, ad, sinif, numara);
+  if (dogrudan) return dogrudan;
+  if (!testKayitlari) return [];
+  // Yazdırılabilir rapor ekranında öğrenci NUMARASI taşınmıyor; kayıtlar
+  // numaralı anahtarla yazılmışsa doğrudan okuma ıskalar ve mesleki eğilim
+  // raporda hiç görünmez. Ad+sınıf eşleşen anahtara düşülür — aynı ad ve
+  // sınıfta iki öğrenci varsa bu belirsizlik zaten programın her yerinde var.
+  const onEk = pdrOgrAnahtar(ad, sinif) + " || ";
+  const anahtar = Object.keys(testKayitlari).find(
+    k => k.indexOf(onEk) === 0 && Array.isArray(testKayitlari[k]));
+  return anahtar ? testKayitlari[anahtar] : [];
+}
+
+function butunlesikMeslekKaydi(testKayitlari, ad, sinif, numara) {
+  const kayitlar = butunlesikTestKayitlari(testKayitlari, ad, sinif, numara) || [];
+  const mes = kayitlar.filter(k => k.tip === "mesleki_egilim_160" && (k.veri?.isaretliMaddeler || []).length > 0);
+  if (mes.length === 0) return null;
+  // En yeni kayıt: tarih gg.aa.yyyy biçiminde, karşılaştırılabilir hâle çevrilir.
+  const sirala = t => {
+    const p = String(t || "").split(".");
+    return p.length === 3 ? `${p[2]}${p[1].padStart(2,"0")}${p[0].padStart(2,"0")}` : "";
+  };
+  const son = mes.slice().sort((a, b) => sirala(b.tarih).localeCompare(sirala(a.tarih)))[0];
+  const sonuc = mesleklEgilimSonucHesapla(son.veri.isaretliMaddeler);
+  return {
+    kayit: son,
+    sirali: sonuc,
+    guclu: sonuc.filter(s => s.puan >= BUTUNLESIK_MESLEK_ESIGI).slice(0, 3),
+    liseOnerisi: mesleklEgilimLiseOnerisiHesapla(sonuc),
+  };
+}
+
+function butunlesikHesapla({ kademe, ad, sinif, numara, akademikTaramalar, liseTaramalar,
+                             benlikOlcekleri, testKayitlari, profiles2 }) {
+  const perf = butunlesikPerformans(kademe, akademikTaramalar, liseTaramalar, ad, sinif, numara);
+
+  const bKayit = (benlikOlcekleri || []).find(o => pdrAyniOgrenci(o.studentName, o.className, ad, sinif, o.numara, numara));
+  const bSonuc = bKayit && bKayit.cevaplar
+    ? (bKayit.sonuc || benlikSonucHesapla(bKayit.cevaplar, bKayit.kademe || kademe))
+    : null;
+
+  const meslek = butunlesikMeslekKaydi(testKayitlari, ad, sinif, numara);
+
+  const p2 = (profiles2 || []).find(p => pdrAyniOgrenci(p.studentName, p.className, ad, sinif, p.numara, numara));
+  const baglam = {
+    ilgiler: (p2 && p2.ilgiler) || [],
+    kariyerHedefi: (p2 && p2.kariyer_hedef) || "",
+  };
+
+  // ── Tablo satırları: ders bazında "yapabiliyor" ve "inanıyor" ─────────
+  const dersler = benlikDersleri(benlikKademeVar(kademe) ? kademe : "ortaokul");
+  const satirlar = dersler.map(d => {
+    const olculen = perf.yuzdeler[d.taramaKey];
+    const alt = bSonuc ? (bSonuc.altOlcekler || []).find(a => a.key === d.key) : null;
+    const algi = alt ? alt.puan : null;
+    const varIki = olculen !== null && olculen !== undefined && algi !== null;
+    return {
+      key: d.key, ad: d.ad, kisaAd: d.maddeAd || d.ad, taramaKey: d.taramaKey,
+      olculen: (olculen === undefined ? null : olculen),
+      algi,
+      fark: varIki ? algi - olculen : null,
+      belirgin: varIki ? Math.abs(algi - olculen) >= BENLIK_FARK_ESIGI : false,
+      yeterli: (olculen === null || olculen === undefined) ? null : olculen >= perf.esik,
+    };
+  });
+
+  // ── Hedef ile performans arasındaki açık ─────────────────────────────
+  // Bu, üç aracı birleştirmenin ASIL kazancı: öğrencinin ilgi duyduğu meslek
+  // grubunun dayandığı derslerde ölçülen düzeyi eşiğin altındaysa, bu
+  // görüşmede konuşulması gereken somut bir bulgudur.
+  // Aynı zayıf ders kümesine dayanan meslek grupları TEK bulguda birleştirilir
+  // (H ve İ çoğu zaman aynı matematik+fen temeline oturur; ikisini ayrı ayrı
+  // yazmak aynı paragrafı iki kez okutmak olur).
+  const hedefAciklari = [];
+  if (meslek && meslek.guclu.length > 0) {
+    const gruplar = new Map();
+    meslek.guclu.forEach(s => {
+      const temelDersler = BUTUNLESIK_SUTUN_DERS[s.harf] || [];
+      const eslesen = satirlar.filter(r => temelDersler.includes(r.taramaKey) && r.olculen !== null);
+      const zayif = eslesen.filter(r => r.yeterli === false);
+      if (eslesen.length === 0 || zayif.length === 0) return;
+      const imza = zayif.map(r => r.key).join("|");
+      const mevcut = gruplar.get(imza);
+      if (mevcut) {
+        mevcut.harfler.push(s.harf);
+        mevcut.meslekler.push(s.meslekler);
+      } else {
+        gruplar.set(imza, {
+          harfler: [s.harf], meslekler: [s.meslekler],
+          zayifDersler: zayif.map(r => ({ ad: r.ad, olculen: r.olculen })),
+        });
+      }
+    });
+    gruplar.forEach(g => hedefAciklari.push({
+      harf: g.harfler.join(" ve "),
+      meslekler: g.meslekler.join(" / "),
+      zayifDersler: g.zayifDersler,
+    }));
+  }
+
+  // Kapasite var ama algı yok — ve bu ders öğrencinin ilgi duyduğu alanın
+  // temel dersiyse, müdahale önceliği en yüksek olan tablo budur.
+  const gizliGucler = satirlar.filter(r =>
+    r.yeterli === true && r.algi !== null && r.algi < BENLIK_ORTA_NOKTA);
+  const hedefDersleri = new Set();
+  if (meslek) meslek.guclu.forEach(s => (BUTUNLESIK_SUTUN_DERS[s.harf] || []).forEach(k => hedefDersleri.add(k)));
+  gizliGucler.forEach(r => { r.hedefDersi = hedefDersleri.has(r.taramaKey); });
+
+  const eksikler = [];
+  if (!perf.kayit) eksikler.push("Düzey Taraması");
+  if (!bSonuc) eksikler.push("Akademik Benlik Ölçeği");
+  if (!meslek) eksikler.push("Mesleki Eğilim Testi");
+
+  return {
+    kademe, satirlar, meslek, baglam, hedefAciklari, gizliGucler, eksikler,
+    perfEsik: perf.esik,
+    perfKayit: perf.kayit, benlikKayit: bKayit, benlikSonuc: bSonuc,
+    hicVeriYok: eksikler.length === 3,
+  };
+}
+
+// ── AI istemi ────────────────────────────────────────────────────────────
+// KRİTİK: AI'a yalnızca HESAPLANMIŞ değerler ve kodun bulduğu çelişkiler
+// gider. AI sayı üretmez, tablo yazmaz, eksik aracı yorumlamaz. Üç aracın
+// kanıt ağırlığının farklı olduğu isteme açıkça yazılır — yoksa model üçünü
+// eşit sayıp en zayıf veriyi en sağlamıyla aynı cümleye koyar.
+function butunlesikIstemOlustur(b, ad, sinif) {
+  const L = [];
+  L.push(`Öğrenci: ${pdrAnonimKimlik(ad, sinif)} · Kademe: ${b.kademe === "lise" ? "Lise" : "Ortaokul"}`);
+  L.push("");
+  L.push("TABLO (bütün değerler programda hesaplandı, DEĞİŞTİRME):");
+  L.push("Ders | Ölçülen düzey (yapabiliyor) | Benlik algısı (inanıyor) | Fark");
+  b.satirlar.forEach(r => {
+    L.push(`${r.ad} | ${r.olculen === null ? "ölçülmedi" : "%" + r.olculen} | ${r.algi === null ? "yanıtlanmadı" : "%" + r.algi} | ${r.fark === null ? "—" : (r.fark > 0 ? "+" + r.fark : r.fark)}`);
+  });
+  L.push(`(Geçme eşiği: %${b.perfEsik})`);
+
+  if (b.meslek) {
+    L.push("");
+    L.push("MESLEKİ EĞİLİM (160 madde, yerel puanlama — istiyor):");
+    b.meslek.sirali.filter(s => s.puan > 0).slice(0, 4).forEach(s => {
+      L.push(`${s.harf} sütunu: ${s.puan} puan — ${s.duzey.ad} → ${s.meslekler}`);
+    });
+    if (b.meslek.liseOnerisi) {
+      L.push(`Lise türü ipucu: ${b.meslek.liseOnerisi.liseler.map(l => l.lise).join(", ")}`);
+    }
+  }
+
+  if (b.baglam.kariyerHedefi || b.baglam.ilgiler.length) {
+    L.push("");
+    L.push("BAĞLAM (danışmanın girdiği, puanlanmış veri DEĞİL):");
+    if (b.baglam.kariyerHedefi) L.push(`Kariyer hedefi: ${b.baglam.kariyerHedefi}`);
+    if (b.baglam.ilgiler.length) L.push(`İlgi alanları: ${b.baglam.ilgiler.join(", ")}`);
+  }
+
+  if (b.hedefAciklari.length || b.gizliGucler.length) {
+    L.push("");
+    L.push("PROGRAMIN BULDUĞU ÇELİŞKİLER (yorumlaman gereken şey bunlar):");
+    b.hedefAciklari.forEach(h => {
+      L.push(`- İlgi duyduğu ${h.harf} sütunundaki meslekler (${h.meslekler}) şu derslere dayanıyor ama ölçülen düzeyi eşiğin altında: ${h.zayifDersler.map(z => `${z.ad} %${z.olculen}`).join(", ")}`);
+    });
+    b.gizliGucler.forEach(g => {
+      L.push(`- ${g.ad}: ölçülen düzeyi yeterli (%${g.olculen}) ama kendini yetersiz görüyor (%${g.algi})${g.hedefDersi ? " — ve bu ders ilgi duyduğu meslek grubunun temel dersi" : ""}`);
+    });
+  }
+
+  if (b.eksikler.length) {
+    L.push("");
+    L.push(`UYGULANMAMIŞ ARAÇLAR: ${b.eksikler.join(", ")} — bunlar hakkında YORUM YAPMA, sadece eksik olduğunu bir cümleyle belirt.`);
+  }
+
+  L.push("");
+  L.push(`Bu üç aracın kanıt ağırlığı EŞİT DEĞİLDİR ve buna uygun yaz:
+- Düzey Taraması ölçülmüş performanstır, en sağlam veridir.
+- Benlik Ölçeği öz bildirimdir; öğrencinin ne hissettiğini gösterir, ne yapabildiğini değil.
+- Mesleki Eğilim Testi ilgi beyanıdır; yetenek ölçmez.
+- Kariyer hedefi ve ilgi alanları danışmanın girdiği bağlamdır, ölçüm değildir.
+
+Şu başlıklarla yaz:
+BİRLİKTE NE SÖYLÜYOR: (üç aracın kesiştiği yer, 3-4 cümle)
+GÖRÜŞMEDE KONUŞULACAK: (yukarıdaki çelişkilerden hareketle somut 2-3 madde)
+DİKKAT: (bu verilerle söylenemeyecek şey — örneğin yetenek, tanı, kesin yönlendirme)
+
+Kurallar: Yeni sayı üretme, tabloyu tekrar yazma. Tanı koyma. "Şu liseye gitsin"
+gibi kesin yönlendirme yapma. Sade PDR dili, Markdown kullanma.`);
+  return L.join("\n");
+}
+
+// ── Üç sütunlu karşılaştırma grafiği ─────────────────────────────────────
+// Her ders için iki nokta (yeşil = ölçülen, mor = algı) ve aralarındaki
+// çizgi. Benlik panelindeki dumbbell ile aynı dil — öğrenci ve veli iki
+// ekranda aynı şeyi görsün diye bilerek aynı renkler kullanıldı.
+function ButunlesikGrafik({ satirlar, esik }) {
+  const veri = (satirlar || []).filter(s => s.olculen !== null && s.algi !== null);
+  if (veri.length === 0) return null;
+  const G = 320, solStun = 62, sag = 14, ust = 26, satirY = 30;
+  const gw = G - solStun - sag;
+  const Y = ust + veri.length * satirY + 18;
+  const X = v => solStun + (Math.max(0, Math.min(100, v)) / 100) * gw;
+  return (
+    <svg viewBox={`0 0 ${G} ${Y}`} width="100%" height={Y}
+         style={{ display: "block", overflow: "visible" }} role="img"
+         aria-label="Ders bazında ölçülen düzey ile benlik algısının karşılaştırması">
+      {[0, 25, 50, 75, 100].map(v => (
+        <g key={v}>
+          <line x1={X(v)} y1={ust - 6} x2={X(v)} y2={Y - 18} stroke="#EEE" strokeWidth="1" />
+          <text x={X(v)} y={Y - 6} textAnchor="middle" fontSize="7.5" fill="#AAA">{v}</text>
+        </g>
+      ))}
+      <line x1={X(esik)} y1={ust - 10} x2={X(esik)} y2={Y - 18}
+            stroke="#9AA0A6" strokeWidth="1.2" strokeDasharray="4 3" />
+      <text x={X(esik)} y={ust - 14} textAnchor="middle" fontSize="7.5"
+            fontWeight="800" fill="#7A7A72">%{esik} eşik</text>
+      {veri.map((s, i) => {
+        const y = ust + i * satirY + satirY / 2 - 4;
+        const solda = Math.min(X(s.olculen), X(s.algi));
+        const sagda = Math.max(X(s.olculen), X(s.algi));
+        const renk = !s.belirgin ? "#CFCFCF" : (s.fark < 0 ? "#8E44AD" : "#B07D1A");
+        return (
+          <g key={s.key}>
+            <text x={0} y={y + 3} fontSize="8.5" fontWeight="700" fill="#1F2421">{s.kisaAd}</text>
+            <line x1={solda} y1={y} x2={sagda} y2={y} stroke={renk}
+                  strokeWidth={s.belirgin ? 3 : 2} strokeLinecap="round" />
+            <circle cx={X(s.olculen)} cy={y} r="4.5" fill="#1A8C5B" stroke="#fff" strokeWidth="1.5" />
+            <circle cx={X(s.algi)} cy={y} r="4.5" fill="#8E44AD" stroke="#fff" strokeWidth="1.5" />
+            {s.belirgin && (
+              <text x={(solda + sagda) / 2} y={y - 8} textAnchor="middle" fontSize="7.5"
+                    fontWeight="800" stroke="#fff" strokeWidth="2.5" paintOrder="stroke"
+                    fill={renk}>{s.fark > 0 ? `+${s.fark}` : s.fark}</text>
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// ── Bütünleşik Değerlendirme Paneli ──────────────────────────────────────
+// Yalnızca ortaokul ve lisede görünür (Benlik Ölçeği ilkokulda yok).
+function ButunlesikPaneli({ seciliAd, seciliSinif, seciliNumara, kademe,
+                            akademikTaramalar, liseTaramalar, benlikOlcekleri,
+                            testKayitlari, profiles2 }) {
+  const [aiYorum, setAiYorum] = useState("");
+  const [aiYukleniyor, setAiYukleniyor] = useState(false);
+  const [aiHata, setAiHata] = useState("");
+
+  useEffect(() => { setAiYorum(""); setAiHata(""); }, [seciliAd, seciliSinif, seciliNumara]);
+
+  if (!seciliAd || !seciliAd.trim()) {
+    return <div style={{textAlign:"center", color:MUTED, padding:20, fontSize:13}}>Önce bir öğrenci seçin</div>;
+  }
+
+  const b = butunlesikHesapla({
+    kademe, ad: seciliAd, sinif: seciliSinif, numara: seciliNumara,
+    akademikTaramalar, liseTaramalar, benlikOlcekleri, testKayitlari, profiles2,
+  });
+
+  async function handleAiYorum() {
+    setAiYukleniyor(true); setAiHata("");
+    try {
+      const res = await fetch("https://pdr-api.hakanhas1989.workers.dev", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6", max_tokens: 1600,
+          system: "Sen okul PDR danismanisin. Sana verilen sayilar programda hesaplanmistir; onlari degistirmez, yeni sayi uretmezsin. Tani koymaz, kesin yonlendirme yapmazsin. Turkce, sade, markdownsuz yazarsin.",
+          messages: [{ role: "user", content: butunlesikIstemOlustur(b, seciliAd, seciliSinif) }],
+        }),
+      });
+      const data = await res.json();
+      const metin = data.content?.[0]?.text || "";
+      if (!metin) throw new Error("Bos yanit");
+      setAiYorum(metin);
+    } catch (e) {
+      setAiHata("AI yorumu alınamadı. İnternet bağlantını kontrol edip tekrar dene.");
+    }
+    setAiYukleniyor(false);
+  }
+
+  const Hucre = ({ deger, renk, zayif }) => (
+    <td style={{padding:"7px 4px", textAlign:"center", fontSize:11.5, fontWeight:800,
+                color: deger === null ? MUTED : (renk || TEXT)}}>
+      {deger === null ? "—" : `%${deger}`}
+      {zayif && <span style={{display:"block", fontSize:8, fontWeight:700, color:"#C0392B"}}>eşik altı</span>}
+    </td>
+  );
+
+  return (
+    <div>
+      <div style={{background:"#EEF2FF", border:"1px solid #c7d2fe", borderRadius:10, padding:"10px 12px", marginBottom:14, fontSize:11, color:"#3730A3", lineHeight:1.6}}>
+        🧩 <b>Bütünleşik Değerlendirme.</b> Üç aracı yan yana koyar: <b>yapabiliyor</b> (Düzey Taraması), <b>inanıyor</b> (Benlik Ölçeği), <b>istiyor</b> (Mesleki Eğilim Testi).
+        <div style={{marginTop:6, background:"#fff", borderRadius:8, padding:"7px 9px", border:"1px solid #dbe1fb"}}>
+          Tablonun <b>bütün hücreleri program tarafından hesaplanır</b>, AI yazmaz. AI yalnızca aşağıda programın bulduğu çelişkileri yorumlar. Üç aracın kanıt ağırlığı eşit değildir: ölçülen düzey ölçümdür, benlik algısı öz bildirimdir, mesleki eğilim ilgi beyanıdır — <b>hiçbiri yetenek ölçmez ve tanı koymaz.</b>
+        </div>
+      </div>
+
+      {b.hicVeriYok ? (
+        <div style={{textAlign:"center", color:MUTED, padding:24, fontSize:12.5, lineHeight:1.7}}>
+          Bu öğrenci için üç araçtan hiçbiri uygulanmamış.<br />
+          En az <b>Düzey Taraması</b> ile <b>Benlik Ölçeği</b> uygulandığında tablo oluşur.
+        </div>
+      ) : (
+        <>
+          <div style={{background:"#fff", border:`1px solid ${BORDER}`, borderRadius:12, padding:12, marginBottom:12}}>
+            <table style={{width:"100%", borderCollapse:"collapse"}}>
+              <thead>
+                <tr style={{borderBottom:`2px solid ${BORDER}`}}>
+                  <th style={{textAlign:"left", padding:"0 4px 6px", fontSize:10.5, color:MUTED, fontWeight:800}}>Ders</th>
+                  <th style={{padding:"0 4px 6px", fontSize:10.5, color:"#1A8C5B", fontWeight:800}}>Yapabiliyor</th>
+                  <th style={{padding:"0 4px 6px", fontSize:10.5, color:"#8E44AD", fontWeight:800}}>İnanıyor</th>
+                  <th style={{padding:"0 4px 6px", fontSize:10.5, color:MUTED, fontWeight:800}}>Fark</th>
+                </tr>
+              </thead>
+              <tbody>
+                {b.satirlar.map(r => (
+                  <tr key={r.key} style={{borderBottom:`1px solid ${BORDER}`}}>
+                    <td style={{padding:"7px 4px", fontSize:11.5, fontWeight:700, color:TEXT}}>{r.ad}</td>
+                    <Hucre deger={r.olculen} renk="#1A8C5B" zayif={r.yeterli === false} />
+                    <Hucre deger={r.algi} renk="#8E44AD" />
+                    <td style={{padding:"7px 4px", textAlign:"center", fontSize:11.5, fontWeight:800,
+                                color: r.fark === null ? MUTED : (r.belirgin ? (r.fark < 0 ? "#8E44AD" : "#B07D1A") : MUTED)}}>
+                      {r.fark === null ? "—" : (r.fark > 0 ? `+${r.fark}` : r.fark)}
+                      {r.belirgin && <span style={{marginLeft:2}}>⚠</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{fontSize:9.5, color:MUTED, marginTop:6, lineHeight:1.5}}>
+              Geçme eşiği %{b.perfEsik}. ⚠ işareti {BENLIK_FARK_ESIGI} puan ve üzeri farkı gösterir; bunun altı ölçüm gürültüsünden ayırt edilemez.
+            </div>
+            <div style={{marginTop:8}}>
+              <ButunlesikGrafik satirlar={b.satirlar} esik={b.perfEsik} />
+            </div>
+          </div>
+
+          {b.meslek && (
+            <div style={{background:"#fff", border:`1px solid ${BORDER}`, borderRadius:12, padding:12, marginBottom:12}}>
+              <div style={{fontSize:11.5, fontWeight:800, color:BLUE, marginBottom:6}}>🧭 İstiyor — Mesleki Eğilim ({b.meslek.kayit.tarih})</div>
+              {b.meslek.sirali.filter(s => s.puan > 0).slice(0, 3).map(s => (
+                <div key={s.harf} style={{marginBottom:6, paddingLeft:8, borderLeft:`3px solid ${s.duzey.renk}`}}>
+                  <div style={{fontSize:11, fontWeight:800, color:s.duzey.renk}}>{s.harf} · {s.puan} puan — {s.duzey.ad}</div>
+                  <div style={{fontSize:10, color:"#555", lineHeight:1.5}}>{s.meslekler}</div>
+                </div>
+              ))}
+              {b.meslek.liseOnerisi && (
+                <div style={{fontSize:10.5, color:TEXT, marginTop:6, paddingTop:6, borderTop:`1px dashed ${BORDER}`}}>
+                  <b>Lise türü ipucu:</b> {b.meslek.liseOnerisi.liseler.map(l => l.lise).join(" · ")}
+                </div>
+              )}
+            </div>
+          )}
+
+          {(b.baglam.kariyerHedefi || b.baglam.ilgiler.length > 0) && (
+            <div style={{background:"#FEF9C3", border:"1px solid #fde68a", borderRadius:10, padding:"9px 11px", marginBottom:12, fontSize:10.5, color:"#92400E", lineHeight:1.6}}>
+              {b.baglam.kariyerHedefi && <div><b>Kariyer hedefi:</b> {b.baglam.kariyerHedefi}</div>}
+              {b.baglam.ilgiler.length > 0 && <div><b>İlgi alanları:</b> {b.baglam.ilgiler.join(", ")}</div>}
+              <div style={{fontSize:9, marginTop:4, fontStyle:"italic"}}>Bunlar Profil 2'den gelen bağlam bilgisidir, puanlanmış ölçüm değildir.</div>
+            </div>
+          )}
+
+          {(b.hedefAciklari.length > 0 || b.gizliGucler.length > 0) && (
+            <div style={{background:"#FAFAF8", border:`1px solid ${BORDER}`, borderRadius:12, padding:12, marginBottom:12}}>
+              <div style={{fontSize:11.5, fontWeight:800, color:ACCENT, marginBottom:6}}>🔎 Programın bulduğu çelişkiler</div>
+              {b.hedefAciklari.map(h => (
+                <div key={h.harf} style={{marginBottom:8, paddingLeft:8, borderLeft:"3px solid #B07D1A"}}>
+                  <div style={{fontSize:10.5, fontWeight:800, color:"#B07D1A"}}>Hedef–performans açığı · {h.harf} sütunu</div>
+                  <div style={{fontSize:10, color:"#555", lineHeight:1.6, marginTop:2}}>
+                    İlgi duyduğu meslekler ({h.meslekler}) şu derslere dayanıyor ama ölçülen düzeyi eşiğin altında: {h.zayifDersler.map(z => `${z.ad} %${z.olculen}`).join(", ")}. Bu, ilgisinin yanlış olduğu anlamına gelmez — hedefe giden yolda önce bu derslerin telafi edilmesi gerektiği anlamına gelir.
+                  </div>
+                </div>
+              ))}
+              {b.gizliGucler.map(g => (
+                <div key={g.key} style={{marginBottom:8, paddingLeft:8, borderLeft:"3px solid #8E44AD"}}>
+                  <div style={{fontSize:10.5, fontWeight:800, color:"#8E44AD"}}>Kapasitesini görmüyor — {g.ad}</div>
+                  <div style={{fontSize:10, color:"#555", lineHeight:1.6, marginTop:2}}>
+                    Ölçülen düzeyi yeterli (%{g.olculen}) ama kendini yetersiz görüyor (%{g.algi}).
+                    {g.hedefDersi && " Üstelik bu ders, ilgi duyduğu meslek grubunun temel derslerinden biri — yani hedefinin önündeki engel bilgi değil, inanç olabilir."}
+                    {" "}Somut kanıt göstermek (kendi doğru yanıtları, geçtiği setler) algıyı değiştirebilir.
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {b.eksikler.length > 0 && (
+            <div style={{background:"#FDF6E3", border:"1px solid #f0e0b0", borderRadius:10, padding:"9px 11px", marginBottom:12, fontSize:10.5, color:"#8A6A1A", lineHeight:1.6}}>
+              <b>Eksik araçlar:</b> {b.eksikler.join(", ")}. Tablo yalnızca uygulanmış araçları gösterir; eksik olanlar için yorum üretilmez.
+            </div>
+          )}
+
+          <button onClick={handleAiYorum} disabled={aiYukleniyor} style={{
+            width:"100%", padding:12, background: aiYukleniyor ? BORDER : PURPLE,
+            color: aiYukleniyor ? "#666" : "#fff", border:"none", borderRadius:12,
+            fontSize:14, fontWeight:800, cursor: aiYukleniyor ? "default" : "pointer",
+          }}>{aiYukleniyor ? "AI yorumluyor…" : "🤖 AI Yorumu Al"}</button>
+          <div style={{fontSize:9, color:MUTED, marginTop:5, lineHeight:1.5, textAlign:"center"}}>
+            AI'a yalnızca yukarıdaki hesaplanmış değerler gönderilir; tabloyu AI yazmaz.
+          </div>
+
+          {aiHata && (
+            <div style={{marginTop:10, background:"#FDECEA", border:"1px solid #f5b7b1", borderRadius:10, padding:"9px 11px", fontSize:11, color:"#C0392B"}}>{aiHata}</div>
+          )}
+          {aiYorum && (
+            <div style={{marginTop:10, background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, padding:"12px 13px"}}>
+              <div style={{fontSize:11, fontWeight:800, color:PURPLE, marginBottom:6}}>🤖 AI Yorumu</div>
+              <div style={{fontSize:11.5, color:TEXT, lineHeight:1.75, whiteSpace:"pre-wrap"}}>{aiYorum}</div>
+              <div style={{fontSize:9, color:MUTED, marginTop:8, fontStyle:"italic", lineHeight:1.5}}>
+                Bu yorum bir öneridir, tanı ya da kesin yönlendirme değildir. Nihai değerlendirme danışmana aittir.
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+// ===== BUTUNLESIK BITIS =====
+
 // ===== LISE TARAMA BASLANGIC (otomatik uretildi) =====
 // ── Lise Akademik Düzey Taraması (9-12. Sınıf) ───────────────────────────
 // Ortaokul aracindan farki: dersler TYT/AYT mantigina gore ORTAK
@@ -6263,8 +6741,8 @@ function akademikTaramaSonucHesapla(cevaplar) {
   return dersSonuclari;
 }
 
-function raporVerisiOlustur({ ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler, mudahalePlan, riskListesi, sinavTuru, testKayitlari, kaynastirma, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, liseTaramalar, benlikOlcekleri, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }) {
-  return { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: denemeler || {}, mudahalePlan: mudahalePlan || {}, riskListesi: riskListesi || [], sinavTuru, testKayitlari: testKayitlari || [], kaynastirma: kaynastirma || [], oogDegerlendirmeler: oogDegerlendirmeler || [], castDegerlendirmeler: castDegerlendirmeler || [], akademikTaramalar: akademikTaramalar || [], ilkokulTaramalar: ilkokulTaramalar || [], liseTaramalar: liseTaramalar || [], benlikOlcekleri: benlikOlcekleri || [], kademe: kademe || null, hazirlikNotlari: hazirlikNotlari || {}, ilerlemeNotlari: ilerlemeNotlari || {}, sevkler: sevkler || [], ogrenciler: ogrenciler || [], tarih: new Date().toLocaleDateString("tr-TR") };
+function raporVerisiOlustur({ ogrenciProfilleri2, ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler, mudahalePlan, riskListesi, sinavTuru, testKayitlari, kaynastirma, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, liseTaramalar, benlikOlcekleri, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }) {
+  return { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: denemeler || {}, mudahalePlan: mudahalePlan || {}, riskListesi: riskListesi || [], sinavTuru, testKayitlari: testKayitlari || [], kaynastirma: kaynastirma || [], oogDegerlendirmeler: oogDegerlendirmeler || [], castDegerlendirmeler: castDegerlendirmeler || [], akademikTaramalar: akademikTaramalar || [], ilkokulTaramalar: ilkokulTaramalar || [], liseTaramalar: liseTaramalar || [], benlikOlcekleri: benlikOlcekleri || [], ogrenciProfilleri2: ogrenciProfilleri2 || [], kademe: kademe || null, hazirlikNotlari: hazirlikNotlari || {}, ilerlemeNotlari: ilerlemeNotlari || {}, sevkler: sevkler || [], ogrenciler: ogrenciler || [], tarih: new Date().toLocaleDateString("tr-TR") };
 }
 
 // ── PDF Rapor Bileşeni ────────────────────────────────────────────────────────
@@ -6629,6 +7107,86 @@ function RaporModal({ rapor, onKapat }) {
                         {s.sevkOnerileri.map((o, i) => <div key={i} style={{ fontSize:9.5, color:"#555", lineHeight:1.5 }}>• {o}</div>)}
                       </div>
                     )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Butunlesik Degerlendirme — uc aracin kesisimi. AI CAGIRMAZ,
+                yalnizca yerel hesaplanmis tabloyu basar. En az iki arac
+                uygulanmissa gosterilir. */}
+            {(() => {
+              const btKademe = sinifKademesi(ogrenciSinif) || rapor.kademe || null;
+              if (btKademe && btKademe !== "ortaokul" && btKademe !== "lise") return null;
+              const bt = butunlesikHesapla({
+                kademe: btKademe || "ortaokul", ad: ogrenci, sinif: ogrenciSinif, numara: null,
+                akademikTaramalar: rapor.akademikTaramalar, liseTaramalar: rapor.liseTaramalar,
+                benlikOlcekleri: rapor.benlikOlcekleri, testKayitlari: rapor.testKayitlari,
+                profiles2: rapor.ogrenciProfilleri2,
+              });
+              // Tek arac varsa tablo bir sey anlatmaz — zaten o aracin kendi
+              // bolumu raporda ayrica basiliyor.
+              if (bt.eksikler.length >= 2) return null;
+              const dolu = bt.satirlar.filter(r => r.olculen !== null || r.algi !== null);
+              if (dolu.length === 0) return null;
+              return (
+                <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
+                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />Bütünleşik Değerlendirme</div>
+                  <div style={S.bolumIcerik2}>
+                    <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:6 }}>
+                      <thead>
+                        <tr style={{ borderBottom:"1.5px solid #ddd" }}>
+                          <th style={{ textAlign:"left", padding:"0 3px 4px", fontSize:9, color:"#888", fontWeight:800 }}>Ders</th>
+                          <th style={{ padding:"0 3px 4px", fontSize:9, color:"#1A8C5B", fontWeight:800 }}>Yapabiliyor</th>
+                          <th style={{ padding:"0 3px 4px", fontSize:9, color:"#8E44AD", fontWeight:800 }}>İnanıyor</th>
+                          <th style={{ padding:"0 3px 4px", fontSize:9, color:"#888", fontWeight:800 }}>Fark</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dolu.map(r => (
+                          <tr key={r.key} style={{ borderBottom:"1px solid #eee" }}>
+                            <td style={{ padding:"4px 3px", fontSize:9.5, fontWeight:700 }}>{r.ad}</td>
+                            <td style={{ padding:"4px 3px", textAlign:"center", fontSize:9.5, fontWeight:800, color: r.olculen === null ? "#999" : "#1A8C5B" }}>
+                              {r.olculen === null ? "—" : `%${r.olculen}`}
+                            </td>
+                            <td style={{ padding:"4px 3px", textAlign:"center", fontSize:9.5, fontWeight:800, color: r.algi === null ? "#999" : "#8E44AD" }}>
+                              {r.algi === null ? "—" : `%${r.algi}`}
+                            </td>
+                            <td style={{ padding:"4px 3px", textAlign:"center", fontSize:9.5, fontWeight:800, color: r.fark === null ? "#999" : (r.belirgin ? (r.fark < 0 ? "#8E44AD" : "#B07D1A") : "#888") }}>
+                              {r.fark === null ? "—" : (r.fark > 0 ? `+${r.fark}` : r.fark)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div style={{ fontSize:8.5, color:"#888", marginBottom:6 }}>
+                      Yapabiliyor = Düzey Taraması (ölçülen), İnanıyor = Akademik Benlik Ölçeği (öz bildirim). Geçme eşiği %{bt.perfEsik}.
+                    </div>
+                    {bt.meslek && (
+                      <div style={{ fontSize:10, color:"#555", lineHeight:1.55, marginBottom:5 }}>
+                        <b>İstiyor (Mesleki Eğilim, {bt.meslek.kayit.tarih}):</b>{" "}
+                        {bt.meslek.sirali.filter(s => s.puan > 0).slice(0, 2).map(s => `${s.harf} (${s.puan}p)`).join(", ")}
+                        {bt.meslek.liseOnerisi ? ` · Lise türü ipucu: ${bt.meslek.liseOnerisi.liseler.map(l => l.lise).join(", ")}` : ""}
+                      </div>
+                    )}
+                    {bt.baglam.kariyerHedefi && (
+                      <div style={{ fontSize:10, color:"#555", lineHeight:1.55, marginBottom:5 }}>
+                        <b>Kariyer hedefi:</b> {bt.baglam.kariyerHedefi}
+                      </div>
+                    )}
+                    {bt.hedefAciklari.map(h => (
+                      <div key={h.harf} style={{ fontSize:10, color:"#555", lineHeight:1.55, marginTop:5 }}>
+                        <b>Hedef–performans açığı ({h.harf}):</b> İlgi duyduğu meslekler şu derslere dayanıyor ama ölçülen düzeyi eşiğin altında: {h.zayifDersler.map(z => `${z.ad} %${z.olculen}`).join(", ")}.
+                      </div>
+                    ))}
+                    {bt.gizliGucler.map(g => (
+                      <div key={g.key} style={{ fontSize:10, color:"#555", lineHeight:1.55, marginTop:5 }}>
+                        <b>Kapasitesini görmüyor ({g.ad}):</b> Ölçülen düzeyi yeterli (%{g.olculen}) ama kendini yetersiz görüyor (%{g.algi}).{g.hedefDersi ? " Bu ders, ilgi duyduğu meslek grubunun temel derslerinden biri." : ""}
+                      </div>
+                    ))}
+                    <div style={{ fontSize:9, color:"#888", lineHeight:1.5, marginTop:6, fontStyle:"italic" }}>
+                      Bu tablo tarama sonuçlarının karşılaştırmasıdır; yetenek ölçmez, tanı koymaz ve kesin yönlendirme içermez.
+                    </div>
                   </div>
                 </div>
               );
@@ -8228,8 +8786,9 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                     <button onClick={()=>setKategori("oog")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #8B5A00`, background:"#FFF4E5", color:"#8B5A00", fontSize:13, fontWeight:800, cursor:"pointer" }}>🧩 ÖÖG Ön-Tarama</button>
                   </div>
                   {(kademe === "ortaokul" || kademe === "lise") && (
-                    <div style={{ display:"flex", gap:8, marginTop:8 }}>
-                      <button onClick={()=>setKategori("benlik")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #8E44AD`, background:"#F3E9FA", color:"#5B2C6F", fontSize:13, fontWeight:800, cursor:"pointer" }}>🪞 Akademik Benlik Kavramı Ölçeği</button>
+                    <div style={{ display:"flex", flexDirection:"column", gap:8, marginTop:8 }}>
+                      <button onClick={()=>setKategori("butunlesik")} style={{ width:"100%", padding:"14px 8px", borderRadius:12, border:`2px solid ${BLUE}`, background:"#EEF2FF", color:"#3730A3", fontSize:13, fontWeight:800, cursor:"pointer" }}>🧩 Bütünleşik Değerlendirme</button>
+                      <button onClick={()=>setKategori("benlik")} style={{ width:"100%", padding:"14px 8px", borderRadius:12, border:`2px solid #8E44AD`, background:"#F3E9FA", color:"#5B2C6F", fontSize:13, fontWeight:800, cursor:"pointer" }}>🪞 Akademik Benlik Kavramı Ölçeği</button>
                     </div>
                   )}
                   {kademe === "lise" && (
@@ -8260,6 +8819,11 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                 <div>
                   <button onClick={()=>setKategori(null)} style={{ background:"none", border:"none", color:MUTED, fontSize:12, cursor:"pointer", marginBottom:8, padding:0 }}>← Kategoriyi değiştir</button>
                   <OOGPaneli seciliAd={seciliAd} seciliSinif={seciliSinif} seciliNumara={seciliNumara} oogDegerlendirmeler={oogDegerlendirmeler} setOogDegerlendirmeler={setOogDegerlendirmeler} />
+                </div>
+              ) : kategori === "butunlesik" ? (
+                <div>
+                  <button onClick={()=>setKategori(null)} style={{ background:"none", border:"none", color:MUTED, fontSize:12, cursor:"pointer", marginBottom:8, padding:0 }}>← Kategoriyi değiştir</button>
+                  <ButunlesikPaneli seciliAd={seciliAd} seciliSinif={seciliSinif} seciliNumara={seciliNumara} kademe={kademe} akademikTaramalar={akademikTaramalar} liseTaramalar={liseTaramalar} benlikOlcekleri={benlikOlcekleri} testKayitlari={testKayitlari} profiles2={profiles2} />
                 </div>
               ) : kategori === "benlik" ? (
                 <div>
@@ -18503,7 +19067,7 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
             records={records}
             kutuphane={kutuphane}
             sinavTuru={sinavTuru}
-            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, liseTaramalar, benlikOlcekleri, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, ogrenciProfilleri2: profiles2, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, liseTaramalar, benlikOlcekleri, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
             onDegerlendirmeAc={() => setDegerlendirmeAcik(true)}
           />
         )}
@@ -18571,7 +19135,7 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
             setHatirlatmalar={setHatirlatmalar}
             ilerlemeNotlari={ilerlemeNotlari}
             setIlerlemeNotlari={setIlerlemeNotlari}
-            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, liseTaramalar, benlikOlcekleri, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, ogrenciProfilleri2: profiles2, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, liseTaramalar, benlikOlcekleri, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
             onSinifGuncelle={async (eskiAd, eskiSinif, eskiNumara, yeniAd, yeniSinif) => {
               const ayniMi = (ad, sinif, no) => pdrAyniOgrenci(eskiAd, eskiSinif, ad, sinif, eskiNumara, no);
 
@@ -18854,7 +19418,7 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
             profiles={profiles}
             profiles2={profiles2}
             sosyometri={sosyometri}
-            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, liseTaramalar, benlikOlcekleri, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
+            onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, ogrenciProfilleri2: profiles2, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, liseTaramalar, benlikOlcekleri, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
           />
         )}
 
