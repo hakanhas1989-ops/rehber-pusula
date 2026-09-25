@@ -4007,6 +4007,32 @@ function pdrHatirlatmaBlokParcala(blok) {
     metin: metinMatch ? metinMatch[1].trim() : temiz,
   };
 }
+// "DD.MM.YYYY" tarih string'ini {gun, ay, yil} nesnesine ayırır.
+function pdrTarihParcala(tarihStr) {
+  if (!tarihStr) return null;
+  const p = String(tarihStr).split(".");
+  if (p.length !== 3) return null;
+  const gun = parseInt(p[0], 10), ay = parseInt(p[1], 10) - 1, yil = parseInt(p[2], 10);
+  if (isNaN(gun) || isNaN(ay) || isNaN(yil)) return null;
+  return { gun, ay, yil };
+}
+
+// Bir ayın günlerini Pazartesi başlangıçlı takvim haftalarına göre gruplar —
+// tıpkı bir duvar takviminin satırları gibi (ayın ilk haftası kısa olabilir).
+// Döner: [{ haftaNo, ilkGun, sonGun }]
+function ayHaftalariniHesapla(ayIndex, yil) {
+  const ilkGunTarihi = new Date(yil, ayIndex, 1);
+  const pztIndex = (ilkGunTarihi.getDay() + 6) % 7; // 0=Pzt ... 6=Paz
+  const sonGun = new Date(yil, ayIndex + 1, 0).getDate();
+  const haftalar = {};
+  for (let gun = 1; gun <= sonGun; gun++) {
+    const haftaNo = Math.ceil((gun + pztIndex) / 7);
+    if (!haftalar[haftaNo]) haftalar[haftaNo] = { haftaNo, ilkGun: gun, sonGun: gun };
+    haftalar[haftaNo].sonGun = gun;
+  }
+  return Object.values(haftalar);
+}
+
 function pdrOgrAnahtar(name, className, numara) {
   const n = (name || "").trim();
   const c = (className || "").trim();
@@ -13701,7 +13727,7 @@ function OgrenciYonetim({
                 if (parts.length !== 3) return;
                 const ayIndex = parseInt(parts[1], 10) - 1;
                 const anahtar = `${aylar[ayIndex] || parts[1]} ${parts[2]}`;
-                if (!gruplar[anahtar]) gruplar[anahtar] = { sirala: parts[2] + parts[1].padStart(2,"0"), kayitlar: [] };
+                if (!gruplar[anahtar]) gruplar[anahtar] = { sirala: parts[2] + parts[1].padStart(2,"0"), ayIndex, yil: parseInt(parts[2],10), kayitlar: [] };
                 const ogr = tumOgrenciler.find(o => pdrAyniOgrenci(o.studentName, o.className, r.studentName, r.className));
                 gruplar[anahtar].kayitlar.push({
                   id: r.id, date: r.date, studentName: r.studentName,
@@ -13725,42 +13751,67 @@ function OgrenciYonetim({
                         📅 {ay} <span style={{ fontSize:10, fontWeight:600, color:MUTED }}>({veri.kayitlar.length} görüşme · {new Set(veri.kayitlar.map(k => pdrOgrAnahtar(k.studentName, k.className, k.numara))).size} öğrenci)</span>
                       </div>
                       {acik && (
-                        <div style={{ display:"flex", flexDirection:"column", gap:5, padding:"0 12px 12px" }}>
+                        <div style={{ display:"flex", flexDirection:"column", gap:10, padding:"0 12px 12px" }}>
                           {(() => {
                             // Ayni ogrenciyle o ay icinde yapilan gorusmeleri kronolojik
                             // siralayip her birine KACINCI gorusme oldugunu yaziyoruz.
+                            // Ayni GUNDE birden fazla kayit varsa tarih tek basina
+                            // siralamayi belirleyemiyordu (esitlikte oncesinde hangi
+                            // sirayla gelmisse o kalıyordu, gercek giris sirasiyla
+                            // uyusmayabiliyordu) — ikinci olcut olarak id kullaniliyor,
+                            // cunku uid() Date.now() tabanli, yani id'nin kendisi de
+                            // kronolojik sira tasiyor.
                             // Tekillestirme yok — liste bir gorusme listesi, sayi dogru
                             // kalmali; ama tekrarlayan gorusme (= aktif takip vakasi)
                             // tek seferlik gorusmelerin arasinda kaybolmasin.
-                            const sirali = veri.kayitlar.slice().sort((a,b) => (a.date||"").localeCompare(b.date||""));
+                            const sirali = veri.kayitlar.slice().sort((a,b) => {
+                              const t = (a.date||"").localeCompare(b.date||"");
+                              return t !== 0 ? t : (a.id||"").localeCompare(b.id||"");
+                            });
                             const toplam = {}, sayac = {};
                             sirali.forEach(k => {
                               const a = pdrOgrAnahtar(k.studentName, k.className, k.numara);
                               toplam[a] = (toplam[a] || 0) + 1;
                             });
-                            return sirali.map(k => {
-                              const anahtar = pdrOgrAnahtar(k.studentName, k.className, k.numara);
-                              sayac[anahtar] = (sayac[anahtar] || 0) + 1;
-                              const tekrarli = toplam[anahtar] > 1;
-                              return (
-                            <div key={k.id} data-pdr-ogrenci-satir={anahtar} onClick={() => { donulecekOgrenciRef.current = anahtar; setSeciliOgrenci(k.studentName); if(setAktifOgrenci) setAktifOgrenci({ name:k.studentName, className:k.className||"" }); }}
-                              style={{ background:BG, border:`1px solid ${tekrarli ? "#E8C9A0" : BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:"9px 12px", display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
-                              <span style={{ flexShrink:0, lineHeight:1.2, textAlign:"center" }}>
-                                <span style={{ display:"block", fontSize:10.5, color:MUTED }}>{k.date}</span>
-                                <span style={{ display:"block", fontSize:8.5, color:MUTED, opacity:0.75 }}>{pdrGunAdi(k.date)}</span>
-                              </span>
-                              <span style={{ flex:1, minWidth:0, fontSize:12, fontWeight:700, color:TEXT, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{k.studentName}</span>
-                              <span style={{ flexShrink:0, lineHeight:1.2, textAlign:"right" }}>
-                                <span style={{ display:"block", fontSize:10.5, color:MUTED }}>{k.className}{k.numara ? ` · No: ${k.numara}` : ""}</span>
-                                {tekrarli && (
-                                  <span style={{ display:"block", fontSize:8.5, fontWeight:800, color:"#B5651D" }}>
-                                    {sayac[anahtar]}. görüşme
-                                  </span>
-                                )}
-                              </span>
-                            </div>
-                              );
-                            });
+                            // Haftaya göre alt gruplama — Görüşme Takvimi'nde kullanılan
+                            // aynı Pazartesi-başlangıçlı hafta hesabı (ayHaftalariniHesapla).
+                            const ayAdiKisa = ay.split(" ")[0];
+                            const haftalar = ayHaftalariniHesapla(veri.ayIndex, veri.yil).map(h => ({
+                              ...h,
+                              kayitlar: sirali.filter(k => { const t = pdrTarihParcala(k.date); return t && t.gun >= h.ilkGun && t.gun <= h.sonGun; }),
+                            })).filter(h => h.kayitlar.length > 0);
+                            return haftalar.map(h => (
+                              <div key={h.haftaNo}>
+                                <div style={{ fontSize:10.5, fontWeight:700, color:MUTED, padding:"2px 2px 4px" }}>
+                                  {h.haftaNo}. Hafta <span style={{ fontWeight:400 }}>({h.ilkGun === h.sonGun ? `${h.ilkGun} ${ayAdiKisa}` : `${h.ilkGun}-${h.sonGun} ${ayAdiKisa}`})</span>
+                                </div>
+                                <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+                                  {h.kayitlar.map(k => {
+                                    const anahtar = pdrOgrAnahtar(k.studentName, k.className, k.numara);
+                                    sayac[anahtar] = (sayac[anahtar] || 0) + 1;
+                                    const tekrarli = toplam[anahtar] > 1;
+                                    return (
+                                  <div key={k.id} data-pdr-ogrenci-satir={anahtar} onClick={() => { donulecekOgrenciRef.current = anahtar; setSeciliOgrenci(k.studentName); if(setAktifOgrenci) setAktifOgrenci({ name:k.studentName, className:k.className||"" }); }}
+                                    style={{ background:BG, border:`1px solid ${tekrarli ? "#E8C9A0" : BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:"9px 12px", display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
+                                    <span style={{ flexShrink:0, lineHeight:1.2, textAlign:"center" }}>
+                                      <span style={{ display:"block", fontSize:10.5, color:MUTED }}>{k.date}</span>
+                                      <span style={{ display:"block", fontSize:8.5, color:MUTED, opacity:0.75 }}>{pdrGunAdi(k.date)}</span>
+                                    </span>
+                                    <span style={{ flex:1, minWidth:0, fontSize:12, fontWeight:700, color:TEXT, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{k.studentName}</span>
+                                    <span style={{ flexShrink:0, lineHeight:1.2, textAlign:"right" }}>
+                                      <span style={{ display:"block", fontSize:10.5, color:MUTED }}>{k.className}{k.numara ? ` · No: ${k.numara}` : ""}</span>
+                                      {tekrarli && (
+                                        <span style={{ display:"block", fontSize:8.5, fontWeight:800, color:"#B5651D" }}>
+                                          {sayac[anahtar]}. görüşme
+                                        </span>
+                                      )}
+                                    </span>
+                                  </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ));
                           })()}
                         </div>
                       )}
