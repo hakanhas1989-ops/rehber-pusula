@@ -1657,6 +1657,30 @@ function KazanimlarSekmesi({ kademe }) {
 // İstatistik'teki "Konulara Göre" dağılımı ve Excel çıktısı tutarlı/anlamlı
 // kategorilere göre gruplanır (serbest metin yerine).
 const KONU_LISTESI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygusal","Devamsızlık","Öz Zarar","Sağlık","Madde Kullanımı","Teknoloji / Ekran Bağımlılığı","Ekonomik Güçlük","Yas / Kayıp","Travma","Özel Öğrenme Güçlüğü","Sınav Kaygısı","Kariyer / Gelecek Planlama","Genel Sohbet","Diğer"];
+// Bazı ana konuların altında, kaydı daha spesifik hale getiren İSTEĞE BAĞLI
+// bir alt konu seçimi. İstatistikler/raporlar hep ANA konuya göre sayar
+// (r.topic değişmiyor) — alt konu (r.altKonu) sadece ek, görsel bir detay.
+const KONU_ALT_SECENEKLERI = {
+  "Duygusal": ["Kaygı","Öfke","Üzüntü / Çökkünlük","Korku","Utanç / Suçluluk","Diğer"],
+  "Davranış": ["Kurallara Uyumsuzluk","Saldırganlık","Yalan Söyleme","Dikkat / Hareketlilik","Diğer"],
+  "Akran / Zorbalık": ["Zorbalığa Maruz Kalma","Zorbalık Uygulama","Akran Çatışması","Dışlanma","Diğer"],
+  "Aile": ["Ebeveyn Çatışması / Boşanma","İletişim Sorunu","Kardeş İlişkisi","Diğer"],
+  "Akademik": ["Başarı Düşüklüğü","Motivasyon Eksikliği","Çalışma Alışkanlığı Sorunu","Dikkat / Odaklanma Güçlüğü","Diğer"],
+  "Devamsızlık": ["Sık Geç Kalma","Tekrarlayan Devamsızlık","Okul Reddi / Korkusu","Diğer"],
+  "Öz Zarar": ["Kendine Zarar Verme Davranışı","İntihar Düşüncesi / Girişimi","Diğer"],
+  "Sağlık": ["Süreğen Hastalık","Akut Rahatsızlık","Psikiyatrik Süreç","Diğer"],
+  "Madde Kullanımı": ["Sigara","Alkol","Diğer Madde","Diğer"],
+  "Teknoloji / Ekran Bağımlılığı": ["Oyun Bağımlılığı","Sosyal Medya","Diğer"],
+  "Ekonomik Güçlük": ["Barınma","Beslenme","Kırtasiye / Materyal","Diğer"],
+  "Yas / Kayıp": ["Ölüm","Boşanma / Ayrılık Kaybı","Diğer"],
+  "Travma": ["Fiziksel","Duygusal","Cinsel","Tanık Olma","Diğer"],
+  "Özel Öğrenme Güçlüğü": ["Okuma","Yazma","Matematik","Dikkat","Diğer"],
+  "Kariyer / Gelecek Planlama": ["Meslek Seçimi","Lise Tercihi","Üniversite Tercihi","Diğer"],
+};
+function konuGoster(r) {
+  if (!r || !r.topic) return "";
+  return r.altKonu ? `${r.topic} · ${r.altKonu}` : r.topic;
+}
 // Kaynaştırma/tanı listesi — e-Okul'dan sınıf bazında gelen kaynaştırma
 // öğrencilerini işaretlemek için. Bir öğrencide birden fazla tanı olabilir,
 // o yüzden çoklu seçim (dizi) olarak tutulur.
@@ -13732,7 +13756,7 @@ function OgrenciYonetim({
                 .map(r => {
                   const ogr = tumOgrenciler.find(o => pdrAyniOgrenci(o.studentName, o.className, r.studentName, r.className));
                   return {
-                    id: r.id, date: r.date, studentName: r.studentName, meetingType: r.meetingType || "Öğrenci", topic: r.topic || "",
+                    id: r.id, date: r.date, studentName: r.studentName, meetingType: r.meetingType || "Öğrenci", topic: r.topic || "", altKonu: r.altKonu || "",
                     className: r.className || ogr?.className || "", numara: ogr?.numara || "",
                   };
                 })
@@ -13812,7 +13836,7 @@ function OgrenciYonetim({
                                         <span style={{ overflow:"hidden", textOverflow:"ellipsis" }}>{k.studentName}</span>
                                         {k.meetingType==="Veli" && <span style={{ flexShrink:0, background:"#FDEBD0", color:"#E76F51", borderRadius:10, padding:"1px 7px", fontSize:9, fontWeight:700 }}>Veli</span>}
                                       </span>
-                                      {k.topic && <span style={{ display:"block", fontSize:9.5, color:MUTED, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{k.topic}</span>}
+                                      {k.topic && <span style={{ display:"block", fontSize:9.5, color:MUTED, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{konuGoster(k)}</span>}
                                     </span>
                                     <span style={{ flexShrink:0, lineHeight:1.2, textAlign:"right" }}>
                                       <span style={{ display:"block", fontSize:10.5, color:MUTED }}>{k.className}{k.numara ? ` · No: ${k.numara}` : ""}</span>
@@ -14256,7 +14280,7 @@ function OgrenciYonetim({
                                 <span style={{background:isVeli?"#FDEBD0":ACCENT_LIGHT,color:isVeli?ORANGE:ACCENT,borderRadius:12,padding:"1px 8px",fontSize:10,fontWeight:700}}>
                                   {r.meetingType||"Öğrenci"}
                                 </span>
-                                {r.topic&&<span style={{background:"#f0f0f0",color:"#555",borderRadius:12,padding:"1px 7px",fontSize:10}}>{r.topic}</span>}
+                                {r.topic&&<span style={{background:"#f0f0f0",color:"#555",borderRadius:12,padding:"1px 7px",fontSize:10}}>{konuGoster(r)}</span>}
                               </div>
                               {gunFark!==null&&<span style={{fontSize:10,color:MUTED}}>{gunFark} gün önce</span>}
                             </div>
@@ -14272,10 +14296,16 @@ function OgrenciYonetim({
                                     <button key={t} onClick={()=>setDuzenleForm(f=>({...f,meetingType:t}))} style={{flex:1,padding:"6px",borderRadius:8,border:`2px solid ${duzenleForm?.meetingType===t?ACCENT:BORDER}`,background:duzenleForm?.meetingType===t?ACCENT_LIGHT:CARD,color:duzenleForm?.meetingType===t?ACCENT:MUTED,fontSize:11,fontWeight:700,cursor:"pointer"}}>{t}</button>
                                   ))}
                                 </div>
-                                <select value={duzenleForm?.topic||""} onChange={e=>setDuzenleForm(f=>({...f,topic:e.target.value}))} style={{width:"100%",padding:"7px 9px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:8,fontSize:12,marginBottom:6,boxSizing:"border-box",background:"#fff"}}>
+                                <select value={duzenleForm?.topic||""} onChange={e=>setDuzenleForm(f=>({...f,topic:e.target.value,altKonu:""}))} style={{width:"100%",padding:"7px 9px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:8,fontSize:12,marginBottom:6,boxSizing:"border-box",background:"#fff"}}>
                                   <option value="">Konu seçilmedi</option>
                                   {KONU_LISTESI.map(k => <option key={k} value={k}>{k}</option>)}
                                 </select>
+                                {KONU_ALT_SECENEKLERI[duzenleForm?.topic] && (
+                                  <select value={duzenleForm?.altKonu||""} onChange={e=>setDuzenleForm(f=>({...f,altKonu:e.target.value}))} style={{width:"100%",padding:"7px 9px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:8,fontSize:12,marginBottom:6,boxSizing:"border-box",background:"#fff"}}>
+                                    <option value="">Alt konu seçilmedi</option>
+                                    {KONU_ALT_SECENEKLERI[duzenleForm.topic].map(k => <option key={k} value={k}>{k}</option>)}
+                                  </select>
+                                )}
                                 <label style={{fontSize:10,fontWeight:600,color:MUTED,display:"block",marginBottom:2}}>HAM NOT</label>
                                 <textarea value={duzenleForm?.raw||""} onChange={e=>setDuzenleForm(f=>({...f,raw:e.target.value}))} rows={3} style={{width:"100%",padding:"7px 9px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:8,fontSize:12,resize:"vertical",boxSizing:"border-box",marginBottom:6}}/>
                                 <button onClick={handleDuzenleAiOzetle} disabled={!duzenleForm?.raw?.trim()||duzenleAiLoading} style={{width:"100%",padding:"7px",background:duzenleForm?.raw?.trim()&&!duzenleAiLoading?PURPLE:BORDER,color:duzenleForm?.raw?.trim()&&!duzenleAiLoading?"#fff":MUTED,border:"none",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer",marginBottom:6}}>
@@ -14336,7 +14366,7 @@ function OgrenciYonetim({
                                   );
                                 })()}
                                 <div style={{display:"flex",gap:6}}>
-                                  <button onClick={()=>{setDuzenlemeId(r.id);setDuzenleForm({meetingType:r.meetingType||"Öğrenci",topic:r.topic||"",raw:r.raw||"",summary:r.summary||""});}} style={{padding:"5px 10px",background:ACCENT_LIGHT,color:ACCENT,border:"none",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer"}}>✎ Düzenle</button>
+                                  <button onClick={()=>{setDuzenlemeId(r.id);setDuzenleForm({meetingType:r.meetingType||"Öğrenci",topic:r.topic||"",altKonu:r.altKonu||"",raw:r.raw||"",summary:r.summary||""});}} style={{padding:"5px 10px",background:ACCENT_LIGHT,color:ACCENT,border:"none",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer"}}>✎ Düzenle</button>
                                   <button onClick={()=>{ if(window.confirm("Bu görüşme notunu silmek istediğinize emin misiniz?")) handleGorusmeSil(r.id); }} style={{padding:"5px 10px",background:"none",border:"1px solid #F28B82",color:"#C5221F",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer"}}>🗑 Sil</button>
                                 </div>
                               </>
@@ -17798,7 +17828,7 @@ export default function App() {
     const hedef = buton.offsetLeft - (kap.clientWidth / 2) + (buton.offsetWidth / 2);
     kap.scrollTo({ left: Math.max(0, hedef), behavior: "smooth" });
   }, [tab]);
-  const [form, setForm] = useState({ studentName: "", className: "", numara: "", meetingType: "Öğrenci", topic: "", raw: "", summary: "", tarih: today() });
+  const [form, setForm] = useState({ studentName: "", className: "", numara: "", meetingType: "Öğrenci", topic: "", altKonu: "", raw: "", summary: "", tarih: today() });
   const [notOgrenciArama, setNotOgrenciArama] = useState("");
   // Grup görüşmesi: aynı anda birden fazla öğrenciyle (örn. aralarındaki
   // çatışma için) yapılan TEK görüşmenin, her öğrencinin kendi profiline de
@@ -18056,7 +18086,7 @@ export default function App() {
       const bulunanNumara = kayitliListesi.find(o => pdrAyniOgrenci(o.name, o.className, aktifOgrenci.name, aktifOgrenci.className))?.numara || "";
       setForm(f => ({ ...f, studentName: aktifOgrenci.name, className: aktifOgrenci.className || "", numara: bulunanNumara }));
     } else {
-      setForm({ studentName: "", className: "", numara: "", meetingType: "Öğrenci", topic: "", raw: "", summary: "", tarih: today() });
+      setForm({ studentName: "", className: "", numara: "", meetingType: "Öğrenci", topic: "", altKonu: "", raw: "", summary: "", tarih: today() });
     }
   }, [aktifOgrenci?.name]);
 
@@ -18176,7 +18206,7 @@ export default function App() {
     // görüşme notu eklenebilsin diye (sadece not içeriği temizleniyor).
     // Not: aktifOgrenci değişmediği için yukarıdaki useEffect burada tekrar
     // tetiklenmez, bu yüzden öğrenci bilgisini elle korumak gerekiyor.
-    setForm(f => ({ ...f, topic: "", raw: "", summary: "" }));
+    setForm(f => ({ ...f, topic: "", altKonu: "", raw: "", summary: "" }));
     setDigerKatilimcilar([]);
     setSaved(true); setTimeout(() => setSaved(false), 2000); setTab("ogrenciler");
   }
@@ -19099,10 +19129,19 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
                 style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, marginBottom:10, boxSizing:"border-box" }} />
               {/* Konu — standart liste, İstatistik ve Excel'de tutarlı gruplama için */}
               <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>KONU (İSTEĞE BAĞLI)</label>
-              <select value={form.topic} onChange={e=>setForm(f=>({...f,topic:e.target.value}))} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, marginBottom:10, boxSizing:"border-box", background:"#fff" }}>
+              <select value={form.topic} onChange={e=>setForm(f=>({...f,topic:e.target.value,altKonu:""}))} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, marginBottom:10, boxSizing:"border-box", background:"#fff" }}>
                 <option value="">Konu seçilmedi</option>
                 {KONU_LISTESI.map(k => <option key={k} value={k}>{k}</option>)}
               </select>
+              {KONU_ALT_SECENEKLERI[form.topic] && (
+                <>
+                  <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>ALT KONU (İSTEĞE BAĞLI)</label>
+                  <select value={form.altKonu||""} onChange={e=>setForm(f=>({...f,altKonu:e.target.value}))} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, marginBottom:10, boxSizing:"border-box", background:"#fff" }}>
+                    <option value="">Alt konu seçilmedi</option>
+                    {KONU_ALT_SECENEKLERI[form.topic].map(k => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                </>
+              )}
               {/* Ham not */}
               <label style={{ fontSize:11, fontWeight:600, color:MUTED, display:"block", marginBottom:4 }}>GÖRÜŞME NOTU</label>
               <textarea placeholder="Görüşme notlarını buraya yazın..." value={form.raw} onChange={e=>setForm(f=>({...f,raw:e.target.value}))} rows={5} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, resize:"vertical", boxSizing:"border-box", marginBottom:10 }} />
