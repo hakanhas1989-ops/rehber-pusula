@@ -4004,6 +4004,12 @@ function pdrAyniOgrenci(ad1, sinif1, ad2, sinif2, no1, no2) {
 
   const a1 = (ad1 || "").toLocaleLowerCase("tr").trim();
   const a2 = (ad2 || "").toLocaleLowerCase("tr").trim();
+
+  // Öncelik 2: İsim + numara ikisi de dolu ve eşleşiyorsa, SINIF FARKLI OLSA
+  // BİLE aynı öğrencidir — öğrenci sınıf değiştirmiş olabilir, eski kayıttaki
+  // sınıf etiketi artık güncel değildir ama okul numarası değişmez.
+  if (a1 && a1 === a2 && n1 && n2 && n1 === n2) return true;
+
   if (!a1 || a1 !== a2) return false;
   if (!s1 || !s2) return true; // sınıf bilgisi eksikse eski davranış korunur
   if (s1 !== s2) return false;
