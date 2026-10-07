@@ -2728,26 +2728,95 @@ async function saveSosyometri(items) {
   try { await window.storage.set("pdr-sosyometri", JSON.stringify(items)); } catch(e) { console.warn(e); }
 }
 
+// Sosyometri artık TEK bir soru değil, birden fazla kriterle sorulabiliyor —
+// her kriter farklı bir ilişki boyutunu (akademik/sosyal/güven) ölçüyor, çünkü
+// bir öğrenci derste tercih edilmezken teneffüste çok sevilen biri olabilir,
+// bu ayrım tek soruyla görünmez.
+const SOSYOMETRI_KRITERLERI = [
+  { key: "akademik", ikon: "📚", kisa: "Akademik", soru: "Birlikte ders çalışmak ya da proje yapmak istediğin 3 arkadaşını yaz" },
+  { key: "sosyal", ikon: "😊", kisa: "Sosyal", soru: "Teneffüste ya da oyunda yanında olmak istediğin 3 arkadaşını yaz" },
+  { key: "guven", ikon: "🛟", kisa: "Güven", soru: "Bir sorunun olduğunda yardım isteyeceğin 3 arkadaşını yaz" },
+];
+// Geriye dönük uyumluluk: bu özellik eklenmeden ÖNCE girilmiş kayıtlarda tek
+// kriterlik düz "secimler" alanı vardı (o zamanki tek soru "birlikte çalışmak
+// istediğin" idi) — bu yüzden eski veriler "akademik" kriterine eşleniyor,
+// hiçbir eski veri kaybolmuyor.
+function pdrSosyometriKriterSecimleri(kayit) {
+  if (kayit?.kriterSecimleri) return kayit.kriterSecimleri;
+  if (kayit?.secimler) return { akademik: kayit.secimler };
+  return {};
+}
+// Bir sınıfın TÜM kriterlerdeki seçimlerini tek bir "kim kimi seçti" haritasında
+// birleştirir — "hiçbir kriterde hiç seçilmedi" gibi genel/otomatik analizler
+// için kullanılıyor (tek bir kriterde seçilmemiş olmak tek başına anlamlı
+// değildir, asıl sinyal HİÇBİR kriterde seçilmemiş olmaktır).
+function pdrSosyometriBirlesikSecimler(kayit) {
+  const kriterler = pdrSosyometriKriterSecimleri(kayit);
+  const birlesik = {};
+  Object.values(kriterler).forEach(secimler => {
+    Object.entries(secimler || {}).forEach(([ad, liste]) => {
+      if (!birlesik[ad]) birlesik[ad] = [];
+      (liste || []).forEach(x => { if (x && !birlesik[ad].includes(x)) birlesik[ad].push(x); });
+    });
+  });
+  return birlesik;
+}
+// Öğrenci silme/isim-sınıf değiştirme işlemlerinde bir sosyometri kaydındaki
+// TÜM seçim haritalarını (eski düz "secimler" varsa + yeni "kriterSecimleri"
+// içindeki HER kriter) aynı dönüştürme mantığıyla günceller — tek bir kriteri
+// güncelleyip diğerlerini eski/yanlış isimle bırakmamak için. "donustur"
+// bir "secimler" haritası alır, { secimler, degisti } döndürür.
+function pdrSosyometriTumHaritalariGuncelle(kayit, donustur) {
+  let degisti = false;
+  const sonuc = { ...kayit };
+  if (kayit.secimler) {
+    const r = donustur(kayit.secimler || {});
+    if (r.degisti) { degisti = true; }
+    sonuc.secimler = r.secimler;
+  }
+  if (kayit.kriterSecimleri) {
+    const yeniKriterSecimleri = {};
+    Object.entries(kayit.kriterSecimleri).forEach(([kriterKey, secimler]) => {
+      const r = donustur(secimler || {});
+      if (r.degisti) degisti = true;
+      yeniKriterSecimleri[kriterKey] = r.secimler;
+    });
+    sonuc.kriterSecimleri = yeniKriterSecimleri;
+  }
+  return { kayit: sonuc, degisti };
+}
+
 function SosyometriEkrani({ sosyometri, setSosyometri, ogrenciler, aktifYil, siniflar, setRiskForm, setTab }) {
   const [seciliSinif, setSeciliSinif] = useState("");
+  const [seciliKriter, setSeciliKriter] = useState(SOSYOMETRI_KRITERLERI[0].key);
 
   const sinifOgrencileri = (ogrenciler||[])
     .filter(o => (!o.yil || o.yil === aktifYil) && (o.className||"").trim() === seciliSinif)
     .sort((a,b) => (a.studentName||"").localeCompare(b.studentName||"", "tr"));
 
   const kayit = (sosyometri||[]).find(s => s.yil === aktifYil && s.sinif === seciliSinif);
-  const secimler = kayit?.secimler || {};
+  const kriterSecimleriTumu = pdrSosyometriKriterSecimleri(kayit);
+  const secimler = kriterSecimleriTumu[seciliKriter] || {};
 
-  // Kağıt üzerinden toplanan seçimleri hızlı girmek için: bir öğrencinin 3
-  // seçimi tek seferde (satır olarak) kaydedilir — tek tek tıklamak yerine
-  // klavyeyle Tab'layarak akıcı ilerlenir. 30 kişilik bir sınıfta pratikte
-  // fark yaratan kısım burası.
+  // Kağıt üzerinden toplanan seçimleri hızlı girmek için: bir öğrencinin (ŞU AN
+  // SEÇİLİ KRİTERDEKİ) 3 seçimi tek seferde (satır olarak) kaydedilir — tek tek
+  // tıklamak yerine klavyeyle Tab'layarak akıcı ilerlenir. Her kriter kendi
+  // seçim haritasında ayrı tutuluyor (kriterSecimleri), bir kriter diğerini
+  // etkilemiyor.
   async function satirKaydet(ogrAd, ucluListe) {
     const temiz = ucluListe.map(x => (x||"").trim()).filter(Boolean).slice(0,3);
     const yeniSecimler = { ...secimler, [ogrAd]: temiz };
+    const yeniKriterSecimleri = { ...kriterSecimleriTumu, [seciliKriter]: yeniSecimler };
     let yeni;
-    if (kayit) yeni = sosyometri.map(s => (s.yil===aktifYil && s.sinif===seciliSinif) ? { ...s, secimler:yeniSecimler, tarih:today() } : s);
-    else yeni = [...(sosyometri||[]), { id: uid(), yil: aktifYil, sinif: seciliSinif, tarih: today(), secimler: yeniSecimler }];
+    if (kayit) {
+      // Eski "secimler" alanı varsa (bu kayıt henüz yeni kriter yapısına hiç
+      // geçmemişse) artık kriterSecimleri'ne taşındığı için temizleniyor —
+      // ikisi birden tutulursa hangisinin geçerli olduğu karışır.
+      const { secimler: _eskiDuzSecimler, ...kayitTemiz } = kayit;
+      yeni = sosyometri.map(s => (s.yil===aktifYil && s.sinif===seciliSinif) ? { ...kayitTemiz, kriterSecimleri: yeniKriterSecimleri, tarih:today() } : s);
+    } else {
+      yeni = [...(sosyometri||[]), { id: uid(), yil: aktifYil, sinif: seciliSinif, tarih: today(), kriterSecimleri: yeniKriterSecimleri }];
+    }
     setSosyometri(yeni); await saveSosyometri(yeni);
   }
 
@@ -2775,9 +2844,10 @@ function SosyometriEkrani({ sosyometri, setSosyometri, ogrenciler, aktifYil, sin
     ? sinifOgrencileri.filter(o => (secilmeSayisi[o.studentName]||0) === 0) : [];
 
   function riskAc(o) {
+    const kriterAdi = SOSYOMETRI_KRITERLERI.find(k=>k.key===seciliKriter)?.kisa || "";
     setRiskForm({ studentName: o.studentName, className: o.className, numara: o.numara || "",
       riskTuru: "Akran / Zorbalık", oncelik: "Orta", tarih: today(),
-      aciklama: `Sosyometri (${seciliSinif}, ${kayit?.tarih || today()}): sınıfta hiçbir arkadaşı tarafından seçilmedi. Akran ilişkileri açısından izlenmeli.` });
+      aciklama: `Sosyometri (${seciliSinif}, ${kriterAdi} kriteri, ${kayit?.tarih || today()}): sınıfta bu kriterde hiçbir arkadaşı tarafından seçilmedi. Akran ilişkileri açısından izlenmeli.` });
     setTab("risk");
   }
 
@@ -2787,11 +2857,13 @@ function SosyometriEkrani({ sosyometri, setSosyometri, ogrenciler, aktifYil, sin
     <div>
       <div style={{ fontSize:18, fontWeight:900, marginBottom:4, color:PURPLE }}>🤝 Sosyometri</div>
       <div style={{ fontSize:12, color:MUTED, lineHeight:1.55, marginBottom:12 }}>
-        Her öğrenci sınıfından birlikte çalışmak istediği en çok 3 arkadaşını seçer. Program kimin kaç kez
-        seçildiğini, karşılıklı dostlukları ve hiç seçilmeyen öğrencileri gösterir.
+        Her öğrenci sınıfından, aşağıdaki {SOSYOMETRI_KRITERLERI.length} kriterin her birinde en çok 3 arkadaşını
+        seçer. Program her kriter için ayrı ayrı kimin kaç kez seçildiğini, karşılıklı dostlukları ve hiç
+        seçilmeyen öğrencileri gösterir — bir öğrenci derste tercih edilmezken teneffüste çok sevilen biri
+        olabilir, bu yüzden tek bir kriter yeterli değildir.
       </div>
 
-      <div style={{ display:"flex", gap:5, overflowX:"auto", marginBottom:12, paddingBottom:4 }}>
+      <div style={{ display:"flex", gap:5, overflowX:"auto", marginBottom:8, paddingBottom:4 }}>
         {(siniflar||[]).map(s => (
           <button key={s} onClick={()=>setSeciliSinif(s)} style={{
             flexShrink:0, padding:"5px 12px", borderRadius:14,
@@ -2803,6 +2875,20 @@ function SosyometriEkrani({ sosyometri, setSosyometri, ogrenciler, aktifYil, sin
         ))}
       </div>
 
+      {seciliSinif && (
+        <div style={{ display:"flex", gap:5, overflowX:"auto", marginBottom:12, paddingBottom:4 }}>
+          {SOSYOMETRI_KRITERLERI.map(k => (
+            <button key={k.key} onClick={()=>setSeciliKriter(k.key)} style={{
+              flexShrink:0, padding:"6px 13px", borderRadius:14,
+              border:`2px solid ${seciliKriter===k.key ? ACCENT : BORDER}`,
+              background:seciliKriter===k.key ? ACCENT_LIGHT : CARD,
+              boxShadow:"0 2px 6px rgba(20,40,32,0.10)",
+              color:seciliKriter===k.key ? ACCENT : MUTED, fontSize:11.5, fontWeight:seciliKriter===k.key?800:500, cursor:"pointer"
+            }}>{k.ikon} {k.kisa}</button>
+          ))}
+        </div>
+      )}
+
       {!seciliSinif ? (
         <div style={{ ...kutuStil, textAlign:"center", color:MUTED, fontSize:12.5, borderStyle:"dashed" }}>
           Başlamak için yukarıdan bir sınıf seç.
@@ -2813,6 +2899,43 @@ function SosyometriEkrani({ sosyometri, setSosyometri, ogrenciler, aktifYil, sin
         </div>
       ) : (
         <>
+          <button onClick={()=>raporIndir("pdr-sosyometri-form-yazdir", `${seciliSinif} - Sosyometri Formu`)} style={{
+            width:"100%", padding:"10px", marginBottom:12, background:PURPLE, color:"#fff", border:"none",
+            borderRadius:10, fontSize:12.5, fontWeight:800, cursor:"pointer"
+          }}>🖨️ Öğrencilere Dağıtılacak Sosyometri Formunu Yazdır / PDF</button>
+
+          {/* Öğrencinin KAĞITTA dolduracağı form — her öğrenci için adı üstte
+              yazılı AYRI bir sayfa (pageBreakAfter ile), aynı PDF'in içinde art
+              arda. Ekranda hiç görünmüyor (display:none), raporIndir sadece
+              innerHTML'ini okuyup yeni bir sekmede/pencerede kendi düzeniyle
+              açıyor — bu yüzden gizli olması sonucu etkilemiyor. */}
+          <div id="pdr-sosyometri-form-yazdir" style={{ display:"none" }}>
+            {sinifOgrencileri.map((o, i) => (
+              <div key={o.studentName} style={{ padding:"8mm 6mm", pageBreakAfter: i < sinifOgrencileri.length-1 ? "always" : "auto" }}>
+                <div style={{ textAlign:"center", marginBottom:18 }}>
+                  <div style={{ fontSize:17, fontWeight:900 }}>🤝 Sosyometri Formu</div>
+                  <div style={{ fontSize:12, color:"#555", marginTop:3 }}>{seciliSinif} Sınıfı — {today()}</div>
+                </div>
+                <div style={{ fontSize:13.5, marginBottom:16 }}>
+                  Adın Soyadın: <b>{o.studentName}</b>
+                </div>
+                <div style={{ fontSize:11, color:"#444", lineHeight:1.6, border:"1px solid #ccc", borderRadius:8, padding:10, marginBottom:22 }}>
+                  Bu formdaki sorulara kendi düşüncene göre, kimseyle paylaşmadan cevap ver. Doğru ya da
+                  yanlış cevap yoktur, sadece senin gerçek tercihlerini öğrenmek istiyoruz. Cevapların
+                  gizli tutulacak, sınıf arkadaşlarınla paylaşılmayacaktır.
+                </div>
+                {SOSYOMETRI_KRITERLERI.map(k => (
+                  <div key={k.key} style={{ marginBottom:26 }}>
+                    <div style={{ fontSize:12.5, fontWeight:700, marginBottom:12 }}>{k.ikon} {k.soru}</div>
+                    <div style={{ fontSize:12, marginBottom:11 }}>1. ______________________________________________</div>
+                    <div style={{ fontSize:12, marginBottom:11 }}>2. ______________________________________________</div>
+                    <div style={{ fontSize:12 }}>3. ______________________________________________</div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+
           <div style={{ display:"flex", gap:8, marginBottom:12 }}>
             <div style={{ flex:1, ...kutuStil, marginBottom:0, padding:"10px 12px", textAlign:"center" }}>
               <div style={{ fontSize:19, fontWeight:900, color:PURPLE }}>{katilimOrani}%</div>
@@ -2831,7 +2954,7 @@ function SosyometriEkrani({ sosyometri, setSosyometri, ogrenciler, aktifYil, sin
           {izoleler.length > 0 && (
             <div style={{ background:"#FDECEA", border:"1px solid #F5B7B1", borderRadius:12, padding:12, marginBottom:12 }}>
               <div style={{ fontSize:12, fontWeight:800, color:"#C0392B", marginBottom:7 }}>
-                ⚠️ Hiçbir arkadaşı tarafından seçilmeyen öğrenciler
+                ⚠️ Bu kriterde hiçbir arkadaşı tarafından seçilmeyen öğrenciler
               </div>
               {izoleler.map(o => (
                 <div key={o.studentName} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
@@ -2869,9 +2992,13 @@ function SosyometriEkrani({ sosyometri, setSosyometri, ogrenciler, aktifYil, sin
             <div style={{ fontSize:12, fontWeight:800, color:TEXT, marginBottom:4 }}>
               📋 Hızlı Giriş — kağıttan toplanan seçimleri gir
             </div>
+            <div style={{ background:ACCENT_LIGHT, color:ACCENT, borderRadius:8, padding:"6px 10px", fontSize:11, fontWeight:700, marginBottom:8 }}>
+              Şu an girdiğin kriter: {SOSYOMETRI_KRITERLERI.find(k=>k.key===seciliKriter)?.ikon} “{SOSYOMETRI_KRITERLERI.find(k=>k.key===seciliKriter)?.soru}”
+            </div>
             <div style={{ fontSize:10.5, color:MUTED, lineHeight:1.5, marginBottom:10 }}>
               Her satırda öğrencinin kağıda yazdığı 3 arkadaşını yaz — yazarken sınıf listesinden
-              öneri çıkar. Tab tuşuyla bir sonraki kutuya, sıradaki satıra geçebilirsin.
+              öneri çıkar. Tab tuşuyla bir sonraki kutuya, sıradaki satıra geçebilirsin. Diğer kriterleri
+              girmek için yukarıdaki kriter sekmelerini değiştir.
             </div>
             <datalist id="pdr-sosyo-siniflistesi">
               {sinifOgrencileri.map(d => <option key={d.studentName} value={d.studentName} />)}
@@ -2997,7 +3124,10 @@ function pdrOncelikSkoruHesapla(ogrenciler, riskListesi, sosyometri, aktifYil, u
     const sinifKaydi = (sosyometri||[]).filter(s => (!s.yil || s.yil===aktifYil) && s.sinif === o.className)
       .sort((a,b) => pdrTarihMs(b.tarih) - pdrTarihMs(a.tarih))[0];
     if (sinifKaydi) {
-      const secimler = sinifKaydi.secimler || {};
+      // Tüm kriterlerde birleşik seçimler kullanılıyor — bir öğrenci sadece
+      // TEK bir kriterde değil, HİÇBİR kriterde seçilmemişse anlamlı bir
+      // sinyaldir.
+      const secimler = pdrSosyometriBirlesikSecimler(sinifKaydi);
       const digerleri = Object.keys(secimler).filter(k => k !== o.studentName);
       const katilim = digerleri.length;
       const sinifOgrSayisi = yilOgr.filter(x => x.className === o.className).length;
@@ -12779,23 +12909,27 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
 
     // 4) Sosyometri — özel yapı: secimler hem anahtar (kimin seçimleri)
     // hem de değer dizisi (kimleri seçti) olarak öğrenci adı içeriyor.
-    // Aynı sınıftaki eşleşen öğrenci için ikisini de güncelliyoruz.
+    // Aynı sınıftaki eşleşen öğrenci için ikisini de güncelliyoruz. Artık
+    // birden fazla kriter olduğu için (kriterSecimleri) TÜM kriterler aynı
+    // mantıkla güncelleniyor (pdrSosyometriTumHaritalariGuncelle).
     const yeniSosyometri = (sosyometri || []).map(k => {
-      const mevcutSecimler = k.secimler || {};
-      let degisti = false;
-      const yeniSecimler = {};
-      Object.entries(mevcutSecimler).forEach(([ad, secilenler]) => {
-        const e1 = eslesme.find(x => x.eskiAd === ad && x.className === (k.sinif || ""));
-        const yeniAnahtarAd = e1 ? e1.yeniAd : ad;
-        if (e1) degisti = true;
-        const yeniListe = (secilenler || []).map(secilenAd => {
-          const e2 = eslesme.find(x => x.eskiAd === secilenAd && x.className === (k.sinif || ""));
-          if (e2) degisti = true;
-          return e2 ? e2.yeniAd : secilenAd;
+      const { kayit: yeniKayit, degisti } = pdrSosyometriTumHaritalariGuncelle(k, (mevcutSecimler) => {
+        let degisti = false;
+        const yeniSecimler = {};
+        Object.entries(mevcutSecimler).forEach(([ad, secilenler]) => {
+          const e1 = eslesme.find(x => x.eskiAd === ad && x.className === (k.sinif || ""));
+          const yeniAnahtarAd = e1 ? e1.yeniAd : ad;
+          if (e1) degisti = true;
+          const yeniListe = (secilenler || []).map(secilenAd => {
+            const e2 = eslesme.find(x => x.eskiAd === secilenAd && x.className === (k.sinif || ""));
+            if (e2) degisti = true;
+            return e2 ? e2.yeniAd : secilenAd;
+          });
+          yeniSecimler[yeniAnahtarAd] = yeniListe;
         });
-        yeniSecimler[yeniAnahtarAd] = yeniListe;
+        return { secimler: yeniSecimler, degisti };
       });
-      return degisti ? { ...k, secimler: yeniSecimler } : k;
+      return degisti ? yeniKayit : k;
     });
 
     // 5) Hepsini kaydet
@@ -18649,11 +18783,12 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
       ogrenciler: yilinki(ogrenciler),
       grup_calismalari: suYilKesin(grupCalismalari),
       kriz: suYilKesin(krizKayitlari),
-      // Sosyometri kaydının var olması yetmez; içinde gerçekten en az bir
-      // öğrenci seçimi olmalı. Aksi halde başlatılıp doldurulmamış bir anket
-      // kaydı "dolu" görünüyordu.
+      // Sosyometri kaydının var olması yetmez; içinde (herhangi bir kriterde)
+      // gerçekten en az bir öğrenci seçimi olmalı. Aksi halde başlatılıp
+      // doldurulmamış bir anket kaydı "dolu" görünüyordu.
       sosyometri: (sosyometri||[]).some(s => s.yil === aktifYil &&
-        Object.values(s.secimler || {}).some(v => Array.isArray(v) && v.length > 0)),
+        Object.values(pdrSosyometriKriterSecimleri(s)).some(secimler =>
+          Object.values(secimler||{}).some(v => Array.isArray(v) && v.length > 0))),
     };
 
     const ad = aktifOgrenci?.name, sinif = aktifOgrenci?.className;
@@ -19492,22 +19627,26 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
               // Sosyometri özel yapı: secimler hem anahtar (kimin seçimleri)
               // hem de değer dizisi (kimleri seçti) olarak öğrenci adı
               // içeriyor — aynı sınıftaki eşleşmeler için ikisini de güncelle.
+              // Artık birden fazla kriter olduğu için (kriterSecimleri) TÜM
+              // kriterler aynı mantıkla güncelleniyor.
               const yeniSosyometri = (sosyometri||[]).map(k => {
                 if ((k.sinif||"") !== eskiSinif) return k;
-                const mevcutSecimler = k.secimler || {};
-                let degisti = false;
-                const yeniSecimler = {};
-                Object.entries(mevcutSecimler).forEach(([ad, secilenler]) => {
-                  const buAnahtarMi = ad === eskiAd;
-                  const yeniAnahtarAd = buAnahtarMi ? yeniAd : ad;
-                  if (buAnahtarMi) degisti = true;
-                  const yeniListe = (secilenler||[]).map(secilenAd => {
-                    if (secilenAd === eskiAd) { degisti = true; return yeniAd; }
-                    return secilenAd;
+                const { kayit: yeniKayit, degisti } = pdrSosyometriTumHaritalariGuncelle(k, (mevcutSecimler) => {
+                  let degisti = false;
+                  const yeniSecimler = {};
+                  Object.entries(mevcutSecimler).forEach(([ad, secilenler]) => {
+                    const buAnahtarMi = ad === eskiAd;
+                    const yeniAnahtarAd = buAnahtarMi ? yeniAd : ad;
+                    if (buAnahtarMi) degisti = true;
+                    const yeniListe = (secilenler||[]).map(secilenAd => {
+                      if (secilenAd === eskiAd) { degisti = true; return yeniAd; }
+                      return secilenAd;
+                    });
+                    yeniSecimler[yeniAnahtarAd] = yeniListe;
                   });
-                  yeniSecimler[yeniAnahtarAd] = yeniListe;
+                  return { secimler: yeniSecimler, degisti };
                 });
-                return degisti ? { ...k, secimler: yeniSecimler } : k;
+                return degisti ? yeniKayit : k;
               });
               setSosyometri(yeniSosyometri); await saveSosyometri(yeniSosyometri);
 
@@ -19607,16 +19746,22 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
               // öğrencinin kendi seçim kaydı (anahtar) kaldırılır, ayrıca
               // aynı sınıftaki diğer öğrencilerin seçim listelerinden de
               // (artık var olmayan birini "seçmiş" görünmesin diye) çıkarılır.
+              // Artık birden fazla kriter olduğu için (kriterSecimleri) TÜM
+              // kriterler aynı mantıkla temizleniyor.
               const updSosyometri = (sosyometri||[]).map(k => {
                 if ((k.sinif||"") !== className) return k;
-                const mevcutSecimler = k.secimler || {};
-                if (!(studentName in mevcutSecimler) && !Object.values(mevcutSecimler).some(list => (list||[]).includes(studentName))) return k;
-                const yeniSecimler = {};
-                Object.entries(mevcutSecimler).forEach(([ad, secilenler]) => {
-                  if (ad === studentName) return; // silinen öğrencinin kendi kaydı düşer
-                  yeniSecimler[ad] = (secilenler||[]).filter(secilenAd => secilenAd !== studentName);
+                const { kayit: yeniKayit, degisti } = pdrSosyometriTumHaritalariGuncelle(k, (mevcutSecimler) => {
+                  if (!(studentName in mevcutSecimler) && !Object.values(mevcutSecimler).some(list => (list||[]).includes(studentName))) {
+                    return { secimler: mevcutSecimler, degisti: false };
+                  }
+                  const yeniSecimler = {};
+                  Object.entries(mevcutSecimler).forEach(([ad, secilenler]) => {
+                    if (ad === studentName) return; // silinen öğrencinin kendi kaydı düşer
+                    yeniSecimler[ad] = (secilenler||[]).filter(secilenAd => secilenAd !== studentName);
+                  });
+                  return { secimler: yeniSecimler, degisti: true };
                 });
-                return { ...k, secimler: yeniSecimler };
+                return degisti ? yeniKayit : k;
               });
               setSosyometri(updSosyometri); await saveSosyometri(updSosyometri);
             }}
