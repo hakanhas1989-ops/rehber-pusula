@@ -18188,7 +18188,11 @@ export default function App() {
   }
 
   async function handleSave() {
-    if (!form.studentName.trim() || !(form.summary.trim() || form.raw.trim())) return;
+    // Önceden burada SESSİZCE (hiçbir uyarı göstermeden) çıkılıyordu — öğrenci
+    // adı boşsa ya da not metni girilmemişse kayıt hiç olmuyordu ama kullanıcı
+    // nedenini asla göremiyordu. Artık ne eksikse açıkça söyleniyor.
+    if (!form.studentName.trim()) { alert("⚠️ Önce bir öğrenci seçmelisiniz (listeden tıklayın ya da adını yazın)."); return; }
+    if (!(form.summary.trim() || form.raw.trim())) { alert("⚠️ Not metni boş — lütfen görüşme notunu yazın."); return; }
     // AI ile özetlenmemişse (kullanıcı "AI Özetle" demeden direkt kaydetmek
     // istiyorsa), ham metni özet olarak kullan — kaydetmek için AI şart değil.
     // "tarih" alanı sadece form üzerinde kullanılıyor — kayıt her yerde "date"
@@ -19080,7 +19084,18 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
                     )}
                   </>
                 )}
-                <input placeholder="veya ad yaz..." value={form.studentName} onChange={e=>setForm(f=>({...f,studentName:e.target.value}))} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, boxSizing:"border-box" }} />
+                {/* Bu alan SADECE henüz bir öğrenci seçilmemişken gösteriliyor.
+                    Eskiden öğrenci seçildikten (mor etiket çıktıktan) SONRA da
+                    görünür kalıyordu — aynı "studentName" state'ine doğrudan
+                    bağlı olduğundan, kullanıcı bu kutuya yanlışlıkla dokunup
+                    içeriğini bozarsa seçim sessizce bozuluyor, className/
+                    numara/aktifOgrenci ise eski değerde kalıp tutarsızlık
+                    yaratıyordu — kaydet butonu da hiçbir uyarı vermeden
+                    pasifleşiyordu. Artık öğrenci seçiliyken bu kutu hiç
+                    gösterilmiyor; ad değiştirmek için "✕ Değiştir" kullanılıyor. */}
+                {!form.studentName && (
+                  <input placeholder="veya ad yaz..." value={form.studentName} onChange={e=>setForm(f=>({...f,studentName:e.target.value}))} style={{ width:"100%", padding:"9px 11px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:9, fontSize:13, boxSizing:"border-box" }} />
+                )}
               </div>
               {/* Grup görüşmesi — aynı görüşme notu birden fazla öğrenciye
                   (aralarındaki bir problem için yapılan ortak görüşme gibi)
