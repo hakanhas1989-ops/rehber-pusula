@@ -8629,24 +8629,138 @@ const SCAS_ALT_OLCEKLER = [
   { key: "fizikselYaralanma", ad: "Fiziksel Yaralanma Korkuları", maddeler: [2,18,23,25,33] },
   { key: "genelKaygi", ad: "Genel Kaygı", maddeler: [1,3,4,20,22,24] },
 ];
-// cevaplar: [{no, puan(ham, 0-3)}] — 6 alt ölçeğin toplamını, kaç maddesinin
-// cevaplandığını ve genel toplamı (dolgu maddeler hariç 38 madde üzerinden)
-// hesaplar. Bir alt ölçekte hiç madde cevaplanmamışsa toplam null döner.
-function scasPuanla(cevaplar) {
+// SCAS-Child resmi normatif örneklemi (N=4.916, kaynak: scaswebsite.com,
+// "Norms for Total Scores" / "Norms for Subscale Scores" PDF'leri — Spence'in
+// yayımladığı ortalama/standart sapma tabloları, cinsiyet × 2 yaş bandı
+// (8-11 / 12-15) kırılımında). Ham puan buradan z-skoruna, z-skoru da
+// standart normal dağılım varsayımıyla YAKLAŞIK bir yüzdelik dilime çevrilir
+// — NovoPsych'in kullandığı ampirik (örneklemin gerçek dağılımına dayalı)
+// tablo BİREBİR DEĞİLDİR, ama resmi ortalama/SS değerlerinden türetilen en
+// iyi yaklaşıklıktır. Yaş bandı öğrencinin doğum tarihi yerine SINIF
+// DÜZEYİNDEN tahmin edilir (5-6. sınıf ≈ 8-11 bandı, 7-8. sınıf ≈ 12-15
+// bandı) — bu da bir yaklaşıklıktır, kesin yaş değildir.
+const SCAS_NORM_TABLOSU = {
+  toplam: {
+    Erkek: { "8-11": {ort:26.65, ss:15.98}, "12-15": {ort:21.06, ss:14.83} },
+    Kız:   { "8-11": {ort:34.02, ss:17.33}, "12-15": {ort:27.88, ss:15.32} },
+    Karma: { "8-11": {ort:30.35, ss:17.07}, "12-15": {ort:24.65, ss:15.46} },
+  },
+  ayrilik: {
+    Erkek: { "8-11": {ort:3.98, ss:3.20}, "12-15": {ort:2.31, ss:2.59} },
+    Kız:   { "8-11": {ort:5.41, ss:3.53}, "12-15": {ort:3.32, ss:2.70} },
+    Karma: { "8-11": {ort:4.70, ss:3.45}, "12-15": {ort:2.84, ss:2.69} },
+  },
+  sosyalFobi: {
+    Erkek: { "8-11": {ort:5.23, ss:3.44}, "12-15": {ort:5.23, ss:3.31} },
+    Kız:   { "8-11": {ort:6.84, ss:3.78}, "12-15": {ort:6.85, ss:3.52} },
+    Karma: { "8-11": {ort:6.04, ss:3.70}, "12-15": {ort:6.08, ss:3.52} },
+  },
+  obsesifKompulsif: {
+    Erkek: { "8-11": {ort:5.71, ss:3.63}, "12-15": {ort:3.89, ss:3.29} },
+    Kız:   { "8-11": {ort:6.10, ss:3.70}, "12-15": {ort:4.29, ss:3.45} },
+    Karma: { "8-11": {ort:5.90, ss:3.67}, "12-15": {ort:4.10, ss:3.38} },
+  },
+  panikAgorafobi: {
+    Erkek: { "8-11": {ort:3.46, ss:3.86}, "12-15": {ort:2.57, ss:3.77} },
+    Kız:   { "8-11": {ort:4.85, ss:4.54}, "12-15": {ort:3.60, ss:3.94} },
+    Karma: { "8-11": {ort:4.16, ss:4.27}, "12-15": {ort:3.11, ss:3.89} },
+  },
+  fizikselYaralanma: {
+    Erkek: { "8-11": {ort:2.78, ss:2.68}, "12-15": {ort:2.26, ss:2.42} },
+    Kız:   { "8-11": {ort:4.02, ss:2.75}, "12-15": {ort:3.50, ss:2.55} },
+    Karma: { "8-11": {ort:3.40, ss:2.78}, "12-15": {ort:2.91, ss:2.56} },
+  },
+  genelKaygi: {
+    Erkek: { "8-11": {ort:5.49, ss:3.29}, "12-15": {ort:4.80, ss:3.02} },
+    Kız:   { "8-11": {ort:6.81, ss:3.42}, "12-15": {ort:6.31, ss:3.34} },
+    Karma: { "8-11": {ort:6.15, ss:3.42}, "12-15": {ort:5.59, ss:3.28} },
+  },
+};
+// Standart normal dağılım birikimli yoğunluk fonksiyonu (Abramowitz-Stegun
+// yaklaşıklığı) — z-skorunu 0-100 arası bir yüzdelik dilime çevirmek için.
+function pdrNormalCDF(z) {
+  const sign = z < 0 ? -1 : 1;
+  const x = Math.abs(z) / Math.sqrt(2);
+  const t = 1 / (1 + 0.3275911 * x);
+  const y = 1 - (((((1.061405429*t - 1.453152027)*t) + 1.421413741)*t - 0.284496736)*t + 0.254829592) * t * Math.exp(-x*x);
+  return 0.5 * (1 + sign * y);
+}
+function scasYuzdelikHesapla(ham, ort, ss) {
+  if (!ss || ham === null || ham === undefined) return null;
+  const z = (ham - ort) / ss;
+  const p = pdrNormalCDF(z) * 100;
+  return Math.max(0.1, Math.min(99.9, p));
+}
+// Resmi kılavuzdaki yüzdelik dilim eşik değerleri (NovoPsych raporundan
+// birebir): Normal ≤84, Hafif Yüksek (Elevated) 85-93, Yüksek (High)
+// 94-97.72, Çok Yüksek (Very High) ≥97.73.
+function scasDuzeyEtiketi(yuzdelik) {
+  if (yuzdelik === null || yuzdelik === undefined || isNaN(yuzdelik)) return null;
+  if (yuzdelik <= 84) return { ad: "Normal", renk: "#1A8C5B" };
+  if (yuzdelik <= 93) return { ad: "Hafif Yüksek", renk: "#B07D1A" };
+  if (yuzdelik <= 97.72) return { ad: "Yüksek", renk: "#D35400" };
+  return { ad: "Çok Yüksek", renk: "#C0392B" };
+}
+// Sınıf adından (ör. "7-A") yaklaşık bir yaş bandı tahmini — öğrencinin
+// doğum tarihi programda tutulmadığı için KESİN yaş yerine kullanılan bir
+// vekil değişkendir: 5-6. sınıf ≈ 8-11 yaş bandı, 7-8. sınıf ≈ 12-15 yaş
+// bandı. Sınıf numarası okunamazsa null döner (percentile hesaplanamaz).
+function scasYasGrubuTahminEt(className) {
+  const m = (className || "").match(/\d+/);
+  if (!m) return null;
+  const sinifNo = parseInt(m[0], 10);
+  if (sinifNo <= 6) return "8-11";
+  if (sinifNo >= 7) return "12-15";
+  return null;
+}
+// cevaplar: [{no, puan(ham, 0-3)}] — 6 alt ölçeğin ham toplamını, yüzdelik
+// dilimini (cinsiyet+yaş bandı verilmişse) ve düzey etiketini hesaplar;
+// ayrıca "Hafif Yüksek" ve üzeri çıkan alt ölçeklerde hangi maddelerin
+// (Sık Sık/Her Zaman işaretlenen) bu sonuca katkıda bulunduğunu listeler —
+// NovoPsych örnek raporundaki "contributed items" biçimiyle aynı mantık.
+// cinsiyet: "Kız" | "Erkek" | başka/boş (o zaman karma-cinsiyet normu kullanılır).
+// yasGrubu: "8-11" | "12-15" | null (null ise percentile hesaplanmaz, sadece ham puan).
+function scasPuanla(cevaplar, cinsiyet, yasGrubu) {
   const harita = {};
   (cevaplar || []).forEach(c => { harita[c.no] = c.puan; });
+  const cinsiyetAnahtari = cinsiyet === "Kız" ? "Kız" : cinsiyet === "Erkek" ? "Erkek" : "Karma";
   const altSonuclar = SCAS_ALT_OLCEKLER.map(alt => {
     let toplam = 0, cevaplanan = 0;
+    const katkiMaddeleri = [];
     alt.maddeler.forEach(no => {
       const p = parseInt(harita[no]);
-      if (Number.isInteger(p) && p >= 0 && p <= 3) { toplam += p; cevaplanan++; }
+      if (Number.isInteger(p) && p >= 0 && p <= 3) {
+        toplam += p; cevaplanan++;
+        if (p >= 2) katkiMaddeleri.push({ no, puan: p, metin: SCAS_MADDELER[no-1] });
+      }
     });
-    return { ...alt, toplam: cevaplanan > 0 ? toplam : null, cevaplanan, maddeSayisi: alt.maddeler.length };
+    katkiMaddeleri.sort((a,b) => b.puan - a.puan);
+    const norm = yasGrubu ? SCAS_NORM_TABLOSU[alt.key]?.[cinsiyetAnahtari]?.[yasGrubu] : null;
+    const nihaiToplam = cevaplanan > 0 ? toplam : null;
+    const yuzdelik = norm && nihaiToplam !== null ? scasYuzdelikHesapla(nihaiToplam, norm.ort, norm.ss) : null;
+    return { ...alt, toplam: nihaiToplam, cevaplanan, maddeSayisi: alt.maddeler.length, yuzdelik, duzey: scasDuzeyEtiketi(yuzdelik), katkiMaddeleri };
   });
   const cevaplananToplam = altSonuclar.reduce((s,a) => s + a.cevaplanan, 0);
   const genelToplam = cevaplananToplam > 0 ? altSonuclar.reduce((s,a) => s + (a.toplam||0), 0) : null;
-  return { altOlcekler: altSonuclar, genelToplam, cevaplananToplam, toplamMaddeSayisi: 38 };
+  const genelNorm = yasGrubu ? SCAS_NORM_TABLOSU.toplam[cinsiyetAnahtari]?.[yasGrubu] : null;
+  const genelYuzdelik = genelNorm && genelToplam !== null ? scasYuzdelikHesapla(genelToplam, genelNorm.ort, genelNorm.ss) : null;
+  return {
+    altOlcekler: altSonuclar, genelToplam, cevaplananToplam, toplamMaddeSayisi: 38,
+    genelYuzdelik, genelDuzey: scasDuzeyEtiketi(genelYuzdelik),
+    cinsiyetKullanilan: cinsiyetAnahtari, yasGrubuKullanilan: yasGrubu || null,
+  };
 }
+// İki SCAS-Çocuk ölçümü (aynı öğrenci, farklı tarih) arasındaki toplam puan
+// farkını, NovoPsych'in 7.240 uygulama üzerinden belirlediği "güvenilir
+// değişim" eşiğine (14 puan) göre yorumlar.
+function scasGuvenilirDegisimYorumu(yeniToplam, eskiToplam) {
+  if (yeniToplam === null || eskiToplam === null || yeniToplam === undefined || eskiToplam === undefined) return null;
+  const fark = yeniToplam - eskiToplam;
+  if (fark <= -14) return { ad: "Anlamlı iyileşme", renk: "#1A8C5B", fark };
+  if (fark >= 14) return { ad: "Anlamlı kötüleşme", renk: "#C0392B", fark };
+  return { ad: "Anlamlı bir değişim yok (ölçüm hatası sınırları içinde)", renk: MUTED, fark };
+}
+
 
 const TEST_LISTESI = {
   objektif: [
@@ -8711,9 +8825,8 @@ function testSonucOzeti(k) {
       const cevaplar = v.cevaplar || [];
       const cevaplanan = cevaplar.filter(c => c.puan !== undefined && c.puan !== null).length;
       if (cevaplanan === 0) return "Henüz madde işlenmedi";
-      const sonuc = scasPuanla(cevaplar);
-      const enYuksek = sonuc.altOlcekler.filter(a => a.toplam !== null).sort((a,b) => (b.toplam/b.maddeSayisi) - (a.toplam/a.maddeSayisi))[0];
-      return `${sonuc.cevaplananToplam}/38 madde · Genel Toplam: ${sonuc.genelToplam ?? "—"}${enYuksek ? ` · en yüksek: ${enYuksek.ad} (${enYuksek.toplam}/${enYuksek.maddeSayisi*3})` : ""}`;
+      const sonuc = scasPuanla(cevaplar, v.cinsiyetKullanilan, v.yasGrubuKullanilan);
+      return `${sonuc.cevaplananToplam}/38 madde · Genel Toplam: ${sonuc.genelToplam ?? "—"}${sonuc.genelDuzey ? ` · ${sonuc.genelDuzey.ad}${sonuc.genelYuzdelik!=null?` (%${sonuc.genelYuzdelik.toFixed(0)})`:""}` : ""}`;
     }
     default: return v.sonuc || "—";
   }
@@ -9076,7 +9189,14 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
 
   async function handleKaydet() {
     if (!seciliAd || !seciliTest || !testFormGecerliMi(seciliTest.tip, form)) return;
-    const yeni = { id: uid(), kategori, testAdi: seciliTest.ad, tip: seciliTest.tip, tarih: form.tarih, not: form.not.trim(), veri: testVeriOlustur(seciliTest.tip, seciliTest, form) };
+    let veri = testVeriOlustur(seciliTest.tip, seciliTest, form);
+    // SCAS-Çocuk için, puanlamada kullanılan cinsiyet/yaş bandını kayda gömüyoruz —
+    // öğrencinin cinsiyeti ileride değişse/düzeltilse bile bu geçmiş kaydın
+    // yüzdelik dilimi, O ANDA kullanılan norma göre tutarlı kalsın diye.
+    if (seciliTest.tip === "scas_cocuk") {
+      veri = { ...veri, cinsiyetKullanilan: seciliOgr?.cinsiyet || "", yasGrubuKullanilan: scasYasGrubuTahminEt(seciliSinif) };
+    }
+    const yeni = { id: uid(), kategori, testAdi: seciliTest.ad, tip: seciliTest.tip, tarih: form.tarih, not: form.not.trim(), veri };
     const guncel = pdrSozlukYaz(testKayitlari, seciliAd, seciliSinif, [yeni, ...kayitlar], seciliNumara);
     setTestKayitlari(guncel);
     await saveTestKayitlari(guncel);
@@ -9594,7 +9714,9 @@ KURALLAR:
                   const yeni = varMi ? mevcut.map(c => c.no === no ? { ...c, puan } : c) : [...mevcut, { no, puan }];
                   return { ...f, scasCevaplar: yeni };
                 });
-                const sonuc = scasPuanla(cevaplar);
+                const cinsiyet = seciliOgr?.cinsiyet || "";
+                const yasGrubu = scasYasGrubuTahminEt(seciliSinif);
+                const sonuc = scasPuanla(cevaplar, cinsiyet, yasGrubu);
                 const LIKERT = [{p:0,k:"Hiç"},{p:1,k:"Bazen"},{p:2,k:"Sık Sık"},{p:3,k:"Her Zaman"}];
                 const altOlcekBul = (no) => SCAS_ALT_OLCEKLER.find(a => a.maddeler.includes(no));
                 return (
@@ -9605,7 +9727,7 @@ KURALLAR:
                     </label>
 
                     <div style={{ fontSize:10.5, color:"#8B5A00", marginBottom:12, lineHeight:1.5, background:"#FFF4E5", border:"1px solid #E8C27A", borderRadius:8, padding:8 }}>
-                      ℹ️ Bu ölçek 9-12 yaş grubunda geçerliliği gösterilmiş bir kaygı tarama aracıdır (STAI'nin resmi "14 yaş ve üzeri" hedefinin aksine ortaokul yaşına daha uygundur). Kaynak belgede yaş/cinsiyete göre norm tablosu/kesme puanı YOKTUR — program bu yüzden kesin bir "düşük/yüksek" etiketi üretmiyor, sadece ham alt ölçek puanlarını gösteriyor; klinik yorum danışmana aittir.
+                      ℹ️ Bu ölçek 9-12 yaş grubunda geçerliliği gösterilmiş bir kaygı tarama aracıdır. Yüzdelik dilim ve düzey (Normal/Hafif Yüksek/Yüksek/Çok Yüksek) etiketleri, Spence'in resmi normatif örneklemindeki (N=4.916) ortalama/standart sapma değerlerinden hesaplanan YAKLAŞIK bir dönüşümdür — ampirik norm tablosunun birebir aynısı değildir. Yaş bandı öğrencinin sınıf düzeyinden tahmin edilir (5-6. sınıf ≈ 8-11, 7-8. sınıf ≈ 12-15), doğum tarihinden değil. {!cinsiyet && "Öğrencinin cinsiyeti kayıtlı olmadığı için karma-cinsiyet normu kullanılıyor (daha isabetli sonuç için Sınıf ekranından cinsiyeti işaretleyebilirsin)."} {!yasGrubu && "Sınıf düzeyi okunamadığı için yüzdelik dilim hesaplanamıyor, sadece ham puanlar gösteriliyor."}
                     </div>
 
                     {sonuc.genelToplam !== null && (
@@ -9613,14 +9735,25 @@ KURALLAR:
                         <div style={{ fontSize:11, fontWeight:700, color:MUTED, marginBottom:6 }}>ALT ÖLÇEK ÖZETİ (canlı hesaplanır, {sonuc.cevaplananToplam}/38 puanlanan madde)</div>
                         <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
                           {sonuc.altOlcekler.map(a => (
-                            <div key={a.key} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"5px 8px", background:BG, borderRadius:6, fontSize:11 }}>
-                              <span style={{ color:TEXT }}>{a.ad}</span>
-                              <span style={{ fontWeight:700, color: a.toplam===null?MUTED:PURPLE }}>{a.toplam ?? "—"} / {a.maddeSayisi*3}{a.cevaplanan<a.maddeSayisi?` (${a.cevaplanan}/${a.maddeSayisi})`:""}</span>
+                            <div key={a.key} style={{ padding:"6px 8px", background: a.duzey && a.duzey.ad!=="Normal" ? a.duzey.renk+"14" : BG, borderRadius:6 }}>
+                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:11 }}>
+                                <span style={{ color:TEXT }}>{a.ad}</span>
+                                <span style={{ display:"flex", gap:6, alignItems:"center" }}>
+                                  <span style={{ fontWeight:700, color: a.toplam===null?MUTED:PURPLE }}>{a.toplam ?? "—"} / {a.maddeSayisi*3}{a.cevaplanan<a.maddeSayisi?` (${a.cevaplanan}/${a.maddeSayisi})`:""}</span>
+                                  {a.duzey && <span style={{ fontWeight:800, fontSize:10, color:a.duzey.renk }}>{a.duzey.ad}{a.yuzdelik!=null?` · %${a.yuzdelik.toFixed(0)}`:""}</span>}
+                                </span>
+                              </div>
+                              {a.duzey && a.duzey.ad!=="Normal" && a.katkiMaddeleri.length>0 && (
+                                <div style={{ fontSize:9.5, color:MUTED, marginTop:3, lineHeight:1.4 }}>
+                                  Katkıda bulunan maddeler: {a.katkiMaddeleri.slice(0,4).map(m=>`${m.no} (${LIKERT.find(l=>l.p===m.puan)?.k})`).join(", ")}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
-                        <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 8px", marginTop:4, background:PURPLE_LIGHT, borderRadius:6, fontSize:11.5, fontWeight:800, color:PURPLE }}>
-                          <span>Genel Toplam</span><span>{sonuc.genelToplam} / 114</span>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 8px", marginTop:4, background: sonuc.genelDuzey && sonuc.genelDuzey.ad!=="Normal" ? sonuc.genelDuzey.renk+"1F" : PURPLE_LIGHT, borderRadius:6, fontSize:11.5, fontWeight:800, color: sonuc.genelDuzey ? sonuc.genelDuzey.renk : PURPLE }}>
+                          <span>Genel Toplam</span>
+                          <span>{sonuc.genelToplam} / 114{sonuc.genelDuzey?` · ${sonuc.genelDuzey.ad}${sonuc.genelYuzdelik!=null?` (%${sonuc.genelYuzdelik.toFixed(0)})`:""}`:""}</span>
                         </div>
                       </div>
                     )}
@@ -9675,7 +9808,7 @@ KURALLAR:
               <div style={{ fontSize:12, color:MUTED }}>Henüz test kaydı yok.</div>
             ) : (
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                {kayitlar.map(k => {
+                {kayitlar.map((k, kIdx) => {
                   const beierMi = k.tip === "beier_form_a";
                   const mesEgilimMi = k.tip === "mesleki_egilim_160";
                   const scasMi = k.tip === "scas_cocuk";
@@ -9752,19 +9885,40 @@ KURALLAR:
                       );
                     })()}
                     {scasMi && detayAcik && (() => {
-                      const sonuc = scasPuanla(k.veri?.cevaplar||[]);
+                      const sonuc = scasPuanla(k.veri?.cevaplar||[], k.veri?.cinsiyetKullanilan, k.veri?.yasGrubuKullanilan);
+                      const LIKERT_KISA = {0:"Hiç",1:"Bazen",2:"Sık Sık",3:"Her Zaman"};
+                      const oncekiScas = kayitlar.slice(kIdx+1).find(k2 => k2.tip === "scas_cocuk");
+                      const rci = oncekiScas ? scasGuvenilirDegisimYorumu(sonuc.genelToplam, scasPuanla(oncekiScas.veri?.cevaplar||[]).genelToplam) : null;
                       return (
                         <div style={{ marginTop:10, borderTop:`1px solid ${BORDER}`, paddingTop:10, display:"flex", flexDirection:"column", gap:4 }}>
                           {sonuc.altOlcekler.map(a => (
-                            <div key={a.key} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"5px 8px", background:BG, borderRadius:6, fontSize:11 }}>
-                              <span style={{ color:TEXT }}>{a.ad}</span>
-                              <span style={{ fontWeight:700, color: a.toplam===null?MUTED:PURPLE }}>{a.toplam ?? "—"} / {a.maddeSayisi*3}</span>
+                            <div key={a.key} style={{ padding:"6px 8px", background: a.duzey && a.duzey.ad!=="Normal" ? a.duzey.renk+"14" : BG, borderRadius:6 }}>
+                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:11 }}>
+                                <span style={{ color:TEXT }}>{a.ad}</span>
+                                <span style={{ display:"flex", gap:6, alignItems:"center" }}>
+                                  <span style={{ fontWeight:700, color: a.toplam===null?MUTED:PURPLE }}>{a.toplam ?? "—"} / {a.maddeSayisi*3}</span>
+                                  {a.duzey && <span style={{ fontWeight:800, fontSize:10, color:a.duzey.renk }}>{a.duzey.ad}{a.yuzdelik!=null?` · %${a.yuzdelik.toFixed(0)}`:""}</span>}
+                                </span>
+                              </div>
+                              {a.duzey && a.duzey.ad!=="Normal" && a.katkiMaddeleri.length>0 && (
+                                <div style={{ fontSize:9.5, color:MUTED, marginTop:3, lineHeight:1.4 }}>
+                                  Katkıda bulunan maddeler: {a.katkiMaddeleri.slice(0,4).map(m=>`${m.no} (${LIKERT_KISA[m.puan]})`).join(", ")}
+                                </div>
+                              )}
                             </div>
                           ))}
-                          <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 8px", marginTop:2, background:PURPLE_LIGHT, borderRadius:6, fontSize:11.5, fontWeight:800, color:PURPLE }}>
-                            <span>Genel Toplam</span><span>{sonuc.genelToplam ?? "—"} / 114</span>
+                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 8px", marginTop:2, background: sonuc.genelDuzey && sonuc.genelDuzey.ad!=="Normal" ? sonuc.genelDuzey.renk+"1F" : PURPLE_LIGHT, borderRadius:6, fontSize:11.5, fontWeight:800, color: sonuc.genelDuzey ? sonuc.genelDuzey.renk : PURPLE }}>
+                            <span>Genel Toplam</span>
+                            <span>{sonuc.genelToplam ?? "—"} / 114{sonuc.genelDuzey?` · ${sonuc.genelDuzey.ad}${sonuc.genelYuzdelik!=null?` (%${sonuc.genelYuzdelik.toFixed(0)})`:""}`:""}</span>
                           </div>
-                          <div style={{ fontSize:9.5, color:MUTED, lineHeight:1.4, marginTop:2 }}>Bu ölçek için yaş/cinsiyete göre resmi bir norm tablosu bulunmadığından kesin bir düşük/yüksek etiketi üretilmez; yorumlama danışmana aittir.</div>
+                          {rci && (
+                            <div style={{ fontSize:10.5, fontWeight:700, color:rci.renk, background:rci.renk+"14", borderRadius:6, padding:"5px 8px", marginTop:2 }}>
+                              Önceki ölçüme göre ({oncekiScas.tarih}): {rci.ad} ({rci.fark>0?"+":""}{rci.fark} puan)
+                            </div>
+                          )}
+                          <div style={{ fontSize:9.5, color:MUTED, lineHeight:1.4, marginTop:2 }}>
+                            {sonuc.yasGrubuKullanilan ? `Yüzdelik dilim, Spence'in resmi normatif örneklemindeki ortalama/SS değerlerinden hesaplanan yaklaşık bir dönüşümdür (${sonuc.cinsiyetKullanilan==="Karma"?"karma-cinsiyet":sonuc.cinsiyetKullanilan} normu, ${sonuc.yasGrubuKullanilan} yaş bandı) — ampirik tablonun birebir aynısı değildir.` : "Bu kayıt için yaş bandı belirlenemediğinden yüzdelik dilim hesaplanmadı, sadece ham puanlar gösteriliyor."}
+                          </div>
                         </div>
                       );
                     })()}
