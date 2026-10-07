@@ -9768,8 +9768,8 @@ KURALLAR:
                         const dolguMu = SCAS_DOLGU_MADDELER.includes(no);
                         const alt = altOlcekBul(no);
                         return (
-                          <div key={no} style={{ padding:"7px 4px", borderBottom:`1px solid ${BG}`, opacity: dolguMu?0.6:1 }}>
-                            <div style={{ fontSize:11.5, color:TEXT, marginBottom:4 }}>
+                          <div key={no} style={{ padding:"7px 4px", borderBottom:`1px solid ${BG}` }}>
+                            <div style={{ fontSize:11.5, color:TEXT, marginBottom:4, opacity: dolguMu?0.6:1 }}>
                               <b>{no}.</b> {metin} <span style={{ color:MUTED, fontSize:9 }}>({dolguMu?"dolgu, puanlanmaz":alt?.ad})</span>
                             </div>
                             <div style={{ display:"flex", gap:5 }}>
