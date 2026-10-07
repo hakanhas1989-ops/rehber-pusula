@@ -1661,21 +1661,25 @@ const KONU_LISTESI = ["Davranış","Akademik","Aile","Akran / Zorbalık","Duygus
 // bir alt konu seçimi. İstatistikler/raporlar hep ANA konuya göre sayar
 // (r.topic değişmiyor) — alt konu (r.altKonu) sadece ek, görsel bir detay.
 const KONU_ALT_SECENEKLERI = {
-  "Duygusal": ["Kaygı","Öfke","Üzüntü / Çökkünlük","Korku","Utanç / Suçluluk","Diğer"],
-  "Davranış": ["Kurallara Uyumsuzluk","Saldırganlık","Yalan Söyleme","Dikkat / Hareketlilik","Diğer"],
-  "Akran / Zorbalık": ["Zorbalığa Maruz Kalma","Zorbalık Uygulama","Akran Çatışması","Dışlanma","Diğer"],
-  "Aile": ["Ebeveyn Çatışması / Boşanma","İletişim Sorunu","Kardeş İlişkisi","Diğer"],
-  "Akademik": ["Başarı Düşüklüğü","Motivasyon Eksikliği","Çalışma Alışkanlığı Sorunu","Dikkat / Odaklanma Güçlüğü","Diğer"],
-  "Devamsızlık": ["Sık Geç Kalma","Tekrarlayan Devamsızlık","Okul Reddi / Korkusu","Diğer"],
+  // Her listede önce sorun/risk odaklı maddeler, sonra (MEB'in gelişimsel-
+  // önleyici PDR çerçevesine uygun) beceri geliştirme/bilgilendirme amaçlı
+  // olumlu maddeler yer alır — görüşme her zaman bir sorun için değil, bir
+  // beceriyi geliştirmek ya da bilgi almak için de olabilir.
+  "Duygusal": ["Kaygı","Öfke","Üzüntü / Çökkünlük","Korku","Utanç / Suçluluk","Duygu Farkındalığı / Duygu Yönetimi Geliştirme","Stres Yönetimi","Özgüven / Özsaygı Geliştirme","Diğer"],
+  "Davranış": ["Kurallara Uyumsuzluk","Saldırganlık","Yalan Söyleme","Dikkat / Hareketlilik","Olumlu Davranış Geliştirme","Problem Çözme / Karar Verme Becerisi","Diğer"],
+  "Akran / Zorbalık": ["Zorbalığa Maruz Kalma","Zorbalık Uygulama","Akran Çatışması","Dışlanma","Sosyal Beceri / Atılganlık Eğitimi","Akran İlişkilerini Güçlendirme","Diğer"],
+  "Aile": ["Ebeveyn Çatışması / Boşanma","İletişim Sorunu","Kardeş İlişkisi","Aile İçi İletişimi Güçlendirme","Diğer"],
+  "Akademik": ["Başarı Düşüklüğü","Motivasyon Eksikliği","Çalışma Alışkanlığı Sorunu","Dikkat / Odaklanma Güçlüğü","Ders Çalışma Programı Hazırlama","Verimli Ders Çalışma Teknikleri","Zaman Yönetimi","Motivasyon Artırma","Diğer"],
+  "Devamsızlık": ["Sık Geç Kalma","Tekrarlayan Devamsızlık","Okul Reddi / Korkusu","Okula Bağlılığı Artırma","Diğer"],
   "Öz Zarar": ["Kendine Zarar Verme Davranışı","İntihar Düşüncesi / Girişimi","Diğer"],
-  "Sağlık": ["Süreğen Hastalık","Akut Rahatsızlık","Psikiyatrik Süreç","Diğer"],
-  "Madde Kullanımı": ["Sigara","Alkol","Diğer Madde","Diğer"],
-  "Teknoloji / Ekran Bağımlılığı": ["Oyun Bağımlılığı","Sosyal Medya","Diğer"],
+  "Sağlık": ["Süreğen Hastalık","Akut Rahatsızlık","Psikiyatrik Süreç","Sağlıklı Yaşam / Beslenme Bilgilendirmesi","Diğer"],
+  "Madde Kullanımı": ["Sigara","Alkol","Diğer Madde","Önleyici Bilgilendirme / Hayır Deme Becerisi","Diğer"],
+  "Teknoloji / Ekran Bağımlılığı": ["Oyun Bağımlılığı","Sosyal Medya","Bilinçli Teknoloji Kullanımı Bilgilendirmesi","Diğer"],
   "Ekonomik Güçlük": ["Barınma","Beslenme","Kırtasiye / Materyal","Diğer"],
   "Yas / Kayıp": ["Ölüm","Boşanma / Ayrılık Kaybı","Diğer"],
   "Travma": ["Fiziksel","Duygusal","Cinsel","Tanık Olma","Diğer"],
-  "Özel Öğrenme Güçlüğü": ["Okuma","Yazma","Matematik","Dikkat","Diğer"],
-  "Kariyer / Gelecek Planlama": ["Meslek Seçimi","Lise Tercihi","Üniversite Tercihi","Diğer"],
+  "Özel Öğrenme Güçlüğü": ["Okuma","Yazma","Matematik","Dikkat","Öğrenme Stratejileri Geliştirme","Diğer"],
+  "Kariyer / Gelecek Planlama": ["Meslek Seçimi","Lise Tercihi","Üniversite Tercihi","Yetenek / İlgi Keşfi","Diğer"],
 };
 function konuGoster(r) {
   if (!r || !r.topic) return "";
