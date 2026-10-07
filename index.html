@@ -8553,6 +8553,101 @@ function mesleklEgilimLiseOnerisiHesapla(sonucSirali) {
   return { sutunlar: guclu, liseler: Array.from(liseSeti.entries()).map(([lise, harfler]) => ({ lise, harfler })) };
 }
 
+// ── Durumluk-Sürekli Kaygı Envanteri (STAI) ──────────────────────────────────
+// Kaynak: Öner, N. & Le Compte, A. (1985). Durumluk-Sürekli Kaygı Envanteri El
+// Kitabı. İstanbul: Boğaziçi Üniversitesi Yayınları. 40 madde, 4'lü Likert
+// (1=Hiç, 2=Biraz, 3=Çok, 4=Tamamen), 2 alt ölçek: Durumluk Kaygı (1-20) ve
+// Sürekli Kaygı (21-40). 17 madde ters puanlanır (Ters puan = 5 - verilen
+// puan). Öğrenci kağıt formu elle doldurur, danışman fotoğrafını/PDF'ini
+// yükler; AI SADECE her maddenin ham (ters puanlanmamış) 1-4 değerini okur —
+// ters puanlama ve toplama TAMAMEN yerel/deterministik yapılır
+// (staiPuanla). Kaynak belgede resmi bir klinik kesme puanı YOKTUR; aşağıdaki
+// düzey etiketi 20-80 puan aralığının kabaca üçe bölünmesiyle oluşturulan,
+// AÇIKÇA klinik olmayan bir yaklaşık rehberdir. Hedef yaş grubu resmi olarak
+// "14 yaş ve üzeri"dir — daha küçük öğrencilerde sonuç temkinli yorumlanmalı.
+const STAI_MADDELER = [
+  "Şimdi sakinim",
+  "Kendimi güvenli hissediyorum",
+  "Şu anda gerginim",
+  "Pişman olduğum şeyler var",
+  "Kendimi rahat hissediyorum",
+  "Şu anda sinirli hissediyorum",
+  "Başıma gelecek kötülükler için kaygılanıyorum",
+  "Dinlenmiş hissediyorum",
+  "Endişeli hissediyorum",
+  "Kendimi rahat hissediyorum",
+  "Kendime güveniyorum",
+  "Sinirli hissediyorum",
+  "Çok gerginim",
+  "Kararsızım",
+  "Rahatım",
+  "Memnunum",
+  "Kaygılıyım",
+  "Şaşkın hissediyorum",
+  "Dengeli hissediyorum",
+  "Hoş bir ruh halindeyim",
+  "Genellikle hoş bir ruh halindeyimdir",
+  "Çabuk yorulurum",
+  "Ağlama isteği duyarım",
+  "Başkaları kadar mutlu olmak isterim",
+  "Çabuk karar veremediğim için fırsatları kaçırırım",
+  "Dinlenmiş hissederim",
+  "Sakin, soğukkanlı ve kendime hakimim",
+  "Sorunlar beni bunaltır",
+  "Önemsiz şeyler hakkında endişelenirim",
+  "Mutlu biriyim",
+  "Her şeyi ciddiye alıp üzülürüm",
+  "Kendime güvenim eksik",
+  "Güvendeyim",
+  "Sıkıntılı durumlardan kaçınırım",
+  "Kendimi hüzünlü hissederim",
+  "Hayatımdan memnunum",
+  "Önemsiz düşünceler beni rahatsız eder",
+  "Hayal kırıklıklarımı unutamam",
+  "Dengeli biriyim",
+  "Son zamanlarda kaygı ve huzursuzluk yaşıyorum",
+];
+const STAI_TERS_MADDELER = [1,2,5,8,10,11,15,16,19,20,21,26,27,30,33,36,39];
+// Bir maddenin ham (1-4) puanını, ters madde ise 5-puan kuralıyla çevirir.
+// Geçersiz/eksik değerlerde null döner (toplamaya dahil edilmez).
+function staiMaddeDegeri(no, hamPuan) {
+  const p = parseInt(hamPuan);
+  if (!p || p < 1 || p > 4) return null;
+  return STAI_TERS_MADDELER.includes(no) ? (5 - p) : p;
+}
+// cevaplar: [{no, puan(ham, 1-4)}] — iki alt ölçeğin toplamını ve kaç
+// maddenin cevaplandığını hesaplar. Bir alt ölçekte TEK bir madde bile
+// cevaplanmışsa kısmi bir toplam döner (danışman "x/20 madde" uyarısını görür).
+function staiPuanla(cevaplar) {
+  const harita = {};
+  (cevaplar || []).forEach(c => { harita[c.no] = c.puan; });
+  function altOlcek(baslangic, bitis) {
+    let toplam = 0, cevaplanan = 0;
+    for (let no = baslangic; no <= bitis; no++) {
+      const deger = staiMaddeDegeri(no, harita[no]);
+      if (deger !== null) { toplam += deger; cevaplanan++; }
+    }
+    return { toplam, cevaplanan };
+  }
+  const durumluk = altOlcek(1, 20);
+  const surekli = altOlcek(21, 40);
+  return {
+    durumlukToplam: durumluk.cevaplanan > 0 ? durumluk.toplam : null,
+    durumlukCevaplanan: durumluk.cevaplanan,
+    surekliToplam: surekli.cevaplanan > 0 ? surekli.toplam : null,
+    surekliCevaplanan: surekli.cevaplanan,
+  };
+}
+// AÇIKÇA klinik olmayan, kaynak belgede yer almayan bir yaklaşık rehber —
+// 20-80 aralığının kabaca üçe bölünmesi. Sadece danışmana hızlı bir ilk
+// bakış sağlar; kesin bir tanı/kesme puanı DEĞİLDİR.
+function staiDuzeyEtiketi(toplam) {
+  if (toplam === null || toplam === undefined || isNaN(toplam)) return null;
+  if (toplam < 40) return { ad: "Düşük", renk: "#1A8C5B" };
+  if (toplam < 60) return { ad: "Orta", renk: "#B07D1A" };
+  return { ad: "Yüksek", renk: "#C0392B" };
+}
+
 const TEST_LISTESI = {
   objektif: [
     { ad: "D2 Dikkat Testi", tip: "d2" },
@@ -8572,7 +8667,7 @@ const TEST_LISTESI = {
     { ad: "Beck Depresyon Envanteri", tip: "toplam_duzey", maxPuan: 63,
       duzeyler: [{max:9,ad:"Normal"},{max:18,ad:"Hafif"},{max:29,ad:"Orta"},{max:63,ad:"Şiddetli"}] },
     { ad: "Çocuklar İçin Depresyon Ölçeği (CDI)", tip: "toplam_duzey_serbest" },
-    { ad: "Durumluk-Sürekli Kaygı Envanteri", tip: "toplam_duzey_serbest" },
+    { ad: "Durumluk-Sürekli Kaygı Envanteri (STAI, 40 Madde)", tip: "stai_kaygi" },
     { ad: "Rosenberg Benlik Saygısı Ölçeği", tip: "toplam_duzey_serbest" },
     { ad: "Conners Derecelendirme Ölçeği", tip: "alt_test",
       altTestler: ["Dikkat Eksikliği","Hiperaktivite","Davranış Sorunları","Kaygı"],
@@ -8612,6 +8707,15 @@ function testSonucOzeti(k) {
       const enOlumsuz = [...kategoriler].sort((a,b) => b["-"] - a["-"])[0];
       return `${cevaplanan}/56 madde · en olumsuz alan: ${enOlumsuz?.ad || "—"} (${enOlumsuz?.["-"] || 0} adet -)`;
     }
+    case "stai_kaygi": {
+      const cevaplar = v.cevaplar || [];
+      const cevaplanan = cevaplar.filter(c => c.puan).length;
+      if (cevaplanan === 0) return "Henüz madde işlenmedi";
+      const sonuc = staiPuanla(cevaplar);
+      const dDuzey = staiDuzeyEtiketi(sonuc.durumlukToplam);
+      const sDuzey = staiDuzeyEtiketi(sonuc.surekliToplam);
+      return `Durumluk: ${sonuc.durumlukToplam ?? "—"}${dDuzey ? ` (${dDuzey.ad})` : ""} · Sürekli: ${sonuc.surekliToplam ?? "—"}${sDuzey ? ` (${sDuzey.ad})` : ""}`;
+    }
     default: return v.sonuc || "—";
   }
 }
@@ -8622,7 +8726,7 @@ function testDuzeyHesapla(testTanim, puan) {
   return bulunan ? bulunan.ad : testTanim.duzeyler[testTanim.duzeyler.length-1].ad;
 }
 
-const TEST_FORM_BOS = { tarih: today(), not: "", dogru:"", yanlisAtlanan:"", dikkatPuani:"", pr:"", altPuanlar:{}, genelSonuc:"", hamPuan:"", zekaYasi:"", zekaBolumu:"", hataPuani:"", gelisimselYas:"", toplamPuan:"", duzeyYorum:"", oneCikanAlanlar:"", genelYorum:"", isaretliMaddeler:[], maddeler:[], guvenlikUyarisi:"" };
+const TEST_FORM_BOS = { tarih: today(), not: "", dogru:"", yanlisAtlanan:"", dikkatPuani:"", pr:"", altPuanlar:{}, genelSonuc:"", hamPuan:"", zekaYasi:"", zekaBolumu:"", hataPuani:"", gelisimselYas:"", toplamPuan:"", duzeyYorum:"", oneCikanAlanlar:"", genelYorum:"", isaretliMaddeler:[], maddeler:[], guvenlikUyarisi:"", staiCevaplar:[] };
 function testVeriOlustur(tip, testTanim, form) {
   switch (tip) {
     case "d2": return { dogru: form.dogru, yanlisAtlanan: form.yanlisAtlanan, dikkatPuani: form.dikkatPuani, pr: form.pr };
@@ -8633,6 +8737,7 @@ function testVeriOlustur(tip, testTanim, form) {
     case "toplam_duzey_serbest": return { toplamPuan: form.toplamPuan, duzeyYorum: form.duzeyYorum };
     case "kariyer": return { oneCikanAlanlar: form.oneCikanAlanlar, genelYorum: form.genelYorum };
     case "beier_form_a": return { maddeler: form.maddeler || [], genelYorum: form.genelYorum, guvenlikUyarisi: form.guvenlikUyarisi || "" };
+    case "stai_kaygi": return { cevaplar: form.staiCevaplar || [] };
     default: return {};
   }
 }
@@ -8645,6 +8750,7 @@ function testFormGecerliMi(tip, form) {
     case "toplam_duzey": case "toplam_duzey_serbest": return !!form.toplamPuan;
     case "kariyer": return !!form.oneCikanAlanlar.trim();
     case "beier_form_a": return (form.maddeler||[]).some(m => m.cevap && m.cevap.trim());
+    case "stai_kaygi": return (form.staiCevaplar||[]).some(c => c.puan>=1 && c.puan<=4);
     case "nitel": return !!form.not.trim();
     default: return false;
   }
@@ -8954,6 +9060,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
   const [form, setForm] = useState({ ...TEST_FORM_BOS });
   const [kaydedildi, setKaydedildi] = useState(false);
   const [beierYukleniyor, setBeierYukleniyor] = useState(false);
+  const [staiYukleniyor, setStaiYukleniyor] = useState(false);
   const [mesEgilimYukleniyor, setMesEgilimYukleniyor] = useState(false);
   const [acikTestId, setAcikTestId] = useState(null);
   const [topluYuklemeAcik, setTopluYuklemeAcik] = useState(false);
@@ -9024,6 +9131,69 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
       alert("Cevap kağıdı okunamadı: " + e.message);
     }
     setBeierYukleniyor(false);
+  }
+
+  // Durumluk-Sürekli Kaygı Envanteri (STAI, 40 madde) — doldurulmuş kağıdın
+  // fotoğrafını/PDF'ini okuyup her maddenin öğrencinin işaretlediği HAM (1-4,
+  // ters puanlanmamış) değeri çıkarır. Ters puanlama ve toplam hesaplama
+  // burada DEĞİL, staiPuanla ile yerelde yapılır — AI sadece hangi kutunun
+  // işaretli olduğunu okur.
+  async function handleStaiPdfSec(file) {
+    if (!file) return;
+    setStaiYukleniyor(true);
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result.split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const mediaType = file.type || (file.name.toLocaleLowerCase("tr").endsWith(".pdf") ? "application/pdf" : "image/jpeg");
+      const icerikTipi = mediaType === "application/pdf" ? "document" : "image";
+      const maddeListesi = STAI_MADDELER.map((m,i) => `${i+1}. ${m}`).join("\n");
+      const res = await fetch("https://pdr-api.hakanhas1989.workers.dev", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 4000,
+          system: `Sen bir veri çıkarma asistanısın. Sana yüklenen belge, "Durumluk-Sürekli Kaygı Envanteri (STAI)" adlı 40 maddelik bir ölçeğin öğrenci tarafından elle doldurulmuş cevap kağıdıdır — PDF ya da bu kağıdın fotoğrafı olabilir.
+
+Her madde 4'lü Likert tipinde işaretlenmiştir, seçenekler şu sırada ve şu puan değerlerindedir:
+1 = Hiç, 2 = Biraz, 3 = Çok, 4 = Tamamen
+
+MADDE LİSTESİ (sıra numarası. ifade):
+${maddeListesi}
+
+GÖREVİN: Her madde için öğrencinin işaretlediği seçeneğin HAM puanını (1, 2, 3 ya da 4) oku. ÖNEMLİ: Bazı maddeler ters puanlanacak olsa da, SEN ASLA ters puanlama yapma — her zaman öğrencinin işaretlediği kutunun ham değerini (1-4) aynen yaz, çevirme/hesaplama danışmanın programında ayrıca yapılacak.
+
+SADECE aşağıdaki JSON formatında döndür, başka hiçbir açıklama, markdown, yorum EKLEME:
+{"cevaplar": [ {"no": 1, "puan": 2}, {"no": 2, "puan": 3} ]}
+
+KURALLAR:
+- "no" 1 ile 40 arasında tam sayı, "puan" 1 ile 4 arasında tam sayı olmalı.
+- Bir maddenin işaretini okuyamıyorsan (bulanık, boş bırakılmış, iki kutu birden işaretli, belirsiz) o maddeyi listeye EKLEME — danışman zaten kaydetmeden önce gözden geçirip elle düzeltecek, yanlış okuma yanlış negatiften (eksik bırakma) daha kötüdür.`,
+          messages: [{
+            role: "user",
+            content: [
+              { type: icerikTipi, source: { type: "base64", media_type: mediaType, data: base64 } },
+              { type: "text", text: "Bu STAI cevap kağıdını yukarıdaki talimata göre SADECE JSON formatında oku." }
+            ]
+          }]
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const text = data.content?.[0]?.text || "{}";
+      const temiz = text.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(temiz);
+      const gecerliCevaplar = (parsed.cevaplar||[]).filter(c => Number.isInteger(c.no) && c.no>=1 && c.no<=40 && Number.isInteger(c.puan) && c.puan>=1 && c.puan<=4);
+      if (gecerliCevaplar.length === 0) throw new Error("Belgeden madde okunamadı — belge formatı desteklenmiyor olabilir.");
+      setForm(f => ({ ...f, staiCevaplar: gecerliCevaplar }));
+    } catch (e) {
+      alert("Cevap kağıdı okunamadı: " + e.message);
+    }
+    setStaiYukleniyor(false);
   }
 
   // Mesleki Eğilim Belirleme Testi'nin işaretli cevap kağıdını (PDF/fotoğraf)
@@ -9416,6 +9586,80 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                 );
               })()}
 
+              {seciliTest.tip === "stai_kaygi" && (() => {
+                const cevaplar = form.staiCevaplar || [];
+                const getCevap = (no) => cevaplar.find(c => c.no === no)?.puan || null;
+                const setCevap = (no, puan) => setForm(f => {
+                  const mevcut = f.staiCevaplar || [];
+                  const varMi = mevcut.some(c => c.no === no);
+                  const yeni = varMi ? mevcut.map(c => c.no === no ? { ...c, puan } : c) : [...mevcut, { no, puan }];
+                  return { ...f, staiCevaplar: yeni };
+                });
+                const sonuc = staiPuanla(cevaplar);
+                const dDuzey = staiDuzeyEtiketi(sonuc.durumlukToplam);
+                const sDuzey = staiDuzeyEtiketi(sonuc.surekliToplam);
+                const LIKERT = [{p:1,k:"Hiç"},{p:2,k:"Biraz"},{p:3,k:"Çok"},{p:4,k:"Tamamen"}];
+                return (
+                  <>
+                    <label style={{ display:"block", width:"100%", padding:14, background:"#fff", border:`2px dashed ${PURPLE}`, borderRadius:12, textAlign:"center", color:PURPLE, fontWeight:700, cursor:"pointer", marginBottom:12, boxSizing:"border-box" }}>
+                      {staiYukleniyor ? "⏳ Form okunuyor…" : "📄 Doldurulmuş Formu Yükle (PDF ya da Fotoğraf)"}
+                      <input type="file" accept="application/pdf,image/*" onChange={e=>handleStaiPdfSec(e.target.files?.[0])} style={{ display:"none" }} disabled={staiYukleniyor} />
+                    </label>
+
+                    <div style={{ fontSize:10.5, color:"#8B5A00", marginBottom:12, lineHeight:1.5, background:"#FFF4E5", border:"1px solid #E8C27A", borderRadius:8, padding:8 }}>
+                      ℹ️ STAI resmi olarak 14 yaş ve üzeri için geliştirilmiştir; daha küçük öğrencilerde sonucu temkinli yorumla. Aşağıdaki düzey etiketleri resmi bir klinik kesme puanına dayanmaz — kaynak kılavuzda böyle bir kesme puanı yoktur; bu sadece 20-80 puan aralığının kabaca üçe bölünmesiyle oluşturulmuş yaklaşık bir rehberdir.
+                    </div>
+
+                    {(sonuc.durumlukToplam!==null || sonuc.surekliToplam!==null) && (
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
+                        <div style={{ background: dDuzey?dDuzey.renk+"14":BG, border:`1px solid ${dDuzey?dDuzey.renk:BORDER}`, borderRadius:10, padding:10, textAlign:"center" }}>
+                          <div style={{ fontSize:10, fontWeight:700, color:MUTED }}>DURUMLUK KAYGI</div>
+                          <div style={{ fontSize:20, fontWeight:900, color:dDuzey?dDuzey.renk:TEXT }}>{sonuc.durumlukToplam ?? "—"}</div>
+                          <div style={{ fontSize:10, fontWeight:700, color:dDuzey?dDuzey.renk:MUTED }}>{dDuzey?.ad || ""} {sonuc.durumlukCevaplanan<20?`(${sonuc.durumlukCevaplanan}/20 madde)`:""}</div>
+                        </div>
+                        <div style={{ background: sDuzey?sDuzey.renk+"14":BG, border:`1px solid ${sDuzey?sDuzey.renk:BORDER}`, borderRadius:10, padding:10, textAlign:"center" }}>
+                          <div style={{ fontSize:10, fontWeight:700, color:MUTED }}>SÜREKLİ KAYGI</div>
+                          <div style={{ fontSize:20, fontWeight:900, color:sDuzey?sDuzey.renk:TEXT }}>{sonuc.surekliToplam ?? "—"}</div>
+                          <div style={{ fontSize:10, fontWeight:700, color:sDuzey?sDuzey.renk:MUTED }}>{sDuzey?.ad || ""} {sonuc.surekliCevaplanan<20?`(${sonuc.surekliCevaplanan}/20 madde)`:""}</div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ fontSize:11, color:MUTED, marginBottom:8 }}>
+                      Yüklemeden önce ya da sonra, aşağıdaki 40 maddeyi kağıtla karşılaştırıp işaretlemeyi düzeltebilirsin.
+                    </div>
+                    <div style={{ maxHeight:380, overflowY:"auto", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:8, marginBottom:12 }}>
+                      {STAI_MADDELER.map((metin, i) => {
+                        const no = i + 1;
+                        const secili = getCevap(no);
+                        const tersMi = STAI_TERS_MADDELER.includes(no);
+                        return (
+                          <React.Fragment key={no}>
+                            {no === 1 && <div style={{ fontSize:10.5, fontWeight:800, color:PURPLE, padding:"4px 2px" }}>DURUMLUK KAYGI (1-20)</div>}
+                            {no === 21 && <div style={{ fontSize:10.5, fontWeight:800, color:PURPLE, padding:"8px 2px 4px" }}>SÜREKLİ KAYGI (21-40)</div>}
+                            <div style={{ padding:"7px 4px", borderBottom:`1px solid ${BG}` }}>
+                              <div style={{ fontSize:11.5, color:TEXT, marginBottom:4 }}>
+                                <b>{no}.</b> {metin} {tersMi && <span style={{ color:MUTED, fontSize:9 }}>(ters puanlanır)</span>}
+                              </div>
+                              <div style={{ display:"flex", gap:5 }}>
+                                {LIKERT.map(l => (
+                                  <button key={l.p} onClick={()=>setCevap(no, l.p)} style={{
+                                    flex:1, padding:"5px 2px", borderRadius:6, border:`2px solid ${secili===l.p?PURPLE:BORDER}`,
+                                    background: secili===l.p?PURPLE:"#fff", color: secili===l.p?"#fff":MUTED,
+                                    fontSize:9.5, fontWeight:700, cursor:"pointer"
+                                  }}>{l.k}</button>
+                                ))}
+                              </div>
+                            </div>
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
+
+                  </>
+                );
+              })()}
+
               <label style={lbl}>NOT {seciliTest.tip==="nitel" ? "" : "(opsiyonel)"}</label>
               <textarea rows={3} placeholder="Yorum, gözlem, öneri..." value={form.not} onChange={e=>setForm(f=>({...f,not:e.target.value}))} style={{...inp, marginBottom:10, resize:"vertical"}} />
 
@@ -9437,7 +9681,8 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                 {kayitlar.map(k => {
                   const beierMi = k.tip === "beier_form_a";
                   const mesEgilimMi = k.tip === "mesleki_egilim_160";
-                  const genisletilebilir = beierMi || mesEgilimMi;
+                  const staiMi = k.tip === "stai_kaygi";
+                  const genisletilebilir = beierMi || mesEgilimMi || staiMi;
                   const detayAcik = acikTestId === k.id;
                   return (
                   <div key={k.id} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:"10px 12px" }}>
@@ -9506,6 +9751,28 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                           {k.veri?.genelYorum && (
                             <div style={{ fontSize:12, color:TEXT, lineHeight:1.6, background:BG, borderRadius:8, padding:10, marginTop:4 }}>{k.veri.genelYorum}</div>
                           )}
+                        </div>
+                      );
+                    })()}
+                    {staiMi && detayAcik && (() => {
+                      const sonuc = staiPuanla(k.veri?.cevaplar||[]);
+                      const dDuzey = staiDuzeyEtiketi(sonuc.durumlukToplam);
+                      const sDuzey = staiDuzeyEtiketi(sonuc.surekliToplam);
+                      return (
+                        <div style={{ marginTop:10, borderTop:`1px solid ${BORDER}`, paddingTop:10 }}>
+                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:6 }}>
+                            <div style={{ background: dDuzey?dDuzey.renk+"14":BG, border:`1px solid ${dDuzey?dDuzey.renk:BORDER}`, borderRadius:8, padding:8, textAlign:"center" }}>
+                              <div style={{ fontSize:9.5, fontWeight:700, color:MUTED }}>DURUMLUK KAYGI</div>
+                              <div style={{ fontSize:16, fontWeight:900, color:dDuzey?dDuzey.renk:TEXT }}>{sonuc.durumlukToplam ?? "—"}</div>
+                              <div style={{ fontSize:9.5, fontWeight:700, color:dDuzey?dDuzey.renk:MUTED }}>{dDuzey?.ad || ""}</div>
+                            </div>
+                            <div style={{ background: sDuzey?sDuzey.renk+"14":BG, border:`1px solid ${sDuzey?sDuzey.renk:BORDER}`, borderRadius:8, padding:8, textAlign:"center" }}>
+                              <div style={{ fontSize:9.5, fontWeight:700, color:MUTED }}>SÜREKLİ KAYGI</div>
+                              <div style={{ fontSize:16, fontWeight:900, color:sDuzey?sDuzey.renk:TEXT }}>{sonuc.surekliToplam ?? "—"}</div>
+                              <div style={{ fontSize:9.5, fontWeight:700, color:sDuzey?sDuzey.renk:MUTED }}>{sDuzey?.ad || ""}</div>
+                            </div>
+                          </div>
+                          <div style={{ fontSize:9.5, color:MUTED, lineHeight:1.4 }}>Düzey etiketleri resmi bir kesme puanına dayanmaz, yaklaşık bir rehberdir.</div>
                         </div>
                       );
                     })()}
