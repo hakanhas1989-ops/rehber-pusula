@@ -4346,8 +4346,8 @@ async function raporIndir(elementId, dosyaAdi) {
 // değerler için tasarlandı).
 const PDR_YUZDELIK_TABLOSU = [
   // Negatif net: LGS'de 3 yanlış 1 doğruyu götürdüğü için toplam net eksiye
-  // düşebilir. D1-D9 giriş kutuları 0'ın altına inmiyor (min=0) ama GDO alanı
-  // negatif değer kabul ediyor — bu aralık sadece GDO için anlamlı.
+  // düşebilir. D1-D9 giriş kutuları (ders bazlı), GDO alanı ve toplu Excel
+  // yüklemesi hepsi negatif değer kabul ediyor.
   { alt:-10, ust:0, min:90.4, max:99.6, ort:97.4, n:9 },
   { alt:0, ust:3, min:89.5, max:96.9, ort:93.0, n:12 },
   { alt:3, ust:6, min:79.1, max:94.5, ort:87.8, n:15 },
@@ -15625,7 +15625,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
                 {d.label} (/{d.maks})
               </label>
               <input
-                type="number" step="0.33" min="0" max={d.maks}
+                type="number" step="0.33" max={d.maks}
                 placeholder="0"
                 data-pdr-grup="deneme-net"
                 enterKeyHint="next"
