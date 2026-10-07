@@ -9919,6 +9919,82 @@ KURALLAR:
                           <div style={{ fontSize:9.5, color:MUTED, lineHeight:1.4, marginTop:2 }}>
                             {sonuc.yasGrubuKullanilan ? `Yüzdelik dilim, Spence'in resmi normatif örneklemindeki ortalama/SS değerlerinden hesaplanan yaklaşık bir dönüşümdür (${sonuc.cinsiyetKullanilan==="Karma"?"karma-cinsiyet":sonuc.cinsiyetKullanilan} normu, ${sonuc.yasGrubuKullanilan} yaş bandı) — ampirik tablonun birebir aynısı değildir.` : "Bu kayıt için yaş bandı belirlenemediğinden yüzdelik dilim hesaplanmadı, sadece ham puanlar gösteriliyor."}
                           </div>
+                          <button onClick={()=>{
+                            const tmpId = "scas-rapor-tmp-"+k.id;
+                            let tmp = document.getElementById(tmpId);
+                            if (!tmp) {
+                              tmp = document.createElement("div");
+                              tmp.id = tmpId;
+                              tmp.style.position = "absolute";
+                              tmp.style.left = "-9999px";
+                              tmp.style.top = "0";
+                              tmp.style.width = "800px";
+                              tmp.style.fontFamily = "Arial, sans-serif";
+                              tmp.style.fontSize = "13px";
+                              tmp.style.color = "#1a1a1a";
+                              tmp.style.padding = "20px";
+                              const altSatirlari = sonuc.altOlcekler.map(a => `
+                                <tr>
+                                  <td style="padding:6px 8px;border-bottom:1px solid #eee">${a.ad}</td>
+                                  <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${a.toplam ?? "—"} / ${a.maddeSayisi*3}</td>
+                                  <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${a.yuzdelik!=null?"%"+a.yuzdelik.toFixed(0):"—"}</td>
+                                  <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center;font-weight:700;color:${a.duzey?a.duzey.renk:"#888"}">${a.duzey?a.duzey.ad:"—"}</td>
+                                  <td style="padding:6px 8px;border-bottom:1px solid #eee;font-size:11px;color:#555">${a.katkiMaddeleri.length>0 ? a.katkiMaddeleri.slice(0,4).map(m=>`${m.no} (${LIKERT_KISA[m.puan]})`).join(", ") : "—"}</td>
+                                </tr>
+                              `).join("");
+                              tmp.innerHTML = `
+                                <div style="border-bottom:3px solid #1a1a2e;padding-bottom:12px;margin-bottom:16px">
+                                  <div style="font-size:10px;color:#666;text-transform:uppercase;letter-spacing:1px">Sonuç Raporu</div>
+                                  <div style="font-size:20px;font-weight:900;color:#1a1a2e">Spence Çocuk Kaygı Ölçeği (SCAS-Çocuk)</div>
+                                  <div style="font-size:11px;color:#555;margin-top:2px">44 Madde · 6 Alt Ölçek · 9-12 Yaş İçin Geçerlenmiş</div>
+                                </div>
+                                <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:12px">
+                                  <tr><td style="padding:4px 8px;background:#f5f5f5;font-weight:700;width:140px">Öğrenci</td><td style="padding:4px 8px">${seciliAd}</td></tr>
+                                  <tr><td style="padding:4px 8px;background:#f5f5f5;font-weight:700">Sınıf</td><td style="padding:4px 8px">${seciliSinif||"—"}</td></tr>
+                                  <tr><td style="padding:4px 8px;background:#f5f5f5;font-weight:700">Uygulama Tarihi</td><td style="padding:4px 8px">${k.tarih}</td></tr>
+                                  <tr><td style="padding:4px 8px;background:#f5f5f5;font-weight:700">Kullanılan Norm</td><td style="padding:4px 8px">${sonuc.yasGrubuKullanilan ? `${sonuc.cinsiyetKullanilan==="Karma"?"Karma cinsiyet":sonuc.cinsiyetKullanilan} · ${sonuc.yasGrubuKullanilan} yaş bandı` : "Belirlenemedi (sadece ham puan)"}</td></tr>
+                                </table>
+                                <div style="font-size:11px;font-weight:700;color:#1a1a2e;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;padding-bottom:4px;border-bottom:1px solid #ddd">Alt Ölçek Sonuçları</div>
+                                <table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:12px">
+                                  <thead>
+                                    <tr style="background:#1a1a2e;color:#fff">
+                                      <th style="padding:6px 8px;text-align:left">Alt Ölçek</th>
+                                      <th style="padding:6px 8px;text-align:center">Ham Puan</th>
+                                      <th style="padding:6px 8px;text-align:center">Yüzdelik Dilim</th>
+                                      <th style="padding:6px 8px;text-align:center">Düzey</th>
+                                      <th style="padding:6px 8px;text-align:left">Katkıda Bulunan Maddeler</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>${altSatirlari}</tbody>
+                                  <tfoot>
+                                    <tr style="background:${sonuc.genelDuzey?sonuc.genelDuzey.renk+"22":"#f0f0f0"}">
+                                      <td style="padding:7px 8px;font-weight:800">Genel Toplam</td>
+                                      <td style="padding:7px 8px;text-align:center;font-weight:800">${sonuc.genelToplam ?? "—"} / 114</td>
+                                      <td style="padding:7px 8px;text-align:center;font-weight:800">${sonuc.genelYuzdelik!=null?"%"+sonuc.genelYuzdelik.toFixed(0):"—"}</td>
+                                      <td style="padding:7px 8px;text-align:center;font-weight:800;color:${sonuc.genelDuzey?sonuc.genelDuzey.renk:"#888"}">${sonuc.genelDuzey?sonuc.genelDuzey.ad:"—"}</td>
+                                      <td></td>
+                                    </tr>
+                                  </tfoot>
+                                </table>
+                                ${rci ? `<div style="padding:8px 10px;border-radius:6px;background:${rci.renk}22;color:${rci.renk};font-weight:700;font-size:12px;margin-bottom:14px">Önceki ölçüme göre (${oncekiScas.tarih}): ${rci.ad} (${rci.fark>0?"+":""}${rci.fark} puan) — Reliable Change Index eşiği: 14 puan</div>` : ""}
+                                <div style="font-size:10.5px;color:#777;line-height:1.6;margin-top:10px;padding-top:10px;border-top:1px solid #eee">
+                                  <div><b>Not:</b> Yüzdelik dilim, Spence'in resmi normatif örneklemindeki (N=4916) ortalama/standart sapma değerlerinden hesaplanan yaklaşık bir z-skoru dönüşümüdür; ampirik yüzdelik tablosunun birebir aynısı değildir.</div>
+                                  <div style="margin-top:4px">Düzey eşikleri: Normal (≤%84) · Hafif Yüksek (%85-93) · Yüksek (%94-97.7) · Çok Yüksek (≥%97.7).</div>
+                                  <div style="margin-top:4px">Madde metinleri, Spence (1997/1998) tarafından geliştirilen orijinal İngilizce formun bu program için yapılmış çevirisidir; yayımlanmış resmi bir Türkçe norm çalışmasının birebir metni değildir.</div>
+                                </div>
+                                <div style="margin-top:24px;padding-top:12px;border-top:1px solid #eee;display:flex;justify-content:space-between;font-size:11px;color:#666">
+                                  <div>PDR Danışmanı: ___________________</div>
+                                  <div>Tarih: ${k.tarih}</div>
+                                </div>
+                              `;
+                              document.body.appendChild(tmp);
+                            }
+                            raporIndir(tmpId, "SCAS_Cocuk_" + (seciliAd||"").replace(/\s+/g,"_") + "_" + k.tarih.replace(/\./g,"-"));
+                            setTimeout(()=>{ const el=document.getElementById(tmpId); if(el) el.remove(); }, 8000);
+                          }} style={{
+                            marginTop:8, padding:"7px 16px", background:"#1a1a2e", color:"#fff",
+                            border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer"
+                          }}>🖨 Sonuç Raporu (PDF)</button>
                         </div>
                       );
                     })()}
