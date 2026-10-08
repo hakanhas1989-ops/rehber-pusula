@@ -8198,6 +8198,23 @@ function RaporModalIc({ rapor, onKapat }) {
           );
         })()}
 
+        {/* Çeldiricili Dikkat Testi (ÇDT) sonuç raporu */}
+        {(() => {
+          const cdtKayitlari = (pdrSozlukOku(raporTestler, ogrenci, ogrenciSinif, ogrNo) || []).filter(k => k.tip === "dikkat_cdt").sort((a, b) => pdrTarihMs(b.tarih) - pdrTarihMs(a.tarih));
+          if (cdtKayitlari.length === 0) return null;
+          return (
+            <div style={{ marginTop: 12 }}>
+              <div data-bolum="1" style={{ ...S.bolumBaslik2, pageBreakAfter: "avoid", breakAfter: "avoid" }}><KaynakRozeti ikon="🧪" ad="Testler" />Çeldiricili Dikkat Testi Sonuç Raporu (ÇDT)</div>
+              <div style={{ ...S.bolumIcerik2 }}>
+                {cdtKayitlari.map(k => (
+                  <div key={k.id} style={{ marginBottom: 8, zoom: 0.8 }}
+                    dangerouslySetInnerHTML={{ __html: cdtRaporHtmlOlustur(cdtPuanla(k.veri), { ogrenci, sinif: ogrenciSinif, tarih: k.tarih, ilac: k.veri && k.veri.ilac }) }} />
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         {oneriler.trim() && (
           <div style={{ background: "#fff", border: "1px solid #CFE6DA", borderLeft: "4px solid #127C56", borderRadius: 8, padding: "10px 12px", marginTop: 14, pageBreakInside: "avoid", boxShadow: "0 1px 3px rgba(20,40,32,0.07)" }}>
             <div style={{ fontSize: 9.5, fontWeight: 800, color: "#127C56", letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 4 }}>Öneriler ve Yönlendirmeler</div>
@@ -9121,6 +9138,1222 @@ const TEST_LISTESI = {
   ],
 };
 
+// ===== ÇDT BAŞLANGIÇ =====
+// ── ÇDT — Çeldiricili Dikkat Testi (dokunmatik sürekli performans testi) ──
+// Yayımlanmış "çeldiricili sürekli performans testi" (d-CPT) paradigmasını
+// izler (Berger & Goldzweig 2010; Berger ve ark. 2013, 2017): 8 aşama × 53
+// deneme (33 hedef + 20 hedef olmayan), uyaran süresi 0.5 / 1 / 3 sn ve
+// ardından AYNI uzunlukta boş ekran ("void"); uyaran, çocuk bassa da
+// basmasa da süresi boyunca ekranda kalır. Aşama 1 ve 8 çeldiricisiz,
+// 2-3 görsel, 4-5 işitsel, 6-7 görsel+işitsel çeldiricili; çift numaralı
+// aşamalarda (2,4,6) tek, tek numaralılarda (3,5,7) aynı anda iki çeldirici.
+// Çeldirici başlangıçları uyaranlarla eşzamanlı DEĞİLDİR.
+// Tüm uyaran/çeldirici çizimleri ve sesleri bu programa özgüdür (orijinal
+// testin görselleri/sesleri kullanılmamıştır). Program deterministiktir:
+// her öğrenci birebir aynı diziyi görür (standart uygulama).
+
+const CDT_SURUM = 1;
+const CDT_SEVIYE_ADLARI = ["Temel 1","Görsel 1","Görsel 2","İşitsel 1","İşitsel 2","Kombine 1","Kombine 2","Temel 2"];
+const CDT_SEVIYE_KOSUL = ["yok","gorsel","gorsel","isitsel","isitsel","kombine","kombine","yok"];
+const CDT_SEVIYE_YUK   = [0,1,2,1,2,1,2,0];
+const CDT_HEDEF = 33, CDT_HEDEF_DISI = 20;
+const CDT_HAYVANLAR = ["kedi","kopek","tavsan","kurbaga","penguen"];
+// Çeldirici klipleri (süreler, yayımlanmış protokoldeki 6 klibin süreleriyle aynı)
+const CDT_KLIPLER = {
+  gong:   { ad: "Gong",               sure: 6.8  },
+  bowling:{ ad: "Bowling",            sure: 3.5  },
+  kuslar: { ad: "Kuşlar",             sure: 9.25 },
+  davul:  { ad: "Davulcu",            sure: 14.8 },
+  araba:  { ad: "Korna çalan araba",  sure: 6.8  },
+  ucak:   { ad: "Uçak",               sure: 8.6  },
+};
+// Kontrol grubu (ADHD olmayan çocuklar) 8 aşama TOPLAM puanları — ortalama, SS.
+// Kaynak: Berger, Slobodin, Aboud, Melamed & Cassuto (2013), Frontiers in
+// Human Neuroscience 7:691, Tablo 2 (N=365, 6-11 yaş). Klavye ile uygulanmış
+// orijinal test normlarıdır; dokunmatik uygulamaya birebir aktarılamaz.
+const CDT_NORM = {
+  6:  { A:[234,22.24],  T:[157,33.99],   H:[41.71,33.23], I:[15.70,10.79], n:53 },
+  7:  { A:[246.7,13.75],T:[177.1,27.18], H:[38.21,23.23], I:[15.83,9.31],  n:94 },
+  8:  { A:[249.4,14.02],T:[190.4,26.53], H:[30.33,27.81], I:[14.94,9.30],  n:70 },
+  9:  { A:[253.4,10.48],T:[205.2,23.32], H:[32.26,32.01], I:[15.11,6.53],  n:57 },
+  10: { A:[255.3,12.55],T:[217.7,24.23], H:[24.98,29.70], I:[13.18,7.51],  n:59 },
+  11: { A:[258,8.12],   T:[228.3,19.10], H:[17.47,23.14], I:[13.22,7.07],  n:32 },
+};
+// Z sınırları (MOXO raporlarında kullanılan kategori sınırlarıyla aynı)
+const CDT_KATEGORI = [
+  { no:1, ad:"İyi Performans",        renk:"#4DB6AC", min:0 },
+  { no:2, ad:"Standart Performans",   renk:"#6EE0A8", min:-0.825 },
+  { no:3, ad:"Düşük Performans",      renk:"#F6AD7B", min:-1.65 },
+  { no:4, ad:"Performansta Zorluk",   renk:"#F07B7B", min:-Infinity },
+];
+const CDT_SIDDET = [
+  { no:1, ad:"Düşük Şiddetli", renk:"#F9D3D3", min:-2.33 },
+  { no:2, ad:"Orta Şiddetli",  renk:"#F49A9A", min:-3 },
+  { no:3, ad:"Yüksek Şiddetli",renk:"#EE5A5A", min:-4 },
+  { no:4, ad:"Çok Şiddetli",   renk:"#B5122B", min:-Infinity },
+];
+const CDT_INDEKS = {
+  A: { kisa:"A", ad:"Dikkat",            renk:"#5B3FB5", tanim:"Hedef uyaranlara doğru yanıt verme ve odakta kalabilme becerisi" },
+  T: { kisa:"T", ad:"Zamanlama",         renk:"#6E8BEF", tanim:"Hedefe, uyaran ekrandayken hızlı ve doğru yanıt verebilme" },
+  I: { kisa:"I", ad:"Dürtüsellik",       renk:"#EC7C7C", tanim:"Durumu değerlendirmeden aceleyle yanıt verme eğiliminden kaçınabilme" },
+  H: { kisa:"H", ad:"Hiper-Reaktivite",  renk:"#A99C7E", tanim:"Motor tepkileri düzenleyebilme; tekrarlı/gereksiz basmalardan kaçınabilme" },
+};
+
+function cdtRng(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function cdtKaristir(dizi, rnd) {
+  const a = [...dizi];
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function cdtTipDizisi(hedefSayi, digerSayi, rnd, maxDiger, maxHedef) {
+  let tipler = null;
+  for (let deneme = 0; deneme < 500; deneme++) {
+    tipler = cdtKaristir([...Array(hedefSayi).fill("H"), ...Array(digerSayi).fill("D")], rnd);
+    let ok = tipler[0] === "H", ard = 1;
+    for (let i = 1; ok && i < tipler.length; i++) {
+      ard = tipler[i] === tipler[i - 1] ? ard + 1 : 1;
+      if ((tipler[i] === "D" && ard > maxDiger) || (tipler[i] === "H" && ard > maxHedef)) ok = false;
+    }
+    if (ok) break;
+  }
+  return tipler;
+}
+
+// Bir aşamanın tam programı: denemeler (ms cinsinden başlangıç/süre) + çeldiriciler
+const _cdtProgramOnbellek = {};
+function cdtSeviyeProgrami(seviye) {
+  if (_cdtProgramOnbellek[seviye]) return _cdtProgramOnbellek[seviye];
+  const rnd = cdtRng(7919 * (seviye + 1) + 101);
+  // 16×0.5 sn + 31×1 sn + 6×3 sn = 57 sn uyaran + 57 sn boşluk = 114 sn / aşama
+  const hedefSureler = [...Array(10).fill(500), ...Array(19).fill(1000), ...Array(4).fill(3000)];
+  const digerSureler = [...Array(6).fill(500), ...Array(12).fill(1000), ...Array(2).fill(3000)];
+  const tipler = cdtTipDizisi(CDT_HEDEF, CDT_HEDEF_DISI, rnd, 3, 6);
+  const hs = cdtKaristir(hedefSureler, rnd), ds = cdtKaristir(digerSureler, rnd);
+  let hi = 0, di = 0, t = 0, sonHayvan = -1;
+  const denemeler = tipler.map(tip => {
+    const sure = tip === "H" ? hs[hi++] : ds[di++];
+    let hayvan = null;
+    if (tip === "D") { let h; do { h = Math.floor(rnd() * 5); } while (h === sonHayvan); sonHayvan = h; hayvan = CDT_HAYVANLAR[h]; }
+    const d = { tip, sure, baslangic: t, hayvan };
+    t += 2 * sure;
+    return d;
+  });
+  const toplamSure = t;
+  const kosul = CDT_SEVIYE_KOSUL[seviye], yuk = CDT_SEVIYE_YUK[seviye];
+  const celdiriciler = [];
+  if (kosul !== "yok") {
+    const klipAdlari = Object.keys(CDT_KLIPLER);
+    const kanalKonumlari = [["ust", "sol"], ["alt", "sag"]];
+    for (let k = 0; k < yuk; k++) {
+      let zaman = 700 + Math.floor(rnd() * 2300) + k * 1900;
+      let son = null, sira = 0;
+      while (zaman < toplamSure - 1500) {
+        let klip; do { klip = klipAdlari[Math.floor(rnd() * klipAdlari.length)]; } while (klip === son);
+        son = klip;
+        const sure = Math.round(CDT_KLIPLER[klip].sure * 1000);
+        const konumlar = yuk === 1 ? ["ust", "alt", "sol", "sag"] : kanalKonumlari[k];
+        const konum = konumlar[Math.floor(rnd() * konumlar.length)];
+        celdiriciler.push({ id: `${seviye}-${k}-${sira++}`, klip, baslangic: zaman, bitis: Math.min(zaman + sure, toplamSure), konum, kanal: k });
+        zaman += sure + 500;
+      }
+    }
+  }
+  const p = { seviye, denemeler, toplamSure, kosul, yuk, celdiriciler };
+  _cdtProgramOnbellek[seviye] = p;
+  return p;
+}
+// Alıştırma: 20 deneme (12 hedef, 8 hedef olmayan), çeldiricisiz, puanlanmaz
+function cdtAlistirmaProgrami() {
+  const rnd = cdtRng(4242);
+  const tipler = cdtTipDizisi(12, 8, rnd, 2, 4);
+  let t = 0, sonHayvan = -1;
+  const sureler = [1000, 1000, 1000, 3000, 1000, 500, 1000, 1000, 3000, 1000, 500, 1000, 1000, 1000, 500, 1000, 3000, 1000, 1000, 1000];
+  const denemeler = tipler.map((tip, i) => {
+    let hayvan = null;
+    if (tip === "D") { let h; do { h = Math.floor(rnd() * 5); } while (h === sonHayvan); sonHayvan = h; hayvan = CDT_HAYVANLAR[h]; }
+    const d = { tip, sure: sureler[i], baslangic: t, hayvan };
+    t += 2 * sureler[i];
+    return d;
+  });
+  return { seviye: -1, denemeler, toplamSure: t, kosul: "yok", yuk: 0, celdiriciler: [] };
+}
+
+// Bir aşamanın dokunuşlarını puanlar. taps: [[t_ms, butonaMi(1/0)], ...]
+// Dikkat (A): hedefe ilk basış — uyaran sırasında YA DA ardından gelen boşlukta
+// Zamanlama (T): hedefe ilk basış — yalnızca uyaran ekrandayken
+// Dürtüsellik (I): hedef olmayan uyaran ekrandayken ilk basış
+// Hiper-reaktivite (H): diğer tüm basışlar (aynı denemede 2.+ basış, hedef
+//   olmayanın ardından boşlukta basış, buton dışına dokunma)
+function cdtSeviyePuanla(program, taps) {
+  const den = program.denemeler;
+  const r = { A: 0, T: 0, I: 0, H: 0, gec: 0, rt: [], gecRt: [], erken: 0, hedefBasis: new Array(den.length).fill(0) };
+  const ilk = new Array(den.length).fill(false);
+  const sirali = [...(taps || [])].sort((a, b) => a[0] - b[0]);
+  let j = 0;
+  for (const [t, b] of sirali) {
+    if (!b) { r.H++; continue; }
+    while (j < den.length - 1 && t >= den[j].baslangic + 2 * den[j].sure) j++;
+    const d = den[j];
+    if (!d || t < d.baslangic || t >= d.baslangic + 2 * d.sure) { r.H++; continue; }
+    const uyaranda = t < d.baslangic + d.sure;
+    if (d.tip === "H") {
+      if (!ilk[j]) {
+        ilk[j] = true; r.A++;
+        const rt = t - d.baslangic;
+        if (uyaranda) { r.T++; r.rt.push(rt); if (rt < 150) r.erken++; } else { r.gec++; r.gecRt.push(rt); }
+        r.hedefBasis[j] = uyaranda ? 1 : 2;
+      } else r.H++;
+    } else {
+      if (uyaranda && !ilk[j]) { ilk[j] = true; r.I++; } else r.H++;
+    }
+  }
+  return r;
+}
+
+function cdtOrt(a) { return a.length ? a.reduce((s, x) => s + x, 0) / a.length : null; }
+function cdtSS(a) { if (a.length < 2) return null; const m = cdtOrt(a); return Math.sqrt(a.reduce((s, x) => s + (x - m) * (x - m), 0) / (a.length - 1)); }
+function cdtNormalCdf(z) {
+  // Abramowitz-Stegun 26.2.17
+  const t = 1 / (1 + 0.2316419 * Math.abs(z));
+  const d = 0.3989423 * Math.exp(-z * z / 2);
+  const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+  return z > 0 ? 1 - p : p;
+}
+function cdtYuzdelik(z) { if (z === null || z === undefined || isNaN(z)) return null; return Math.max(0.5, Math.min(99.5, cdtNormalCdf(z) * 100)); }
+function cdtYuzdelikMetin(p) { if (p === null) return "—"; if (p >= 99) return ">%99"; if (p < 1) return "<%1"; return "%" + Math.round(p); }
+function cdtKategori(z) { if (z === null) return null; return CDT_KATEGORI.find(k => z >= k.min); }
+function cdtSiddet(z) { if (z === null || z >= -1.65) return null; return CDT_SIDDET.find(k => z >= k.min); }
+function cdtYuzdelikRenk(p) {
+  if (p === null) return "#BBB";
+  if (p < 10) return "#EF6B6B";
+  if (p < 25) return "#F5A86B";
+  if (p < 75) return "#6FD6A0";
+  if (p < 90) return "#3FB8A6";
+  return "#2A9A8C";
+}
+function cdtZHesapla(norm, toplam) {
+  if (!norm) return { A: null, T: null, I: null, H: null };
+  return {
+    A: (toplam.A - norm.A[0]) / norm.A[1],
+    T: (toplam.T - norm.T[0]) / norm.T[1],
+    I: (norm.I[0] - toplam.I) / norm.I[1],
+    H: (norm.H[0] - toplam.H) / norm.H[1],
+  };
+}
+
+// Tam puanlama — kayıttaki ham dokunuşlardan her şeyi yeniden hesaplar
+function cdtPuanla(veri) {
+  const v = veri || {};
+  const ham = v.seviyeler || [];
+  const seviyeler = ham.map((s, i) => {
+    const p = cdtSeviyeProgrami(i);
+    const r = cdtSeviyePuanla(p, s.taps || []);
+    const rtOrt = cdtOrt(r.rt);
+    return {
+      ...r, no: i + 1, ad: CDT_SEVIYE_ADLARI[i], kosul: p.kosul, yuk: p.yuk, kesinti: s.kesinti || 0,
+      rtOrt,
+      // 0-33 ölçekli "ağırlıklı performans" puanları (yüksek = iyi)
+      P: {
+        A: r.A,
+        T: r.T,
+        I: Math.max(0, CDT_HEDEF * (1 - r.I / CDT_HEDEF_DISI)),
+        H: Math.max(0, CDT_HEDEF - r.H),
+      },
+    };
+  });
+  const tamam = seviyeler.length === 8;
+  const topla = (alan, idx) => (idx || seviyeler.map((_, i) => i)).reduce((s, i) => s + (seviyeler[i] ? seviyeler[i][alan] : 0), 0);
+  const toplam = { A: topla("A"), T: topla("T"), I: topla("I"), H: topla("H"), gec: topla("gec"), erken: topla("erken") };
+  const maxHedef = CDT_HEDEF * seviyeler.length;
+  toplam.atlanan = maxHedef - toplam.A;
+
+  // Norm
+  const yas = parseFloat(String(v.yas || "").replace(",", "."));
+  let normYas = null, normUyari = "";
+  if (!isNaN(yas) && yas > 0) {
+    normYas = Math.max(6, Math.min(11, Math.floor(yas)));
+    if (yas >= 12) normUyari = `Yayımlanmış çocuk normları 6-11 yaşı kapsıyor; ${Math.floor(yas)} yaş için 11 yaş normu kullanıldı. Performans yaşla arttığı için sonuçlar olduğundan İYİ görünebilir — sınırda puanları dikkatle yorumlayın.`;
+    else if (yas < 6) normUyari = "6 yaş altı için norm yok; 6 yaş normu kullanıldı.";
+  }
+  const norm = tamam && normYas ? CDT_NORM[normYas] : null;
+  const z = cdtZHesapla(norm, toplam);
+  const indeksler = ["A", "T", "I", "H"].map(k => ({
+    k, ...CDT_INDEKS[k], ham: toplam[k], z: z[k], kategori: cdtKategori(z[k]), siddet: cdtSiddet(z[k]), yuzdelik: cdtYuzdelik(z[k]),
+  }));
+  const yz = k => indeksler.find(x => x.k === k).yuzdelik;
+
+  // Koşul bazlı (görsel / işitsel / kombine) — 2 aşama toplamı ×4 ile 8 aşamaya ölçeklenir (yaklaşık)
+  const kosulIdx = { toplam: [0,1,2,3,4,5,6,7], gorsel: [1, 2], isitsel: [3, 4], kombine: [5, 6] };
+  const kosulProfil = {};
+  Object.entries(kosulIdx).forEach(([ad, idx]) => {
+    if (!tamam || !norm) { kosulProfil[ad] = null; return; }
+    const kat = 8 / idx.length;
+    const tp = { A: topla("A", idx) * kat, T: topla("T", idx) * kat, I: topla("I", idx) * kat, H: topla("H", idx) * kat };
+    const zz = cdtZHesapla(norm, tp);
+    const pc = { A: cdtYuzdelik(zz.A), T: cdtYuzdelik(zz.T), I: cdtYuzdelik(zz.I), H: cdtYuzdelik(zz.H) };
+    kosulProfil[ad] = { ...pc, odak: (pc.A + pc.T + pc.I + pc.H) / 4 };
+  });
+
+  // Tepki süresi (işlemleme hızı) ve tutarlılığı
+  const tumRt = seviyeler.flatMap(s => s.rt);
+  const rtOrt = cdtOrt(tumRt), rtSS = cdtSS(tumRt);
+  const rtCv = rtOrt && rtSS ? rtSS / rtOrt : null;
+
+  // Kişi-içi çeldirici etkileri (kendi ortalamasına göre; ±1.5 SS kuralı)
+  const etkiler = {};
+  if (tamam) {
+    ["A", "T", "I", "H"].forEach(k => {
+      const P = seviyeler.map(s => s.P[k]);
+      const m = cdtOrt(P), s = Math.max(cdtSS(P) || 0, 1);
+      const ort = idx => cdtOrt(idx.map(i => P[i]));
+      const fark = {
+        gorsel: ort([1, 2]) - m,
+        isitsel: ort([3, 4]) - m,
+        kombine: ort([5, 6]) - m,
+        yuk: ort([2, 4, 6]) - ort([1, 3, 5]),
+        zaman: P[7] - P[0],
+      };
+      etkiler[k] = {};
+      Object.entries(fark).forEach(([ad, f]) => {
+        const birim = f / s;
+        etkiler[k][ad] = { fark: f, birim: Math.round(birim * 2) / 2, yon: birim > 1.5 ? "iyi" : birim < -1.5 ? "dusus" : "yok" };
+      });
+    });
+  }
+
+  // Görev sürekliliği: son temel aşamanın ilk temel aşamaya göre seçici dikkat/zamanlama değişimi
+  let surekli = null;
+  if (tamam) {
+    const s1 = seviyeler[0], s8 = seviyeler[7];
+    const oran = (s8.A + s8.T) / Math.max(1, s1.A + s1.T);
+    surekli = { oran, dA: s8.A - s1.A, dT: s8.T - s1.T, dRt: (s8.rtOrt && s1.rtOrt) ? s8.rtOrt - s1.rtOrt : null };
+  }
+
+  // Göstergeler (kural tabanlı)
+  const isabet = maxHedef ? toplam.A / maxHedef : 0;
+  const komisyon = seviyeler.length ? toplam.I / (CDT_HEDEF_DISI * seviyeler.length) : 0;
+  const ayrim = isabet - komisyon;
+  const bosSeviye = seviyeler.filter(s => s.A <= 5).length;
+  const kesintiToplam = (v.kesintiSayisi || 0) + seviyeler.reduce((s, x) => s + (x.kesinti || 0), 0);
+  let gecerlilik = { renk: "yesil", metin: "Yanıt örüntüsü tutarlı; hedef ile hedef olmayan uyaranları ayırt ederek yanıt vermiş." };
+  if (toplam.A === 0 || ayrim < 0.15) gecerlilik = { renk: "kirmizi", metin: "Hedef ve hedef olmayan uyaranlara benzer oranda basılmış (rastgele yanıt olasılığı). Sonuçlar yorumlanmamalı; test yeniden uygulanmalıdır." };
+  else if (ayrim < 0.35 || toplam.H > 300) gecerlilik = { renk: "sari", metin: "Yanıt örüntüsünde tutarsızlık var (düşük ayrım ya da çok sayıda rastgele dokunma). Sonuçları dikkatle yorumlayın; gerekirse yeniden uygulayın." };
+  let guvenilirlik = { renk: "yesil", metin: "Test boyunca göreve katılım sürmüş görünüyor." };
+  if (isabet < 0.25 && komisyon < 0.1) guvenilirlik = { renk: "kirmizi", metin: "Çok az basış yapılmış — çaba eksikliği ya da yönergenin anlaşılmaması olasılığı. Yeniden uygulama önerilir." };
+  else if (bosSeviye > 0 || kesintiToplam > 0) guvenilirlik = { renk: "sari", metin: [bosSeviye > 0 ? `${bosSeviye} aşamada hedeflerin çok azına yanıt verilmiş (göreve katılım düşmüş olabilir).` : "", kesintiToplam > 0 ? `Uygulama ${kesintiToplam} kez kesildi (ilgili aşama baştan alındı).` : ""].filter(Boolean).join(" ") };
+
+  const odak = norm ? (yz("A") + yz("T") + yz("I") + yz("H")) / 4 : null;
+  return {
+    tamam, seviyeler, toplam, maxHedef, yas: isNaN(yas) ? null : yas, normYas, normUyari, norm, indeksler, kosulProfil, odak,
+    rtOrt, rtSS, rtCv, etkiler, surekli, gecerlilik, guvenilirlik, isabet, komisyon, kesintiToplam,
+  };
+}
+
+// Kayıt listesinde kısa özet
+function cdtKisaOzet(v) {
+  const s = cdtPuanla(v);
+  if (!s.tamam) return `Tamamlanmamış (${s.seviyeler.length}/8 aşama)`;
+  const harf = s.indeksler.map(x => `${x.kisa}:${x.kategori ? x.kategori.no : "—"}`).join(" ");
+  return `Dikkat ${s.toplam.A}/264 · Zamanlama ${s.toplam.T} · Dürtüsellik ${s.toplam.I} · Hiper-R. ${s.toplam.H}${s.odak !== null ? ` · Odaklanma ${cdtYuzdelikMetin(s.odak)}` : ""} (${harf})`;
+}
+
+// ── ÇDT ses motoru (Web Audio ile sentezlenir, dosya indirmez) ──
+function cdtSesMotoruOlustur() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  try {
+    const ctx = new AC();
+    const ana = ctx.createGain(); ana.gain.value = 0.6; ana.connect(ctx.destination);
+    const uzunluk = Math.floor(ctx.sampleRate * 2);
+    const gurultu = ctx.createBuffer(1, uzunluk, ctx.sampleRate);
+    const ch = gurultu.getChannelData(0);
+    const rnd = cdtRng(99);
+    for (let i = 0; i < uzunluk; i++) ch[i] = rnd() * 2 - 1;
+    return { ctx, ana, gurultu };
+  } catch (e) { return null; }
+}
+function cdtTon(m, hedef, t0, frek, sure, tip, tepe, atak, frekSon) {
+  const { ctx } = m;
+  const o = ctx.createOscillator(); o.type = tip || "sine";
+  o.frequency.setValueAtTime(frek, t0);
+  if (frekSon) o.frequency.exponentialRampToValueAtTime(frekSon, t0 + sure);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(tepe, t0 + (atak || 0.005));
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + sure);
+  o.connect(g); g.connect(hedef);
+  o.start(t0); o.stop(t0 + sure + 0.05);
+}
+function cdtGurultu(m, hedef, t0, sure, filtreTip, filtreFrek, tepe, atak) {
+  const { ctx, gurultu } = m;
+  const s = ctx.createBufferSource(); s.buffer = gurultu; s.loop = true;
+  const f = ctx.createBiquadFilter(); f.type = filtreTip || "lowpass"; f.frequency.value = filtreFrek || 1000;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(tepe, t0 + (atak || 0.005));
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + sure);
+  s.connect(f); f.connect(g); g.connect(hedef);
+  s.start(t0, Math.random()); s.stop(t0 + sure + 0.05);
+  return { f, g };
+}
+// Bir klibin sesini başlatır; { dur() } döndürür (aşama bitince kesmek için)
+function cdtSesCal(m, klip, kalanMs) {
+  if (!m) return { dur() {} };
+  const { ctx, ana } = m;
+  try { if (ctx.state === "suspended") ctx.resume(); } catch (e) {}
+  const kg = ctx.createGain(); kg.gain.value = 1; kg.connect(ana);
+  const t = ctx.currentTime + 0.02;
+  const sure = Math.min(CDT_KLIPLER[klip].sure, (kalanMs || 99999) / 1000);
+  const rnd = cdtRng(klip.length * 131 + 7);
+  if (klip === "gong") {
+    [0, 3.4].forEach(v => {
+      if (v > sure) return;
+      [[110, 0.30], [174, 0.18], [247, 0.16], [330, 0.10], [415, 0.08], [523, 0.06], [698, 0.04]].forEach(([f, a]) => cdtTon(m, kg, t + v, f, 3.2, "sine", a, 0.004));
+    });
+  } else if (klip === "bowling") {
+    const r = cdtGurultu(m, kg, t, 2.6, "lowpass", 260, 0.5, 2.2);
+    for (let i = 0; i < 14; i++) cdtTon(m, kg, t + i * 0.17, 60 + (i % 3) * 8, 0.12, "triangle", 0.08);
+    cdtGurultu(m, kg, t + 2.6, 0.7, "bandpass", 2200, 0.55, 0.003);
+    for (let i = 0; i < 7; i++) cdtTon(m, kg, t + 2.6 + i * 0.05 + rnd() * 0.04, 700 + rnd() * 600, 0.09, "triangle", 0.18, 0.002);
+    void r;
+  } else if (klip === "kuslar") {
+    let v = 0.2;
+    while (v < sure - 0.3) {
+      const f = 2600 + rnd() * 1400;
+      cdtTon(m, kg, t + v, f, 0.11, "sine", 0.16, 0.01, f * 1.35);
+      if (rnd() < 0.55) cdtTon(m, kg, t + v + 0.14, f * 1.1, 0.09, "sine", 0.13, 0.01, f * 0.9);
+      v += 0.3 + rnd() * 0.65;
+    }
+  } else if (klip === "davul") {
+    for (let i = 0; i * 0.25 < sure - 0.1; i++) {
+      const v = i * 0.25;
+      if (i % 4 === 0) cdtTon(m, kg, t + v, 150, 0.35, "sine", 0.6, 0.003, 45);
+      if (i % 4 === 2) { cdtGurultu(m, kg, t + v, 0.18, "highpass", 1500, 0.35, 0.002); cdtTon(m, kg, t + v, 220, 0.12, "triangle", 0.18, 0.002); }
+      cdtGurultu(m, kg, t + v, 0.05, "highpass", 7000, 0.10, 0.001);
+    }
+  } else if (klip === "araba") {
+    const o = ctx.createOscillator(); o.type = "sawtooth";
+    o.frequency.setValueAtTime(78, t); o.frequency.linearRampToValueAtTime(82, t + sure * 0.45); o.frequency.linearRampToValueAtTime(62, t + sure);
+    const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 420;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.32, t + sure * 0.5); g.gain.exponentialRampToValueAtTime(0.0001, t + sure);
+    o.connect(f); f.connect(g); g.connect(kg); o.start(t); o.stop(t + sure + 0.05);
+    [[1.6, 0.35], [2.15, 0.6], [4.4, 0.3]].forEach(([v, d]) => { if (v + d < sure) { cdtTon(m, kg, t + v, 415, d, "square", 0.09, 0.01); cdtTon(m, kg, t + v, 523, d, "square", 0.08, 0.01); } });
+  } else if (klip === "ucak") {
+    [110, 113.5].forEach(fr => {
+      const o = ctx.createOscillator(); o.type = "sawtooth";
+      o.frequency.setValueAtTime(fr * 1.12, t); o.frequency.linearRampToValueAtTime(fr * 1.08, t + sure * 0.5); o.frequency.linearRampToValueAtTime(fr * 0.86, t + sure);
+      const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.setValueAtTime(300, t); f.frequency.linearRampToValueAtTime(900, t + sure * 0.5); f.frequency.linearRampToValueAtTime(250, t + sure);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16, t + sure * 0.5); g.gain.exponentialRampToValueAtTime(0.0001, t + sure);
+      o.connect(f); f.connect(g); g.connect(kg); o.start(t); o.stop(t + sure + 0.05);
+    });
+    cdtGurultu(m, kg, t, sure, "lowpass", 700, 0.18, sure * 0.5);
+  }
+  return {
+    dur() {
+      try { kg.gain.cancelScheduledValues(ctx.currentTime); kg.gain.setTargetAtTime(0, ctx.currentTime, 0.04); setTimeout(() => { try { kg.disconnect(); } catch (e) {} }, 400); } catch (e) {}
+    },
+  };
+}
+
+// ── ÇDT görsel çeldiriciler (SVG + CSS animasyon) ──
+const CDT_STIL = `
+.cdt-c svg *{transform-box:view-box}
+@keyframes cdtSallan{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}}
+@keyframes cdtDalga{0%{transform:scale(.6);opacity:.9}100%{transform:scale(1.7);opacity:0}}
+@keyframes cdtTokmak{0%,40%,100%{transform:rotate(0)}48%{transform:rotate(-38deg)}55%{transform:rotate(0)}}
+@keyframes cdtYuvarla{0%{transform:translateX(-30px)}100%{transform:translateX(118px)}}
+@keyframes cdtDon{to{transform:rotate(720deg)}}
+@keyframes cdtLobut{0%,74%{transform:rotate(0)}86%,100%{transform:rotate(75deg) translateY(4px)}}
+@keyframes cdtLobut2{0%,74%{transform:rotate(0)}88%,100%{transform:rotate(-70deg) translateY(4px)}}
+@keyframes cdtUc{0%{transform:translate(-50px,10px)}25%{transform:translate(20px,-4px)}50%{transform:translate(80px,8px)}75%{transform:translate(140px,-6px)}100%{transform:translate(210px,6px)}}
+@keyframes cdtKanat{0%,100%{transform:scaleY(1)}50%{transform:scaleY(-.6)}}
+@keyframes cdtCubukS{0%,100%{transform:rotate(0)}50%{transform:rotate(28deg)}}
+@keyframes cdtCubukD{0%,100%{transform:rotate(28deg)}50%{transform:rotate(0)}}
+@keyframes cdtNota{0%{transform:translate(0,0);opacity:0}15%{opacity:1}100%{transform:translate(14px,-46px);opacity:0}}
+@keyframes cdtZipla{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes cdtAraba{0%{transform:translateX(-80px)}100%{transform:translateX(190px)}}
+@keyframes cdtKorna{0%,20%,60%,100%{opacity:0}25%,35%,65%,80%{opacity:1}}
+@keyframes cdtUcak{0%{transform:translate(-70px,26px) rotate(-6deg)}100%{transform:translate(200px,-14px) rotate(-6deg)}}
+@keyframes cdtBulut{0%{transform:translateX(30px)}100%{transform:translateX(-40px)}}
+@keyframes cdtGir{from{opacity:0}to{opacity:1}}
+.cdt-c{animation:cdtGir .25s ease-out}
+`;
+function cdtCeldiriciSvg(klip, sureMs) {
+  const s = (sureMs / 1000).toFixed(2) + "s";
+  const o = (x, y) => `transform-origin:${x}px ${y}px`;
+  switch (klip) {
+    case "gong": return `<svg viewBox="0 0 160 100" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+      <rect x="28" y="6" width="104" height="7" rx="3" fill="#7A4B22"/><rect x="34" y="6" width="7" height="90" rx="3" fill="#7A4B22"/><rect x="119" y="6" width="7" height="90" rx="3" fill="#7A4B22"/>
+      <g style="animation:cdtSallan 1.7s ease-in-out infinite;${o(80, 12)}">
+        <line x1="80" y1="12" x2="80" y2="24" stroke="#555" stroke-width="2"/>
+        <circle cx="80" cy="56" r="31" fill="#E9B43C" stroke="#A8741A" stroke-width="4"/>
+        <circle cx="80" cy="56" r="18" fill="#F5CF6B" stroke="#C89332" stroke-width="2"/>
+        <circle cx="72" cy="47" r="5" fill="#FFF3C4" opacity=".8"/>
+      </g>
+      <circle cx="80" cy="56" r="34" fill="none" stroke="#F0B429" stroke-width="3" style="animation:cdtDalga 1.7s ease-out infinite;${o(80, 56)}"/>
+      <circle cx="80" cy="56" r="34" fill="none" stroke="#F0B429" stroke-width="2" style="animation:cdtDalga 1.7s ease-out .85s infinite;${o(80, 56)}"/>
+      <g style="animation:cdtTokmak 1.7s ease-in-out infinite;${o(150, 92)}"><rect x="146" y="52" width="5" height="42" rx="2" fill="#6B4423"/><circle cx="148.5" cy="50" r="9" fill="#C0392B"/></g>
+    </svg>`;
+    case "bowling": return `<svg viewBox="0 0 160 100" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+      <rect x="0" y="72" width="160" height="20" fill="#E8C68E"/><line x1="0" y1="72" x2="160" y2="72" stroke="#B88A4A" stroke-width="2"/>
+      <g style="animation:cdtLobut ${s} linear forwards;${o(132, 72)}"><path d="M128 72 C124 60 126 52 129 46 C127 40 128 33 132 33 C136 33 137 40 135 46 C138 52 140 60 136 72 Z" fill="#fff" stroke="#999"/><rect x="127" y="42" width="10" height="3" fill="#D33"/></g>
+      <g style="animation:cdtLobut2 ${s} linear forwards;${o(146, 72)}"><path d="M142 72 C138 60 140 52 143 46 C141 40 142 33 146 33 C150 33 151 40 149 46 C152 52 154 60 150 72 Z" fill="#fff" stroke="#999"/><rect x="141" y="42" width="10" height="3" fill="#D33"/></g>
+      <g style="animation:cdtYuvarla ${(sureMs * 0.76 / 1000).toFixed(2)}s linear forwards">
+        <g style="animation:cdtDon ${(sureMs * 0.76 / 1000).toFixed(2)}s linear forwards;${o(18, 58)}"><circle cx="18" cy="58" r="14" fill="#2D3E9B"/><circle cx="13" cy="52" r="2.4" fill="#111"/><circle cx="20" cy="50" r="2.4" fill="#111"/><circle cx="17" cy="57" r="2.4" fill="#111"/></g>
+      </g>
+    </svg>`;
+    case "kuslar": {
+      const kus = (x, y, r, gec) => `<g style="animation:cdtZipla 1s ease-in-out ${gec}s infinite"><g transform="translate(${x},${y})">
+        <ellipse cx="0" cy="0" rx="9" ry="6" fill="${r}"/><circle cx="8" cy="-4" r="4.5" fill="${r}"/><circle cx="9.5" cy="-5" r="1.1" fill="#111"/><path d="M12.5 -4 L17 -3 L12.5 -2 Z" fill="#F39C12"/>
+        <g style="animation:cdtKanat .35s ease-in-out ${gec}s infinite;transform-origin:0px -2px"><path d="M-4 -2 Q-2 -16 6 -3 Z" fill="${r}" stroke="#0003"/></g></g></g>`;
+      return `<svg viewBox="0 0 160 100" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+        <g style="animation:cdtUc ${s} linear forwards">${kus(10, 40, "#3FA7D6", 0)}${kus(-14, 62, "#E4572E", .2)}${kus(-30, 34, "#76B041", .4)}</g></svg>`;
+    }
+    case "davul": return `<svg viewBox="0 0 160 100" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+      <rect x="45" y="50" width="70" height="38" fill="#D64545"/><path d="M45 50 L57 88 M60 50 L72 88 M75 50 L87 88 M90 50 L102 88 M105 50 L115 80" stroke="#F6E27A" stroke-width="3"/>
+      <ellipse cx="80" cy="50" rx="35" ry="9" fill="#F7F3E8" stroke="#999" stroke-width="2"/><ellipse cx="80" cy="88" rx="35" ry="7" fill="#A93232"/>
+      <g style="animation:cdtCubukS .5s ease-in-out infinite;${o(40, 20)}"><line x1="40" y1="20" x2="70" y2="46" stroke="#8B5A2B" stroke-width="5" stroke-linecap="round"/><circle cx="70" cy="46" r="4" fill="#F3D9A4"/></g>
+      <g style="animation:cdtCubukD .5s ease-in-out infinite;${o(120, 20)}"><line x1="120" y1="20" x2="90" y2="46" stroke="#8B5A2B" stroke-width="5" stroke-linecap="round"/><circle cx="90" cy="46" r="4" fill="#F3D9A4"/></g>
+      <text x="22" y="62" font-size="18" fill="#7C3AED" style="animation:cdtNota 1.4s ease-out infinite">♪</text>
+      <text x="128" y="66" font-size="20" fill="#0EA5E9" style="animation:cdtNota 1.4s ease-out .7s infinite">♫</text>
+    </svg>`;
+    case "araba": return `<svg viewBox="0 0 160 100" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+      <rect x="0" y="84" width="160" height="10" fill="#8C8C8C"/><path d="M0 89 H160" stroke="#fff" stroke-width="1.5" stroke-dasharray="8 8"/>
+      <g style="animation:cdtAraba ${s} linear forwards">
+        <path d="M2 74 L8 60 L22 52 L46 52 L58 62 L70 64 L72 76 Z" fill="#E63946"/>
+        <path d="M24 55 L44 55 L52 62 L20 62 Z" fill="#BDE0FE"/>
+        <g style="animation:cdtDon .6s linear infinite;${o(18, 77)}"><circle cx="18" cy="77" r="7" fill="#222"/><path d="M18 71 V83 M12 77 H24" stroke="#aaa" stroke-width="1.5"/></g>
+        <g style="animation:cdtDon .6s linear infinite;${o(56, 77)}"><circle cx="56" cy="77" r="7" fill="#222"/><path d="M56 71 V83 M50 77 H62" stroke="#aaa" stroke-width="1.5"/></g>
+        <g style="animation:cdtKorna 2.2s linear infinite"><path d="M76 58 L86 52 M77 64 L89 64 M76 70 L86 76" stroke="#F4A261" stroke-width="3" stroke-linecap="round"/></g>
+      </g>
+    </svg>`;
+    case "ucak": return `<svg viewBox="0 0 160 100" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+      <g style="animation:cdtBulut ${s} linear forwards" opacity=".9"><ellipse cx="40" cy="80" rx="20" ry="8" fill="#E3F2FD"/><ellipse cx="52" cy="75" rx="13" ry="8" fill="#E3F2FD"/><ellipse cx="120" cy="30" rx="18" ry="7" fill="#E3F2FD"/></g>
+      <g style="animation:cdtUcak ${s} linear forwards">
+        <path d="M0 50 Q6 42 40 44 L58 46 Q64 50 58 54 L40 56 Q6 58 0 50 Z" fill="#F1F5F9" stroke="#64748B" stroke-width="1.5"/>
+        <path d="M24 46 L36 28 L42 28 L36 46 Z" fill="#2563EB"/><path d="M24 54 L36 70 L42 70 L36 54 Z" fill="#2563EB"/>
+        <path d="M2 48 L-2 38 L5 38 L10 46 Z" fill="#2563EB"/>
+        <circle cx="46" cy="49" r="2" fill="#93C5FD"/><circle cx="40" cy="49" r="2" fill="#93C5FD"/><circle cx="34" cy="49" r="2" fill="#93C5FD"/><path d="M54 47 Q59 49 54 52 Z" fill="#93C5FD"/>
+      </g>
+    </svg>`;
+    default: return "";
+  }
+}
+
+// ── ÇDT uyaranları: hedef (çocuk yüzü) ve 5 hayvan ──
+function CDTUyaran({ tur }) {
+  const ortak = { viewBox: "0 0 100 100", width: "100%", height: "100%", style: { display: "block" } };
+  if (tur === "hedef") return (
+    <svg {...ortak}>
+      <circle cx="17" cy="57" r="7.5" fill="#F0B88C" /><circle cx="83" cy="57" r="7.5" fill="#F0B88C" />
+      <circle cx="50" cy="56" r="34" fill="#F7CDA4" />
+      <path d="M15 52 C14 24 34 11 52 11 C74 11 88 27 85 52 C80 40 70 33 58 35 C48 27 31 34 25 47 C22 48 18 50 15 52 Z" fill="#6B3E1F" />
+      <path d="M44 17 C50 12 58 13 62 18" stroke="#8A5A33" strokeWidth="3" fill="none" strokeLinecap="round" />
+      <path d="M31 47 Q37 43 43 47" stroke="#5A3416" strokeWidth="2.6" fill="none" strokeLinecap="round" />
+      <path d="M57 47 Q63 43 69 47" stroke="#5A3416" strokeWidth="2.6" fill="none" strokeLinecap="round" />
+      <ellipse cx="38" cy="56" rx="4.6" ry="6" fill="#2A2A2A" /><ellipse cx="62" cy="56" rx="4.6" ry="6" fill="#2A2A2A" />
+      <circle cx="39.6" cy="53.6" r="1.6" fill="#fff" /><circle cx="63.6" cy="53.6" r="1.6" fill="#fff" />
+      <circle cx="30" cy="67" r="5.5" fill="#F48B94" opacity=".5" /><circle cx="70" cy="67" r="5.5" fill="#F48B94" opacity=".5" />
+      <path d="M48 62 Q50 65 52 62" stroke="#D9906A" strokeWidth="2" fill="none" strokeLinecap="round" />
+      <path d="M38 71 Q50 83 62 71 Q50 76 38 71 Z" fill="#B23A3A" stroke="#8A2C2C" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
+  );
+  if (tur === "kedi") return (
+    <svg {...ortak}>
+      <path d="M20 46 L24 12 L46 30 Z" fill="#F29E38" /><path d="M80 46 L76 12 L54 30 Z" fill="#F29E38" />
+      <path d="M25 38 L27 20 L40 31 Z" fill="#F7C6A3" /><path d="M75 38 L73 20 L60 31 Z" fill="#F7C6A3" />
+      <ellipse cx="50" cy="58" rx="34" ry="30" fill="#F4A340" />
+      <path d="M50 30 L46 40 M40 32 L40 42 M60 32 L60 42" stroke="#D9782A" strokeWidth="3" strokeLinecap="round" />
+      <ellipse cx="37" cy="56" rx="5.5" ry="7" fill="#7CC36A" /><ellipse cx="63" cy="56" rx="5.5" ry="7" fill="#7CC36A" />
+      <ellipse cx="37" cy="56" rx="1.8" ry="5.5" fill="#1E1E1E" /><ellipse cx="63" cy="56" rx="1.8" ry="5.5" fill="#1E1E1E" />
+      <path d="M46 66 L54 66 L50 71 Z" fill="#F07C9A" />
+      <path d="M50 71 Q45 77 41 73 M50 71 Q55 77 59 73" stroke="#8A4B1F" strokeWidth="2" fill="none" strokeLinecap="round" />
+      <path d="M30 68 L12 64 M30 72 L12 74 M70 68 L88 64 M70 72 L88 74" stroke="#7A4A20" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+  if (tur === "kopek") return (
+    <svg {...ortak}>
+      <ellipse cx="50" cy="54" rx="31" ry="32" fill="#D9A066" />
+      <ellipse cx="19" cy="52" rx="10" ry="24" fill="#8B5A2B" transform="rotate(14 19 52)" />
+      <ellipse cx="81" cy="52" rx="10" ry="24" fill="#8B5A2B" transform="rotate(-14 81 52)" />
+      <ellipse cx="62" cy="42" rx="10" ry="9" fill="#B97D45" />
+      <circle cx="38" cy="47" r="4.5" fill="#2A1A0F" /><circle cx="62" cy="47" r="4.5" fill="#2A1A0F" />
+      <circle cx="39.4" cy="45.6" r="1.3" fill="#fff" /><circle cx="63.4" cy="45.6" r="1.3" fill="#fff" />
+      <ellipse cx="50" cy="68" rx="17" ry="13" fill="#F3DEC2" />
+      <ellipse cx="50" cy="61" rx="6.5" ry="4.8" fill="#2A1A0F" />
+      <path d="M50 66 L50 71 M50 71 Q44 76 40 72 M50 71 Q56 76 60 72" stroke="#2A1A0F" strokeWidth="2" fill="none" strokeLinecap="round" />
+      <path d="M46 75 Q50 85 54 75 Z" fill="#F06B7A" />
+    </svg>
+  );
+  if (tur === "tavsan") return (
+    <svg {...ortak}>
+      <ellipse cx="36" cy="22" rx="8" ry="21" fill="#D9DCE3" /><ellipse cx="64" cy="22" rx="8" ry="21" fill="#D9DCE3" />
+      <ellipse cx="36" cy="24" rx="3.6" ry="15" fill="#F5B7C5" /><ellipse cx="64" cy="24" rx="3.6" ry="15" fill="#F5B7C5" />
+      <circle cx="50" cy="62" r="29" fill="#E6E8EE" />
+      <circle cx="39" cy="57" r="4.2" fill="#3A3A50" /><circle cx="61" cy="57" r="4.2" fill="#3A3A50" />
+      <circle cx="40.3" cy="55.6" r="1.2" fill="#fff" /><circle cx="62.3" cy="55.6" r="1.2" fill="#fff" />
+      <ellipse cx="50" cy="66" rx="3.6" ry="2.6" fill="#F07C9A" />
+      <path d="M50 68.5 Q46 73 42.5 70.5 M50 68.5 Q54 73 57.5 70.5" stroke="#6B6B80" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+      <rect x="46" y="72" width="3.8" height="6" rx="1" fill="#fff" stroke="#BBB" /><rect x="50.2" y="72" width="3.8" height="6" rx="1" fill="#fff" stroke="#BBB" />
+    </svg>
+  );
+  if (tur === "kurbaga") return (
+    <svg {...ortak}>
+      <circle cx="31" cy="34" r="13" fill="#5DB043" /><circle cx="69" cy="34" r="13" fill="#5DB043" />
+      <ellipse cx="50" cy="62" rx="38" ry="26" fill="#6CC04A" />
+      <circle cx="31" cy="34" r="8.5" fill="#fff" /><circle cx="69" cy="34" r="8.5" fill="#fff" />
+      <circle cx="32" cy="35" r="4.6" fill="#1F2A14" /><circle cx="68" cy="35" r="4.6" fill="#1F2A14" />
+      <path d="M24 64 Q50 84 76 64" stroke="#2F6B1F" strokeWidth="3.2" fill="none" strokeLinecap="round" />
+      <circle cx="44" cy="54" r="1.6" fill="#2F6B1F" /><circle cx="56" cy="54" r="1.6" fill="#2F6B1F" />
+      <circle cx="22" cy="68" r="5" fill="#F48B94" opacity=".45" /><circle cx="78" cy="68" r="5" fill="#F48B94" opacity=".45" />
+    </svg>
+  );
+  if (tur === "penguen") return (
+    <svg {...ortak}>
+      <ellipse cx="50" cy="56" rx="33" ry="36" fill="#26303B" />
+      <path d="M50 30 C34 30 26 44 28 60 C30 78 42 88 50 88 C58 88 70 78 72 60 C74 44 66 30 50 30 Z" fill="#F4F6F8" />
+      <path d="M50 30 C46 38 40 40 34 38 C38 32 44 29 50 30 Z M50 30 C54 38 60 40 66 38 C62 32 56 29 50 30 Z" fill="#26303B" />
+      <circle cx="40" cy="50" r="4.2" fill="#1A1A1A" /><circle cx="60" cy="50" r="4.2" fill="#1A1A1A" />
+      <circle cx="41.3" cy="48.6" r="1.3" fill="#fff" /><circle cx="61.3" cy="48.6" r="1.3" fill="#fff" />
+      <path d="M42 58 L58 58 L50 67 Z" fill="#F59E0B" stroke="#D97706" strokeWidth="1.2" strokeLinejoin="round" />
+      <circle cx="32" cy="62" r="4.5" fill="#F48B94" opacity=".5" /><circle cx="68" cy="62" r="4.5" fill="#F48B94" opacity=".5" />
+    </svg>
+  );
+  return null;
+}
+
+// ── ÇDT sonuç raporu (yazdırılabilir HTML) ──
+function cdtEsc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function cdtHalkaSvg(p, boyut, kalinlik, ustYazi, altYazi) {
+  const r = (boyut - kalinlik) / 2 - 1, c = boyut / 2, cevre = 2 * Math.PI * r;
+  const oran = p === null ? 0 : Math.max(0, Math.min(1, p / 100));
+  const renk = cdtYuzdelikRenk(p);
+  const fs = Math.round(boyut * 0.22);
+  return `<svg width="${boyut}" height="${boyut}" viewBox="0 0 ${boyut} ${boyut}" style="display:block">
+    <circle cx="${c}" cy="${c}" r="${r}" fill="${p === null ? "#fafafa" : renk + "14"}" stroke="#E4E4E7" stroke-width="${kalinlik}"/>
+    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${renk}" stroke-width="${kalinlik}" stroke-linecap="round"
+      stroke-dasharray="${(cevre * oran).toFixed(1)} ${cevre.toFixed(1)}" transform="rotate(-90 ${c} ${c})"/>
+    ${ustYazi ? `<text x="${c}" y="${c - fs * 0.85}" text-anchor="middle" font-size="${Math.round(fs * 0.48)}" fill="#666" font-family="Arial">${cdtEsc(ustYazi)}</text>` : ""}
+    <text x="${c}" y="${c + fs * 0.35}" text-anchor="middle" font-size="${fs}" font-weight="700" fill="${renk}" font-family="Arial">${cdtYuzdelikMetin(p)}</text>
+    ${altYazi ? `<text x="${c}" y="${c + fs * 1.15}" text-anchor="middle" font-size="${Math.round(fs * 0.45)}" fill="#555" font-family="Arial">${cdtEsc(altYazi)}</text>` : ""}
+  </svg>`;
+}
+function cdtYumusakYol(noktalar) {
+  if (noktalar.length < 2) return "";
+  let d = `M${noktalar[0][0].toFixed(1)} ${noktalar[0][1].toFixed(1)}`;
+  for (let i = 0; i < noktalar.length - 1; i++) {
+    const p0 = noktalar[i - 1] || noktalar[i], p1 = noktalar[i], p2 = noktalar[i + 1], p3 = noktalar[i + 2] || p2;
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    d += ` C${c1[0].toFixed(1)} ${c1[1].toFixed(1)} ${c2[0].toFixed(1)} ${c2[1].toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+  }
+  return d;
+}
+const CDT_SERI_STIL = { A: { w: 3.2, dash: "" }, T: { w: 2.4, dash: "7 5" }, I: { w: 2.4, dash: "2.5 4" }, H: { w: 2.6, dash: "10 4 3 4" } };
+function cdtCizgiGrafik(seviyeler, mod) {
+  const W = 700, H = 230, sol = 44, sag = 34, ust = 30, alt = 40;
+  const goreli = mod === "goreli";
+  const idx = goreli ? [1, 2, 3, 4, 5, 6, 7] : [0, 1, 2, 3, 4, 5, 6, 7];
+  const yMin = goreli ? -20 : 0, yMax = goreli ? 20 : 33;
+  const gx = i => sol + (idx.length === 1 ? 0 : (i / (idx.length - 1)) * (W - sol - sag));
+  const gy = v => ust + (1 - (Math.max(yMin, Math.min(yMax, v)) - yMin) / (yMax - yMin)) * (H - ust - alt);
+  const izgara = (goreli ? [-20, -15, -10, -5, 0, 5, 10, 15, 20] : [0, 7, 14, 20, 27, 33]).map(v => `
+    <line x1="${sol}" y1="${gy(v)}" x2="${W - sag}" y2="${gy(v)}" stroke="${v === 0 && goreli ? "#9CA3AF" : "#ECECEC"}" stroke-width="${v === 0 && goreli ? 1.2 : 1}"/>
+    <text x="${sol - 6}" y="${gy(v) + 3.5}" text-anchor="end" font-size="10" fill="#777">${v}</text>`).join("");
+  const seriler = ["H", "I", "T", "A"].map(k => {
+    const nok = idx.map((li, i) => [gx(i), gy(goreli ? seviyeler[li].P[k] - seviyeler[0].P[k] : seviyeler[li].P[k])]);
+    const st = CDT_SERI_STIL[k];
+    return `<path d="${cdtYumusakYol(nok)}" fill="none" stroke="${CDT_INDEKS[k].renk}" stroke-width="${st.w}" stroke-dasharray="${st.dash}" stroke-linecap="round" opacity="${goreli ? 0.85 : 1}"/>`;
+  }).join("");
+  const etiketler = idx.map((li, i) => `<text x="${gx(i)}" y="${H - alt + 16}" text-anchor="middle" font-size="10" fill="#444">${CDT_SEVIYE_ADLARI[li]}</text>
+    <text x="${gx(i)}" y="${H - alt + 30}" text-anchor="middle" font-size="9.5" fill="#999">${({ yok: "◷", gorsel: "👁", isitsel: "🔊", kombine: "👁🔊" })[CDT_SEVIYE_KOSUL[li]]}${CDT_SEVIYE_YUK[li] === 2 ? "×2" : ""}</text>`).join("");
+  const lejant = ["A", "T", "I", "H"].map((k, i) => {
+    const x = sol + 10 + i * 150, st = CDT_SERI_STIL[k];
+    return `<line x1="${x}" y1="12" x2="${x + 26}" y2="12" stroke="${CDT_INDEKS[k].renk}" stroke-width="${st.w}" stroke-dasharray="${st.dash}"/><text x="${x + 32}" y="16" font-size="11" fill="#333">${CDT_INDEKS[k].ad}</text>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;max-width:${W}px">${lejant}${izgara}${seriler}${etiketler}
+    <text x="12" y="${(ust + H - alt) / 2}" transform="rotate(-90 12 ${(ust + H - alt) / 2})" text-anchor="middle" font-size="10" fill="#777">${goreli ? "Temel 1'e göre fark" : "Ağırlıklı performans (0-33)"}</text></svg>`;
+}
+const CDT_YORUM = {
+  A: ["Hedef uyaranlara doğru yanıt verme ve odakta kalabilme becerisi yaşıtlarının ortalamasının üzerinde.",
+      "Hedef uyaranlara doğru yanıt verme ve odakta kalabilme becerisi yaşıtlarıyla benzer düzeyde.",
+      "Hedef uyaranların bir kısmını kaçırdı; odağını sürdürmede yaşıtlarının gerisinde kalıyor.",
+      "Hedef uyaranların belirgin bir bölümünü kaçırdı; dikkati sürdürme ve odakta kalmada belirgin güçlük görülüyor."],
+  T: ["Hedeflere, uyaran henüz ekrandayken hızlı ve doğru yanıt verebiliyor; bilgiyi hızlı işliyor.",
+      "Yanıt hızı ve zamanlaması yaşıtlarıyla benzer düzeyde.",
+      "Doğru yanıtlarının bir bölümü geç geliyor (uyaran kaybolduktan sonra); bilgi işleme hızı yaşıtlarının gerisinde.",
+      "Yanıtları sık sık geç geliyor ya da hiç gelmiyor; bilgiyi işleyip zamanında yanıt vermede belirgin güçlük var."],
+  I: ["Hedef olmayan uyaranlara basmaktan başarıyla kaçınıyor; durumu değerlendirmeden yanıt vermiyor.",
+      "Hedef olmayan uyaranlara yanıt verme sıklığı yaşıtlarıyla benzer düzeyde.",
+      "Hedef olmayan uyaranlara yaşıtlarından daha sık bastı; zaman zaman düşünmeden, aceleyle yanıt veriyor.",
+      "Hedef olmayan uyaranlara çok sık bastı; durumu değerlendirmeden aceleyle yanıt verme eğilimi belirgin."],
+  H: ["Gereksiz, tekrarlı ya da rastgele basma çok az; motor tepkilerini iyi düzenliyor.",
+      "Gereksiz/tekrarlı basma sıklığı yaşıtlarıyla benzer düzeyde.",
+      "Tekrarlı basma, boş ekranda basma ya da buton dışına dokunma yaşıtlarından fazla; motor tepkileri düzenlemede zorlanıyor.",
+      "Çok sayıda tekrarlı/rastgele basma ve buton dışına dokunma var; motor tepkileri düzenlemede belirgin güçlük görülüyor."],
+};
+const CDT_KOSUL_AD = { gorsel: "görsel", isitsel: "işitsel", kombine: "görsel+işitsel (kombine)" };
+function cdtRaporHtmlOlustur(s, bilgi) {
+  const b = bilgi || {};
+  const nokta = renk => {
+    const sira = ["yesil", "sari", "kirmizi"], renkler = { yesil: "#2A9A8C", sari: "#E8B931", kirmizi: "#E05252" };
+    return sira.map(r => `<span style="display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:3px;background:${r === renk ? renkler[r] : "#F1E4E0"}"></span>`).join("");
+  };
+  const baslik = (metin) => `<div style="background:#1F1638;color:#fff;font-size:13px;font-weight:700;padding:7px 12px;border-radius:6px;margin:16px 0 8px;letter-spacing:.3px">${metin}</div>`;
+  if (!s.tamam) {
+    return `<div style="font-family:Arial,sans-serif;color:#1a1a1a">${baslik("Çeldiricili Dikkat Testi (ÇDT)")}<p>Bu uygulama tamamlanmadı (${s.seviyeler.length}/8 aşama). Norm karşılaştırması yapılamaz.</p></div>`;
+  }
+  // Norm tablosu
+  const pil = (ind) => `<span style="display:inline-block;min-width:62px;padding:3px 10px;border-radius:12px;background:${ind.kategori.renk};color:${ind.kategori.no === 2 ? "#0F5132" : "#fff"};font-weight:700;font-size:11.5px;text-align:center">${ind.z >= 0 ? "" : ""}${ind.z.toFixed(2)}</span>`;
+  const normSatir = (kat) => `<tr><td style="padding:6px 8px;border:1px solid #DDD;min-width:120px"><span style="display:inline-block;width:8px;height:16px;border-radius:3px;background:${kat.renk};vertical-align:middle;margin-right:6px"></span>${kat.no} ${kat.ad}</td>${s.indeksler.map(ind => `<td style="padding:6px;border:1px solid #DDD;text-align:center">${ind.kategori.no === kat.no ? pil(ind) : ""}</td>`).join("")}</tr>`;
+  const siddetSatir = (sd) => `<tr><td style="padding:5px 8px;border:1px solid #DDD;font-size:11px"><span style="display:inline-block;width:8px;height:14px;border-radius:3px;background:${sd.renk};vertical-align:middle;margin-right:6px"></span>${sd.no} ${sd.ad}</td>${s.indeksler.map(ind => `<td style="padding:5px;border:1px solid #DDD;text-align:center">${ind.siddet && ind.siddet.no === sd.no ? `<span style="display:inline-block;width:56px;padding:2px 0;border-radius:6px;background:${sd.renk};color:${sd.no >= 2 ? "#fff" : "#8A1C1C"};font-weight:700;font-size:11px">${sd.no}</span>` : ""}</td>`).join("")}</tr>`;
+  const zorlukVar = s.indeksler.some(x => x.siddet);
+  const normTablo = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <tr><th style="border:1px solid #DDD;background:#FAFAFA"></th>${s.indeksler.map(ind => `<th style="border:1px solid #DDD;background:#FAFAFA;padding:6px;font-size:15px;font-weight:600;color:#333">${ind.kisa}<div style="font-size:9.5px;color:#777;font-weight:400">${ind.ad}</div></th>`).join("")}</tr>
+    ${CDT_KATEGORI.map(normSatir).join("")}
+    ${zorlukVar ? `<tr><td colspan="5" style="padding:6px 8px;border:1px solid #DDD;font-size:11px;color:#555;background:#FCFCFC">Performansta zorluk olan ölçümler için şiddet düzeyi</td></tr>${[...CDT_SIDDET].reverse().map(siddetSatir).join("")}` : ""}
+  </table>`;
+
+  // Profil özeti
+  const kp = s.kosulProfil;
+  const olcumKart = (ad, toplamP, alt) => `<div style="flex:1 1 150px;border:1px solid #E5E7EB;border-radius:10px;padding:8px 6px;text-align:center;page-break-inside:avoid">
+      <div style="font-size:12px;color:#333;margin-bottom:4px">${ad}</div>
+      <div style="display:flex;justify-content:center">${cdtHalkaSvg(toplamP, 86, 8, "", "Toplam")}</div>
+      ${alt ? `<div style="display:flex;justify-content:center;gap:5px;margin-top:5px">${alt.map(([ik, p]) => `<span style="border:1px solid #E5E7EB;border-radius:6px;padding:2px 5px;font-size:10px;color:#333"><span style="color:${cdtYuzdelikRenk(p)}">●</span> ${ik} ${cdtYuzdelikMetin(p)}</span>`).join("")}</div>` : ""}
+    </div>`;
+  const altK = k => [["👁", kp.gorsel[k]], ["🔊", kp.isitsel[k]], ["👁🔊", kp.kombine[k]]];
+  const cubuk = (ad, p, ekMetin) => `<div style="margin-bottom:6px"><div style="display:flex;justify-content:space-between;font-size:11.5px;color:#333"><span>${ad}</span><span style="color:#666">${ekMetin || cdtYuzdelikMetin(p)}</span></div>
+     <div style="position:relative;height:7px;border-radius:4px;background:linear-gradient(90deg,#EF6B6B,#F5A86B 25%,#6FD6A0 50%,#3FB8A6 80%,#2A9A8C);margin-top:3px">
+     ${p !== null ? `<div style="position:absolute;left:${Math.max(0, Math.min(100, p))}%;top:-3px;width:3px;height:13px;background:#111;border-radius:1px"></div><div style="position:absolute;left:${Math.max(0, Math.min(100, p))}%;right:0;top:0;bottom:0;background:#E5E7EB;border-radius:0 4px 4px 0"></div>` : ""}</div></div>`;
+  const surekP = s.surekli ? Math.max(0, Math.min(100, 50 + (s.surekli.oran - 1) * 250)) : null;
+
+  const profil = `<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start">
+    <div style="flex:1 1 260px;min-width:240px;text-align:center">
+      <div style="display:flex;justify-content:center">${cdtHalkaSvg(s.odak, 150, 12, "Odaklanma", "Toplam")}</div>
+      <div style="display:flex;justify-content:center;gap:10px;margin-top:8px">
+        ${[["Görsel", kp.gorsel.odak], ["İşitsel", kp.isitsel.odak], ["Kombine", kp.kombine.odak]].map(([a, p]) => `<div>${cdtHalkaSvg(p, 70, 6, "", a)}</div>`).join("")}
+      </div>
+    </div>
+    <div style="flex:1 1 260px;min-width:240px">
+      ${cubuk("Seçici Dikkat", s.indeksler[0].yuzdelik)}
+      ${cubuk("İşlemleme Hızı", s.indeksler[1].yuzdelik)}
+      ${cubuk("Öz Düzenleme", s.indeksler[2].yuzdelik)}
+      ${cubuk("Tepki Düzenleme", s.indeksler[3].yuzdelik)}
+      <div style="font-size:11.5px;color:#333;margin-top:8px;border-top:1px dashed #DDD;padding-top:6px">İşlemleme Hızı Stabilitesi: <b>${s.rtSS ? Math.round(s.rtSS) + " ms SS" : "—"}</b>${s.rtCv ? ` · değişkenlik katsayısı ${s.rtCv.toFixed(2)}` : ""}</div>
+      <div style="font-size:11.5px;color:#333;margin-top:4px">Görev Sürekliliği: <b>${s.surekli ? Math.round(s.surekli.oran * 100) + "%" : "—"}</b> <span style="color:#777">(Temel 2'deki doğru yanıtların Temel 1'e oranı)</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:9.5px;color:#777;margin-top:8px"><span>◀ Zayıf</span><span>Yüksek ▶</span></div>
+    </div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+    ${olcumKart("Seçici Dikkat", s.indeksler[0].yuzdelik, altK("A"))}
+    ${olcumKart("İşlemleme Hızı", s.indeksler[1].yuzdelik, altK("T"))}
+    ${olcumKart("Öz Düzenleme", s.indeksler[2].yuzdelik, altK("I"))}
+    ${olcumKart("Tepki Düzenleme", s.indeksler[3].yuzdelik, altK("H"))}
+  </div>`;
+  void surekP;
+
+  // Çeldirici etki tablosu
+  const ok = e => {
+    if (!e) return "—";
+    const r = e.yon === "iyi" ? ["↗", "#22B07D"] : e.yon === "dusus" ? ["↘", "#E05252"] : ["→", "#F0A35E"];
+    return `<span style="font-size:19px;font-weight:700;color:${r[1]}">${r[0]}</span>`;
+  };
+  const etkiSatir = (ad, anahtar) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #EEE">${ad}</td>${["A", "T", "I", "H"].map(k => `<td style="text-align:center;border-bottom:1px solid #EEE">${ok(s.etkiler[k] && s.etkiler[k][anahtar])}</td>`).join("")}</tr>`;
+  const etkiTablo = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <tr style="background:#FAFAFA"><th style="text-align:left;padding:6px 8px"></th>${["A", "T", "I", "H"].map(k => `<th style="padding:6px;color:#555;font-weight:600">${k}</th>`).join("")}</tr>
+    ${etkiSatir("Görsel çeldirici", "gorsel")}${etkiSatir("İşitsel çeldirici", "isitsel")}${etkiSatir("Kombine çeldirici", "kombine")}${etkiSatir("Çeldirici yükü (iki çeldirici)", "yuk")}${etkiSatir("Zaman içinde performans", "zaman")}
+  </table>
+  <div style="font-size:10px;color:#777;margin-top:4px">↗ İyileşme · → Değişim yok · ↘ Düşüş — öğrencinin KENDİ ortalama performansına göre (±1,5 SS kuralı)</div>`;
+
+  // Ham puan tablosu
+  const hamTablo = `<table style="width:100%;border-collapse:collapse;font-size:11px">
+    <tr style="background:#F3F4F6"><th style="padding:5px;text-align:left">Aşama</th><th>Çeldirici</th><th>Dikkat<br><span style="font-weight:400;color:#777">/33</span></th><th>Zamanlama<br><span style="font-weight:400;color:#777">/33</span></th><th>Geç yanıt</th><th>Dürtüsellik<br><span style="font-weight:400;color:#777">/20</span></th><th>Hiper-R.</th><th>Ort. tepki</th></tr>
+    ${s.seviyeler.map(l => `<tr><td style="padding:4px 5px;border-bottom:1px solid #EEE">${l.no}. ${l.ad}</td><td style="text-align:center;border-bottom:1px solid #EEE;color:#555">${l.kosul === "yok" ? "Yok" : (CDT_KOSUL_AD[l.kosul] + (l.yuk === 2 ? " ×2" : ""))}</td><td style="text-align:center;border-bottom:1px solid #EEE">${l.A}</td><td style="text-align:center;border-bottom:1px solid #EEE">${l.T}</td><td style="text-align:center;border-bottom:1px solid #EEE">${l.gec}</td><td style="text-align:center;border-bottom:1px solid #EEE">${l.I}</td><td style="text-align:center;border-bottom:1px solid #EEE">${l.H}</td><td style="text-align:center;border-bottom:1px solid #EEE">${l.rtOrt ? Math.round(l.rtOrt) + " ms" : "—"}</td></tr>`).join("")}
+    <tr style="font-weight:700;background:#FAFAFA"><td style="padding:5px">Toplam</td><td></td><td style="text-align:center">${s.toplam.A}/264</td><td style="text-align:center">${s.toplam.T}</td><td style="text-align:center">${s.toplam.gec}</td><td style="text-align:center">${s.toplam.I}/160</td><td style="text-align:center">${s.toplam.H}</td><td style="text-align:center">${s.rtOrt ? Math.round(s.rtOrt) + " ms" : "—"}</td></tr>
+    ${s.norm ? `<tr style="color:#666"><td style="padding:4px 5px" colspan="2">Norm (${s.normYas} yaş, ort ± SS)</td><td style="text-align:center">${s.norm.A[0]} ± ${s.norm.A[1]}</td><td style="text-align:center">${s.norm.T[0]} ± ${s.norm.T[1]}</td><td></td><td style="text-align:center">${s.norm.I[0]} ± ${s.norm.I[1]}</td><td style="text-align:center">${s.norm.H[0]} ± ${s.norm.H[1]}</td><td></td></tr>` : ""}
+  </table>`;
+
+  // Yorum
+  const etkiCumle = [];
+  ["gorsel", "isitsel", "kombine"].forEach(kos => {
+    const dusenler = ["A", "T", "I", "H"].filter(k => s.etkiler[k][kos].yon === "dusus").map(k => CDT_INDEKS[k].ad.toLocaleLowerCase("tr"));
+    if (dusenler.length) etkiCumle.push(`${CDT_KOSUL_AD[kos].charAt(0).toLocaleUpperCase("tr") + CDT_KOSUL_AD[kos].slice(1)} çeldiriciler varken ${dusenler.join(", ")} performansı belirgin biçimde düştü.`);
+  });
+  const yukDusen = ["A", "T", "I", "H"].filter(k => s.etkiler[k].yuk.yon === "dusus").map(k => CDT_INDEKS[k].ad.toLocaleLowerCase("tr"));
+  if (yukDusen.length) etkiCumle.push(`Aynı anda iki çeldirici olduğunda ${yukDusen.join(", ")} performansı tek çeldiriciye göre düştü.`);
+  const zamanDusen = ["A", "T", "I", "H"].filter(k => s.etkiler[k].zaman.yon === "dusus").map(k => CDT_INDEKS[k].ad.toLocaleLowerCase("tr"));
+  if (zamanDusen.length) etkiCumle.push(`Testin sonunda (Temel 2), başlangıca (Temel 1) göre ${zamanDusen.join(", ")} performansında düşüş var — dikkati uzun süre sürdürmede zorlanma işareti olabilir.`);
+  if (!etkiCumle.length) etkiCumle.push("Çeldiricilerin ve test süresinin, öğrencinin kendi ortalama performansı üzerinde belirgin bir olumsuz etkisi görülmedi.");
+  const yorum = `<div style="font-size:12px;line-height:1.6;color:#222">
+    ${s.indeksler.map(ind => `<div style="margin-bottom:5px"><b style="color:${ind.renk}">${ind.ad} (${ind.kisa})</b> — <span style="color:${ind.kategori.renk === "#6EE0A8" ? "#1E8E5A" : ind.kategori.renk};font-weight:700">${ind.kategori.ad}${ind.siddet ? `, ${ind.siddet.ad.toLocaleLowerCase("tr")}` : ""}</span>: ${CDT_YORUM[ind.k][ind.kategori.no - 1]}</div>`).join("")}
+    <div style="margin-top:6px"><b>Çeldirici etkileri:</b> ${etkiCumle.join(" ")}</div>
+    ${s.toplam.erken > 5 ? `<div style="margin-top:4px">Hedeflere verilen yanıtların ${s.toplam.erken}'i 150 ms'den hızlı — tahmine dayalı (beklemeden) basma olabilir.</div>` : ""}
+  </div>`;
+
+  return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;font-size:12px">
+    <div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;border-bottom:2px solid #1F1638;padding-bottom:10px">
+      <div><div style="font-size:18px;font-weight:700;color:#1F1638">Çeldiricili Dikkat Testi (ÇDT) — Sonuç Raporu</div>
+        <div style="font-size:11px;color:#666;margin-top:2px">Dokunmatik sürekli performans testi · 8 aşama · ${Math.round(s.seviyeler.reduce((t, l) => t + cdtSeviyeProgrami(l.no - 1).toplamSure, 0) / 60000 * 10) / 10} dk</div></div>
+      <div style="font-size:11.5px;line-height:1.6;text-align:right"><b>${cdtEsc(b.ogrenci)}</b>${b.sinif ? " · " + cdtEsc(b.sinif) : ""}<br>Uygulama: ${cdtEsc(b.tarih || "")}<br>Yaş: ${s.yas !== null ? s.yas : "—"}${s.normYas ? ` (norm: ${s.normYas} yaş)` : ""} · İlaç tedavisi: ${cdtEsc(b.ilac || "Belirtilmedi")}</div>
+    </div>
+    <table style="margin-top:8px;font-size:11.5px;border-collapse:collapse">
+      <tr><td style="padding:2px 10px 2px 0;color:#444">Geçerlilik</td><td>${nokta(s.gecerlilik.renk)}</td><td style="padding-left:8px;color:#555">${cdtEsc(s.gecerlilik.metin)}</td></tr>
+      <tr><td style="padding:2px 10px 2px 0;color:#444">Güvenilirlik</td><td>${nokta(s.guvenilirlik.renk)}</td><td style="padding-left:8px;color:#555">${cdtEsc(s.guvenilirlik.metin)}</td></tr>
+    </table>
+    ${s.normUyari ? `<div style="margin-top:8px;background:#FFF7E6;border:1px solid #F5D08A;border-radius:6px;padding:6px 9px;font-size:11px;color:#7A5200">⚠ ${cdtEsc(s.normUyari)}</div>` : ""}
+    ${baslik("Norm Karşılaştırma <span style='font-weight:400;font-size:11px;opacity:.8'>(yaşa göre z puanı)</span>")}
+    <div style="overflow-x:auto">${normTablo}</div>
+    <div style="font-size:10.5px;color:#555;margin-top:6px;line-height:1.55">${s.indeksler.map(i => `<b>${i.ad}</b> — ${i.tanim}`).join(" · ")}</div>
+    <div style="page-break-inside:avoid">${baslik("Profil Özeti <span style='font-weight:400;font-size:11px;opacity:.8'>(yaşıtlarına göre yüzdelik dilim)</span>")}
+    ${profil}</div>
+    <div style="page-break-inside:avoid">${baslik("Çeldirici Etkileri")}${etkiTablo}</div>
+    <div style="page-break-inside:avoid">${baslik("Mutlak Performans Grafiği <span style='font-weight:400;font-size:11px;opacity:.8'>(aşama aşama; 33 = hatasız)</span>")}${cdtCizgiGrafik(s.seviyeler, "mutlak")}</div>
+    <div style="page-break-inside:avoid">${baslik("Göreli Performans Grafiği <span style='font-weight:400;font-size:11px;opacity:.8'>(Temel 1'e göre; + iyileşme, − düşüş, ±20'de sınırlandı)</span>")}${cdtCizgiGrafik(s.seviyeler, "goreli")}</div>
+    <div style="page-break-inside:avoid">${baslik("Değerlendirme")}${yorum}</div>
+    <div style="page-break-inside:avoid">${baslik("Aşama Bazında Ham Puanlar")}<div style="overflow-x:auto">${hamTablo}</div></div>
+    <div style="page-break-inside:avoid;margin-top:12px;background:#F7F7FB;border:1px solid #E3E1EF;border-radius:8px;padding:9px 11px;font-size:10.5px;color:#444;line-height:1.6">
+      <b>Ölçümler:</b> Dikkat = hedefe verilen doğru yanıtlar (uyaran sırasında ya da ardından gelen boşlukta) · Zamanlama = yalnızca uyaran ekrandayken verilen doğru yanıtlar · Dürtüsellik = hedef olmayan uyaran ekrandayken basma · Hiper-Reaktivite = diğer tüm basışlar (aynı uyarana tekrar basma, boşlukta basma, buton dışına dokunma). Profil özetindeki yüzdelikler z puanından normal dağılım varsayımıyla hesaplanır; görsel/işitsel/kombine yüzdelikleri ilgili iki aşamanın 8 aşamaya ölçeklenmesiyle elde edilen yaklaşık değerlerdir. Şiddet düzeyleri (z −1,65 / −2,33 / −3 / −4 sınırları) bu programın derecelendirmesidir.<br>
+      <b>Önemli:</b> Bu test, yayımlanmış çeldiricili sürekli performans testi paradigmasına göre bu program için geliştirilmiştir; ticari MOXO testi değildir. Normlar, klavyeyle uygulanan orijinal testin 6-11 yaş kontrol grubu verileridir (Berger ve ark., 2013); dokunmatik ekranda tepki süreleri ve dokunma alışkanlıkları farklı olabileceğinden z puanları <b>yaklaşık</b>tır. Sonuçlar tanı koymaz; gözlem, öğretmen/veli bilgisi ve gerekirse uzman değerlendirmesiyle birlikte yorumlanmalıdır.
+    </div>
+  </div>`;
+}
+
+// ── ÇDT uygulama ekranı (tam ekran, dokunmatik) ──
+function CDTGorev({ onBitti, onIptal }) {
+  const [faz, setFaz] = useState("yonerge"); // yonerge | alistirma | hazir | test | kesildi | bitti
+  const [uyaran, setUyaran] = useState(null);
+  const [gorselCeld, setGorselCeld] = useState([]);
+  const [geri, setGeri] = useState(null);
+  const [basili, setBasili] = useState(false);
+  const [ilerleme, setIlerleme] = useState(0);
+  const fazRef = useRef(faz);
+  fazRef.current = faz;
+  const M = useRef({ prog: null, bas0: 0, idx: 0, sonAnahtar: "", aktif: "", sesler: {}, taps: [], raf: 0, seviye: 0, veriler: [], pratik: false, pratikVurulan: {}, ses: null, kesinti: 0, seviyeKesinti: 0, kilit: null, kesilenFaz: null, pointerTipleri: {}, baslangicZamani: 0, geriZaman: 0 });
+
+  function sesleriDurdur() {
+    const m = M.current;
+    Object.values(m.sesler).forEach(x => { try { x.dur(); } catch (e) {} });
+    m.sesler = {};
+  }
+  function durdur() {
+    const m = M.current;
+    cancelAnimationFrame(m.raf);
+    sesleriDurdur();
+  }
+  function gosterGeri(tur) {
+    setGeri({ tur, n: Date.now() });
+    clearTimeout(M.current.geriZaman);
+    M.current.geriZaman = setTimeout(() => setGeri(null), 950);
+  }
+  function seviyeBaslat(prog, pratik, gecikme) {
+    const m = M.current;
+    cancelAnimationFrame(m.raf);
+    sesleriDurdur();
+    Object.assign(m, { prog, pratik, idx: 0, taps: [], sonAnahtar: "", aktif: "", pratikVurulan: {} });
+    m.bas0 = performance.now() + (gecikme || 0);
+    setUyaran(null); setGorselCeld([]);
+    m.raf = requestAnimationFrame(dongu);
+  }
+  function dongu() {
+    const m = M.current, prog = m.prog;
+    if (!prog) return;
+    const now = performance.now() - m.bas0;
+    const den = prog.denemeler;
+    while (m.idx < den.length && now >= den[m.idx].baslangic + 2 * den[m.idx].sure) {
+      if (m.pratik && den[m.idx].tip === "H" && !m.pratikVurulan[m.idx]) gosterGeri("kacti");
+      m.idx++;
+    }
+    if (m.idx >= den.length) { seviyeBitti(); return; }
+    const d = den[m.idx];
+    const stim = now >= d.baslangic && now < d.baslangic + d.sure;
+    const anahtar = stim ? m.idx + ":" + (d.tip === "H" ? "hedef" : d.hayvan) : "bos";
+    if (anahtar !== m.sonAnahtar) {
+      m.sonAnahtar = anahtar;
+      setUyaran(stim ? { tur: d.tip === "H" ? "hedef" : d.hayvan, i: m.idx } : null);
+      if (!m.pratik) setIlerleme((m.seviye + Math.max(0, now) / prog.toplamSure) / 8);
+    }
+    if (prog.celdiriciler.length) {
+      const aktif = prog.celdiriciler.filter(c => now >= c.baslangic && now < c.bitis);
+      const kim = aktif.map(c => c.id).join(",");
+      if (kim !== m.aktif) {
+        m.aktif = kim;
+        if (prog.kosul === "isitsel" || prog.kosul === "kombine") {
+          aktif.forEach(c => { if (!m.sesler[c.id]) m.sesler[c.id] = cdtSesCal(m.ses, c.klip, c.bitis - now); });
+          Object.keys(m.sesler).forEach(id => { if (!aktif.find(c => c.id === id) && !m.sesler[id].bitti) { m.sesler[id].dur(); m.sesler[id] = { bitti: true, dur() {} }; } });
+        }
+        if (prog.kosul === "gorsel" || prog.kosul === "kombine") setGorselCeld(aktif);
+      }
+    }
+    m.raf = requestAnimationFrame(dongu);
+  }
+  function seviyeBitti() {
+    const m = M.current;
+    durdur();
+    setUyaran(null); setGorselCeld([]);
+    if (m.pratik) { setFaz("hazir"); return; }
+    m.veriler.push({ taps: m.taps.map(([t, b]) => [Math.round(t), b]), kesinti: m.seviyeKesinti || 0, tamamlandi: true });
+    m.seviyeKesinti = 0;
+    if (m.seviye < 7) {
+      m.seviye++;
+      seviyeBaslat(cdtSeviyeProgrami(m.seviye), false, 0);
+    } else {
+      setIlerleme(1);
+      setFaz("bitti");
+      const pt = Object.entries(m.pointerTipleri).sort((a, b) => b[1] - a[1])[0];
+      setTimeout(() => onBitti({
+        seviyeler: m.veriler, kesintiSayisi: m.kesinti,
+        cihaz: { giris: pt ? pt[0] : "", ekran: `${window.innerWidth}x${window.innerHeight}`, dokunmatik: ("ontouchstart" in window) || (navigator.maxTouchPoints > 0) },
+        sureMs: Math.round(performance.now() - m.baslangicZamani),
+      }), 1600);
+    }
+  }
+  function denemeBul(t) {
+    const den = M.current.prog ? M.current.prog.denemeler : [];
+    for (let j = 0; j < den.length; j++) if (t >= den[j].baslangic && t < den[j].baslangic + 2 * den[j].sure) return j;
+    return -1;
+  }
+  function dokun(e) {
+    const f = fazRef.current;
+    if (f !== "alistirma" && f !== "test") return;
+    if (e.target && e.target.closest && e.target.closest("[data-cdt-yok]")) return;
+    if (e.cancelable) e.preventDefault();
+    const m = M.current;
+    let ts = e.timeStamp;
+    const simdi = performance.now();
+    if (!(ts > 0) || Math.abs(simdi - ts) > 1000) ts = simdi;
+    const t = ts - m.bas0;
+    if (t < 0) return;
+    const b = e.target && e.target.closest && e.target.closest("[data-cdt-buton]") ? 1 : 0;
+    m.taps.push([t, b]);
+    if (e.pointerType) m.pointerTipleri[e.pointerType] = (m.pointerTipleri[e.pointerType] || 0) + 1;
+    if (b) { setBasili(true); setTimeout(() => setBasili(false), 110); }
+    if (m.pratik) {
+      const j = denemeBul(t);
+      if (!b) { gosterGeri("disari"); return; }
+      if (j < 0) return;
+      const d = m.prog.denemeler[j];
+      const uyaranda = t < d.baslangic + d.sure;
+      if (d.tip === "H") {
+        if (!m.pratikVurulan[j]) { m.pratikVurulan[j] = true; gosterGeri(uyaranda ? "iyi" : "gec"); }
+        else gosterGeri("bir");
+      } else gosterGeri(uyaranda ? "hayvan" : "bos");
+    }
+  }
+  async function hazirla() {
+    const m = M.current;
+    if (!m.ses) m.ses = cdtSesMotoruOlustur();
+    try { if (m.ses && m.ses.ctx.state === "suspended") await m.ses.ctx.resume(); } catch (e) {}
+    try { if (!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); } catch (e) {}
+    try { if (navigator.wakeLock && !m.kilit) m.kilit = await navigator.wakeLock.request("screen"); } catch (e) {}
+  }
+  async function alistirmaBasla() {
+    await hazirla();
+    setFaz("alistirma");
+    seviyeBaslat(cdtAlistirmaProgrami(), true, 1300);
+  }
+  async function testBasla() {
+    await hazirla();
+    const m = M.current;
+    m.seviye = 0; m.veriler = []; m.kesinti = 0; m.seviyeKesinti = 0; m.baslangicZamani = performance.now();
+    setIlerleme(0);
+    setFaz("test");
+    seviyeBaslat(cdtSeviyeProgrami(0), false, 1800);
+  }
+  async function devamEt() {
+    await hazirla();
+    const m = M.current;
+    if (m.kesilenFaz === "alistirma") { setFaz("alistirma"); seviyeBaslat(cdtAlistirmaProgrami(), true, 1300); }
+    else { setFaz("test"); seviyeBaslat(cdtSeviyeProgrami(m.seviye), false, 1800); }
+  }
+  function iptal() {
+    if (fazRef.current === "test" && !window.confirm("Testi yarıda bırakmak istiyor musunuz? Bu uygulamanın verileri KAYDEDİLMEYECEK.")) return;
+    durdur();
+    onIptal();
+  }
+  useEffect(() => {
+    const gorunurluk = () => {
+      const f = fazRef.current;
+      if (document.hidden && (f === "test" || f === "alistirma")) {
+        durdur();
+        const m = M.current;
+        m.kesilenFaz = f;
+        if (f === "test") { m.kesinti++; m.seviyeKesinti = (m.seviyeKesinti || 0) + 1; }
+        setUyaran(null); setGorselCeld([]);
+        setFaz("kesildi");
+      } else if (!document.hidden && M.current.kilit === null) {
+        // ekran kilidi bırakılmış olabilir — yeniden iste
+      }
+    };
+    document.addEventListener("visibilitychange", gorunurluk);
+    return () => {
+      document.removeEventListener("visibilitychange", gorunurluk);
+      const m = M.current;
+      cancelAnimationFrame(m.raf);
+      Object.values(m.sesler).forEach(x => { try { x.dur(); } catch (e) {} });
+      try { if (m.ses) m.ses.ctx.close(); } catch (e) {}
+      try { if (m.kilit) m.kilit.release(); } catch (e) {}
+      try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen(); } catch (e) {}
+      clearTimeout(m.geriZaman);
+    };
+  }, []);
+
+  const yuvarlakBtn = { border: "none", borderRadius: 16, padding: "16px 26px", fontSize: 19, fontWeight: 800, cursor: "pointer", boxShadow: "0 6px 16px rgba(60,40,140,0.25)" };
+  const slot = (konum, genis) => (
+    <div style={{ position: "relative", minWidth: 0, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", gridColumn: genis ? "1 / 4" : undefined }}>
+      {gorselCeld.filter(c => c.konum === konum).map(c => (
+        <div key={c.id} className="cdt-c" style={{ width: "100%", height: "100%", maxWidth: genis ? 440 : 360, maxHeight: 260 }}
+          dangerouslySetInnerHTML={{ __html: cdtCeldiriciSvg(c.klip, Math.round(CDT_KLIPLER[c.klip].sure * 1000)) }} />
+      ))}
+    </div>
+  );
+  const GERI = {
+    iyi: ["👍 Harika!", "#16A34A"], gec: ["👍 Doğru — ama biraz daha hızlı!", "#16A34A"], bir: ["☝️ Bir kez basman yeterli", "#D97706"],
+    hayvan: ["✋ Hayvanlara basma!", "#DC2626"], bos: ["✋ Sadece çocuğu görünce bas", "#DC2626"], kacti: ["👀 Çocuğu kaçırdın!", "#D97706"],
+    disari: ["👇 Mor butona bas", "#D97706"],
+  };
+  const ekranKart = { background: "#fff", borderRadius: 22, padding: "22px 20px", maxWidth: 560, width: "100%", boxShadow: "0 10px 30px rgba(30,20,80,0.15)", textAlign: "center", margin: "auto" };
+  const kucukUyaran = (tur, boyut) => <div style={{ width: boyut, height: boyut }}><CDTUyaran tur={tur} /></div>;
+  const arena = faz === "alistirma" || faz === "test";
+  const dar = typeof window !== "undefined" && window.innerWidth < 600;
+
+  return (
+    <div onPointerDown={dokun} onContextMenu={e => e.preventDefault()}
+      style={{ position: "fixed", inset: 0, zIndex: 100000, background: "linear-gradient(180deg,#F5F7FB 0%,#EEF1F8 100%)", touchAction: "none", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "Arial, Helvetica, sans-serif" }}>
+      <style>{CDT_STIL}</style>
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#E2E5EE" }}>
+        <div style={{ width: `${Math.round(ilerleme * 100)}%`, height: "100%", background: "#A79BE8", transition: "width .4s" }} />
+      </div>
+      <button data-cdt-yok="1" onClick={iptal} style={{ position: "absolute", top: 8, left: 8, zIndex: 3, width: 34, height: 34, borderRadius: "50%", border: "1px solid #D5D8E2", background: "#fff", color: "#888", fontSize: 15, cursor: "pointer", opacity: arena ? 0.45 : 1 }}>✕</button>
+
+      {arena && (
+        <>
+          <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: dar ? "minmax(0,0.7fr) minmax(0,1.6fr) minmax(0,0.7fr)" : "1fr minmax(0,1.25fr) 1fr", gridTemplateRows: "1fr minmax(0,1.25fr) 1fr", gap: 6, padding: "14px 8px 4px" }}>
+            {slot("ust", true)}
+            {slot("sol")}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minWidth: 0, minHeight: 0 }}>
+              <div style={{ width: "min(100%, 300px)", aspectRatio: "1 / 1", maxHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 24, background: "#FFFFFF", boxShadow: "inset 0 0 0 2px #E6E8F0" }}>
+                {uyaran && <div style={{ width: "86%", height: "86%" }}><CDTUyaran tur={uyaran.tur} /></div>}
+              </div>
+            </div>
+            {slot("sag")}
+            {slot("alt", true)}
+          </div>
+          <div style={{ height: 136, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+            {geri && faz === "alistirma" && (
+              <div style={{ position: "absolute", top: -6, left: "50%", transform: "translateX(-50%)", background: "#fff", color: GERI[geri.tur][1], border: `2px solid ${GERI[geri.tur][1]}`, borderRadius: 14, padding: "6px 14px", fontSize: 17, fontWeight: 800, whiteSpace: "nowrap", boxShadow: "0 4px 12px rgba(0,0,0,.12)" }}>{GERI[geri.tur][0]}</div>
+            )}
+            <div data-cdt-buton="1" style={{ width: "min(78vw, 380px)", height: 92, borderRadius: 46, background: basili ? "linear-gradient(180deg,#5B4BD6,#7464E6)" : "linear-gradient(180deg,#7B6CF0,#5B4BD6)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, fontSize: 30, fontWeight: 900, letterSpacing: 2, boxShadow: basili ? "0 2px 6px rgba(70,50,180,.35)" : "0 8px 18px rgba(70,50,180,.35)", transform: basili ? "scale(.95)" : "scale(1)", transition: "transform .06s, box-shadow .06s", marginTop: 18 }}>
+              <span style={{ fontSize: 30 }}>👆</span> BAS
+            </div>
+          </div>
+        </>
+      )}
+
+      {faz === "yonerge" && (
+        <div style={{ flex: 1, overflowY: "auto", display: "flex", padding: 16 }}>
+          <div style={ekranKart}>
+            <div style={{ fontSize: 24, fontWeight: 900, color: "#3B2E8F", marginBottom: 12 }}>Dikkat Oyunu 🎯</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, background: "#EEF9F1", border: "2px solid #7BD39A", borderRadius: 18, padding: 12, marginBottom: 12 }}>
+              {kucukUyaran("hedef", 96)}
+              <div style={{ textAlign: "left", fontSize: 18, fontWeight: 800, color: "#166534", lineHeight: 1.35 }}>Bu çocuğu görünce<br />mor butona <u>BİR KEZ</u> bas!</div>
+            </div>
+            <div style={{ background: "#FEF2F2", border: "2px solid #F5A3A3", borderRadius: 18, padding: 12, marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "center", gap: dar ? 4 : 8, marginBottom: 6, flexWrap: "wrap" }}>
+                {CDT_HAYVANLAR.map(h => <div key={h}>{kucukUyaran(h, dar ? 46 : 54)}</div>)}
+              </div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: "#991B1B" }}>Hayvanları görünce BASMA ✋</div>
+            </div>
+            <div style={{ fontSize: 15, color: "#444", lineHeight: 1.5, marginBottom: 16 }}>
+              Ekranın kenarlarında başka resimler görebilir, sesler duyabilirsin. Onlara aldırma, sadece ortaya bak. Olabildiğince <b>hızlı</b> ve <b>doğru</b> bas!
+            </div>
+            <button onClick={alistirmaBasla} style={{ ...yuvarlakBtn, background: "#5B4BD6", color: "#fff" }}>Önce Alıştırma Yapalım ▶</button>
+          </div>
+        </div>
+      )}
+
+      {faz === "hazir" && (
+        <div style={{ flex: 1, display: "flex", padding: 16 }}>
+          <div style={ekranKart}>
+            <div style={{ fontSize: 46 }}>⭐</div>
+            <div style={{ fontSize: 23, fontWeight: 900, color: "#3B2E8F", margin: "6px 0 10px" }}>Alıştırma bitti!</div>
+            <div style={{ fontSize: 16, color: "#444", lineHeight: 1.55, marginBottom: 18 }}>
+              Şimdi asıl oyun başlıyor. Biraz uzun sürecek (yaklaşık 15 dakika). Artık "harika" yazısı çıkmayacak.
+              Çocuğu görünce <b>bir kez</b> bas, hayvanlara basma. Kenarlardaki resimlere ve seslere aldırma!
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+              <button onClick={alistirmaBasla} style={{ ...yuvarlakBtn, background: "#EEF0FA", color: "#4338CA", fontSize: 15, boxShadow: "none" }}>↻ Alıştırmayı tekrarla</button>
+              <button onClick={testBasla} style={{ ...yuvarlakBtn, background: "#16A34A", color: "#fff" }}>Başla ▶</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {faz === "kesildi" && (
+        <div style={{ flex: 1, display: "flex", padding: 16 }}>
+          <div style={ekranKart}>
+            <div style={{ fontSize: 40 }}>⏸️</div>
+            <div style={{ fontSize: 20, fontWeight: 900, color: "#3B2E8F", margin: "6px 0 10px" }}>Test duraklatıldı</div>
+            <div style={{ fontSize: 14.5, color: "#555", lineHeight: 1.55, marginBottom: 16 }}>
+              Uygulama arka plana geçti ya da ekran kapandı. {M.current.kesilenFaz === "test" ? `Bulunduğunuz aşama (${M.current.seviye + 1}/8 — ${CDT_SEVIYE_ADLARI[M.current.seviye]}) baştan başlayacak; önceki aşamalar korunuyor. Kesinti raporda belirtilir.` : "Alıştırma baştan başlayacak."}
+            </div>
+            <button onClick={devamEt} style={{ ...yuvarlakBtn, background: "#5B4BD6", color: "#fff" }}>Devam Et ▶</button>
+          </div>
+        </div>
+      )}
+
+      {faz === "bitti" && (
+        <div style={{ flex: 1, display: "flex", padding: 16 }}>
+          <div style={ekranKart}>
+            <div style={{ fontSize: 54 }}>🎉</div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: "#3B2E8F", margin: "6px 0" }}>Bitti! Teşekkürler</div>
+            <div style={{ fontSize: 15, color: "#555" }}>Sonuçlar hesaplanıyor…</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function cdtYasTahmin(sinif) {
+  const n = parseInt(String(sinif || "").match(/\d+/)?.[0] || "", 10);
+  if (!n || n < 1 || n > 12) return "";
+  return String(n + 5);
+}
+function cdtPdfIndir(kayit, ogrenci, sinif) {
+  const tmpId = "cdt-rapor-tmp-" + kayit.id;
+  let tmp = document.getElementById(tmpId);
+  if (!tmp) {
+    tmp = document.createElement("div");
+    tmp.id = tmpId;
+    Object.assign(tmp.style, { position: "absolute", left: "-9999px", top: "0", width: "800px", fontFamily: "Arial, sans-serif", fontSize: "13px", color: "#1a1a1a", padding: "20px" });
+    tmp.innerHTML = cdtRaporHtmlOlustur(cdtPuanla(kayit.veri), { ogrenci, sinif, tarih: kayit.tarih, ilac: kayit.veri && kayit.veri.ilac });
+    document.body.appendChild(tmp);
+  }
+  raporIndir(tmpId, "Dikkat_Testi_CDT_" + String(ogrenci || "").replace(/\s+/g, "_") + "_" + String(kayit.tarih || "").replace(/\./g, "-"));
+  setTimeout(() => { const el = document.getElementById(tmpId); if (el) el.remove(); }, 8000);
+}
+
+// ── ÇDT danışman paneli (Testler sekmesi) ──
+function CDTPaneli({ seciliAd, seciliSinif, seciliNumara, testKayitlari, setTestKayitlari }) {
+  const [yas, setYas] = useState(() => cdtYasTahmin(seciliSinif));
+  const [ilac, setIlac] = useState("Yok");
+  const [calisiyor, setCalisiyor] = useState(false);
+  const [acikId, setAcikId] = useState(null);
+  const [durum, setDurum] = useState("");
+  useEffect(() => { setYas(cdtYasTahmin(seciliSinif)); setAcikId(null); setDurum(""); }, [seciliAd, seciliSinif]);
+
+  const tumKayitlar = (pdrSozlukOku(testKayitlari, seciliAd, seciliSinif, seciliNumara) || []);
+  const cdtKayitlar = tumKayitlar.filter(k => k.tip === "dikkat_cdt").sort((a, b) => pdrTarihMs(b.tarih) - pdrTarihMs(a.tarih) || String(b.id).localeCompare(String(a.id)));
+
+  async function bitti(sonuc) {
+    setCalisiyor(false);
+    const veri = { surum: CDT_SURUM, yas: String(yas || "").trim(), ilac, ...sonuc };
+    const yeni = { id: uid(), kategori: "objektif", testAdi: "Çeldiricili Dikkat Testi (ÇDT)", tip: "dikkat_cdt", tarih: today(), not: "", veri };
+    const guncel = pdrSozlukYaz(testKayitlari, seciliAd, seciliSinif, [yeni, ...tumKayitlar], seciliNumara);
+    setTestKayitlari(guncel);
+    setAcikId(yeni.id);
+    try { await saveTestKayitlari(guncel); setDurum("✓ Sonuç kaydedildi"); }
+    catch (e) { setDurum("⚠ Kaydedilirken sorun oluştu — internet bağlantısını kontrol edin."); }
+  }
+  function sesDene() {
+    const m = cdtSesMotoruOlustur();
+    if (!m) { alert("Bu tarayıcı ses üretmeyi desteklemiyor."); return; }
+    const s = cdtSesCal(m, "gong", 2600);
+    setTimeout(() => { s.dur(); setTimeout(() => { try { m.ctx.close(); } catch (e) {} }, 500); }, 2600);
+  }
+
+  if (!seciliAd) return <div style={{ fontSize: 12.5, color: MUTED, padding: 10 }}>Önce yukarıdan bir öğrenci seçin.</div>;
+  const kart = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 14, marginBottom: 12, boxShadow: "0 4px 12px rgba(20,40,32,0.10)" };
+  const yasSayi = parseFloat(String(yas).replace(",", "."));
+  return (
+    <div>
+      {calisiyor && ReactDOM.createPortal(<CDTGorev onBitti={bitti} onIptal={() => setCalisiyor(false)} />, document.body)}
+      <div style={{ ...kart, background: "linear-gradient(135deg,#F4F1FF 0%,#FFFFFF 70%)", borderColor: "#D9D2FB" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8 }}>
+          <div style={{ width: 54, height: 54, flexShrink: 0, background: "#fff", borderRadius: 14, boxShadow: "inset 0 0 0 2px #E6E8F0", padding: 4 }}><CDTUyaran tur="hedef" /></div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 900, color: "#3B2E8F" }}>Çeldiricili Dikkat Testi (ÇDT)</div>
+            <div style={{ fontSize: 11.5, color: MUTED, marginTop: 2 }}>Dokunmatik sürekli performans testi · 8 aşama · ~15 dk (+1 dk alıştırma)</div>
+          </div>
+        </div>
+        <div style={{ fontSize: 12, color: TEXT, lineHeight: 1.55 }}>
+          Öğrenci ekranın ortasında çocuk yüzünü görünce butona basar, hayvanlara basmaz. Bazı aşamalarda kenarlarda <b>görsel</b>, <b>işitsel</b> ya da <b>ikisi birden</b> çeldiriciler çıkar.
+          Dört temel beceri ölçülür: <b>Dikkat</b>, <b>Zamanlama</b>, <b>Dürtüsellik</b>, <b>Hiper-reaktivite</b>. Sonuç, yaşıtlarına göre norm karşılaştırması, profil özeti, çeldirici etkileri ve aşama aşama grafiklerle otomatik raporlanır.
+        </div>
+      </div>
+
+      <div style={kart}>
+        <div style={{ fontSize: 12.5, fontWeight: 800, color: TEXT, marginBottom: 8 }}>Uygulama öncesi</div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+          <div style={{ flex: "1 1 120px" }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: MUTED, marginBottom: 3 }}>YAŞ (yıl)</div>
+            <input type="number" inputMode="decimal" min="5" max="18" value={yas} onChange={e => setYas(e.target.value)} style={{ width: "100%", padding: "9px 10px", borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 14, boxSizing: "border-box" }} />
+            <div style={{ fontSize: 10, color: MUTED, marginTop: 3 }}>Sınıftan tahmin edildi, gerekirse düzeltin.</div>
+          </div>
+          <div style={{ flex: "1 1 120px" }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: MUTED, marginBottom: 3 }}>İLAÇ TEDAVİSİ</div>
+            <select value={ilac} onChange={e => setIlac(e.target.value)} style={{ width: "100%", padding: "9px 10px", borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 14, background: "#fff", boxSizing: "border-box" }}>
+              <option>Yok</option><option>Var</option><option>Bilinmiyor</option>
+            </select>
+          </div>
+        </div>
+        {!isNaN(yasSayi) && yasSayi >= 12 && (
+          <div style={{ fontSize: 11, color: "#7A5200", background: "#FFF7E6", border: "1px solid #F5D08A", borderRadius: 8, padding: "6px 9px", marginBottom: 10, lineHeight: 1.5 }}>
+            Yayımlanmış çocuk normları 6-11 yaşı kapsıyor; bu öğrenci için 11 yaş normu kullanılacak (raporda belirtilir).
+          </div>
+        )}
+        <div style={{ fontSize: 11.5, color: TEXT, lineHeight: 1.6, background: BG, borderRadius: 8, padding: "8px 10px", marginBottom: 10 }}>
+          ✔ Mümkünse <b>tablet</b> kullanın, cihazı masaya koyun; öğrenci tek parmakla bassın.<br />
+          ✔ Sessiz bir oda; cihaz sesini <b>%70 civarına</b> açın. iPhone/iPad'de <b>sessiz mod kapalı</b> olmalı.<br />
+          ✔ Test sırasında başka uygulamaya geçmeyin — geçilirse o aşama baştan alınır.<br />
+          ✔ Siz yönergeyi okuyup alıştırmaya birlikte başlayın; asıl testte yardım etmeyin, yorum yapmayın.
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={sesDene} style={{ flex: "1 1 130px", padding: "11px 10px", borderRadius: 10, border: `1px solid ${BORDER}`, background: "#fff", color: TEXT, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>🔊 Ses denemesi</button>
+          <button onClick={() => { setDurum(""); setCalisiyor(true); }} disabled={!yas} style={{ flex: "2 1 200px", padding: "11px 10px", borderRadius: 10, border: "none", background: yas ? "#5B4BD6" : "#C7C2EE", color: "#fff", fontSize: 14, fontWeight: 800, cursor: yas ? "pointer" : "default" }}>▶ Testi Başlat (tam ekran)</button>
+        </div>
+        {durum && <div style={{ fontSize: 12, fontWeight: 700, color: durum.startsWith("✓") ? "#15803D" : "#B45309", marginTop: 8 }}>{durum}</div>}
+      </div>
+
+      <div style={kart}>
+        <div style={{ fontSize: 12.5, fontWeight: 800, color: TEXT, marginBottom: 8 }}>Sonuçlar ({cdtKayitlar.length})</div>
+        {cdtKayitlar.length === 0 && <div style={{ fontSize: 12, color: MUTED }}>Bu öğrenci için henüz ÇDT uygulanmadı.</div>}
+        {cdtKayitlar.map(k => {
+          const acik = acikId === k.id;
+          return (
+            <div key={k.id} style={{ border: `1px solid ${BORDER}`, borderRadius: 10, padding: "9px 10px", marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 800, color: TEXT }}>{k.tarih}</div>
+                  <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>{cdtKisaOzet(k.veri)}</div>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => setAcikId(acik ? null : k.id)} style={{ padding: "6px 11px", borderRadius: 8, border: `1px solid #D9D2FB`, background: acik ? "#5B4BD6" : "#F4F1FF", color: acik ? "#fff" : "#4338CA", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{acik ? "Kapat" : "Raporu Gör"}</button>
+                  <button onClick={() => cdtPdfIndir(k, seciliAd, seciliSinif)} style={{ padding: "6px 11px", borderRadius: 8, border: "none", background: "#1a1a2e", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>🖨 PDF</button>
+                </div>
+              </div>
+              {acik && (
+                <div style={{ marginTop: 10, borderTop: `1px solid ${BORDER}`, paddingTop: 10, overflowX: "auto" }}
+                  dangerouslySetInnerHTML={{ __html: cdtRaporHtmlOlustur(cdtPuanla(k.veri), { ogrenci: seciliAd, sinif: seciliSinif, tarih: k.tarih, ilac: k.veri && k.veri.ilac }) }} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+// ===== ÇDT BİTİŞ =====
+
+
 // Bir test kaydının kısa özet metnini üretir — liste ve rapor görünümünde
 // kullanılır, testin tipine göre farklı alanlardan oluşturulur.
 function testSonucOzeti(k) {
@@ -9145,6 +10378,7 @@ function testSonucOzeti(k) {
       const enOlumsuz = [...kategoriler].sort((a,b) => b["-"] - a["-"])[0];
       return `${cevaplanan}/56 madde · en olumsuz alan: ${enOlumsuz?.ad || "—"} (${enOlumsuz?.["-"] || 0} adet -)`;
     }
+    case "dikkat_cdt": return cdtKisaOzet(v);
     case "scas_cocuk": {
       const cevaplar = v.cevaplar || [];
       const cevaplanan = cevaplar.filter(c => c.puan !== undefined && c.puan !== null).length;
@@ -9745,6 +10979,9 @@ KURALLAR:
                     <button onClick={()=>setKategori("d2panel")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid ${PURPLE}`, background:"#F3F0FF", color:PURPLE, fontSize:13, fontWeight:800, cursor:"pointer" }}>🎯 D2 Dikkat Testi</button>
                     <button onClick={()=>setKategori("oog")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #8B5A00`, background:"#FFF4E5", color:"#8B5A00", fontSize:13, fontWeight:800, cursor:"pointer" }}>🧩 ÖÖG Ön-Tarama</button>
                   </div>
+                  <div style={{ display:"flex", gap:8, marginTop:8 }}>
+                    <button onClick={()=>setKategori("cdt")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #5B4BD6`, background:"linear-gradient(135deg,#F4F1FF,#FFFFFF)", color:"#3B2E8F", fontSize:13, fontWeight:800, cursor:"pointer" }}>🎯 Çeldiricili Dikkat Testi (ÇDT) — dokunmatik</button>
+                  </div>
                   {(kademe === "ortaokul" || kademe === "lise") && (
                     <div style={{ display:"flex", flexDirection:"column", gap:8, marginTop:8 }}>
                       <button onClick={()=>setKategori("butunlesik")} style={{ width:"100%", padding:"14px 8px", borderRadius:12, border:`2px solid ${BLUE}`, background:"#EEF2FF", color:"#3730A3", fontSize:13, fontWeight:800, cursor:"pointer" }}>🧩 Bütünleşik Değerlendirme</button>
@@ -9769,6 +11006,11 @@ KURALLAR:
                   <div style={{ display:"flex", gap:8, marginTop:8 }}>
                     <button onClick={()=>setKategori("cast")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #2A6F77`, background:"#E7F5F6", color:"#2A6F77", fontSize:13, fontWeight:800, cursor:"pointer" }}>🔬 Otizm Spektrumu Kapsamlı Taraması</button>
                   </div>
+                </div>
+              ) : kategori === "cdt" ? (
+                <div>
+                  <button onClick={()=>setKategori(null)} style={{ background:"none", border:"none", color:MUTED, fontSize:12, cursor:"pointer", marginBottom:8, padding:0 }}>← Kategoriyi değiştir</button>
+                  <CDTPaneli seciliAd={seciliAd} seciliSinif={seciliSinif} seciliNumara={seciliNumara} testKayitlari={testKayitlari} setTestKayitlari={setTestKayitlari} />
                 </div>
               ) : kategori === "d2panel" ? (
                 <div>
@@ -10136,7 +11378,8 @@ KURALLAR:
                   const beierMi = k.tip === "beier_form_a";
                   const mesEgilimMi = k.tip === "mesleki_egilim_160";
                   const scasMi = k.tip === "scas_cocuk";
-                  const genisletilebilir = beierMi || mesEgilimMi || scasMi;
+                  const cdtMi = k.tip === "dikkat_cdt";
+                  const genisletilebilir = beierMi || mesEgilimMi || scasMi || cdtMi;
                   const detayAcik = acikTestId === k.id;
                   return (
                   <div key={k.id} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:10, padding:"10px 12px" }}>
@@ -10208,6 +11451,12 @@ KURALLAR:
                         </div>
                       );
                     })()}
+                    {cdtMi && detayAcik && (
+                      <div style={{ marginTop:10, borderTop:`1px solid ${BORDER}`, paddingTop:10 }}>
+                        <div style={{ overflowX:"auto" }} dangerouslySetInnerHTML={{ __html: cdtRaporHtmlOlustur(cdtPuanla(k.veri), { ogrenci: seciliAd, sinif: seciliSinif, tarih: k.tarih, ilac: k.veri?.ilac }) }} />
+                        <button onClick={()=>cdtPdfIndir(k, seciliAd, seciliSinif)} style={{ marginTop:8, padding:"7px 16px", background:"#1a1a2e", color:"#fff", border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>🖨 Sonuç Raporu (PDF)</button>
+                      </div>
+                    )}
                     {scasMi && detayAcik && (() => {
                       const sonuc = scasPuanla(k.veri?.cevaplar||[], k.veri?.cinsiyetKullanilan, k.veri?.yasGrubuKullanilan);
                       const LIKERT_KISA = {0:"Hiç",1:"Bazen",2:"Sık Sık",3:"Her Zaman"};
