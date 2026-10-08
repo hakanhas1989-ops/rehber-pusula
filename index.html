@@ -9603,7 +9603,7 @@ function cdtCeldiriciSvg(klip, sureMs) {
       <g style="animation:cdtTokmak 1.7s ease-in-out infinite;${o(150, 92)}"><rect x="146" y="52" width="5" height="42" rx="2" fill="#6B4423"/><circle cx="148.5" cy="50" r="9" fill="#C0392B"/></g>
     </svg>`;
     case "bowling": return `<svg viewBox="0 0 160 100" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
-      <rect x="0" y="72" width="160" height="20" fill="#E8C68E"/><line x1="0" y1="72" x2="160" y2="72" stroke="#B88A4A" stroke-width="2"/>
+      
       <g style="animation:cdtLobut ${s} linear forwards;${o(132, 72)}"><path d="M128 72 C124 60 126 52 129 46 C127 40 128 33 132 33 C136 33 137 40 135 46 C138 52 140 60 136 72 Z" fill="#fff" stroke="#999"/><rect x="127" y="42" width="10" height="3" fill="#D33"/></g>
       <g style="animation:cdtLobut2 ${s} linear forwards;${o(146, 72)}"><path d="M142 72 C138 60 140 52 143 46 C141 40 142 33 146 33 C150 33 151 40 149 46 C152 52 154 60 150 72 Z" fill="#fff" stroke="#999"/><rect x="141" y="42" width="10" height="3" fill="#D33"/></g>
       <g style="animation:cdtYuvarla ${(sureMs * 0.76 / 1000).toFixed(2)}s linear forwards">
@@ -9626,7 +9626,7 @@ function cdtCeldiriciSvg(klip, sureMs) {
       <text x="128" y="66" font-size="20" fill="#0EA5E9" style="animation:cdtNota 1.4s ease-out .7s infinite">♫</text>
     </svg>`;
     case "araba": return `<svg viewBox="0 0 160 100" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
-      <rect x="0" y="84" width="160" height="10" fill="#8C8C8C"/><path d="M0 89 H160" stroke="#fff" stroke-width="1.5" stroke-dasharray="8 8"/>
+      
       <g style="animation:cdtAraba ${s} linear forwards">
         <path d="M2 74 L8 60 L22 52 L46 52 L58 62 L70 64 L72 76 Z" fill="#E63946"/>
         <path d="M24 55 L44 55 L52 62 L20 62 Z" fill="#BDE0FE"/>
@@ -9668,63 +9668,73 @@ function CDTUyaran({ tur }) {
   );
   if (tur === "kedi") return (
     <svg {...ortak}>
-      <path d="M20 46 L24 12 L46 30 Z" fill="#F29E38" /><path d="M80 46 L76 12 L54 30 Z" fill="#F29E38" />
-      <path d="M25 38 L27 20 L40 31 Z" fill="#F7C6A3" /><path d="M75 38 L73 20 L60 31 Z" fill="#F7C6A3" />
-      <ellipse cx="50" cy="58" rx="34" ry="30" fill="#F4A340" />
-      <path d="M50 30 L46 40 M40 32 L40 42 M60 32 L60 42" stroke="#D9782A" strokeWidth="3" strokeLinecap="round" />
-      <ellipse cx="37" cy="56" rx="5.5" ry="7" fill="#7CC36A" /><ellipse cx="63" cy="56" rx="5.5" ry="7" fill="#7CC36A" />
-      <ellipse cx="37" cy="56" rx="1.8" ry="5.5" fill="#1E1E1E" /><ellipse cx="63" cy="56" rx="1.8" ry="5.5" fill="#1E1E1E" />
-      <path d="M46 66 L54 66 L50 71 Z" fill="#F07C9A" />
-      <path d="M50 71 Q45 77 41 73 M50 71 Q55 77 59 73" stroke="#8A4B1F" strokeWidth="2" fill="none" strokeLinecap="round" />
-      <path d="M30 68 L12 64 M30 72 L12 74 M70 68 L88 64 M70 72 L88 74" stroke="#7A4A20" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M66 80 C86 80 92 62 84 50 C80 44 74 46 76 52 C80 60 78 70 66 72 Z" fill="#E08A2C" />
+      <ellipse cx="50" cy="68" rx="20" ry="21" fill="#F4A340" />
+      <ellipse cx="50" cy="72" rx="11" ry="14" fill="#F9D2A8" />
+      <ellipse cx="41" cy="88" rx="7" ry="4.5" fill="#F4A340" /><ellipse cx="59" cy="88" rx="7" ry="4.5" fill="#F4A340" />
+      <path d="M33 30 L35 10 L47 22 Z" fill="#F29E38" /><path d="M67 30 L65 10 L53 22 Z" fill="#F29E38" />
+      <path d="M36 26 L37 15 L44 22 Z" fill="#F7C6A3" /><path d="M64 26 L63 15 L56 22 Z" fill="#F7C6A3" />
+      <ellipse cx="50" cy="36" rx="19" ry="16" fill="#F4A340" />
+      <ellipse cx="43" cy="35" rx="3.2" ry="4.2" fill="#7CC36A" /><ellipse cx="57" cy="35" rx="3.2" ry="4.2" fill="#7CC36A" />
+      <ellipse cx="43" cy="35" rx="1.1" ry="3.4" fill="#1E1E1E" /><ellipse cx="57" cy="35" rx="1.1" ry="3.4" fill="#1E1E1E" />
+      <path d="M47.5 41 L52.5 41 L50 44 Z" fill="#F07C9A" />
+      <path d="M50 44 Q47 47 44.5 45 M50 44 Q53 47 55.5 45" stroke="#8A4B1F" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+      <path d="M38 42 L27 40 M38 45 L27 46 M62 42 L73 40 M62 45 L73 46" stroke="#7A4A20" strokeWidth="1.1" strokeLinecap="round" />
     </svg>
   );
   if (tur === "kopek") return (
     <svg {...ortak}>
-      <ellipse cx="50" cy="54" rx="31" ry="32" fill="#D9A066" />
-      <ellipse cx="19" cy="52" rx="10" ry="24" fill="#8B5A2B" transform="rotate(14 19 52)" />
-      <ellipse cx="81" cy="52" rx="10" ry="24" fill="#8B5A2B" transform="rotate(-14 81 52)" />
-      <ellipse cx="62" cy="42" rx="10" ry="9" fill="#B97D45" />
-      <circle cx="38" cy="47" r="4.5" fill="#2A1A0F" /><circle cx="62" cy="47" r="4.5" fill="#2A1A0F" />
-      <circle cx="39.4" cy="45.6" r="1.3" fill="#fff" /><circle cx="63.4" cy="45.6" r="1.3" fill="#fff" />
-      <ellipse cx="50" cy="68" rx="17" ry="13" fill="#F3DEC2" />
-      <ellipse cx="50" cy="61" rx="6.5" ry="4.8" fill="#2A1A0F" />
-      <path d="M50 66 L50 71 M50 71 Q44 76 40 72 M50 71 Q56 76 60 72" stroke="#2A1A0F" strokeWidth="2" fill="none" strokeLinecap="round" />
-      <path d="M46 75 Q50 85 54 75 Z" fill="#F06B7A" />
+      <path d="M78 52 C86 44 90 36 86 30" stroke="#B97D45" strokeWidth="5" fill="none" strokeLinecap="round" />
+      <rect x="34" y="62" width="7" height="22" rx="3" fill="#C98E55" /><rect x="44" y="62" width="7" height="22" rx="3" fill="#D9A066" />
+      <rect x="64" y="62" width="7" height="22" rx="3" fill="#C98E55" /><rect x="73" y="62" width="7" height="22" rx="3" fill="#D9A066" />
+      <ellipse cx="57" cy="58" rx="26" ry="14" fill="#D9A066" />
+      <ellipse cx="62" cy="55" rx="9" ry="6" fill="#B97D45" />
+      <circle cx="30" cy="40" r="15" fill="#D9A066" />
+      <ellipse cx="17" cy="45" rx="9" ry="6" fill="#F3DEC2" />
+      <ellipse cx="11" cy="42" rx="3.6" ry="3" fill="#2A1A0F" />
+      <ellipse cx="37" cy="40" rx="6" ry="12" fill="#8B5A2B" transform="rotate(18 37 40)" />
+      <circle cx="26" cy="35" r="2.6" fill="#2A1A0F" /><circle cx="26.8" cy="34.2" r=".8" fill="#fff" />
+      <path d="M14 49 Q19 52 23 48" stroke="#2A1A0F" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+      <path d="M17 50 Q18 56 21 50 Z" fill="#F06B7A" />
     </svg>
   );
   if (tur === "tavsan") return (
     <svg {...ortak}>
-      <ellipse cx="36" cy="22" rx="8" ry="21" fill="#D9DCE3" /><ellipse cx="64" cy="22" rx="8" ry="21" fill="#D9DCE3" />
-      <ellipse cx="36" cy="24" rx="3.6" ry="15" fill="#F5B7C5" /><ellipse cx="64" cy="24" rx="3.6" ry="15" fill="#F5B7C5" />
-      <circle cx="50" cy="62" r="29" fill="#E6E8EE" />
-      <circle cx="39" cy="57" r="4.2" fill="#3A3A50" /><circle cx="61" cy="57" r="4.2" fill="#3A3A50" />
-      <circle cx="40.3" cy="55.6" r="1.2" fill="#fff" /><circle cx="62.3" cy="55.6" r="1.2" fill="#fff" />
-      <ellipse cx="50" cy="66" rx="3.6" ry="2.6" fill="#F07C9A" />
-      <path d="M50 68.5 Q46 73 42.5 70.5 M50 68.5 Q54 73 57.5 70.5" stroke="#6B6B80" strokeWidth="1.8" fill="none" strokeLinecap="round" />
-      <rect x="46" y="72" width="3.8" height="6" rx="1" fill="#fff" stroke="#BBB" /><rect x="50.2" y="72" width="3.8" height="6" rx="1" fill="#fff" stroke="#BBB" />
+      <ellipse cx="44" cy="20" rx="5.5" ry="17" fill="#D9DCE3" transform="rotate(-28 44 20)" /><ellipse cx="53" cy="18" rx="5.5" ry="17" fill="#CDD1DA" transform="rotate(-8 53 18)" />
+      <ellipse cx="44" cy="21" rx="2.4" ry="12" fill="#F5B7C5" transform="rotate(-28 44 21)" />
+      <ellipse cx="70" cy="74" rx="15" ry="9" fill="#C8CCD6" transform="rotate(-25 70 74)" />
+      <path d="M78 80 L92 86 L90 90 L76 86 Z" fill="#B8BCC8" />
+      <ellipse cx="58" cy="60" rx="22" ry="16" fill="#E2E5EC" />
+      <circle cx="80" cy="56" r="6" fill="#fff" />
+      <path d="M40 66 L28 84 L33 86 L46 70 Z" fill="#D2D6DF" />
+      <circle cx="40" cy="42" r="14" fill="#E6E8EE" />
+      <circle cx="35" cy="40" r="3.2" fill="#3A3A50" /><circle cx="35.9" cy="39" r="1" fill="#fff" />
+      <ellipse cx="27.5" cy="45" rx="2.4" ry="1.8" fill="#F07C9A" />
+      <path d="M28 47 Q31 50 34 48" stroke="#6B6B80" strokeWidth="1.3" fill="none" strokeLinecap="round" />
     </svg>
   );
   if (tur === "kurbaga") return (
     <svg {...ortak}>
-      <circle cx="31" cy="34" r="13" fill="#5DB043" /><circle cx="69" cy="34" r="13" fill="#5DB043" />
-      <ellipse cx="50" cy="62" rx="38" ry="26" fill="#6CC04A" />
-      <circle cx="31" cy="34" r="8.5" fill="#fff" /><circle cx="69" cy="34" r="8.5" fill="#fff" />
-      <circle cx="32" cy="35" r="4.6" fill="#1F2A14" /><circle cx="68" cy="35" r="4.6" fill="#1F2A14" />
-      <path d="M24 64 Q50 84 76 64" stroke="#2F6B1F" strokeWidth="3.2" fill="none" strokeLinecap="round" />
-      <circle cx="44" cy="54" r="1.6" fill="#2F6B1F" /><circle cx="56" cy="54" r="1.6" fill="#2F6B1F" />
-      <circle cx="22" cy="68" r="5" fill="#F48B94" opacity=".45" /><circle cx="78" cy="68" r="5" fill="#F48B94" opacity=".45" />
+      <ellipse cx="24" cy="78" rx="14" ry="7" fill="#4E9A35" /><ellipse cx="76" cy="78" rx="14" ry="7" fill="#4E9A35" />
+      <ellipse cx="50" cy="62" rx="27" ry="22" fill="#6CC04A" />
+      <ellipse cx="50" cy="68" rx="16" ry="13" fill="#B9E59C" />
+      <path d="M36 80 L32 90 M38 80 L38 91 M40 80 L44 90" stroke="#4E9A35" strokeWidth="3" strokeLinecap="round" />
+      <path d="M64 80 L60 90 M62 80 L62 91 M60 80 L56 90" stroke="#4E9A35" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="37" cy="40" r="10" fill="#5DB043" /><circle cx="63" cy="40" r="10" fill="#5DB043" />
+      <circle cx="37" cy="40" r="6.5" fill="#fff" /><circle cx="63" cy="40" r="6.5" fill="#fff" />
+      <circle cx="38" cy="41" r="3.6" fill="#1F2A14" /><circle cx="62" cy="41" r="3.6" fill="#1F2A14" />
+      <path d="M38 55 Q50 63 62 55" stroke="#2F6B1F" strokeWidth="2.4" fill="none" strokeLinecap="round" />
     </svg>
   );
   if (tur === "penguen") return (
     <svg {...ortak}>
-      <ellipse cx="50" cy="56" rx="33" ry="36" fill="#26303B" />
-      <path d="M50 30 C34 30 26 44 28 60 C30 78 42 88 50 88 C58 88 70 78 72 60 C74 44 66 30 50 30 Z" fill="#F4F6F8" />
-      <path d="M50 30 C46 38 40 40 34 38 C38 32 44 29 50 30 Z M50 30 C54 38 60 40 66 38 C62 32 56 29 50 30 Z" fill="#26303B" />
-      <circle cx="40" cy="50" r="4.2" fill="#1A1A1A" /><circle cx="60" cy="50" r="4.2" fill="#1A1A1A" />
-      <circle cx="41.3" cy="48.6" r="1.3" fill="#fff" /><circle cx="61.3" cy="48.6" r="1.3" fill="#fff" />
-      <path d="M42 58 L58 58 L50 67 Z" fill="#F59E0B" stroke="#D97706" strokeWidth="1.2" strokeLinejoin="round" />
-      <circle cx="32" cy="62" r="4.5" fill="#F48B94" opacity=".5" /><circle cx="68" cy="62" r="4.5" fill="#F48B94" opacity=".5" />
+      <ellipse cx="40" cy="91" rx="8" ry="3.5" fill="#F59E0B" /><ellipse cx="60" cy="91" rx="8" ry="3.5" fill="#F59E0B" />
+      <ellipse cx="50" cy="56" rx="24" ry="34" fill="#26303B" />
+      <path d="M26 50 Q14 66 22 76 Q28 66 30 56 Z" fill="#1C242D" /><path d="M74 50 Q86 66 78 76 Q72 66 70 56 Z" fill="#1C242D" />
+      <ellipse cx="50" cy="64" rx="16" ry="25" fill="#F4F6F8" />
+      <path d="M50 28 C40 28 35 36 37 44 C42 40 46 42 50 46 C54 42 58 40 63 44 C65 36 60 28 50 28 Z" fill="#F4F6F8" />
+      <circle cx="44" cy="38" r="2.8" fill="#1A1A1A" /><circle cx="56" cy="38" r="2.8" fill="#1A1A1A" />
+      <path d="M45 44 L55 44 L50 50 Z" fill="#F59E0B" stroke="#D97706" strokeWidth="1" strokeLinejoin="round" />
     </svg>
   );
   return null;
@@ -10020,20 +10030,16 @@ function CDTGorev({ onBitti, onIptal }) {
     for (let j = 0; j < den.length; j++) if (t >= den[j].baslangic && t < den[j].baslangic + 2 * den[j].sure) return j;
     return -1;
   }
-  function dokun(e) {
-    const f = fazRef.current;
-    if (f !== "alistirma" && f !== "test") return;
-    if (e.target && e.target.closest && e.target.closest("[data-cdt-yok]")) return;
-    if (e.cancelable) e.preventDefault();
+  // Yanıt kaydı: dokunma (buton = 1, buton dışı = 0) ya da klavye (boşluk = 1, diğer tuşlar = 0)
+  function kaydet(zamanDamgasi, b, giris) {
     const m = M.current;
-    let ts = e.timeStamp;
+    let ts = zamanDamgasi;
     const simdi = performance.now();
     if (!(ts > 0) || Math.abs(simdi - ts) > 1000) ts = simdi;
     const t = ts - m.bas0;
     if (t < 0) return;
-    const b = e.target && e.target.closest && e.target.closest("[data-cdt-buton]") ? 1 : 0;
     m.taps.push([t, b]);
-    if (e.pointerType) m.pointerTipleri[e.pointerType] = (m.pointerTipleri[e.pointerType] || 0) + 1;
+    if (giris) m.pointerTipleri[giris] = (m.pointerTipleri[giris] || 0) + 1;
     if (b) { setBasili(true); setTimeout(() => setBasili(false), 110); }
     if (m.pratik) {
       const j = denemeBul(t);
@@ -10047,6 +10053,31 @@ function CDTGorev({ onBitti, onIptal }) {
       } else gosterGeri(uyaranda ? "hayvan" : "bos");
     }
   }
+  function dokun(e) {
+    const f = fazRef.current;
+    if (f !== "alistirma" && f !== "test") return;
+    if (e.target && e.target.closest && e.target.closest("[data-cdt-yok]")) return;
+    if (e.cancelable) e.preventDefault();
+    const b = e.target && e.target.closest && e.target.closest("[data-cdt-buton]") ? 1 : 0;
+    kaydet(e.timeStamp, b, e.pointerType || "dokunma");
+  }
+  const kaydetRef = useRef(kaydet);
+  kaydetRef.current = kaydet;
+  const [ekran, setEkran] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
+  useEffect(() => {
+    const boyut = () => setEkran({ w: window.innerWidth, h: window.innerHeight });
+    const tus = (e) => {
+      const f = fazRef.current;
+      if (f !== "alistirma" && f !== "test") return;
+      if (e.repeat) { e.preventDefault(); return; }
+      const bosluk = e.code === "Space" || e.key === " " || e.key === "Spacebar";
+      e.preventDefault();
+      kaydetRef.current(e.timeStamp, bosluk ? 1 : 0, "klavye");
+    };
+    window.addEventListener("resize", boyut);
+    window.addEventListener("keydown", tus);
+    return () => { window.removeEventListener("resize", boyut); window.removeEventListener("keydown", tus); };
+  }, []);
   async function hazirla() {
     const m = M.current;
     if (!m.ses) m.ses = cdtSesMotoruOlustur();
@@ -10106,10 +10137,22 @@ function CDTGorev({ onBitti, onIptal }) {
   }, []);
 
   const yuvarlakBtn = { border: "none", borderRadius: 16, padding: "16px 26px", fontSize: 19, fontWeight: 800, cursor: "pointer", boxShadow: "0 6px 16px rgba(60,40,140,0.25)" };
-  const slot = (konum, genis) => (
-    <div style={{ position: "relative", minWidth: 0, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", gridColumn: genis ? "1 / 4" : undefined }}>
+  // Yerleşim: uyaran ortada, çeldiriciler hemen üstünde/altında/solunda/sağında
+  const alanH = Math.max(200, ekran.h - 136);
+  const S = Math.round(Math.max(104, Math.min(200, Math.min(ekran.w, alanH) * 0.24)));
+  const cx = ekran.w / 2, cy = alanH / 2 + 6, ara = Math.round(S * 0.16);
+  const dikW = Math.round(Math.min(ekran.w - 16, S * 2.3)), dikH = Math.round(Math.max(60, Math.min(S * 1.3, cy - S / 2 - ara - 8)));
+  const yanW = Math.round(Math.max(60, Math.min(S * 1.8, cx - S / 2 - ara - 6))), yanH = Math.round(S * 1.25);
+  const SLOT = {
+    ust: { left: cx - dikW / 2, top: cy - S / 2 - ara - dikH, width: dikW, height: dikH },
+    alt: { left: cx - dikW / 2, top: cy + S / 2 + ara, width: dikW, height: dikH },
+    sol: { left: cx - S / 2 - ara - yanW, top: cy - yanH / 2, width: yanW, height: yanH },
+    sag: { left: cx + S / 2 + ara, top: cy - yanH / 2, width: yanW, height: yanH },
+  };
+  const slot = (konum) => (
+    <div style={{ position: "absolute", ...SLOT[konum], pointerEvents: "none" }}>
       {gorselCeld.filter(c => c.konum === konum).map(c => (
-        <div key={c.id} className="cdt-c" style={{ width: "100%", height: "100%", maxWidth: genis ? 440 : 360, maxHeight: 260 }}
+        <div key={c.id} className="cdt-c" style={{ width: "100%", height: "100%" }}
           dangerouslySetInnerHTML={{ __html: cdtCeldiriciSvg(c.klip, Math.round(CDT_KLIPLER[c.klip].sure * 1000)) }} />
       ))}
     </div>
@@ -10126,7 +10169,7 @@ function CDTGorev({ onBitti, onIptal }) {
 
   return (
     <div onPointerDown={dokun} onContextMenu={e => e.preventDefault()}
-      style={{ position: "fixed", inset: 0, zIndex: 100000, background: "linear-gradient(180deg,#F5F7FB 0%,#EEF1F8 100%)", touchAction: "none", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "Arial, Helvetica, sans-serif" }}>
+      style={{ position: "fixed", inset: 0, zIndex: 100000, background: "linear-gradient(165deg,#A9C3F0 0%,#C3D6F7 55%,#D5E3FB 100%)", touchAction: "none", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "Arial, Helvetica, sans-serif" }}>
       <style>{CDT_STIL}</style>
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#E2E5EE" }}>
         <div style={{ width: `${Math.round(ilerleme * 100)}%`, height: "100%", background: "#A79BE8", transition: "width .4s" }} />
@@ -10135,18 +10178,13 @@ function CDTGorev({ onBitti, onIptal }) {
 
       {arena && (
         <>
-          <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: dar ? "minmax(0,0.7fr) minmax(0,1.6fr) minmax(0,0.7fr)" : "1fr minmax(0,1.25fr) 1fr", gridTemplateRows: "1fr minmax(0,1.25fr) 1fr", gap: 6, padding: "14px 8px 4px" }}>
-            {slot("ust", true)}
-            {slot("sol")}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minWidth: 0, minHeight: 0 }}>
-              <div style={{ width: "min(100%, 300px)", aspectRatio: "1 / 1", maxHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 24, background: "#FFFFFF", boxShadow: "inset 0 0 0 2px #E6E8F0" }}>
-                {uyaran && <div style={{ width: "86%", height: "86%" }}><CDTUyaran tur={uyaran.tur} /></div>}
-              </div>
+          <div style={{ position: "relative", height: alanH, flexShrink: 0 }}>
+            {slot("ust")}{slot("alt")}{slot("sol")}{slot("sag")}
+            <div style={{ position: "absolute", left: cx - S / 2, top: cy - S / 2, width: S, height: S, pointerEvents: "none" }}>
+              {uyaran && <CDTUyaran tur={uyaran.tur} />}
             </div>
-            {slot("sag")}
-            {slot("alt", true)}
           </div>
-          <div style={{ height: 136, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+          <div style={{ flex: 1, minHeight: 136, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
             {geri && faz === "alistirma" && (
               <div style={{ position: "absolute", top: -6, left: "50%", transform: "translateX(-50%)", background: "#fff", color: GERI[geri.tur][1], border: `2px solid ${GERI[geri.tur][1]}`, borderRadius: 14, padding: "6px 14px", fontSize: 17, fontWeight: 800, whiteSpace: "nowrap", boxShadow: "0 4px 12px rgba(0,0,0,.12)" }}>{GERI[geri.tur][0]}</div>
             )}
@@ -10173,6 +10211,7 @@ function CDTGorev({ onBitti, onIptal }) {
             </div>
             <div style={{ fontSize: 15, color: "#444", lineHeight: 1.5, marginBottom: 16 }}>
               Ekranın kenarlarında başka resimler görebilir, sesler duyabilirsin. Onlara aldırma, sadece ortaya bak. Olabildiğince <b>hızlı</b> ve <b>doğru</b> bas!
+              <div style={{ fontSize: 12.5, color: "#777", marginTop: 6 }}>(Bilgisayarda butona basmak yerine <b>boşluk</b> tuşunu kullanabilirsin.)</div>
             </div>
             <button onClick={alistirmaBasla} style={{ ...yuvarlakBtn, background: "#5B4BD6", color: "#fff" }}>Önce Alıştırma Yapalım ▶</button>
           </div>
@@ -10311,7 +10350,7 @@ function CDTPaneli({ seciliAd, seciliSinif, seciliNumara, testKayitlari, setTest
           </div>
         )}
         <div style={{ fontSize: 11.5, color: TEXT, lineHeight: 1.6, background: BG, borderRadius: 8, padding: "8px 10px", marginBottom: 10 }}>
-          ✔ Mümkünse <b>tablet</b> kullanın, cihazı masaya koyun; öğrenci tek parmakla bassın.<br />
+          ✔ Mümkünse <b>tablet</b> kullanın, cihazı masaya koyun; öğrenci tek parmakla bassın. Bilgisayarda <b>boşluk tuşu</b> da çalışır (orijinal testteki gibi).<br />
           ✔ Sessiz bir oda; cihaz sesini <b>%70 civarına</b> açın. iPhone/iPad'de <b>sessiz mod kapalı</b> olmalı.<br />
           ✔ Test sırasında başka uygulamaya geçmeyin — geçilirse o aşama baştan alınır.<br />
           ✔ Siz yönergeyi okuyup alıştırmaya birlikte başlayın; asıl testte yardım etmeyin, yorum yapmayın.
