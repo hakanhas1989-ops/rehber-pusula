@@ -8012,6 +8012,27 @@ function RaporModal({ rapor, onKapat }) {
 
           </div>
         </div>
+        {/* Kaygı Ölçeği (SCAS-Çocuk) sonuç raporu — tam genişlik, sütun grafikli */}
+        {(() => {
+          const scasKayitlari = (pdrSozlukOku(raporTestler, ogrenci, ogrenciSinif, profil1?.numara) || []).filter(k => k.tip === "scas_cocuk");
+          if (scasKayitlari.length === 0) return null;
+          return (
+            <div style={{ marginTop: 16, pageBreakBefore: "always" }}>
+              <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="🧪" ad="Testler" />Kaygı Ölçeği Sonuç Raporu (SCAS-Çocuk)</div>
+              <div style={{ ...S.bolumIcerik2 }}>
+                {scasKayitlari.map((k, kIdx) => {
+                  const sonuc = scasPuanla(k.veri?.cevaplar || [], k.veri?.cinsiyetKullanilan, k.veri?.yasGrubuKullanilan);
+                  const onceki = scasKayitlari.slice(kIdx + 1)[0];
+                  const rci = onceki ? scasGuvenilirDegisimYorumu(sonuc.genelToplam, scasPuanla(onceki.veri?.cevaplar || []).genelToplam) : null;
+                  return (
+                    <div key={k.id} style={{ marginBottom: 14, pageBreakInside: "avoid" }}
+                      dangerouslySetInnerHTML={{ __html: scasRaporHtmlOlustur(sonuc, { ogrenci, sinif: ogrenciSinif, tarih: k.tarih, rci, oncekiTarih: onceki && onceki.tarih }) }} />
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -8569,11 +8590,13 @@ function mesleklEgilimLiseOnerisiHesapla(sonucSirali) {
 // Türkçe norm çalışmasının birebir çevirisi olduğu iddia edilmez. Öğrenci
 // kağıt formu elle doldurur, danışman fotoğrafını/PDF'ini yükler; AI SADECE
 // her maddenin ham (0-3) değerini okur — alt ölçek toplamları TAMAMEN
-// yerel/deterministik hesaplanır (scasPuanla). Kaynak belgede yaş/cinsiyete
-// göre norm tablosu/kesme puanı YOKTUR; bu yüzden program kesin bir
-// düşük/orta/yüksek etiketi ÜRETMEZ, sadece ham alt ölçek puanlarını ve
-// göreli ağırlığını (maddelerin kaç tanesi en üst seçenekte işaretli) gösterir
-// — danışman klinik yorumu kendisi yapar.
+// yerel/deterministik hesaplanır (scasPuanla). Yüzdelik dilim/düzey: scaswebsite.com'daki resmi
+// normatif örneklemin (N=4.916) cinsiyet x yaş bandı ortalama/SS değerlerinden
+// z-skoru + normal dağılım yaklaşımıyla hesaplanır (scasYuzdelikHesapla) —
+// ampirik yüzdelik tablosunun birebir aynısı DEĞİL, yaklaşık bir dönüşümdür.
+// Düzey eşikleri NovoPsych'in resmi örnek raporuna göredir (Normal ≤84,
+// Hafif Yüksek 85-93, Yüksek 94-97.72, Çok Yüksek ≥97.73). Rapor çıktısı
+// (sütun grafiği + yorum) scasRaporHtmlOlustur ile üretilir.
 const SCAS_MADDELER = [
   "Birçok şey hakkında endişelenirim",
   "Karanlıktan korkarım",
@@ -8759,6 +8782,132 @@ function scasGuvenilirDegisimYorumu(yeniToplam, eskiToplam) {
   if (fark <= -14) return { ad: "Anlamlı iyileşme", renk: "#1A8C5B", fark };
   if (fark >= 14) return { ad: "Anlamlı kötüleşme", renk: "#C0392B", fark };
   return { ad: "Anlamlı bir değişim yok (ölçüm hatası sınırları içinde)", renk: MUTED, fark };
+}
+
+// SCAS-Çocuk sonuç raporu — TEK kaynak. Hem Testler ekranındaki tekil
+// "Sonuç Raporu (PDF)" butonu hem öğrencinin PDF Raporu bu fonksiyonun
+// ürettiği HTML'i kullanır. NovoPsych örnek raporundaki düzeni izler:
+// Sonuçlar tablosu + alt ölçek yüzdelik SÜTUN grafiği + yorum + puanlama bilgisi.
+function scasRaporHtmlOlustur(sonuc, bilgi) {
+  const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const LIK = { 0:"Hiç", 1:"Bazen", 2:"Sık Sık", 3:"Her Zaman" };
+  const yuzTxt = (y) => y == null ? "—" : (y >= 98 ? "> 98" : y < 2 ? "< 2" : String(Math.round(y)));
+  const duzeyHucre = (d) => {
+    if (!d) return `<td style="padding:5px 8px;text-align:center;color:#999">—</td>`;
+    const bg = d.ad === "Normal" ? "transparent" : d.ad === "Hafif Yüksek" ? "#FFF3B0" : d.ad === "Yüksek" ? "#F9B04D" : "#F4B6B6";
+    return `<td style="padding:5px 8px;text-align:center;background:${bg};font-weight:${d.ad==="Normal"?400:700};color:#222">${d.ad}</td>`;
+  };
+  const satir = (ad, ham, maks, yuz, duzey, kalin) => `<tr style="${kalin?"font-weight:800;":""}">
+      <td style="padding:5px 8px;border-bottom:1px solid #E3ECE7;text-align:right;${kalin?"":"color:#222"}">${ad}</td>
+      <td style="padding:5px 8px;border-bottom:1px solid #E3ECE7;text-align:center">${ham ?? "—"} <span style="color:#999;font-weight:400;font-size:9px">/ ${maks}</span></td>
+      <td style="padding:5px 8px;border-bottom:1px solid #E3ECE7;text-align:center">${yuzTxt(yuz)}</td>
+      ${duzeyHucre(duzey).replace('<td style="','<td style="border-bottom:1px solid #E3ECE7;')}
+    </tr>`;
+  const alt = sonuc.altOlcekler;
+  const satirlar = satir("Toplam", sonuc.genelToplam, 114, sonuc.genelYuzdelik, sonuc.genelDuzey, true)
+    + alt.map(a => satir(a.ad, a.toplam, a.maddeSayisi*3, a.yuzdelik, a.duzey, false)).join("");
+
+  // ── Sütun grafiği (SVG) ──
+  const W = 680, H = 290, solK = 40, sagK = 58, ustK = 18, altK = 54;
+  const gW = W - solK - sagK, gH = H - ustK - altK;
+  const yPx = (v) => ustK + gH * (1 - v / 100);
+  const renkler = ["#34457F", "#7B4F94", "#BB4E92", "#EE5A78", "#FF7A4D", "#FFA500"]; // 6 alt ölçek
+  const ETIKET = { ayrilik:["Ayrılık","Kaygısı"], sosyalFobi:["Sosyal","Fobi"], obsesifKompulsif:["Obsesif-","Kompulsif"], panikAgorafobi:["Panik /","Agorafobi"], fizikselYaralanma:["Fiziksel","Yaralanma"], genelKaygi:["Genel","Kaygı"] };
+  const sutunlar = [{ etiket: ["Toplam"], yuz: sonuc.genelYuzdelik, toplam: true }]
+    .concat(alt.map((a,i) => ({ etiket: ETIKET[a.key] || [a.ad], yuz: a.yuzdelik, renk: renkler[i], ham: a.toplam })));
+  const kolonG = gW / sutunlar.length, barG = Math.min(54, kolonG * 0.58);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:680px;display:block;margin:0 auto" xmlns="http://www.w3.org/2000/svg" font-family="Arial,Helvetica,sans-serif">`;
+  // renkli düzey bantları
+  svg += `<rect x="${solK}" y="${yPx(93.99)}" width="${gW}" height="${yPx(85)-yPx(93.99)}" fill="#FFF9C4"/>`;
+  svg += `<rect x="${solK}" y="${yPx(97.72)}" width="${gW}" height="${yPx(93.99)-yPx(97.72)}" fill="#FFE3B8"/>`;
+  svg += `<rect x="${solK}" y="${yPx(100)}" width="${gW}" height="${yPx(97.72)-yPx(100)}" fill="#F8C9CF"/>`;
+  svg += `<text x="${solK+gW+4}" y="${yPx(99)+3}" font-size="7.5" fill="#C0707C">Çok Yüksek</text>`;
+  svg += `<text x="${solK+gW+4}" y="${yPx(94.4)+3}" font-size="7.5" fill="#C98A3A">Yüksek</text>`;
+  svg += `<text x="${solK+gW+4}" y="${yPx(88.6)+3}" font-size="7.5" fill="#A89B2A">Hafif Yüksek</text>`;
+  // ızgara + y ekseni
+  for (let v = 0; v <= 100; v += 10) {
+    svg += `<line x1="${solK}" y1="${yPx(v)}" x2="${solK+gW}" y2="${yPx(v)}" stroke="#E2E6E4" stroke-width="0.6"/>`;
+    svg += `<text x="${solK-6}" y="${yPx(v)+3}" text-anchor="end" font-size="9" fill="#555">${v}</text>`;
+  }
+  svg += `<line x1="${solK}" y1="${yPx(50)}" x2="${solK+gW}" y2="${yPx(50)}" stroke="#9AA" stroke-width="0.8" stroke-dasharray="5 4"/>`;
+  svg += `<text x="${solK+gW+4}" y="${yPx(50)+3}" font-size="7.5" fill="#889">Ortalama</text>`;
+  svg += `<line x1="${solK}" y1="${ustK}" x2="${solK}" y2="${ustK+gH}" stroke="#222" stroke-width="1"/>`;
+  svg += `<line x1="${solK}" y1="${ustK+gH}" x2="${solK+gW}" y2="${ustK+gH}" stroke="#222" stroke-width="1"/>`;
+  sutunlar.forEach((s, i) => {
+    const cx = solK + kolonG * i + kolonG / 2, x0 = cx - barG / 2;
+    if (s.yuz != null) {
+      const yuz = Math.max(0.5, Math.min(100, s.yuz));
+      if (s.toplam) {
+        // Toplam sütunu: alt ölçek ham puanlarının payına göre dilimlenmiş yığın
+        const hamlar = alt.map(a => a.toplam || 0), hamTop = hamlar.reduce((p,c)=>p+c,0) || 1;
+        let altY = yPx(0);
+        hamlar.forEach((h, j) => {
+          const segH = (gH * yuz / 100) * (h / hamTop);
+          if (segH > 0) { svg += `<rect x="${x0}" y="${altY-segH}" width="${barG}" height="${segH}" fill="${renkler[j]}" stroke="#222" stroke-width="0.6"/>`; altY -= segH; }
+        });
+      } else {
+        svg += `<rect x="${x0}" y="${yPx(yuz)}" width="${barG}" height="${yPx(0)-yPx(yuz)}" fill="${s.renk}" stroke="#222" stroke-width="1"/>`;
+      }
+      svg += `<text x="${cx}" y="${yPx(yuz)-4}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#222">${yuzTxt(s.yuz)}</text>`;
+    } else {
+      svg += `<text x="${cx}" y="${yPx(0)-6}" text-anchor="middle" font-size="9" fill="#999">—</text>`;
+    }
+    s.etiket.forEach((satirMetni, k) => {
+      svg += `<text x="${cx}" y="${ustK+gH+15+k*11}" text-anchor="middle" font-size="9.5" fill="#333">${esc(satirMetni)}</text>`;
+    });
+  });
+  svg += `</svg>`;
+
+  // ── Yorum ──
+  const normNot = sonuc.yasGrubuKullanilan
+    ? `Yüzdelik dilimler ve düzeyler, ${sonuc.cinsiyetKullanilan === "Kız" ? "kız" : sonuc.cinsiyetKullanilan === "Erkek" ? "erkek" : "karma cinsiyetli"} çocuklar için ${sonuc.yasGrubuKullanilan} yaş bandının normlarına göre hesaplanmıştır.`
+    : `Bu kayıt için yaş bandı belirlenemediğinden yüzdelik dilim hesaplanmamış, yalnızca ham puanlar gösterilmektedir.`;
+  const yuksekler = alt.filter(a => a.duzey && a.duzey.ad !== "Normal").sort((x,y) => (y.yuzdelik||0) - (x.yuzdelik||0));
+  const normaller = alt.filter(a => a.duzey && a.duzey.ad === "Normal");
+  const aciklama = { "Hafif Yüksek": "hafif yüksek aralıktadır; bu alanda dikkat edilmesi gereken belirtiler vardır", "Yüksek": "yüksek aralıktadır; bu alanda belirgin kaygı belirtileri yaşamaktadır", "Çok Yüksek": "çok yüksek aralıktadır; bu alanda önemli düzeyde belirti yaşamakta olup müdahale/izlem gerektirebilir" };
+  let yorum = `<p style="margin:0 0 6px">${normNot}</p>`;
+  if (sonuc.genelDuzey) {
+    yorum += `<p style="margin:0 0 6px">Genel toplam puan (${sonuc.genelToplam}/114, %${yuzTxt(sonuc.genelYuzdelik)}) <b>${sonuc.genelDuzey.ad}</b> aralığındadır${sonuc.genelDuzey.ad==="Normal" ? " ve klinik açıdan anlamlı bir genel kaygı düzeyi göstermemektedir." : "; %85 ve üzeri yüzdelik dilim klinik açıdan anlamlı olabilecek kaygı belirtilerine işaret eder."}</p>`;
+  }
+  yuksekler.forEach(a => {
+    yorum += `<p style="margin:0 0 4px"><b>${a.ad}</b> alt ölçeğinde öğrenci ${aciklama[a.duzey.ad]}.${a.katkiMaddeleri.length ? " Bu puana katkıda bulunan maddeler:" : ""}</p>`;
+    if (a.katkiMaddeleri.length) {
+      yorum += `<ul style="margin:0 0 6px;padding-left:18px;font-style:italic;color:#333">` + a.katkiMaddeleri.map(m => `<li>${m.no}. ${esc(m.metin)} (${LIK[m.puan]})</li>`).join("") + `</ul>`;
+    }
+  });
+  if (normaller.length) {
+    yorum += `<p style="margin:0 0 6px">${normaller.map(a=>a.ad).join(", ")} alt ölçek${normaller.length>1?"lerinde":"inde"} öğrenci normal aralıktadır ve belirgin belirti yaşamamaktadır.</p>`;
+  }
+  if (bilgi && bilgi.rci) {
+    yorum += `<p style="margin:0 0 6px;padding:6px 8px;border-radius:5px;background:${bilgi.rci.renk}22;color:${bilgi.rci.renk};font-weight:700">Önceki ölçüme göre (${esc(bilgi.oncekiTarih||"")}): ${bilgi.rci.ad} (${bilgi.rci.fark>0?"+":""}${bilgi.rci.fark} puan; güvenilir değişim eşiği 14 puan).</p>`;
+  }
+
+  const baslik = (t) => `<div style="background:#EAF4EE;border-top:1px solid #127C56;border-bottom:1px solid #CFE6DA;padding:4px 8px;font-size:11px;font-weight:800;color:#0f4a36;margin-top:12px">${t}</div>`;
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:10.5px;color:#1a1a1a;line-height:1.5">
+    <div style="border:1px solid #127C56;border-radius:4px;overflow:hidden;margin-bottom:6px">
+      <div style="background:#EAF4EE;padding:6px 8px;text-align:center;font-size:13px;font-weight:900;color:#0f4a36">Spence Çocuk Kaygı Ölçeği (SCAS-Çocuk)</div>
+      <table style="width:100%;border-collapse:collapse;font-size:10.5px">
+        <tr><td style="padding:3px 8px;background:#F4F9F6;font-weight:700;width:22%">Öğrenci</td><td style="padding:3px 8px">${esc(bilgi && bilgi.ogrenci)}</td><td style="padding:3px 8px;background:#F4F9F6;font-weight:700;width:20%">Uygulama Tarihi</td><td style="padding:3px 8px">${esc(bilgi && bilgi.tarih)}</td></tr>
+        <tr><td style="padding:3px 8px;background:#F4F9F6;font-weight:700">Sınıf</td><td style="padding:3px 8px">${esc((bilgi && bilgi.sinif) || "—")}</td><td style="padding:3px 8px;background:#F4F9F6;font-weight:700">Kullanılan Norm</td><td style="padding:3px 8px">${sonuc.yasGrubuKullanilan ? `${sonuc.cinsiyetKullanilan==="Karma"?"Karma":sonuc.cinsiyetKullanilan} · ${sonuc.yasGrubuKullanilan} yaş` : "Belirlenemedi"}</td></tr>
+      </table>
+    </div>
+    ${baslik("Sonuçlar")}
+    <table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-top:4px">
+      <thead><tr style="color:#555;font-size:9.5px"><th style="padding:3px 8px"></th><th style="padding:3px 8px;font-weight:400">Ham Puan</th><th style="padding:3px 8px;font-weight:400">Yüzdelik Dilim</th><th style="padding:3px 8px;font-weight:400">Düzey</th></tr></thead>
+      <tbody>${satirlar}</tbody>
+    </table>
+    ${baslik("Alt Ölçeklere Göre Yüzdelik Dilimler")}
+    <div style="padding:8px 0 2px;page-break-inside:avoid">${svg}</div>
+    ${baslik("Yorum")}
+    <div style="padding:6px 8px;border:1px solid #E3ECE7;border-top:none">${yorum}</div>
+    ${baslik("Puanlama ve Yorumlama Bilgisi")}
+    <div style="padding:6px 8px;border:1px solid #E3ECE7;border-top:none;font-size:9.5px;color:#444">
+      <p style="margin:0 0 5px">SCAS-Çocuk toplam ham puanı (0-114) ve altı alt ölçek puanından oluşur; yüksek puan daha şiddetli kaygı belirtilerini gösterir. Puanlar, Spence'in büyük normatif örneklemi (N = 4.916) temel alınarak yaş ve cinsiyete göre yüzdelik dilime çevrilir. Herhangi bir alt ölçekte ya da toplamda %85 ve üzeri yüzdelik dilim, yüksek ve klinik açıdan anlamlı olabilecek kaygı belirtilerine işaret eder.</p>
+      <p style="margin:0 0 5px">Alt ölçekler: Ayrılık Kaygısı (5, 8, 12, 15, 16, 44; 0-18) · Sosyal Fobi (6, 7, 9, 10, 29, 35; 0-18) · Obsesif-Kompulsif (14, 19, 27, 40, 41, 42; 0-18) · Panik/Agorafobi (13, 21, 28, 30, 32, 34, 36, 37, 39; 0-27) · Fiziksel Yaralanma Korkuları (2, 18, 23, 25, 33; 0-15) · Genel Kaygı (1, 3, 4, 20, 22, 24; 0-18). 11, 17, 26, 31, 38 ve 43. maddeler olumlu ifadeli dolgu maddeleridir, puanlamaya katılmaz.</p>
+      <p style="margin:0 0 5px">Düzeyler: Normal (%84 ve altı) · Hafif Yüksek (%85-93) · Yüksek (%94-97,72) · Çok Yüksek (%97,73 ve üzeri).</p>
+      <p style="margin:0;color:#888">Yüzdelik dilim, resmi normatif ortalama/standart sapma değerlerinden z-skoru yoluyla hesaplanan yaklaşık bir dönüşümdür; ampirik yüzdelik tablosunun birebir aynısı değildir. Madde metinleri orijinal İngilizce formun bu program için yapılmış çevirisidir. Sonuçlar tek başına tanı koydurmaz; yorumlama PDR uzmanına aittir.</p>
+    </div>
+  </div>`;
 }
 
 
@@ -9933,60 +10082,7 @@ KURALLAR:
                               tmp.style.fontSize = "13px";
                               tmp.style.color = "#1a1a1a";
                               tmp.style.padding = "20px";
-                              const altSatirlari = sonuc.altOlcekler.map(a => `
-                                <tr>
-                                  <td style="padding:6px 8px;border-bottom:1px solid #eee">${a.ad}</td>
-                                  <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${a.toplam ?? "—"} / ${a.maddeSayisi*3}</td>
-                                  <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${a.yuzdelik!=null?"%"+a.yuzdelik.toFixed(0):"—"}</td>
-                                  <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center;font-weight:700;color:${a.duzey?a.duzey.renk:"#888"}">${a.duzey?a.duzey.ad:"—"}</td>
-                                  <td style="padding:6px 8px;border-bottom:1px solid #eee;font-size:11px;color:#555">${a.katkiMaddeleri.length>0 ? a.katkiMaddeleri.slice(0,4).map(m=>`${m.no} (${LIKERT_KISA[m.puan]})`).join(", ") : "—"}</td>
-                                </tr>
-                              `).join("");
-                              tmp.innerHTML = `
-                                <div style="border-bottom:3px solid #1a1a2e;padding-bottom:12px;margin-bottom:16px">
-                                  <div style="font-size:10px;color:#666;text-transform:uppercase;letter-spacing:1px">Sonuç Raporu</div>
-                                  <div style="font-size:20px;font-weight:900;color:#1a1a2e">Spence Çocuk Kaygı Ölçeği (SCAS-Çocuk)</div>
-                                  <div style="font-size:11px;color:#555;margin-top:2px">44 Madde · 6 Alt Ölçek · 9-12 Yaş İçin Geçerlenmiş</div>
-                                </div>
-                                <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:12px">
-                                  <tr><td style="padding:4px 8px;background:#f5f5f5;font-weight:700;width:140px">Öğrenci</td><td style="padding:4px 8px">${seciliAd}</td></tr>
-                                  <tr><td style="padding:4px 8px;background:#f5f5f5;font-weight:700">Sınıf</td><td style="padding:4px 8px">${seciliSinif||"—"}</td></tr>
-                                  <tr><td style="padding:4px 8px;background:#f5f5f5;font-weight:700">Uygulama Tarihi</td><td style="padding:4px 8px">${k.tarih}</td></tr>
-                                  <tr><td style="padding:4px 8px;background:#f5f5f5;font-weight:700">Kullanılan Norm</td><td style="padding:4px 8px">${sonuc.yasGrubuKullanilan ? `${sonuc.cinsiyetKullanilan==="Karma"?"Karma cinsiyet":sonuc.cinsiyetKullanilan} · ${sonuc.yasGrubuKullanilan} yaş bandı` : "Belirlenemedi (sadece ham puan)"}</td></tr>
-                                </table>
-                                <div style="font-size:11px;font-weight:700;color:#1a1a2e;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;padding-bottom:4px;border-bottom:1px solid #ddd">Alt Ölçek Sonuçları</div>
-                                <table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:12px">
-                                  <thead>
-                                    <tr style="background:#1a1a2e;color:#fff">
-                                      <th style="padding:6px 8px;text-align:left">Alt Ölçek</th>
-                                      <th style="padding:6px 8px;text-align:center">Ham Puan</th>
-                                      <th style="padding:6px 8px;text-align:center">Yüzdelik Dilim</th>
-                                      <th style="padding:6px 8px;text-align:center">Düzey</th>
-                                      <th style="padding:6px 8px;text-align:left">Katkıda Bulunan Maddeler</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>${altSatirlari}</tbody>
-                                  <tfoot>
-                                    <tr style="background:${sonuc.genelDuzey?sonuc.genelDuzey.renk+"22":"#f0f0f0"}">
-                                      <td style="padding:7px 8px;font-weight:800">Genel Toplam</td>
-                                      <td style="padding:7px 8px;text-align:center;font-weight:800">${sonuc.genelToplam ?? "—"} / 114</td>
-                                      <td style="padding:7px 8px;text-align:center;font-weight:800">${sonuc.genelYuzdelik!=null?"%"+sonuc.genelYuzdelik.toFixed(0):"—"}</td>
-                                      <td style="padding:7px 8px;text-align:center;font-weight:800;color:${sonuc.genelDuzey?sonuc.genelDuzey.renk:"#888"}">${sonuc.genelDuzey?sonuc.genelDuzey.ad:"—"}</td>
-                                      <td></td>
-                                    </tr>
-                                  </tfoot>
-                                </table>
-                                ${rci ? `<div style="padding:8px 10px;border-radius:6px;background:${rci.renk}22;color:${rci.renk};font-weight:700;font-size:12px;margin-bottom:14px">Önceki ölçüme göre (${oncekiScas.tarih}): ${rci.ad} (${rci.fark>0?"+":""}${rci.fark} puan) — Reliable Change Index eşiği: 14 puan</div>` : ""}
-                                <div style="font-size:10.5px;color:#777;line-height:1.6;margin-top:10px;padding-top:10px;border-top:1px solid #eee">
-                                  <div><b>Not:</b> Yüzdelik dilim, Spence'in resmi normatif örneklemindeki (N=4916) ortalama/standart sapma değerlerinden hesaplanan yaklaşık bir z-skoru dönüşümüdür; ampirik yüzdelik tablosunun birebir aynısı değildir.</div>
-                                  <div style="margin-top:4px">Düzey eşikleri: Normal (≤%84) · Hafif Yüksek (%85-93) · Yüksek (%94-97.7) · Çok Yüksek (≥%97.7).</div>
-                                  <div style="margin-top:4px">Madde metinleri, Spence (1997/1998) tarafından geliştirilen orijinal İngilizce formun bu program için yapılmış çevirisidir; yayımlanmış resmi bir Türkçe norm çalışmasının birebir metni değildir.</div>
-                                </div>
-                                <div style="margin-top:24px;padding-top:12px;border-top:1px solid #eee;display:flex;justify-content:space-between;font-size:11px;color:#666">
-                                  <div>PDR Danışmanı: ___________________</div>
-                                  <div>Tarih: ${k.tarih}</div>
-                                </div>
-                              `;
+                              tmp.innerHTML = scasRaporHtmlOlustur(sonuc, { ogrenci: seciliAd, sinif: seciliSinif, tarih: k.tarih, rci, oncekiTarih: oncekiScas && oncekiScas.tarih });
                               document.body.appendChild(tmp);
                             }
                             raporIndir(tmpId, "SCAS_Cocuk_" + (seciliAd||"").replace(/\s+/g,"_") + "_" + k.tarih.replace(/\./g,"-"));
