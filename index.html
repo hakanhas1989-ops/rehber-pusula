@@ -7088,8 +7088,15 @@ function akademikTaramaSonucHesapla(cevaplar) {
   return dersSonuclari;
 }
 
-function raporVerisiOlustur({ ogrenciProfilleri2, ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler, mudahalePlan, riskListesi, sinavTuru, testKayitlari, kaynastirma, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, liseTaramalar, benlikOlcekleri, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }) {
-  return { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: denemeler || {}, mudahalePlan: mudahalePlan || {}, riskListesi: riskListesi || [], sinavTuru, testKayitlari: testKayitlari || [], kaynastirma: kaynastirma || [], oogDegerlendirmeler: oogDegerlendirmeler || [], castDegerlendirmeler: castDegerlendirmeler || [], akademikTaramalar: akademikTaramalar || [], ilkokulTaramalar: ilkokulTaramalar || [], liseTaramalar: liseTaramalar || [], benlikOlcekleri: benlikOlcekleri || [], ogrenciProfilleri2: ogrenciProfilleri2 || [], kademe: kademe || null, hazirlikNotlari: hazirlikNotlari || {}, ilerlemeNotlari: ilerlemeNotlari || {}, sevkler: sevkler || [], ogrenciler: ogrenciler || [], tarih: new Date().toLocaleDateString("tr-TR") };
+function raporVerisiOlustur({ ogrenciProfilleri2, ogrenci, ogrenciSinif, ogrenciNumara, profil1, profil2, gorusmeler, denemeler, mudahalePlan, riskListesi, sinavTuru, testKayitlari, kaynastirma, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, liseTaramalar, benlikOlcekleri, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }) {
+  // Kimlik çözümleme: testler/sınav kaygısı gibi veriler "isim || sınıf || numara"
+  // anahtarıyla saklanır. Rapor butonu bazı ekranlardan sınıf/numara göndermiyordu
+  // (özellikle Profil ekranı) — o durumda numaralı anahtarlar bulunamayıp testler
+  // raporda boş çıkıyordu. Eksik bilgi kayıtlı öğrenci listesinden tamamlanır.
+  const kayitliOgr = (ogrenciler || []).find(o => pdrAyniOgrenci(o.studentName, o.className, ogrenci, ogrenciSinif, o.numara, ogrenciNumara || profil1?.numara));
+  const sinifNihai = ogrenciSinif || kayitliOgr?.className || profil1?.className || "";
+  const numaraNihai = (ogrenciNumara || profil1?.numara || kayitliOgr?.numara || "").toString();
+  return { ogrenci, ogrenciSinif: sinifNihai, ogrenciNumara: numaraNihai, profil1, profil2, gorusmeler, denemeler: denemeler || {}, mudahalePlan: mudahalePlan || {}, riskListesi: riskListesi || [], sinavTuru, testKayitlari: testKayitlari || [], kaynastirma: (kaynastirma && kaynastirma.length ? kaynastirma : (kayitliOgr?.kaynastirma || [])), oogDegerlendirmeler: oogDegerlendirmeler || [], castDegerlendirmeler: castDegerlendirmeler || [], akademikTaramalar: akademikTaramalar || [], ilkokulTaramalar: ilkokulTaramalar || [], liseTaramalar: liseTaramalar || [], benlikOlcekleri: benlikOlcekleri || [], ogrenciProfilleri2: ogrenciProfilleri2 || [], kademe: kademe || null, hazirlikNotlari: hazirlikNotlari || {}, ilerlemeNotlari: ilerlemeNotlari || {}, sevkler: sevkler || [], ogrenciler: ogrenciler || [], tarih: new Date().toLocaleDateString("tr-TR") };
 }
 
 // ── PDF Rapor Bileşeni ────────────────────────────────────────────────────────
@@ -7116,8 +7123,72 @@ function KaynakRozeti({ ikon, ad }) {
 
 function RaporModal({ rapor, onKapat }) {
   if (!rapor) return null;
+  // key: başka öğrenciye geçince düzenleyici durumu (notlar, gizli bölümler) sıfırlansın
+  return <RaporModalIc key={rapor.ogrenci + "|" + (rapor.ogrenciSinif || "") + "|" + rapor.tarih} rapor={rapor} onKapat={onKapat} />;
+}
+
+function RaporModalIc({ rapor, onKapat }) {
   const { ogrenci, ogrenciSinif, profil1, profil2, gorusmeler, denemeler: raporDenemeler, mudahalePlan: raporMudahale, riskListesi: raporRisk, tarih, sinavTuru, testKayitlari: raporTestler, kaynastirma: raporKaynastirma } = rapor;
   const dersler = aktifDersler(sinavTuru);
+
+  const ogrNo = rapor.ogrenciNumara || profil1?.numara;
+
+  // ── Rapor Düzenleyici ────────────────────────────────────────────────────────
+  // Bölüm gizleme: raporun her bölüm başlığında data-bolum işareti vardır. Aşağıdaki
+  // efekt, işaretli başlıkların kapsayıcısını gizler/gösterir. Gizlenen bölüm ekranda
+  // da, yazdırma/PDF çıktısında da yer almaz (raporIndir kutunun innerHTML'ini alır).
+  // Düzenleyicideki metinler ve gizleme seçimleri yalnızca bu raporu etkiler —
+  // öğrencinin kayıtlarına hiçbir şey yazılmaz; rapor kapanınca sıfırlanır.
+  // Kurum/danışman adı ise her seferinde yeniden yazılmasın diye tarayıcıda saklanır.
+  const [editorAcik, setEditorAcik] = useState(false);
+  const [gizli, setGizli] = useState([]);
+  const [bolumler, setBolumler] = useState([]);
+  const [genelDeger, setGenelDeger] = useState("");
+  const [oneriler, setOneriler] = useState("");
+  const okuAyar = (k) => { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } };
+  const [kurum, setKurum] = useState(() => okuAyar("pdr-rapor-kurum"));
+  const [danisman, setDanisman] = useState(() => okuAyar("pdr-rapor-danisman"));
+  useEffect(() => {
+    try { localStorage.setItem("pdr-rapor-kurum", kurum); localStorage.setItem("pdr-rapor-danisman", danisman); } catch (e) {}
+  }, [kurum, danisman]);
+  useEffect(() => {
+    const kap = document.getElementById("pdr-rapor-icerik");
+    if (!kap) return;
+    const liste = [];
+    kap.querySelectorAll("[data-bolum]").forEach(b => {
+      const baslik = Array.from(b.childNodes).filter(n => n.nodeType === 3).map(n => n.textContent).join("").trim();
+      liste.push(baslik);
+      if (b.parentElement) b.parentElement.style.display = gizli.includes(baslik) ? "none" : "";
+    });
+    const imza = liste.join("¦");
+    setBolumler(prev => prev.join("¦") === imza ? prev : liste);
+  });
+  const HASSAS_BOLUM = /Görüşme Geçmişi|Bireyi Tanıma|BDT|ÖÖG|Otizm|CAS Tarzı|BİLPRO|Olay|Tutanak|Sevk|Seans Hazırlık|İlerleme Yazısı|Seans Planı|Bütünleşik/i;
+  const hazirDuzen = (tur) => {
+    if (tur === "tum") setGizli([]);
+    else if (tur === "sade") setGizli(bolumler.filter(b => HASSAS_BOLUM.test(b)));
+    else if (tur === "ozet") setGizli(bolumler.filter(b => !/Profil 1|Profil 2|Deneme|GDO|Kaygı Ölçeği/i.test(b)));
+  };
+  const bolumDegistir = (b) => setGizli(g => g.includes(b) ? g.filter(x => x !== b) : [...g, b]);
+  // Gizlenen bölümler, yazdırma/PDF çıktısına GİRMEZ: rapor kutusunun kopyası alınır ve
+  // gizli bölümler kopyadan tamamen silinir (yalnızca display:none bırakılmaz — böylece
+  // "Telefon" sayfasının kaynağında ya da kopyalanan metinde bile görünmezler).
+  const temizKopya = () => {
+    const kap = document.getElementById("pdr-rapor-icerik");
+    if (!kap) return null;
+    const kopya = kap.cloneNode(true);
+    kopya.querySelectorAll("[data-bolum]").forEach(b => { const k = b.parentElement; if (k && k.style.display === "none") k.remove(); });
+    return kopya;
+  };
+  const temizIndir = () => {
+    const kopya = temizKopya();
+    if (!kopya) return;
+    kopya.id = "pdr-rapor-temiz-tmp";
+    kopya.style.position = "absolute"; kopya.style.left = "-9999px"; kopya.style.top = "0";
+    document.body.appendChild(kopya);
+    raporIndir(kopya.id, "PDR_Rapor_" + (ogrenci || "").replace(/\s+/g, "_"));
+    setTimeout(() => { const el = document.getElementById("pdr-rapor-temiz-tmp"); if (el) el.remove(); }, 8000);
+  };
 
   const dersOrtalama = () => {
     if (!profil2?.sinavlar) return null;
@@ -7135,22 +7206,23 @@ function RaporModal({ rapor, onKapat }) {
   };
 
   const S = {
-    bolumBaslik: { background: "linear-gradient(90deg, #127C56 0%, #2E7A6B 100%)", color: "#fff", padding: "6px 12px", borderRadius: "6px 6px 0 0", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" },
-    bolumIcerik: { border: "1px solid #B9D9C8", borderTop: "none", borderRadius: "0 0 6px 6px", padding: 12, marginBottom: 16 },
-    bolumBaslik2: { background: "linear-gradient(90deg, #6E5AAE 0%, #9E78ED 100%)", color: "#fff", padding: "6px 12px", borderRadius: "6px 6px 0 0", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" },
-    bolumIcerik2: { border: "1px solid #D5C6F3", borderTop: "none", borderRadius: "0 0 6px 6px", padding: 12, marginBottom: 16 },
+    bolumBaslik: { background: "linear-gradient(90deg, #127C56 0%, #2E7A6B 100%)", color: "#fff", padding: "5px 12px", borderRadius: "8px 8px 0 0", fontSize: 10.5, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase" },
+    bolumIcerik: { background: "#fff", border: "1px solid #B9D9C8", borderTop: "none", borderRadius: "0 0 8px 8px", padding: 10, marginBottom: 12, boxShadow: "0 1px 3px rgba(20,40,32,0.07)" },
+    bolumBaslik2: { background: "linear-gradient(90deg, #6E5AAE 0%, #9E78ED 100%)", color: "#fff", padding: "5px 12px", borderRadius: "8px 8px 0 0", fontSize: 10.5, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase" },
+    bolumIcerik2: { background: "#fff", border: "1px solid #D5C6F3", borderTop: "none", borderRadius: "0 0 8px 8px", padding: 10, marginBottom: 12, boxShadow: "0 1px 3px rgba(20,40,32,0.07)" },
   };
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "#fff", display: "flex", flexDirection: "column", fontFamily: "Arial, sans-serif" }}>
       {/* Üst bar */}
-      <div style={{ background: "linear-gradient(135deg, #0E6E4C 0%, #2E5B6E 55%, #5B3F9E 100%)", color: "#fff", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+      <div style={{ background: "linear-gradient(135deg, #0E6E4C 0%, #2E5B6E 55%, #5B3F9E 100%)", color: "#fff", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0, flexWrap: "wrap", gap: 8 }}>
         <span style={{ fontWeight: 800, fontSize: 15 }}>📄 PDR Profil Raporu — {ogrenci}</span>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => raporIndir("pdr-rapor-icerik", "PDR_Rapor_" + (ogrenci||"").replace(/\s+/g,"_"))} style={{ background: "#fff", color: "#127C56", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>🖨 İndir</button>
+          <button onClick={() => setEditorAcik(a => !a)} style={{ background: editorAcik ? "#FFE9A8" : "rgba(255,255,255,0.15)", color: editorAcik ? "#5A4300" : "#fff", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>✏️ Düzenle</button>
+          <button onClick={temizIndir} style={{ background: "#fff", color: "#127C56", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>🖨 İndir</button>
           <button onClick={() => {
             // Mobil için: rapor içeriğini data URI ile aç
-            const el = document.getElementById("pdr-rapor-icerik");
+            const el = temizKopya();
             if (!el) return;
             const htmlStr = `<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PDR Raporu</title><style>@page{size:A4;margin:10mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a;padding:10px;margin:0}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.noprint{display:none}}table{width:100%;border-collapse:collapse}svg{max-width:100%}</style></head><body><div class="noprint" style="position:fixed;top:0;left:0;right:0;background:#127C56;color:#fff;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;z-index:999"><span style="font-weight:700">PDR Raporu — ${ogrenci}</span><button onclick="window.print()" style="background:#fff;color:#127C56;border:none;border-radius:6px;padding:6px 14px;font-weight:800;cursor:pointer">🖨️ Yazdır/PDF</button></div><div style="margin-top:50px">${el.innerHTML}</div></body></html>`;
             // Base64 encode
@@ -7161,12 +7233,63 @@ function RaporModal({ rapor, onKapat }) {
         </div>
       </div>
 
+      {/* Rapor Düzenleyici — yazdırılan alanın DIŞINDA, çıktıya girmez */}
+      {editorAcik && (
+        <div style={{ background: "#F6F3FC", borderBottom: "1px solid #D9CEF2", padding: "12px 16px", flexShrink: 0, maxHeight: "48vh", overflowY: "auto", fontFamily: "Arial, sans-serif" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 8, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#4B3A8C" }}>✏️ Rapor Düzenleyici</div>
+            <div style={{ fontSize: 10.5, color: "#7A6FA3" }}>Değişiklikler yalnızca bu raporu etkiler; öğrenci kayıtların değişmez.</div>
+          </div>
+
+          <div style={{ fontSize: 10, fontWeight: 800, color: "#6E5AAE", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5 }}>Hazır düzenler</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+            {[["tum", "📄 Tümü"], ["sade", "🔒 Paylaşım için sade"], ["ozet", "📊 Sadece akademik özet"]].map(([k, l]) => (
+              <button key={k} onClick={() => hazirDuzen(k)} style={{ background: "#fff", border: "1px solid #CFC3EE", color: "#4B3A8C", borderRadius: 16, padding: "5px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{l}</button>
+            ))}
+          </div>
+
+          <div style={{ fontSize: 10, fontWeight: 800, color: "#6E5AAE", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5 }}>Bölümler — dokunarak göster / gizle ({bolumler.length - gizli.filter(g => bolumler.includes(g)).length}/{bolumler.length} açık)</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+            {bolumler.length === 0 && <span style={{ fontSize: 11, color: "#999" }}>Bu raporda düzenlenebilir bölüm yok.</span>}
+            {bolumler.map(b => {
+              const kapali = gizli.includes(b);
+              return (
+                <button key={b} onClick={() => bolumDegistir(b)} style={{
+                  background: kapali ? "#EFEDF5" : "#E3F4EA", border: "1px solid " + (kapali ? "#D5D0E3" : "#9FD3B6"),
+                  color: kapali ? "#9A93B0" : "#12603F", textDecoration: kapali ? "line-through" : "none",
+                  borderRadius: 14, padding: "4px 10px", fontSize: 10.5, fontWeight: 600, cursor: "pointer", textAlign: "left"
+                }}>{kapali ? "✕ " : "✓ "}{b.length > 46 ? b.slice(0, 44) + "…" : b}</button>
+              );
+            })}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10, marginBottom: 10 }}>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#6E5AAE", marginBottom: 3 }}>Okul / Kurum adı (raporun başlığında)</div>
+              <input value={kurum} onChange={e => setKurum(e.target.value)} placeholder="örn. BeyKoop Ali Çebi Ortaokulu" style={{ width: "100%", boxSizing: "border-box", padding: "7px 9px", border: "1px solid #D5CBEF", borderRadius: 8, fontSize: 12, background: "#fff" }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#6E5AAE", marginBottom: 3 }}>Danışman adı (başlıkta ve altbilgide)</div>
+              <input value={danisman} onChange={e => setDanisman(e.target.value)} placeholder="örn. Hakan Has" style={{ width: "100%", boxSizing: "border-box", padding: "7px 9px", border: "1px solid #D5CBEF", borderRadius: 8, fontSize: 12, background: "#fff" }} />
+            </div>
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#6E5AAE", marginBottom: 3 }}>Danışman değerlendirmesi (raporun en üstünde, vurgulu kutuda görünür)</div>
+            <textarea value={genelDeger} onChange={e => setGenelDeger(e.target.value)} rows={3} placeholder="Öğrencinin genel durumu hakkında kısa değerlendirmen…" style={{ width: "100%", boxSizing: "border-box", padding: "7px 9px", border: "1px solid #D5CBEF", borderRadius: 8, fontSize: 12, background: "#fff", resize: "vertical", fontFamily: "inherit" }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#6E5AAE", marginBottom: 3 }}>Öneriler ve yönlendirmeler (raporun sonunda görünür)</div>
+            <textarea value={oneriler} onChange={e => setOneriler(e.target.value)} rows={3} placeholder="Okul, aile ve öğrenci için öneriler, yönlendirmeler…" style={{ width: "100%", boxSizing: "border-box", padding: "7px 9px", border: "1px solid #D5CBEF", borderRadius: 8, fontSize: 12, background: "#fff", resize: "vertical", fontFamily: "inherit" }} />
+          </div>
+        </div>
+      )}
+
       {/* Rapor içeriği */}
       <div id="pdr-rapor-icerik" style={{ flex: 1, overflowY: "auto", padding: "20px 24px", background: "linear-gradient(160deg, #F2FAF6 0%, #FAFAFB 50%, #F5F1FC 100%)" }}>
         {/* Başlık */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "3px solid #127C56", paddingBottom: 12, marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", background: "linear-gradient(135deg, #FFFFFF 0%, #F0FAF5 100%)", border: "1px solid #CFE6DA", borderLeft: "5px solid #127C56", borderRadius: 10, padding: "12px 14px", marginBottom: 12, boxShadow: "0 1px 4px rgba(20,40,32,0.08)" }}>
           <div>
-            <div style={{ fontSize: 10, color: "#127C56", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>PDR Servisi — Öğrenci Profil Raporu</div>
+            <div style={{ fontSize: 10, color: "#127C56", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>{kurum ? kurum + " · " : ""}PDR Servisi — Öğrenci Profil Raporu</div>
             <div style={{ fontSize: 22, fontWeight: 900, color: "#1a1a1a", margin: "4px 0" }}>{ogrenci}</div>
             {profil1?.className && <div style={{ fontSize: 13, color: "#666" }}>{profil1.className}</div>}
             {raporKaynastirma && raporKaynastirma.length > 0 && (
@@ -7176,15 +7299,56 @@ function RaporModal({ rapor, onKapat }) {
           <div style={{ textAlign: "right", fontSize: 11, color: "#888" }}>
             <div>Rapor Tarihi</div>
             <div style={{ fontWeight: 700, color: "#333" }}>{tarih}</div>
+            {danisman && <div style={{ fontSize: 10, color: "#127C56", fontWeight: 700, marginTop: 4 }}>{danisman}</div>}
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        {/* Özet şeridi — rapordaki verilerden otomatik hesaplanır */}
+        {(() => {
+          const tumG = gorusmeler || [];
+          const veliG = tumG.filter(r => r.meetingType === "Veli").length;
+          const ogG = tumG.length - veliG;
+          const sonG = [...tumG].sort((a, b) => pdrTarihMs(b.date) - pdrTarihMs(a.date))[0];
+          const dn = Object.entries(raporDenemeler || {})
+            .filter(([k, v]) => k !== "7sinif" && v && typeof v === "object")
+            .map(([k, v]) => ({ no: Number(k), net: pdrToplamNetHesapla(v, dersler) }))
+            .filter(x => !isNaN(x.net)).sort((a, b) => a.no - b.no);
+          const dnOrt = dn.length ? dn.reduce((s, x) => s + x.net, 0) / dn.length : null;
+          const acikRisk = (raporRisk || []).filter(r => pdrAyniOgrenci(r.studentName, r.className, ogrenci, ogrenciSinif) && !r.kapandi).length;
+          const testSayisi = (pdrSozlukOku(raporTestler, ogrenci, ogrenciSinif, ogrNo) || []).length;
+          const kutular = [
+            { ikon: "📝", etiket: "Görüşme", deger: String(tumG.length), alt: tumG.length ? (veliG ? ogG + " öğrenci · " + veliG + " veli" : ogG + " öğrenci") : "kayıt yok", renk: "#127C56" },
+            { ikon: "🗓", etiket: "Son Görüşme", deger: sonG ? sonG.date : "—", alt: "", renk: "#2E5B6E" },
+            { ikon: "📊", etiket: "Deneme Ort.", deger: dnOrt !== null ? dnOrt.toFixed(1) : "—", alt: dn.length ? dn.length + " deneme · son " + dn[dn.length - 1].net.toFixed(1) : "veri yok", renk: "#5B3F9E" },
+            { ikon: acikRisk ? "⚠️" : "✅", etiket: "Açık Risk", deger: String(acikRisk), alt: acikRisk ? "takip gerekli" : "açık kayıt yok", renk: acikRisk ? "#C0392B" : "#1A8C5B" },
+            { ikon: "🧪", etiket: "Uygulanan Test", deger: String(testSayisi), alt: testSayisi ? "" : "kayıt yok", renk: "#6E5AAE" },
+          ];
+          return (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(98px, 1fr))", gap: 8, marginBottom: 12 }}>
+              {kutular.map(k => (
+                <div key={k.etiket} style={{ background: "#fff", border: "1px solid #E3ECE7", borderTop: "3px solid " + k.renk, borderRadius: 8, padding: "7px 6px", textAlign: "center", boxShadow: "0 1px 3px rgba(20,40,32,0.07)" }}>
+                  <div style={{ fontSize: 8.5, fontWeight: 700, color: "#8A948E", textTransform: "uppercase", letterSpacing: 0.4 }}>{k.ikon} {k.etiket}</div>
+                  <div style={{ fontSize: 17, fontWeight: 900, color: k.renk, margin: "2px 0", lineHeight: 1.15 }}>{k.deger}</div>
+                  <div style={{ fontSize: 8.5, color: "#8A948E", minHeight: 10 }}>{k.alt}</div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
+        {genelDeger.trim() && (
+          <div style={{ background: "#fff", border: "1px solid #D9CEF2", borderLeft: "4px solid #6E5AAE", borderRadius: 8, padding: "10px 12px", marginBottom: 12, pageBreakInside: "avoid", boxShadow: "0 1px 3px rgba(20,40,32,0.07)" }}>
+            <div style={{ fontSize: 9.5, fontWeight: 800, color: "#6E5AAE", letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 4 }}>Danışman Değerlendirmesi</div>
+            <div style={{ fontSize: 11.5, color: "#222", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{genelDeger}</div>
+          </div>
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
           {/* Sol */}
           <div>
             {profil1 && (
               <div style={{ marginBottom: 16 }}>
-                <div style={S.bolumBaslik}><KaynakRozeti ikon="📋" ad="Profil" />Profil 1 — PDR Değerlendirmesi</div>
+                <div data-bolum="1" style={S.bolumBaslik}><KaynakRozeti ikon="📋" ad="Profil" />Profil 1 — PDR Değerlendirmesi</div>
                 <div style={S.bolumIcerik}>
                   <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
                     <RadarChart scores={profil1.scores} size={230} />
@@ -7214,7 +7378,7 @@ function RaporModal({ rapor, onKapat }) {
 
             {gorusmeler && gorusmeler.length > 0 && (
               <div>
-                <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📝" ad="Görüşme Notu" />Görüşme Geçmişi ({gorusmeler.length} görüşme)</div>
+                <div data-bolum="1" style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📝" ad="Görüşme Notu" />Görüşme Geçmişi ({gorusmeler.length} görüşme)</div>
                 <div style={S.bolumIcerik2}>
                   {[...gorusmeler].sort((a, b) => {
                     const parse = d => { const [g,ay,y]=(d||"").split("."); return new Date(y+"-"+ay+"-"+g); };
@@ -7276,7 +7440,7 @@ function RaporModal({ rapor, onKapat }) {
               const sonuc = oogSonucHesapla(oogKayit.cevaplar);
               return (
                 <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />ÖÖG Ön-Tarama (Tanı Değil — Yalnızca Tarama)</div>
+                  <div data-bolum="1" style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />ÖÖG Ön-Tarama (Tanı Değil — Yalnızca Tarama)</div>
                   <div style={S.bolumIcerik2}>
                     <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
                       <span style={{ fontSize:16, fontWeight:900, color:sonuc.seviye.color }}>%{sonuc.yuzde}</span>
@@ -7301,7 +7465,7 @@ function RaporModal({ rapor, onKapat }) {
               const sonuc = castSonucHesapla(castKayit.cevaplar);
               return (
                 <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />Otizm Spektrumu Kapsamlı Taraması (Tanı Değil — Yalnızca Tarama)</div>
+                  <div data-bolum="1" style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />Otizm Spektrumu Kapsamlı Taraması (Tanı Değil — Yalnızca Tarama)</div>
                   <div style={S.bolumIcerik2}>
                     <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
                       <span style={{ fontSize:16, fontWeight:900, color:sonuc.seviye.color }}>{sonuc.toplamEvet}/{sonuc.toplamSoru}</span>
@@ -7336,7 +7500,7 @@ function RaporModal({ rapor, onKapat }) {
               const sonuc = akadKayit.sonuc || akademikTaramaSonucHesapla(akadKayit.cevaplar);
               return (
                 <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />Akademik Düzey Taraması (5-8. Sınıf Kademeli Tanılama)</div>
+                  <div data-bolum="1" style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />Akademik Düzey Taraması (5-8. Sınıf Kademeli Tanılama)</div>
                   <div style={S.bolumIcerik2}>
                     <div style={{ fontSize:9, color:"#888", marginBottom:6 }}>({akadKayit.date})</div>
                     {AKADEMIK_DERSLER.map(ders => {
@@ -7370,7 +7534,7 @@ function RaporModal({ rapor, onKapat }) {
               if (!s || s.hicUygulanmadi) return null;
               return (
                 <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />İlkokul Düzey Taraması (1-4. Sınıf)</div>
+                  <div data-bolum="1" style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />İlkokul Düzey Taraması (1-4. Sınıf)</div>
                   <div style={S.bolumIcerik2}>
                     <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8, flexWrap:"wrap" }}>
                       <span style={{ fontSize:14, fontWeight:900, color: s.islevselSinif ? "#1A8C5B" : "#C0392B" }}>
@@ -7417,7 +7581,7 @@ function RaporModal({ rapor, onKapat }) {
               if (!s || s.hicUygulanmadi) return null;
               return (
                 <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />Lise Düzey Taraması (9-12. Sınıf)</div>
+                  <div data-bolum="1" style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />Lise Düzey Taraması (9-12. Sınıf)</div>
                   <div style={S.bolumIcerik2}>
                     <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8, flexWrap:"wrap" }}>
                       <span style={{ fontSize:14, fontWeight:900, color: s.genelIslevsel ? "#1A8C5B" : "#C0392B" }}>
@@ -7478,7 +7642,7 @@ function RaporModal({ rapor, onKapat }) {
               if (dolu.length === 0) return null;
               return (
                 <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />Bütünleşik Değerlendirme</div>
+                  <div data-bolum="1" style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />Bütünleşik Değerlendirme</div>
                   <div style={S.bolumIcerik2}>
                     <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:6 }}>
                       <thead>
@@ -7550,7 +7714,7 @@ function RaporModal({ rapor, onKapat }) {
               if (!s || s.hicCevaplanmadi) return null;
               return (
                 <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />Akademik Benlik Kavramı</div>
+                  <div data-bolum="1" style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />Akademik Benlik Kavramı</div>
                   <div style={S.bolumIcerik2}>
                     <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8, flexWrap:"wrap" }}>
                       <span style={{ fontSize:14, fontWeight:900, color: s.genel.band ? s.genel.band.color : "#888" }}>
@@ -7582,7 +7746,7 @@ function RaporModal({ rapor, onKapat }) {
               if (!hazirlikMetni || !hazirlikMetni.trim()) return null;
               return (
                 <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />Seans Hazırlık Notu</div>
+                  <div data-bolum="1" style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />Seans Hazırlık Notu</div>
                   <div style={{ ...S.bolumIcerik2, fontSize:10.5, lineHeight:1.6, whiteSpace:"pre-wrap" }}>{hazirlikMetni}</div>
                 </div>
               );
@@ -7594,7 +7758,7 @@ function RaporModal({ rapor, onKapat }) {
               if (!ilerlemeMetni || !ilerlemeMetni.trim()) return null;
               return (
                 <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}>İlerleme Yazısı</div>
+                  <div data-bolum="1" style={{ ...S.bolumBaslik2 }}>İlerleme Yazısı</div>
                   <div style={{ ...S.bolumIcerik2, fontSize:10.5, lineHeight:1.6, whiteSpace:"pre-wrap" }}>{ilerlemeMetni}</div>
                 </div>
               );
@@ -7607,7 +7771,7 @@ function RaporModal({ rapor, onKapat }) {
               if (olaylar.length === 0) return null;
               return (
                 <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="🚨" ad="Kriz Müdahale" />Olay / Tutanak Kaydı ({olaylar.length})</div>
+                  <div data-bolum="1" style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="🚨" ad="Kriz Müdahale" />Olay / Tutanak Kaydı ({olaylar.length})</div>
                   <div style={S.bolumIcerik2}>
                     {olaylar.map((o,i) => (
                       <div key={i} style={{ marginBottom:6, fontSize:10.5, lineHeight:1.6 }}>
@@ -7626,7 +7790,7 @@ function RaporModal({ rapor, onKapat }) {
               if (ogrSevkler.length === 0) return null;
               return (
                 <div style={{ marginTop:10, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="🏥" ad="Sevk" />Sevk Kayıtları ({ogrSevkler.length})</div>
+                  <div data-bolum="1" style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="🏥" ad="Sevk" />Sevk Kayıtları ({ogrSevkler.length})</div>
                   <div style={S.bolumIcerik2}>
                     {ogrSevkler.map((s,i) => (
                       <div key={i} style={{ marginBottom:6, fontSize:10.5, lineHeight:1.6 }}>
@@ -7645,7 +7809,7 @@ function RaporModal({ rapor, onKapat }) {
           <div>
             {profil2 && (
               <div>
-                <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />Profil 2 — Akademik & İlgi Profili</div>
+                <div data-bolum="1" style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📋" ad="Profil" />Profil 2 — Akademik & İlgi Profili</div>
                 <div style={S.bolumIcerik2}>
                   {profil2.gecmisYillar && Object.entries(profil2.gecmisYillar).filter(([,v])=>v!=="" && v!=null).length > 0 && (
                     <div style={{ marginBottom: 12 }}>
@@ -7805,7 +7969,7 @@ function RaporModal({ rapor, onKapat }) {
               const gdoDenemeSayisi = Object.keys(gdo.denemeler || {}).length;
               return (
                 <div style={{ marginTop: 16 }}>
-                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📊" ad="Deneme" />Geçmiş Dönem Ortalaması (GDO){gdoDenemeSayisi > 0 ? ` — ${gdoDenemeSayisi} deneme` : ""}</div>
+                  <div data-bolum="1" style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📊" ad="Deneme" />Geçmiş Dönem Ortalaması (GDO){gdoDenemeSayisi > 0 ? ` — ${gdoDenemeSayisi} deneme` : ""}</div>
                   <div style={{ ...S.bolumIcerik2, display:"flex", gap:10 }}>
                     <div style={{ flex:1, textAlign:"center", background:"#f9f9f9", borderRadius:6, padding:"8px 4px" }}>
                       <div style={{ fontSize:18, fontWeight:900, color:ACCENT }}>{gdo.ortalama ?? "—"}</div>
@@ -7850,7 +8014,7 @@ function RaporModal({ rapor, onKapat }) {
               const trend = girilen.length > 1 ? girilen[girilen.length-1].toplam - girilen[0].toplam : 0;
               return (
                 <div style={{ marginTop: 16 }}>
-                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📊" ad="Deneme" />LGS Deneme Sonuçları ({girilen.length} deneme)</div>
+                  <div data-bolum="1" style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="📊" ad="Deneme" />LGS Deneme Sonuçları ({girilen.length} deneme)</div>
                   <div style={{ ...S.bolumIcerik2 }}>
                     {/* Özet */}
                     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:6, marginBottom:12 }}>
@@ -7908,11 +8072,11 @@ function RaporModal({ rapor, onKapat }) {
 
             {/* Uygulanan Testler */}
             {(() => {
-              const ogrTestleri = pdrSozlukOku(raporTestler, ogrenci, ogrenciSinif, profil1?.numara) || [];
+              const ogrTestleri = pdrSozlukOku(raporTestler, ogrenci, ogrenciSinif, ogrNo) || [];
               if (ogrTestleri.length === 0) return null;
               return (
                 <div style={{ marginTop:16, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="🧪" ad="Testler" />Uygulanan Testler</div>
+                  <div data-bolum="1" style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="🧪" ad="Testler" />Uygulanan Testler</div>
                   <div style={{ ...S.bolumIcerik2 }}>
                     {ogrTestleri.map(k => (
                       <div key={k.id} style={{ marginBottom:8, paddingBottom:8, borderBottom:"1px solid #eee" }}>
@@ -7938,7 +8102,7 @@ function RaporModal({ rapor, onKapat }) {
               const aktifRisk = (raporRisk || []).filter(r => pdrAyniOgrenci(r.studentName, r.className, ogrenci, ogrenciSinif) && !r.kapandi);
               return (
                 <div style={{ marginTop:16, pageBreakInside:"avoid" }}>
-                  <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="🎯" ad="Müdahale" />Bir Sonraki Seans Planı</div>
+                  <div data-bolum="1" style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="🎯" ad="Müdahale" />Bir Sonraki Seans Planı</div>
                   <div style={{ ...S.bolumIcerik2 }}>
 
                     {/* Aktif müdahale planları */}
@@ -8014,11 +8178,11 @@ function RaporModal({ rapor, onKapat }) {
         </div>
         {/* Kaygı Ölçeği (SCAS-Çocuk) sonuç raporu — tam genişlik, sütun grafikli */}
         {(() => {
-          const scasKayitlari = (pdrSozlukOku(raporTestler, ogrenci, ogrenciSinif, profil1?.numara) || []).filter(k => k.tip === "scas_cocuk");
+          const scasKayitlari = (pdrSozlukOku(raporTestler, ogrenci, ogrenciSinif, ogrNo) || []).filter(k => k.tip === "scas_cocuk");
           if (scasKayitlari.length === 0) return null;
           return (
             <div style={{ marginTop: 16, pageBreakBefore: "always" }}>
-              <div style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="🧪" ad="Testler" />Kaygı Ölçeği Sonuç Raporu (SCAS-Çocuk)</div>
+              <div data-bolum="1" style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="🧪" ad="Testler" />Kaygı Ölçeği Sonuç Raporu (SCAS-Çocuk)</div>
               <div style={{ ...S.bolumIcerik2 }}>
                 {scasKayitlari.map((k, kIdx) => {
                   const sonuc = scasPuanla(k.veri?.cevaplar || [], k.veri?.cinsiyetKullanilan, k.veri?.yasGrubuKullanilan);
@@ -8033,6 +8197,17 @@ function RaporModal({ rapor, onKapat }) {
             </div>
           );
         })()}
+
+        {oneriler.trim() && (
+          <div style={{ background: "#fff", border: "1px solid #CFE6DA", borderLeft: "4px solid #127C56", borderRadius: 8, padding: "10px 12px", marginTop: 14, pageBreakInside: "avoid", boxShadow: "0 1px 3px rgba(20,40,32,0.07)" }}>
+            <div style={{ fontSize: 9.5, fontWeight: 800, color: "#127C56", letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 4 }}>Öneriler ve Yönlendirmeler</div>
+            <div style={{ fontSize: 11.5, color: "#222", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{oneriler}</div>
+          </div>
+        )}
+
+        <div style={{ marginTop: 14, paddingTop: 8, borderTop: "1px solid #D9E6DF", fontSize: 8.5, color: "#8A948E", lineHeight: 1.6, textAlign: "center" }}>
+          Bu rapor {tarih} tarihinde{danisman ? " " + danisman + " tarafından" : ""} hazırlanmıştır. Gizli bilgi içerir; tanı niteliği taşımaz, yalnızca ilgili kişilerle paylaşım amacıyla düzenlenmiştir.
+        </div>
       </div>
     </div>
   );
@@ -16943,7 +17118,7 @@ function ProfilMerkez({
                   aile_notu: prof2Form.aile_notu || "",
                   d2_analiz: prof2Analiz || ""
                 };
-                onRaporAc({ogrenci:seciliAd, ogrenciSinif:seciliSinif, profil1:p1Rapor, profil2:p2Rapor, gorusmeler:ogrRec, denemeler:ogrDeneme, kaynastirma: kayitliListesi.find(o => o.name === seciliAd)?.kaynastirma || []});
+                onRaporAc({ogrenci:seciliAd, ogrenciSinif:seciliSinif, ogrenciNumara:seciliNumara, profil1:p1Rapor, profil2:p2Rapor, gorusmeler:ogrRec, denemeler:ogrDeneme, kaynastirma: kayitliListesi.find(o => pdrAyniOgrenci(o.name, o.className, seciliAd, seciliSinif, o.numara, seciliNumara))?.kaynastirma || []});
               }} style={{
                 background:ACCENT, color:"#fff", border:"none", borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:700, cursor:"pointer"
               }}>📄 PDF Rapor</button>
