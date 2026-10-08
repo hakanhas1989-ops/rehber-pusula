@@ -8181,15 +8181,15 @@ function RaporModalIc({ rapor, onKapat }) {
           const scasKayitlari = (pdrSozlukOku(raporTestler, ogrenci, ogrenciSinif, ogrNo) || []).filter(k => k.tip === "scas_cocuk");
           if (scasKayitlari.length === 0) return null;
           return (
-            <div style={{ marginTop: 16, pageBreakBefore: "always" }}>
-              <div data-bolum="1" style={{ ...S.bolumBaslik2 }}><KaynakRozeti ikon="🧪" ad="Testler" />Kaygı Ölçeği Sonuç Raporu (SCAS-Çocuk)</div>
+            <div style={{ marginTop: 12 }}>
+              <div data-bolum="1" style={{ ...S.bolumBaslik2, pageBreakAfter: "avoid", breakAfter: "avoid" }}><KaynakRozeti ikon="🧪" ad="Testler" />Kaygı Ölçeği Sonuç Raporu (SCAS-Çocuk)</div>
               <div style={{ ...S.bolumIcerik2 }}>
                 {scasKayitlari.map((k, kIdx) => {
                   const sonuc = scasPuanla(k.veri?.cevaplar || [], k.veri?.cinsiyetKullanilan, k.veri?.yasGrubuKullanilan);
                   const onceki = scasKayitlari.slice(kIdx + 1)[0];
                   const rci = onceki ? scasGuvenilirDegisimYorumu(sonuc.genelToplam, scasPuanla(onceki.veri?.cevaplar || []).genelToplam) : null;
                   return (
-                    <div key={k.id} style={{ marginBottom: 14, pageBreakInside: "avoid" }}
+                    <div key={k.id} style={{ marginBottom: 8, zoom: 0.8 }}
                       dangerouslySetInnerHTML={{ __html: scasRaporHtmlOlustur(sonuc, { ogrenci, sinif: ogrenciSinif, tarih: k.tarih, rci, oncekiTarih: onceki && onceki.tarih }) }} />
                   );
                 })}
