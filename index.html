@@ -10462,6 +10462,7 @@ function CDTPaneli({ seciliAd, seciliSinif, seciliNumara, testKayitlari, setTest
                 <div style={{ display: "flex", gap: 6 }}>
                   <button onClick={() => setAcikId(acik ? null : k.id)} style={{ padding: "6px 11px", borderRadius: 8, border: `1px solid #D9D2FB`, background: acik ? "#5B4BD6" : "#F4F1FF", color: acik ? "#fff" : "#4338CA", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{acik ? "Kapat" : "Raporu Gör"}</button>
                   <button onClick={() => cdtPdfIndir(k, seciliAd, seciliSinif, testKayitlari)} style={{ padding: "6px 11px", borderRadius: 8, border: "none", background: "#1a1a2e", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>🖨 PDF</button>
+                  <button onClick={() => veliDikkatRaporuIndir({ ogrenci: seciliAd, sinif: seciliSinif, cdtKayit: k, tumKayitlar })} title="Veli için sade, tek sayfalık özet" style={{ padding: "6px 11px", borderRadius: 8, border: "1px solid #A7F3D0", background: "#ECFDF5", color: "#047857", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>👪 Veli</button>
                 </div>
               </div>
               {acik && (
@@ -11399,6 +11400,162 @@ function dgProgramHtml(veri, b) {
     <div style="margin-top:10px;font-size:10px;color:#666;line-height:1.5">Program; Sohlberg ve Mateer'in dikkat modeli, Pay Attention!, ATTENTIONER, ACTIVATE ve öz-düzenleme araştırmalarından yararlanılarak hazırlanmıştır. Araştırmalar, bilgisayar tabanlı dikkat çalışmalarının tek başına sınıf davranışına aktarımının sınırlı olduğunu; strateji öğretimi, öz-izleme ve öğretmen-aile işbirliğiyle birlikte uygulandığında daha etkili olduğunu göstermektedir. Program tanı ya da ilaç tedavisinin yerine geçmez.</div>
   </div>`;
 }
+// ── Veli için sade dikkat raporu (ÇDT + Dikkat Güçlendirme Programı) ──
+// Tek sayfalık, teknik terim içermeyen özet: çocuğun güçlü yanları, desteğe
+// ihtiyaç duyduğu alanlar, evde yapılabilecekler ve (varsa) programdaki ilerleme.
+const VELI_ALAN = {
+  A: { ad: "Dikkatini toplama ve sürdürme", ikon: "🎯",
+       cumle: ["Bir işe odaklanıp dikkatini sürdürmede yaşıtlarından daha başarılı.",
+               "Bir işe odaklanıp dikkatini sürdürmede yaşıtlarıyla benzer düzeyde.",
+               "Bir işe uzun süre odaklanırken zaman zaman dikkati dağılıyor; bazı ayrıntıları kaçırabiliyor.",
+               "Bir işe odaklanıp sürdürmekte belirgin zorlanıyor; önemli ayrıntıları sık kaçırabiliyor."] },
+  T: { ad: "Hızlı ve zamanında tepki verme", ikon: "⏱",
+       cumle: ["Gördüğünü hızlı anlayıp zamanında tepki veriyor.",
+               "Tepki verme hızı yaşıtlarıyla benzer düzeyde.",
+               "Gördüğünü anlayıp tepki vermesi bazen yaşıtlarından biraz daha uzun sürüyor.",
+               "Gördüğünü anlayıp tepki vermesi çoğu zaman yaşıtlarından daha uzun sürüyor; acele ettirildiğinde zorlanabilir."] },
+  I: { ad: "Düşünmeden davranmayı durdurabilme", ikon: "✋",
+       cumle: ["Harekete geçmeden önce durup düşünebiliyor; aceleci davranmıyor.",
+               "Düşünmeden davranmayı durdurabilme becerisi yaşıtlarıyla benzer düzeyde.",
+               "Zaman zaman durumu tam düşünmeden, aceleyle davranabiliyor.",
+               "Sıklıkla düşünmeden, aceleyle davranıyor; beklemek ve sırasını gözetmek zor gelebilir."] },
+  H: { ad: "Hareketlerini kontrol etme", ikon: "🤲",
+       cumle: ["Hareketlerini iyi kontrol ediyor; gereksiz hareketi az.",
+               "Hareketlerini kontrol etme becerisi yaşıtlarıyla benzer düzeyde.",
+               "Gereksiz ya da tekrarlı hareketleri yaşıtlarından biraz fazla; yerinde durmak zaman zaman zor gelebilir.",
+               "Gereksiz ve tekrarlı hareketleri belirgin biçimde fazla; uzun süre yerinde oturmak zor gelebilir."] },
+};
+const VELI_DUZEY = [
+  { ad: "Güçlü yanı", renk: "#0F766E", zemin: "#CCFBF1" },
+  { ad: "Yaşıtlarıyla benzer", renk: "#15803D", zemin: "#DCFCE7" },
+  { ad: "Biraz desteğe ihtiyacı var", renk: "#B45309", zemin: "#FEF3C7" },
+  { ad: "Desteğe ihtiyacı var", renk: "#B91C1C", zemin: "#FEE2E2" },
+];
+const VELI_EV = {
+  surdurme: ["Ödev ve okuma sürelerini kısa tutun, zamanlayıcı kullanın; başarabildikçe süreyi yavaş yavaş uzatın (örn. 10 → 15 → 20 dk).",
+             "Yapboz, lego, hafıza kartları gibi bitirmesi zaman alan oyunları birlikte oynayın ve tamamlamasını övün."],
+  secici: ["'Farkı bul', 'saklı nesneyi bul' gibi bulmaca ve oyunları birlikte yapın.",
+           "Çalışırken masada yalnızca o işin malzemesi bulunsun; diğer her şey görüş alanının dışında olsun."],
+  inhibisyon: ["'Kırmızı ışık – yeşil ışık', 'Yağ satarım bal satarım', 'Simon der' gibi bekleme ve durma gerektiren oyunlar oynayın.",
+               "Cevap vermeden ya da bir işe başlamadan önce 'Dur – Düşün – Yap' kuralını birlikte uygulayın; beklediği anları hemen övün."],
+  motor: ["Her gün en az 1 saat açık havada koşma, bisiklet, ip atlama gibi hareketli etkinliğe zaman ayırın.",
+          "Oturarak yapılan işlerde 15-20 dakikada bir kısa hareket arası verin; elinde sessiz bir sıkma topu olmasına izin verin."],
+  hiz: ["Acele ettirmeyin; hızlı bitirmek yerine doğru yapmayı övün.",
+        "Yönergeleri kısa, tek tek ve göz teması kurarak verin; çocuğunuzdan söylediğinizi tekrar etmesini isteyin."],
+  celdirici: ["Ödev sırasında televizyon, telefon, tablet ve müzik kapalı olsun.",
+              "Evde ders için mümkün olduğunca sessiz ve kardeşlerin oyun alanından uzak sabit bir köşe belirleyin."],
+};
+function veliDikkatRaporuHtml({ ogrenci, sinif, cdtKayit, oncekiCdtKayit, program }) {
+  const esc = cdtEsc;
+  const s = cdtKayit ? cdtPuanla(cdtKayit.veri) : null;
+  const gecerli = s && s.tamam && s.indeksler && s.indeksler[0].z !== null;
+  const kutu = (baslik, ic, zemin) => `<div style="background:${zemin || "#F8FAFC"};border-radius:10px;padding:10px 12px;margin-top:10px;page-break-inside:avoid"><div style="font-size:13.5px;font-weight:700;color:#1E293B;margin-bottom:6px">${baslik}</div>${ic}</div>`;
+  let bolumler = "";
+
+  // 1) Test sonucu — sade dille
+  if (gecerli) {
+    const satirlar = s.indeksler.map(ind => {
+      const d = VELI_DUZEY[ind.kategori.no - 1], a = VELI_ALAN[ind.k];
+      return `<tr><td style="padding:7px 8px;border-bottom:1px solid #E2E8F0;width:34%;font-weight:700;color:#1E293B">${a.ikon} ${a.ad}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid #E2E8F0;width:24%"><span style="display:inline-block;padding:3px 9px;border-radius:12px;background:${d.zemin};color:${d.renk};font-weight:700;font-size:11.5px">${d.ad}</span></td>
+        <td style="padding:7px 8px;border-bottom:1px solid #E2E8F0;font-size:12px;color:#334155;line-height:1.45">${a.cumle[ind.kategori.no - 1]}</td></tr>`;
+    }).join("");
+    const etk = s.etkiler || {};
+    const celDusus = ["A", "T", "I", "H"].some(k => etk[k] && ["gorsel", "isitsel", "kombine", "yuk"].some(x => etk[k][x] && etk[k][x].yon === "dusus"));
+    const zamanDusus = ["A", "T"].some(k => etk[k] && etk[k].zaman && etk[k].zaman.yon === "dusus");
+    const ekler = [];
+    if (celDusus) ekler.push("Ortamda dikkat dağıtıcı ses ya da görüntüler olduğunda performansı belirgin biçimde düşüyor; sessiz ve sade bir çalışma ortamı ona iyi gelecektir.");
+    if (zamanDusus) ekler.push("Test ilerledikçe performansı düştü; uzun süren işlerde yorulup dikkatini sürdürmekte zorlanabilir, kısa molalar faydalı olur.");
+    const gucluler = s.indeksler.filter(i => i.kategori.no === 1).map(i => VELI_ALAN[i.k].ad.toLocaleLowerCase("tr"));
+    const giris = gucluler.length
+      ? `Çocuğunuzun özellikle <b>${gucluler.join(", ")}</b> konusunda güçlü olduğu görüldü.`
+      : s.indeksler.every(i => i.kategori.no <= 2) ? "Çocuğunuzun sonuçları genel olarak yaşıtlarıyla benzer düzeyde." : "";
+    bolumler += kutu("📊 Test sonucu ne gösteriyor?",
+      `<div style="font-size:12px;color:#334155;line-height:1.55;margin-bottom:6px">Çocuğunuz <b>${esc(cdtKayit.tarih || "")}</b> tarihinde, tablet/bilgisayar ekranında oyun şeklinde yapılan yaklaşık 15 dakikalık bir dikkat testine katıldı. Sonuçlar aynı yaştaki çocuklarla karşılaştırıldı. ${giris}</div>
+       <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px">${satirlar}</table>
+       ${ekler.length ? `<div style="font-size:12px;color:#334155;line-height:1.55;margin-top:7px">${ekler.map(x => "• " + x).join("<br>")}</div>` : ""}`);
+  } else if (cdtKayit) {
+    bolumler += kutu("📊 Test sonucu", `<div style="font-size:12px;color:#334155">Dikkat testi tamamlanamadığı için sonuç değerlendirilemedi. Rehber öğretmenimiz testi uygun bir zamanda yeniden uygulayacaktır.</div>`);
+  }
+
+  // 2) Program ilerlemesi
+  if (program && program.veri) {
+    const v = program.veri;
+    const plan = dgPlanOlustur(v.vurgular || [], v.yasGrubu);
+    const tamamSet = new Set((v.oturumlar || []).filter(o => o.tamam).map(o => o.no));
+    const tamam = tamamSet.size;
+    const sonraki = plan.find(o => !tamamSet.has(o.no));
+    const oyn = v.oynamalar || [];
+    const oyunSatir = Object.keys(DG_OYUNLAR).map(k => {
+      const o = oyn.filter(x => x.oyun === k);
+      if (!o.length) return "";
+      const ilk = o[0].seviye, son = o[o.length - 1].yeniSeviye || o[o.length - 1].seviye;
+      const ok = son > ilk ? `<b style="color:#15803D">${ilk} → ${son} ▲</b>` : son < ilk ? `${ilk} → ${son}` : `${son}`;
+      return `<span style="display:inline-block;background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:3px 9px;margin:0 5px 5px 0;font-size:11.5px">${DG_OYUNLAR[k].ikon} ${DG_OYUNLAR[k].ad}: seviye ${ok}</span>`;
+    }).join("");
+    const odak = (v.vurgular || []).length ? [...new Set(v.vurgular.map(x => DG_VURGU[x.key].ad.toLocaleLowerCase("tr")))].join(", ") : "tüm dikkat becerileri (dengeli program)";
+    const yuzde = Math.round(tamam / 12 * 100);
+    bolumler += kutu("🦉 Dikkat Güçlendirme Programı",
+      `<div style="font-size:12px;color:#334155;line-height:1.55">Çocuğunuz okulumuzda <b>12 oturumluk</b> bir dikkat güçlendirme programına katılıyor. Oturumlarda dikkat oyunları, kağıt-kalem etkinlikleri ve dikkatini toparlama stratejileri çalışılıyor. Bu programda öncelikli çalışma alanları: <b>${odak}</b>.</div>
+       <div style="display:flex;align-items:center;gap:8px;margin:8px 0 6px"><div style="flex:1;height:10px;background:#E2E8F0;border-radius:6px;overflow:hidden"><div style="width:${yuzde}%;height:100%;background:#4F46E5"></div></div><div style="font-size:12px;font-weight:700;color:#312E81;white-space:nowrap">${tamam}/12 oturum</div></div>
+       ${oyunSatir ? `<div style="font-size:11.5px;color:#475569;margin-bottom:3px">Oyunlardaki seviyesi (1-10; doğru ve hızlı oynadıkça yükselir):</div><div>${oyunSatir}</div>` : ""}
+       ${sonraki ? `<div style="font-size:12px;color:#334155;margin-top:6px;background:#EEF2FF;border-radius:8px;padding:7px 9px"><b>Bu hafta evde birlikte yapın — gizli görev:</b> ${sonraki.ev}</div>` : `<div style="font-size:12px;color:#15803D;font-weight:700;margin-top:6px">🎉 Çocuğunuz programın tüm oturumlarını tamamladı.</div>`}`, "#F5F3FF");
+  }
+
+  // 3) Önce / sonra karşılaştırma
+  if (gecerli && oncekiCdtKayit) {
+    const o = cdtPuanla(oncekiCdtKayit.veri);
+    if (o && o.tamam && o.indeksler && o.indeksler[0].z !== null) {
+      const satir = s.indeksler.map((ind, i) => {
+        const once = o.indeksler[i].kategori.no, sonra = ind.kategori.no;
+        const durum = sonra < once ? `<b style="color:#15803D">İlerledi ▲</b>` : sonra > once ? `<span style="color:#B45309">${sonra - once >= 2 ? "Geriledi" : "Biraz geriledi"}</span>` : `<span style="color:#475569">Aynı düzeyde</span>`;
+        return `<tr><td style="padding:5px 8px;border-bottom:1px solid #E2E8F0">${VELI_ALAN[ind.k].ikon} ${VELI_ALAN[ind.k].ad}</td><td style="padding:5px 8px;border-bottom:1px solid #E2E8F0;font-size:11.5px">${VELI_DUZEY[once - 1].ad}</td><td style="padding:5px 8px;border-bottom:1px solid #E2E8F0;font-size:11.5px">${VELI_DUZEY[sonra - 1].ad}</td><td style="padding:5px 8px;border-bottom:1px solid #E2E8F0">${durum}</td></tr>`;
+      }).join("");
+      bolumler += kutu("📈 Önceki teste göre değişim",
+        `<table style="width:100%;border-collapse:collapse;background:#fff;font-size:12px"><tr style="color:#64748B;font-size:11px"><th style="text-align:left;padding:4px 8px"></th><th style="text-align:left;padding:4px 8px">${esc(oncekiCdtKayit.tarih || "Önce")}</th><th style="text-align:left;padding:4px 8px">${esc(cdtKayit.tarih || "Şimdi")}</th><th></th></tr>${satir}</table>`, "#F0FDF4");
+    }
+  }
+
+  // 4) Evde neler yapabilirsiniz
+  const vurgular = gecerli ? dgVurgularHesapla(s) : (program && program.veri && program.veri.vurgular) || [];
+  const anahtarlar = [...new Set(vurgular.map(x => x.key))].slice(0, 3);
+  const ozel = anahtarlar.flatMap(k => VELI_EV[k]).slice(0, 5);
+  const genel = [DG_VELI[0], DG_VELI[2], ...(anahtarlar.includes("hiz") ? [] : [DG_VELI[4]])];
+  bolumler += kutu("🏠 Evde neler yapabilirsiniz?",
+    `<ul style="margin:0 0 0 18px;padding:0;font-size:12px;color:#334155;line-height:1.6">${[...ozel, ...genel].map(x => `<li>${x}</li>`).join("")}</ul>
+     <div style="font-size:12px;color:#334155;margin-top:6px">Unutmayın: Çabayı sonuçtan daha çok övmek ve sabırlı olmak, çocuğunuzun dikkat becerilerini geliştirmesinde en büyük destektir.</div>`, "#ECFDF5");
+
+  return `<div style="font-family:Arial,Helvetica,sans-serif;color:#0F172A;font-size:12px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;border-bottom:3px solid #4F46E5;padding-bottom:8px">
+      <div><div style="font-size:19px;font-weight:700;color:#312E81">Velimize Dikkat Gelişimi Bilgilendirmesi</div>
+      <div style="font-size:11.5px;color:#64748B;margin-top:2px">Okul Rehberlik Servisi</div></div>
+      <div style="font-size:12px;text-align:right;line-height:1.5"><b>${esc(ogrenci || "")}</b>${sinif ? " · " + esc(sinif) : ""}<br>${esc(today())}</div>
+    </div>
+    <div style="font-size:12px;color:#334155;line-height:1.6;margin-top:8px">Değerli velimiz, bu yazı çocuğunuzun dikkat becerileri hakkında sizi bilgilendirmek ve evde neler yapabileceğinize dair öneriler sunmak için hazırlanmıştır.</div>
+    ${bolumler}
+    <div style="font-size:10.5px;color:#64748B;line-height:1.5;margin-top:10px;border-top:1px solid #E2E8F0;padding-top:6px">Bu bilgilendirme bir tanı değildir. Dikkat testi, çocuğunuzun o günkü performansını gösterir; uykusuzluk, yorgunluk ya da kaygı sonuçları etkileyebilir. Sorularınız için rehberlik servisimizle görüşebilirsiniz.</div>
+  </div>`;
+}
+function veliDikkatRaporuIndir({ ogrenci, sinif, cdtKayit, tumKayitlar, program }) {
+  const liste = tumKayitlar || [];
+  const cdtler = liste.filter(k => k.tip === "dikkat_cdt").sort((a, b) => pdrTarihMs(a.tarih) - pdrTarihMs(b.tarih) || String(a.id).localeCompare(String(b.id)));
+  const prg = program !== undefined ? program : (liste.filter(k => k.tip === "dikkat_egitim").sort((a, b) => String(b.id).localeCompare(String(a.id)))[0] || null);
+  const cdt = cdtKayit || cdtler[cdtler.length - 1] || null;
+  // Önceki ölçüm: programın dayandığı ÇDT; yoksa bu testten önceki son ÇDT
+  let onceki = null;
+  if (cdt) {
+    const idx = cdtler.findIndex(k => k.id === cdt.id);
+    const dayanak = prg && prg.veri && prg.veri.kaynakCdtId ? cdtler.find(k => k.id === prg.veri.kaynakCdtId) : null;
+    onceki = dayanak && dayanak.id !== cdt.id && cdtler.indexOf(dayanak) < idx ? dayanak : (idx > 0 ? cdtler[idx - 1] : null);
+  }
+  const tmpId = "veli-dikkat-" + Date.now();
+  const tmp = document.createElement("div"); tmp.id = tmpId;
+  Object.assign(tmp.style, { position: "absolute", left: "-9999px", top: "0", width: "780px", fontFamily: "Arial, sans-serif", padding: "16px" });
+  tmp.innerHTML = veliDikkatRaporuHtml({ ogrenci, sinif, cdtKayit: cdt, oncekiCdtKayit: onceki, program: prg });
+  document.body.appendChild(tmp);
+  raporIndir(tmpId, "Veli_Bilgilendirme_Dikkat_" + String(ogrenci || "").replace(/\s+/g, "_"));
+  setTimeout(() => { const el = document.getElementById(tmpId); if (el) el.remove(); }, 8000);
+}
 function dgIlerlemeGrafik(oynamalar) {
   const W = 640, H = 200, sol = 30, sag = 12, ust = 26, alt = 26;
   const anahtarlar = Object.keys(DG_OYUNLAR);
@@ -11541,6 +11698,7 @@ function DGPaneli({ seciliAd, seciliSinif, seciliNumara, testKayitlari, setTestK
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             <button onClick={() => yazdirHtml(dgProgramHtml(v, { ...bilgi, tarih: program.tarih }), "Dikkat_Programi_" + seciliAd.replace(/\s+/g, "_"))} style={btn("#312E81", true)}>🖨 Kişisel Plan</button>
+            <button onClick={() => veliDikkatRaporuIndir({ ogrenci: seciliAd, sinif: seciliSinif, cdtKayit: sonCdt, tumKayitlar, program })} style={btn("#047857")}>👪 Veli Bilgilendirme</button>
             <button onClick={programOlustur} style={btn("#64748B")}>↻ Yeni program</button>
           </div>
         </div>
@@ -12782,6 +12940,7 @@ KURALLAR:
                       <div style={{ marginTop:10, borderTop:`1px solid ${BORDER}`, paddingTop:10 }}>
                         <div style={{ overflowX:"auto" }} dangerouslySetInnerHTML={{ __html: cdtRaporHtmlOlustur(cdtPuanla(k.veri), { ogrenci: seciliAd, sinif: seciliSinif, tarih: k.tarih, ilac: k.veri?.ilac, yerelNorm: cdtYerelNormHesapla(testKayitlari, k.veri?.yas, k.id) }) }} />
                         <button onClick={()=>cdtPdfIndir(k, seciliAd, seciliSinif, testKayitlari)} style={{ marginTop:8, padding:"7px 16px", background:"#1a1a2e", color:"#fff", border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>🖨 Sonuç Raporu (PDF)</button>
+                        <button onClick={()=>veliDikkatRaporuIndir({ ogrenci: seciliAd, sinif: seciliSinif, cdtKayit: k, tumKayitlar: kayitlar })} style={{ marginTop:8, marginLeft:6, padding:"7px 16px", background:"#ECFDF5", color:"#047857", border:"1px solid #A7F3D0", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>👪 Veli Bilgilendirme (PDF)</button>
                       </div>
                     )}
                     {scasMi && detayAcik && (() => {
