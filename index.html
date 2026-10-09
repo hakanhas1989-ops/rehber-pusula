@@ -15378,8 +15378,119 @@ function VeliMektubu({ kayitliListesi, aktifOgrenci, records }) {
 
 
 
+// ── Yıl sonu toplu sınıf atlatma ────────────────────────────────────────────
+// Program her akademik yıl için ayrı öğrenci listesi tutar. Bu panel, aktif
+// yılın öğrencilerini bir üst sınıfa geçirerek yeni yılın listesine KOPYALAR
+// (eski yıl olduğu gibi kalır). Kademenin son sınıfı (ortaokulda 8) mezun
+// sayılır ve taşınmaz. Görüşme, test, deneme gibi geçmiş kayıtlar isim +
+// numara eşleşmesiyle yeni sınıftaki öğrencide görünmeye devam eder.
+function pdrSinifAtlat(className) {
+  const m = String(className || "").trim().match(/^(\d{1,2})(.*)$/);
+  if (!m) return null;
+  const n = parseInt(m[1], 10) + 1;
+  return { sinif: n + m[2], no: n };
+}
+function pdrSonrakiYil(yil) {
+  const m = String(yil || "").match(/^(\d{4})\s*-\s*(\d{4})$/);
+  return m ? `${+m[1] + 1}-${+m[2] + 1}` : "";
+}
+function YilGecisPaneli({ yillar, aktifYil, ogrenciler, kademe, ogrencileriKaydet, yillariKaydet, aktifYilYap }) {
+  const [acik, setAcik] = useState(false);
+  const [hedef, setHedef] = useState(() => pdrSonrakiYil(aktifYil));
+  const [onay, setOnay] = useState(false);
+  const [calisiyor, setCalisiyor] = useState(false);
+  const [sonuc, setSonuc] = useState("");
+  useEffect(() => { setHedef(pdrSonrakiYil(aktifYil)); setOnay(false); }, [aktifYil]);
+  const enUst = kademe === "ilkokul" ? 4 : kademe === "lise" ? 12 : 8;
+  const kaynak = (ogrenciler || []).filter(o => (!o.yil || o.yil === aktifYil) && pdrKademeUyumlu(o.className, kademe));
+  const hedefYil = hedef.trim();
+  const hedeftekiler = (ogrenciler || []).filter(o => o.yil === hedefYil);
+  const tasinacak = [], mezun = [], okunamayan = [], zatenVar = [];
+  kaynak.forEach(o => {
+    const y = pdrSinifAtlat(o.className);
+    if (!y) { okunamayan.push(o); return; }
+    if (y.no > enUst) { mezun.push(o); return; }
+    if (hedeftekiler.some(h => pdrAyniOgrenci(h.studentName, h.className, o.studentName, y.sinif, h.numara, o.numara))) { zatenVar.push(o); return; }
+    tasinacak.push({ o, yeniSinif: y.sinif });
+  });
+  const gruplar = {};
+  tasinacak.forEach(t => { const k = `${(t.o.className || "").trim()} → ${t.yeniSinif}`; gruplar[k] = (gruplar[k] || 0) + 1; });
+  const mezunSiniflar = [...new Set(mezun.map(o => (o.className || "").trim()))].sort((a, b) => a.localeCompare(b, "tr"));
+  const gecerliHedef = /^\d{4}-\d{4}$/.test(hedefYil) && hedefYil !== aktifYil;
+
+  async function uygula() {
+    setCalisiyor(true);
+    try {
+      // Eski yıla ait (yıl etiketi olmayan) eski kayıtlar etiketlenir; aksi
+      // halde yıl filtresi onları yeni yılda da gösterir ve öğrenci çift görünür.
+      const etiketli = (ogrenciler || []).map(o => (!o.yil && kaynak.includes(o)) ? { ...o, yil: aktifYil } : o);
+      const yeniler = tasinacak.map(({ o, yeniSinif }) => {
+        const { devamsizlikGecmisi, devamsizlik, ...kalan } = o;
+        return { ...kalan, id: uid(), className: yeniSinif, yil: hedefYil, tarih: today(), oncekiSinif: (o.className || "").trim() };
+      });
+      await ogrencileriKaydet([...etiketli, ...yeniler]);
+      if (!yillar.includes(hedefYil)) await yillariKaydet([...yillar, hedefYil].sort((a, b) => b.localeCompare(a)));
+      setSonuc(`✓ ${yeniler.length} öğrenci ${hedefYil} yılına bir üst sınıfla taşındı. ${mezun.length} öğrenci mezun sayıldı.`);
+      setOnay(false);
+    } catch (e) { alert("Taşıma sırasında hata: " + e.message); }
+    setCalisiyor(false);
+  }
+  const kutu = { background: CARD, border: `1px solid ${BORDER}`, boxShadow: "0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 14, padding: 16, marginBottom: 16 };
+  if (!acik) return (
+    <div style={kutu}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div><div style={{ fontSize: 13, fontWeight: 800, color: TEXT }}>🎓 Yıl Sonu: Sınıfları Atlat</div>
+          <div style={{ fontSize: 11.5, color: MUTED, marginTop: 2 }}>{aktifYil} öğrencilerini bir üst sınıfla yeni yıla taşır; {enUst}. sınıflar mezun olur.</div></div>
+        <button onClick={() => { setAcik(true); setSonuc(""); }} style={{ padding: "9px 14px", background: ACCENT, color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: "pointer" }}>Başla</button>
+      </div>
+      {sonuc && <div style={{ fontSize: 12, fontWeight: 700, color: "#15803D", marginTop: 8 }}>{sonuc}</div>}
+    </div>
+  );
+  return (
+    <div style={{ ...kutu, borderColor: ACCENT }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: TEXT, marginBottom: 8 }}>🎓 Yıl Sonu: Sınıfları Atlat</div>
+      <div style={{ fontSize: 12, color: TEXT, lineHeight: 1.6, marginBottom: 10 }}>
+        <b>{aktifYil}</b> yılındaki {kaynak.length} öğrenci, bir üst sınıfla yeni yılın listesine kopyalanır. {aktifYil} listesi ve tüm geçmiş kayıtlar (görüşme, test, deneme…) olduğu gibi kalır; yeni sınıftaki öğrencide de görünmeye devam eder. Devamsızlık yeni yılda sıfırdan başlar.
+      </div>
+      <label style={{ fontSize: 10.5, fontWeight: 700, color: MUTED, display: "block", marginBottom: 3 }}>HEDEF YIL</label>
+      <input value={hedef} onChange={e => { setHedef(e.target.value); setOnay(false); }} placeholder="örn. 2027-2028" style={{ width: "100%", padding: "9px 10px", border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 14, boxSizing: "border-box", marginBottom: 10 }} />
+      {!gecerliHedef && <div style={{ fontSize: 11.5, color: "#B45309", marginBottom: 10 }}>Hedef yılı "2027-2028" biçiminde ve aktif yıldan farklı yazın.</div>}
+      <div style={{ background: BG, borderRadius: 10, padding: "10px 12px", fontSize: 12, color: TEXT, lineHeight: 1.7, marginBottom: 10 }}>
+        <div><b>{tasinacak.length}</b> öğrenci taşınacak:</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "4px 0 6px" }}>
+          {Object.entries(gruplar).sort((a, b) => a[0].localeCompare(b[0], "tr", { numeric: true })).map(([k, n]) => (
+            <span key={k} style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 14, padding: "2px 9px", fontSize: 11.5 }}>{k} <b>({n})</b></span>
+          ))}
+        </div>
+        <div>🎓 <b>{mezun.length}</b> öğrenci mezun ({mezunSiniflar.join(", ") || "—"}) — yeni yıla taşınmaz.</div>
+        {zatenVar.length > 0 && <div>↷ <b>{zatenVar.length}</b> öğrenci hedef yılda zaten kayıtlı — atlanacak.</div>}
+        {okunamayan.length > 0 && <div style={{ color: "#B45309" }}>⚠ <b>{okunamayan.length}</b> öğrencinin sınıfı okunamadı (örn. "{okunamayan[0].className}") — taşınmayacak, gerekirse elle ekleyin.</div>}
+      </div>
+      {!onay ? (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={() => setOnay(true)} disabled={!gecerliHedef || tasinacak.length === 0} style={{ padding: "10px 14px", background: (gecerliHedef && tasinacak.length) ? ACCENT : BORDER, color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: "pointer" }}>Devam</button>
+          <button onClick={() => setAcik(false)} style={{ padding: "10px 14px", background: BG, color: MUTED, border: `1px solid ${BORDER}`, borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Vazgeç</button>
+        </div>
+      ) : (
+        <div style={{ background: "#FFF7E6", border: "1px solid #F5D08A", borderRadius: 10, padding: 10 }}>
+          <div style={{ fontSize: 12, color: "#7A5200", marginBottom: 8, lineHeight: 1.5 }}>Emin misin? İşlemden önce Ayarlar'dan <b>yedek almanı</b> öneririm. Yanlışlık olursa {hedefYil} yılını silebilirsin; öğrencilerin geçmiş kayıtları {aktifYil} yılında korunur.</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={uygula} disabled={calisiyor} style={{ padding: "10px 14px", background: "#15803D", color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: "pointer" }}>{calisiyor ? "Taşınıyor…" : `✓ ${tasinacak.length} öğrenciyi ${hedefYil} yılına taşı`}</button>
+            <button onClick={() => setOnay(false)} style={{ padding: "10px 14px", background: BG, color: MUTED, border: `1px solid ${BORDER}`, borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Geri</button>
+          </div>
+        </div>
+      )}
+      {sonuc && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#15803D" }}>{sonuc}</div>
+          <button onClick={() => aktifYilYap(hedefYil)} style={{ marginTop: 6, padding: "8px 12px", background: ACCENT, color: "#fff", border: "none", borderRadius: 8, fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>{hedefYil} yılına geç →</button>
+        </div>
+      )}
+    </div>
+  );
+}
 // ── Yıl Seçim Ekranı ─────────────────────────────────────────────────────────
-function YilSecimEkrani({ yillar, setYillar, aktifYil, setAktifYil, ogrenciler, onYilSec, onYilSil, onYilSifirla }) {
+function YilSecimEkrani({ yillar, setYillar, aktifYil, setAktifYil, ogrenciler, onYilSec, onYilSil, onYilSifirla, kademe, ogrencileriKaydet }) {
   const [yeniYil, setYeniYil] = useState("");
   const [silOnayYil, setSilOnayYil] = useState(null);
   const [sifirlaOnayYil, setSifirlaOnayYil] = useState(null);
@@ -15483,6 +15594,11 @@ function YilSecimEkrani({ yillar, setYillar, aktifYil, setAktifYil, ogrenciler, 
         })}
       </div>
 
+      {ogrencileriKaydet && (
+        <YilGecisPaneli yillar={yillar} aktifYil={aktifYil} ogrenciler={ogrenciler} kademe={kademe} ogrencileriKaydet={ogrencileriKaydet}
+          yillariKaydet={async (liste) => { setYillar(liste); await saveYillar(liste); }}
+          aktifYilYap={onYilSec} />
+      )}
       {/* Yeni yıl ekle */}
       <div style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:12,padding:14}}>
         <div style={{fontSize:12,fontWeight:700,color:TEXT,marginBottom:10}}>Yeni Akademik Yıl Ekle</div>
@@ -16138,7 +16254,51 @@ function KullaniciOnaylari() {
   );
 }
 
+// ── Yedek: ek alanlar ve hatırlatma ─────────────────────────────────────────
+// Ayarlar ekranına prop olarak gelmeyen veri türleri de yedeğe girsin diye
+// doğrudan depolamadan okunup yazılır (eskiden sosyometri, kriz kayıtları,
+// grup çalışmaları vb. yedek dosyasına hiç girmiyordu).
+const PDR_YEDEK_EK_ALANLAR = [
+  ["sosyometri", loadSosyometri, saveSosyometri],
+  ["krizKayitlari", loadKrizKayitlari, saveKrizKayitlari],
+  ["grupCalismalari", loadGrupCalismalari, saveGrupCalismalari],
+  ["kademe", loadKademe, saveKademe],
+  ["sinavTuru", loadSinavTuru, saveSinavTuru]
+];
+const PDR_YEDEK_UYARI_GUN = 30;
+async function loadSonYedek() { try { const r = await window.storage.get("pdr-son-yedek"); return r ? r.value : null; } catch (e) { return null; } }
+async function saveSonYedek(iso) { try { await window.storage.set("pdr-son-yedek", iso); } catch (e) {} }
+// Son yedek 30 günden eskiyse (ya da hiç alınmadıysa) her ekranda görünen uyarı bandı
+function YedekHatirlatmaBandi({ ogrenciSayisi, tab, setTab }) {
+  const [son, setSon] = useState(undefined);
+  const [ertele, setErtele] = useState(() => { try { return Number(localStorage.getItem("pdr-yedek-ertele") || 0); } catch (e) { return 0; } });
+  useEffect(() => {
+    let iptal = false;
+    const oku = () => loadSonYedek().then(v => { if (!iptal) setSon(v || null); });
+    oku();
+    window.addEventListener("pdr-yedek-alindi", oku);
+    return () => { iptal = true; window.removeEventListener("pdr-yedek-alindi", oku); };
+  }, []);
+  if (son === undefined || !ogrenciSayisi || tab === "ayarlar") return null;
+  const gun = son ? Math.floor((Date.now() - new Date(son).getTime()) / 86400000) : null;
+  if (gun !== null && gun < PDR_YEDEK_UYARI_GUN) return null;
+  if (ertele && Date.now() < ertele) return null;
+  const sonra = (e) => { e.stopPropagation(); const t = Date.now() + 7 * 86400000; try { localStorage.setItem("pdr-yedek-ertele", String(t)); } catch (er) {} setErtele(t); };
+  return (
+    <div onClick={() => setTab("ayarlar")} style={{ background: "#FEF3C7", borderBottom: "1px solid #F59E0B", padding: "8px 16px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", flexWrap: "wrap" }}>
+      <span style={{ fontSize: 14 }}>💾</span>
+      <span style={{ color: "#78350F", fontSize: 12, fontWeight: 700, flex: 1, minWidth: 180 }}>
+        {gun === null ? "Henüz hiç yedek almadın." : `Son yedeğin ${gun} gün önce alındı.`} Verilerinin bir kopyasını cihazına indirmen önerilir.
+      </span>
+      <span style={{ color: "#92400E", fontSize: 11, fontWeight: 800, textDecoration: "underline" }}>Yedek al →</span>
+      <button onClick={sonra} style={{ background: "none", border: "1px solid #D97706", color: "#92400E", borderRadius: 6, padding: "2px 8px", fontSize: 10.5, fontWeight: 700, cursor: "pointer" }}>7 gün sonra hatırlat</button>
+    </div>
+  );
+}
+
 function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profiles, setProfiles, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, castDegerlendirmeler, setCastDegerlendirmeler, akademikTaramalar, setAkademikTaramalar, ilkokulTaramalar, setIlkokulTaramalar, liseTaramalar, setLiseTaramalar, benlikOlcekleri, setBenlikOlcekleri, riskListesi, setRiskListesi, denemeler, setDenemeler, sevkler, setSevkler, mudahalePlan, setMudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, profNotlari, setProfNotlari, kutuphane, setKutuphane, yillar, setYillar, sinifListesi, setSinifListesi, aktifYil, setAktifYil, kademe, setKademe, sinavTuru, setSinavTuru, testKayitlari, setTestKayitlari, hatirlatmalar, setHatirlatmalar, netHaritasiKayitlari, setNetHaritasiKayitlari, konuHaritasiVerisi, setKonuHaritasiVerisi, sosyometri, setSosyometri, onTumOzellikler }) {
+  const [sonYedekTarihi, setSonYedekTarihi] = useState(null);
+  useEffect(() => { loadSonYedek().then(v => setSonYedekTarihi(v || null)); }, []);
   const [key, setKey] = useState(() => pdrGetApiKey());
   const [gosterKey, setGosterKey] = useState(false);
   const [kaydedildi, setKaydedildi] = useState(false);
@@ -16363,10 +16523,17 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
           guncellenenSayisi++;
         }
       }
+      // Ayarlar'a prop olarak gelmeyen alanlar doğrudan depolamaya yazılır;
+      // ekranda görünmeleri için yükleme sonunda sayfa yenilenir.
+      let ekYazildi = 0;
+      for (const [alan, , kaydet] of PDR_YEDEK_EK_ALANLAR) {
+        if (veri[alan] !== undefined && !alanlar.some(x => x[0] === alan)) { await kaydet(veri[alan]); ekYazildi++; guncellenenSayisi++; }
+      }
       if (veri.aktifYil && setAktifYil) {
         setAktifYil(veri.aktifYil);
         await saveAktifYil(veri.aktifYil);
       }
+      if (ekYazildi > 0) setTimeout(() => window.location.reload(), 2500);
       setGeriYuklemeSonuc(`✓ ${guncellenenSayisi} veri alanı başarıyla geri yüklendi.`);
       setGeriYuklemeOnay(null);
       setTimeout(() => setGeriYuklemeSonuc(""), 6000);
@@ -16376,10 +16543,13 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
     setGeriYukleniyor(false);
   }
 
-  function handleYedekIndir() {
+  async function handleYedekIndir() {
     setYedekIndiriliyor(true);
     try {
+      const ekVeri = {};
+      for (const [alan, yukle] of PDR_YEDEK_EK_ALANLAR) { try { ekVeri[alan] = await yukle(); } catch (e) {} }
       const yedek = {
+        ...ekVeri,
         yedekTarihi: new Date().toISOString(),
         aktifYil, yillar, sinifListesi,
         ogrenciler, records, profiles, profiles2, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, liseTaramalar, benlikOlcekleri,
@@ -16396,6 +16566,10 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      const iso = new Date().toISOString();
+      await saveSonYedek(iso);
+      setSonYedekTarihi(iso);
+      window.dispatchEvent(new Event("pdr-yedek-alindi"));
     } catch (e) { alert("Yedek oluşturulamadı: " + e.message); }
     setYedekIndiriliyor(false);
   }
@@ -16458,6 +16632,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
           width: "100%", padding: 12, background: BLUE, color: "#fff",
           border: "none", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: "pointer", opacity: yedekIndiriliyor?0.6:1
         }}>{yedekIndiriliyor ? "Hazırlanıyor…" : "📥 Yedeği İndir (.json)"}</button>
+        <div style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>{sonYedekTarihi ? `Son yedek: ${new Date(sonYedekTarihi).toLocaleDateString("tr-TR")} (${Math.floor((Date.now() - new Date(sonYedekTarihi).getTime()) / 86400000)} gün önce)` : "Bu hesapta henüz yedek alınmadı."} · 30 günü geçince ekranın üstünde hatırlatma çıkar.</div>
       </div>
 
       <div style={{ background: "#FDF6E3", borderRadius: 12, padding: 14, marginBottom: 16 }}>
@@ -21804,11 +21979,17 @@ export default function App() {
   // Hem Öğrenciler sekmesindeki "sınıfı sil" özelliğinden hem Sınıf sekmesindeki 🗑 ikonundan çağrılır.
   async function handleSinifSilTumVeri(className) {
     const hedefSinif = (className || "").trim();
-    const silinecekler = ogrenciler.filter(o => (o.className||"").trim() === hedefSinif);
+    // Yalnızca aktif yılın sınıfı silinir; aynı adlı sınıf başka yılda da
+    // olabilir (yıl sonu sınıf atlatmadan sonra sık görülür).
+    const silinecekler = ogrenciler.filter(o => (o.className||"").trim() === hedefSinif && (!o.yil || o.yil === aktifYil));
+    const kalacaklar = ogrenciler.filter(o => !silinecekler.includes(o));
+    // Öğrenci başka bir yılda da kayıtlıysa (ör. yıl sonu sınıf atlatma ile
+    // taşınmışsa) geçmiş kayıtları o yıla da ait sayılır, silinmez.
     const silinecekMi = (ad, sinif, no) =>
-      silinecekler.some(s => pdrAyniOgrenci(s.studentName, s.className, ad, sinif, s.numara, no));
+      silinecekler.some(s => pdrAyniOgrenci(s.studentName, s.className, ad, sinif, s.numara, no)) &&
+      !kalacaklar.some(k => pdrAyniOgrenci(k.studentName, k.className, ad, sinif, k.numara, no));
 
-    const updOgr = ogrenciler.filter(o => (o.className||"").trim() !== hedefSinif);
+    const updOgr = kalacaklar;
     setOgrenciler(updOgr); await saveOgrenciler(updOgr);
 
     const updRec = records.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
@@ -22187,8 +22368,11 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
     await saveOgrenciler(kalacaklar);
 
     // Bu öğrencilerden biri mi? (isim+sınıf+numara ile, sağlam eşleştirme)
+    // Öğrenci başka bir yılda da kayıtlıysa (ör. yıl sonu sınıf atlatma ile
+    // taşınmışsa) geçmiş kayıtları o yıla da ait sayılır, silinmez.
     const silinecekMi = (ad, sinif, no) =>
-      silinecekler.some(s => pdrAyniOgrenci(s.studentName, s.className, ad, sinif, s.numara, no));
+      silinecekler.some(s => pdrAyniOgrenci(s.studentName, s.className, ad, sinif, s.numara, no)) &&
+      !kalacaklar.some(k => pdrAyniOgrenci(k.studentName, k.className, ad, sinif, k.numara, no));
 
     const kalanRecords = records.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
     setRecords(kalanRecords); await saveRecords(kalanRecords);
@@ -22427,6 +22611,8 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
           ))}
         </div>
       </div>
+
+      <YedekHatirlatmaBandi ogrenciSayisi={(ogrenciler || []).length} tab={tab} setTab={setTab} />
 
       {/* Bugünkü/gecikmiş hatırlatmalar — her ekranda görünür, kaçırılmasın diye */}
       {(() => {
@@ -22842,6 +23028,8 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
             }}
             onYilSil={async (yil) => { await pdrYilVerisiTemizle(yil); }}
             onYilSifirla={async (yil) => { await pdrYilVerisiTemizle(yil); }}
+            kademe={kademe}
+            ogrencileriKaydet={async (liste) => { setOgrenciler(liste); await saveOgrenciler(liste); }}
           />
         )}
 
