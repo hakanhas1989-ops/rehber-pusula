@@ -10451,6 +10451,1179 @@ function CDTPaneli({ seciliAd, seciliSinif, seciliNumara, testKayitlari, setTest
 // ===== ÇDT BİTİŞ =====
 
 
+// ===== DG BAŞLANGIÇ =====
+// ── Dikkat Güçlendirme Programı (DGP) ────────────────────────────────────────
+// Kuramsal temel: Sohlberg & Mateer klinik dikkat modeli (odaklanma → sürdürme →
+// seçici → değişken → bölünmüş) ve bu modelin çocuk uyarlaması "Pay Attention!"
+// (Thomson & Kerns); grup yapısı, puan/ödül sistemi ve "gizli görev" ev
+// ödevleri ATTENTIONER / Mini-ATTENTIONER'dan (Jacobs & Petermann); bilişsel
+// oyun + fiziksel hareket birleşimi ACTIVATE'ten (Wexler); uyarlanabilir zorluk
+// ve kısa günlük doz EndeavorRx'ten esinlenmiştir. Meta-analizler (Rapport ve
+// ark. 2013; Cortese ve ark. 2015) tek başına bilgisayar eğitiminin sınıf
+// davranışına aktarımının sınırlı olduğunu gösterdiği için her oturuma
+// üstbilişsel strateji, öz-izleme ve ev/sınıf aktarım görevi eklenmiştir.
+// Program içeriği (oyunlar, çizimler, metinler) bu programa özgüdür.
+
+const DG_SURUM = 1;
+const DG_OYUNLAR = {
+  yildiz: { ad: "Yıldız Avcısı",  ikon: "⭐", beceri: "Sürdürülebilir dikkat + dürtü kontrolü", aciklama: "Sarı yıldızı görünce bas, diğerlerine basma." },
+  hazine: { ad: "Gizli Hazine",   ikon: "🐠", beceri: "Seçici dikkat (görsel tarama)",        aciklama: "Izgaradaki hedef balıkların hepsini bul." },
+  isik:   { ad: "Kırmızı Işık",   ikon: "🚦", beceri: "Tepki durdurma (inhibisyon)",          aciklama: "Ok yeşilken bas; kırmızıya dönerse dur." },
+  kural:  { ad: "Kural Değiştir", ikon: "🔀", beceri: "Esneklik (değişken dikkat)",           aciklama: "Üstteki kurala göre kartı renge ya da şekle göre ayır." },
+  hizli:  { ad: "Hızlı Eşleştir", ikon: "⚡", beceri: "İşlemleme hızı",                      aciklama: "Üstteki şeklin aynısını alttan olabildiğince hızlı bul." },
+};
+const DG_KAGITLAR = {
+  tarama:   { ad: "Hedef Tarama",           ikon: "🔍", beceri: "Seçici + sürdürülebilir dikkat" },
+  kodlama:  { ad: "Şifre Çözme (Kodlama)",  ikon: "🔣", beceri: "İşlemleme hızı + dikkat" },
+  takip:    { ad: "Sayı Takibi",            ikon: "🔢", beceri: "Görsel tarama + esneklik" },
+  labirent: { ad: "Labirent",               ikon: "🌀", beceri: "Planlama + dürtü kontrolü" },
+  stroop:   { ad: "Ters Söyle (Stroop)",    ikon: "🎨", beceri: "Ketleme (inhibisyon)" },
+  kart:     { ad: "Dur-Düşün-Yap Kartı",    ikon: "🦉", beceri: "Strateji kartı (kesip masaya koyulur)" },
+  izleme:   { ad: "Öz-İzleme Çizelgesi",    ikon: "✅", beceri: "Sınıfa aktarım (öğrenci + öğretmen)" },
+};
+const DG_VURGU = {
+  surdurme:  { ad: "Dikkati sürdürme",      oyun: "yildiz", renk: "#5B3FB5" },
+  secici:    { ad: "Seçici dikkat",          oyun: "hazine", renk: "#0E7490" },
+  inhibisyon:{ ad: "Dürtü kontrolü",         oyun: "isik",   renk: "#DC2626" },
+  motor:     { ad: "Motor öz-düzenleme",     oyun: "yildiz", renk: "#A16207" },
+  hiz:       { ad: "İşlemleme hızı",         oyun: "hizli",  renk: "#2563EB" },
+  celdirici: { ad: "Çeldiricilere direnç",   oyun: "hazine", renk: "#7C3AED" },
+};
+// Hareket molaları (ACTIVATE yaklaşımı: bilişsel çalışmayı fiziksel hareketle bölmek)
+const DG_HAREKET = [
+  "Heykel oyunu: Müzik/alkış varken hareket et, durunca heykel ol (5 tur).",
+  "Çapraz dokunma: Sağ el sol dize, sol el sağ dize — 20 kez, giderek hızlan.",
+  "Ayna: Danışmanın hareketlerini ayna gibi taklit et (1 dk).",
+  "Tek ayak denge: Her ayakta 20 sn; ilkokulda gözler açık, ortaokulda gözler kapalı dene.",
+  "Ritim tekrarı: Danışmanın alkış dizisini (3-6 vuruş) aynen tekrar et.",
+  "Kırmızı ışık–yeşil ışık: 'Yeşil'de yürü, 'kırmızı'da dur; ters komutlarla zorlaştır.",
+  "Kare nefes: 4 sayıda al, 4 tut, 4 ver, 4 bekle — 4 tur.",
+  "Yavaş çekim: Odanın bir ucundan diğerine olabildiğince yavaş yürü.",
+  "Simon der ki: Yalnızca 'Simon der ki' ile başlayan komutu yap.",
+  "Top sektirme sayma: Topu sektirirken 2'şer (ortaokul: 3'er) say.",
+  "Balon nefesi: Karnını balon gibi şişir, yavaşça söndür — 5 tur.",
+  "Serbest seçim: Öğrenci en sevdiği molayı seçer.",
+];
+// 12 oturumluk iskelet (Sohlberg-Mateer hiyerarşisi). "esnek" = öğrencinin
+// ÇDT profiline göre en zayıf alanın oyunuyla doldurulan yuva.
+const DG_OTURUMLAR = [
+  { tema: "Tanışma ve odaklanma", oyunlar: ["yildiz", "hazine"], kagit: "kart", cel: null,
+    acilis: "Program tanıtılır, puan/yıldız sistemi anlatılır. Maskotumuz baykuş Odi: 'Baykuşlar avlanırken önce durur, bakar, sonra harekete geçer.'",
+    strateji: { ad: "Dur-Düşün-Yap", ilk: "1) DUR: Elini masaya koy. 2) BAK: Ne görüyorum? 3) DÜŞÜN: Ne yapmam gerekiyor? 4) YAP ve KONTROL ET.", orta: "Bir işe başlamadan önce 4 adım: Dur – Ne isteniyor? – Planım ne? – Yap ve kontrol et." },
+    ev: { ilk: "Dur-Düşün-Yap kartını boya ve ders masana yapıştır.", orta: "Dur-Düşün-Yap kartını masana koy; bu hafta ödeve başlamadan önce 4 adımı kaç kez kullandığını kartın arkasına çentikle." } },
+  { tema: "Gözüm hedefte", oyunlar: ["hazine", "hizli"], kagit: "tarama", cel: null,
+    acilis: "Geçen haftanın gizli görevi konuşulur (kaç çentik?).",
+    strateji: { ad: "Gözüm hedefte", ilk: "Ararken parmağınla satır satır git: soldan sağa, yukarıdan aşağıya.", orta: "Sistemli tarama: satır satır ilerle, bulduğunu işaretle, atladığın satır kalmasın." },
+    ev: { ilk: "Bir kitap sayfasında 'a' harflerini parmağınla takip ederek say.", orta: "Bir ders kitabı sayfasında belirli bir kelimeyi satır satır tarayarak bul; kaç tane buldun, süre tut." } },
+  { tema: "Dikkati sürdürme I", oyunlar: ["yildiz", "esnek"], kagit: "takip", cel: null,
+    acilis: "Dikkat bir pil gibidir: uzun işlerde azalır, mola ve strateji onu şarj eder.",
+    strateji: { ad: "Kendine fısılda", ilk: "İçinden kendine söyle: 'Önce bak, sonra bas.'", orta: "Öz-konuşma: Görev sırasında içinden yönergeyi tekrar et ('Sadece sarıya basıyorum')." },
+    ev: { ilk: "Ödev yaparken içinden 'Önce bak, sonra yaz' de; kaç kez hatırladığını say.", orta: "Ödevin her bölümüne başlarken yönergeyi kendine bir kez fısılda." } },
+  { tema: "Dikkati sürdürme II", oyunlar: ["yildiz", "esnek"], kagit: "tarama", cel: null,
+    acilis: "Oyunlarda seviyeler nasıl yükseldi? Öğrenci kendi grafiğini görür.",
+    strateji: { ad: "Parçala ve bitir", ilk: "Uzun bir işi 3 küçük parçaya böl; her parçadan sonra bir yıldız koy.", orta: "Uzun ödevi 10-15 dakikalık parçalara böl; her parça sonunda 1 dk mola." },
+    ev: { ilk: "Bir ödevi 3 parçaya böl, her parçanın sonunda yıldız boya.", orta: "Bu hafta bir ödevi zamanlayıcıyla 15 dakikalık parçalara bölerek yap." } },
+  { tema: "Seçici dikkat — görsel çeldiriciler", oyunlar: ["hazine", "esnek"], kagit: "labirent", cel: "gorsel",
+    acilis: "Bugün oyunlarda ekranda dikkat dağıtan resimler olacak. Görev: onları fark et ama hedefe dön.",
+    strateji: { ad: "Çeldirici kalkanı", ilk: "Dikkatimi çeken bir şey olursa: 'Gördüm, döndüm!' de ve işine dön.", orta: "Çeldiriciye isim ver ('bu bir çeldirici') ve hemen göreve dön; masanı da çeldiricilerden temizle." },
+    ev: { ilk: "Ders masandaki dikkatini dağıtan 3 şeyi bul ve kaldır.", orta: "Çalışma ortamındaki çeldiricileri listele, en az 3'ünü kaldır; telefonu başka odaya bırak." } },
+  { tema: "Seçici dikkat — işitsel çeldiriciler", oyunlar: ["hazine", "esnek"], kagit: "tarama", cel: "isitsel",
+    acilis: "Bugün oyunlarda sesler olacak. Sesleri duyabiliriz ama işimize devam edebiliriz.",
+    strateji: { ad: "Çeldirici kalkanı (sesler)", ilk: "Bir ses duyunca: 'Duydum, döndüm!'", orta: "Sesli ortamda: derin nefes, gözler göreve, yönergeyi içinden tekrar et." },
+    ev: { ilk: "Evde TV açıkken değil, sessiz bir köşede ödev yap; ailene sessiz köşeni göster.", orta: "Ödevi bir gün sessiz, bir gün hafif gürültülü ortamda yap; hangisinde daha hızlı bitirdiğini not et." } },
+  { tema: "Dürtü kontrolü I", oyunlar: ["isik", "yildiz"], kagit: "stroop", cel: null,
+    acilis: "Fren pedalı: Hızlı arabaların bile iyi frenleri vardır.",
+    strateji: { ad: "Fren pedalı", ilk: "Cevap vermeden önce içinden 'bir-iki-üç' say.", orta: "Yanıt vermeden önce 3 saniye bekle; soruyu sonuna kadar oku/dinle, sonra cevapla." },
+    ev: { ilk: "Sınıfta söz almadan önce elini kaldır ve 3'e kadar say; kaç kez yaptığını işaretle.", orta: "Bu hafta testlerde her sorunun tamamını okuyup altını çizmeden işaretleme yapma." } },
+  { tema: "Dürtü kontrolü II", oyunlar: ["isik", "esnek"], kagit: "labirent", cel: null,
+    acilis: "Geçen hafta fren pedalını nerede kullandın? Örnekler konuşulur.",
+    strateji: { ad: "Eğer–o zaman planı", ilk: "'Eğer arkadaşım konuşursa, o zaman önce işimi bitireceğim.'", orta: "Kendi eğer–o zaman planını yaz: 'Eğer ... olursa, o zaman ... yapacağım.' (uygulama niyeti)" },
+    ev: { ilk: "Kendi 'eğer–o zaman' cümleni ailenle birlikte yaz ve buzdolabına as.", orta: "Seni en çok zorlayan an için bir eğer–o zaman planı yaz ve bir hafta dene; sonucu not et." } },
+  { tema: "Esneklik I", oyunlar: ["kural", "esnek"], kagit: "takip", cel: null,
+    acilis: "Bazen kurallar değişir; iyi dikkat, kural değişince fark etmektir.",
+    strateji: { ad: "Kural değişti mi?", ilk: "Her yeni işte sor: 'Şimdi kural ne?'", orta: "Görev değişince 5 saniye dur, yeni kuralı kendine söyle, sonra başla." },
+    ev: { ilk: "Ailenle 'ters Simon' oyna: Simon ne derse tersini yap.", orta: "Ders geçişlerinde (matematik→Türkçe) 'yeni kural ne?' diye kendine sor; 1 hafta dene." } },
+  { tema: "Esneklik II", oyunlar: ["kural", "esnek"], kagit: "stroop", cel: null,
+    acilis: "Kural Değiştir oyununda en hızlı geçişini hatırla.",
+    strateji: { ad: "Kontrol et", ilk: "İşi bitirince geri dön ve bir kez kontrol et.", orta: "Bitirdiğin her işi kontrol listesiyle gözden geçir: eksik var mı, yanlış okuduğum soru var mı?" },
+    ev: { ilk: "Ödevini bitirince bir kez daha baştan kontrol et; bulduğun hatayı işaretle.", orta: "Bu hafta her ödevin sonunda 2 dakika kontrol yap; bulduğun hataları say." } },
+  { tema: "Hepsi bir arada", oyunlar: ["yildiz", "kural"], kagit: "kodlama", cel: "kombine",
+    acilis: "Bugün en zor seviye: hem resimler hem sesler var. Öğrendiğin tüm stratejileri kullan.",
+    strateji: { ad: "Öz-izleme", ilk: "Ders sırasında arada bir kendine sor: 'Dikkatim burada mı?'", orta: "Öz-izleme çizelgesi: her ders sonunda dikkatini 1-3 arası puanla." },
+    ev: { ilk: "Öz-izleme çizelgesini bir hafta doldur.", orta: "Öz-izleme çizelgesini bir hafta doldur; en iyi ve en zor dersini bul." } },
+  { tema: "Kapanış ve aktarım", oyunlar: ["esnek", "esnek"], kagit: "izleme", cel: null,
+    acilis: "Program boyunca neler değişti? Seviye grafiği birlikte incelenir. Son ölçüm için ÇDT yeniden uygulanır.",
+    strateji: { ad: "Benim stratejilerim", ilk: "En çok işine yarayan 2 stratejiyi seç, kartına çiz.", orta: "En çok işe yarayan 3 stratejini seç ve hangi derste kullanacağını yaz." },
+    ev: { ilk: "Stratejilerini ailene öğret.", orta: "Stratejilerini öğretmeninle paylaş; öz-izleme çizelgesine devam et." } },
+];
+
+function dgYasGrubu(sinif) {
+  const n = parseInt(String(sinif || "").match(/\d+/)?.[0] || "", 10);
+  if (!n) return "ortaokul";
+  return n <= 4 ? "ilkokul" : "ortaokul";
+}
+// ÇDT sonucundan vurgu alanlarını çıkarır (en zayıftan güçlüye)
+function dgVurgularHesapla(cdtSonuc) {
+  if (!cdtSonuc || !cdtSonuc.tamam || !cdtSonuc.indeksler || cdtSonuc.indeksler[0].z === null) return [];
+  const z = {}; cdtSonuc.indeksler.forEach(i => { z[i.k] = i.z; });
+  const zayif = v => v !== null && v < -0.825;
+  const liste = [];
+  const etk = cdtSonuc.etkiler || {};
+  const celDusus = ["A", "T", "I", "H"].some(k => etk[k] && ["gorsel", "isitsel", "kombine", "yuk"].some(a => etk[k][a] && etk[k][a].yon === "dusus"));
+  const zamanDusus = ["A", "T"].some(k => etk[k] && etk[k].zaman && etk[k].zaman.yon === "dusus") || (cdtSonuc.surekli && cdtSonuc.surekli.oran < 0.9);
+  if (zayif(z.A) || zamanDusus) liste.push({ key: "surdurme", siddet: Math.min(z.A, zamanDusus ? -1 : 0), neden: zamanDusus ? "Test ilerledikçe performans düşüyor" : `Dikkat z=${z.A.toFixed(2)}` });
+  if (zayif(z.A)) liste.push({ key: "secici", siddet: z.A + 0.1, neden: `Hedeflerin bir kısmı kaçırılıyor (Dikkat z=${z.A.toFixed(2)})` });
+  if (zayif(z.I)) liste.push({ key: "inhibisyon", siddet: z.I, neden: `Hedef olmayana basma fazla (Dürtüsellik z=${z.I.toFixed(2)})` });
+  if (zayif(z.H)) liste.push({ key: "motor", siddet: z.H, neden: `Tekrarlı/gereksiz basma fazla (Hiper-reaktivite z=${z.H.toFixed(2)})` });
+  if (zayif(z.T)) liste.push({ key: "hiz", siddet: z.T, neden: `Yanıtlar geç geliyor (Zamanlama z=${z.T.toFixed(2)})` });
+  if (celDusus) liste.push({ key: "celdirici", siddet: -1.2, neden: "Çeldiricilerde performans belirgin düşüyor" });
+  return liste.sort((a, b) => a.siddet - b.siddet);
+}
+// Oturum planını kişiselleştirir: "esnek" yuvalar vurgu oyunlarıyla, sırayla doldurulur
+function dgPlanOlustur(vurgular, yasGrubu) {
+  const vurguOyun = vurgular.map(v => DG_VURGU[v.key].oyun);
+  const havuz = vurguOyun.length ? vurguOyun : ["hazine", "isik", "hizli", "kural", "yildiz"];
+  const celVurgu = vurgular.some(v => v.key === "celdirici");
+  let sira = 0;
+  return DG_OTURUMLAR.map((o, i) => {
+    const oyunlar = [];
+    o.oyunlar.forEach(g => {
+      if (g !== "esnek") { oyunlar.push(g); return; }
+      let aday = null;
+      for (let d = 0; d < havuz.length; d++) {
+        const c = havuz[(sira + d) % havuz.length];
+        if (!oyunlar.includes(c)) { aday = c; sira = sira + d + 1; break; }
+      }
+      if (!aday) aday = ["hazine", "hizli", "isik", "kural", "yildiz"].find(x => !oyunlar.includes(x));
+      oyunlar.push(aday);
+    });
+    // Çeldirici vurgusu varsa 3. oturumdan itibaren hafif görsel çeldirici; programın kendi çeldirici oturumları korunur
+    const cel = o.cel || (celVurgu && i >= 2 && i !== 11 ? (i < 6 ? "gorsel" : "kombine") : null);
+    return {
+      no: i + 1, tema: o.tema, oyunlar, kagit: o.kagit, cel,
+      acilis: o.acilis, strateji: { ad: o.strateji.ad, metin: yasGrubu === "ilkokul" ? o.strateji.ilk : o.strateji.orta },
+      hareket: DG_HAREKET[i % DG_HAREKET.length],
+      ev: yasGrubu === "ilkokul" ? o.ev.ilk : o.ev.orta,
+    };
+  });
+}
+function dgBaslangicSeviyesi(yasGrubu) { return yasGrubu === "ilkokul" ? 1 : 3; }
+function dgYeniProgramVerisi(yasGrubu, vurgular, cdtKayit) {
+  const s = dgBaslangicSeviyesi(yasGrubu);
+  return {
+    surum: DG_SURUM, yasGrubu, vurgular, kaynakCdtId: cdtKayit ? cdtKayit.id : null, kaynakCdtTarih: cdtKayit ? cdtKayit.tarih : null,
+    seviyeler: { yildiz: s, hazine: s, isik: s, kural: s, hizli: s },
+    oturumlar: [], oynamalar: [],
+  };
+}
+// Oyun sonucu → yeni seviye (doğruluk ≥ %88 ve hız ölçütü → +1; < %65 → -1)
+function dgSeviyeGuncelle(eski, sonuc) {
+  if (!sonuc) return eski;
+  if (sonuc.dogruluk >= 0.88 && sonuc.hizOk !== false) return Math.min(10, eski + 1);
+  if (sonuc.dogruluk < 0.65) return Math.max(1, eski - 1);
+  return eski;
+}
+function dgYildiz(dogruluk) { return dogruluk >= 0.9 ? 3 : dogruluk >= 0.75 ? 2 : 1; }
+function dgKisaOzet(v) {
+  const tamam = (v.oturumlar || []).filter(o => o.tamam).length;
+  const yil = (v.oynamalar || []).reduce((s, x) => s + (x.yildiz || 0), 0);
+  return `${tamam}/12 oturum · ${(v.oynamalar || []).length} oyun · ${yil} ⭐ · ${v.yasGrubu === "ilkokul" ? "İlkokul" : "Ortaokul"}`;
+}
+
+// ── DGP oyun çizimleri ──
+function DGBaykus({ boyut = 64 }) {
+  return (
+    <svg viewBox="0 0 100 100" width={boyut} height={boyut} style={{ display: "block" }}>
+      <path d="M22 30 L30 8 L42 26 Z" fill="#7A5230" /><path d="M78 30 L70 8 L58 26 Z" fill="#7A5230" />
+      <ellipse cx="50" cy="58" rx="34" ry="38" fill="#9A6B3F" />
+      <ellipse cx="50" cy="70" rx="20" ry="22" fill="#E9CFA4" />
+      <path d="M38 64 q4 3 8 0 M54 64 q4 3 8 0 M44 74 q4 3 8 0 M44 82 q4 3 8 0" stroke="#C9A877" strokeWidth="2" fill="none" />
+      <circle cx="35" cy="42" r="14" fill="#fff" /><circle cx="65" cy="42" r="14" fill="#fff" />
+      <circle cx="36" cy="43" r="7" fill="#2B1A0E" /><circle cx="64" cy="43" r="7" fill="#2B1A0E" />
+      <circle cx="38.5" cy="40.5" r="2.4" fill="#fff" /><circle cx="66.5" cy="40.5" r="2.4" fill="#fff" />
+      <path d="M45 52 L55 52 L50 60 Z" fill="#F59E0B" />
+      <path d="M16 58 Q8 74 20 86 Q22 72 24 62 Z" fill="#7A5230" /><path d="M84 58 Q92 74 80 86 Q78 72 76 62 Z" fill="#7A5230" />
+    </svg>
+  );
+}
+function DGYildizSekli({ tur }) {
+  // tur: hedef (sarı 5 köşe) | bulut | kalp | turuncu (6 köşe turuncu yıldız)
+  const nokta = (n, R, r, cx = 50, cy = 52) => {
+    const p = [];
+    for (let i = 0; i < n * 2; i++) { const a = -Math.PI / 2 + i * Math.PI / n; const rr = i % 2 ? r : R; p.push(`${(cx + rr * Math.cos(a)).toFixed(1)},${(cy + rr * Math.sin(a)).toFixed(1)}`); }
+    return p.join(" ");
+  };
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ display: "block" }}>
+      {tur === "hedef" && <><polygon points={nokta(5, 44, 19)} fill="#FACC15" stroke="#CA8A04" strokeWidth="3" strokeLinejoin="round" /><circle cx="43" cy="50" r="3" fill="#713F12" /><circle cx="57" cy="50" r="3" fill="#713F12" /><path d="M43 60 Q50 66 57 60" stroke="#713F12" strokeWidth="2.5" fill="none" strokeLinecap="round" /></>}
+      {tur === "turuncu" && <><polygon points={nokta(6, 44, 22)} fill="#FB923C" stroke="#C2410C" strokeWidth="3" strokeLinejoin="round" /><circle cx="43" cy="50" r="3" fill="#7C2D12" /><circle cx="57" cy="50" r="3" fill="#7C2D12" /><path d="M43 60 Q50 66 57 60" stroke="#7C2D12" strokeWidth="2.5" fill="none" strokeLinecap="round" /></>}
+      {tur === "kalp" && <path d="M50 84 C20 62 10 46 18 32 C26 18 44 20 50 34 C56 20 74 18 82 32 C90 46 80 62 50 84 Z" fill="#EF4444" stroke="#B91C1C" strokeWidth="3" />}
+      {tur === "bulut" && <><ellipse cx="50" cy="50" rx="34" ry="20" fill="#64748B" /><circle cx="36" cy="40" r="15" fill="#64748B" /><circle cx="58" cy="34" r="18" fill="#64748B" /><path d="M36 74 l-4 10 M50 74 l-4 10 M64 74 l-4 10" stroke="#3B82F6" strokeWidth="4" strokeLinecap="round" /></>}
+    </svg>
+  );
+}
+// Balık: renk, yön (1 sağ / -1 sol), cizgili (bool), yuzgecRenk
+function DGBalik({ renk = "#F97316", yon = 1, cizgili = true, yuzgec = "#2563EB" }) {
+  return (
+    <svg viewBox="0 0 100 70" width="100%" height="100%" style={{ display: "block" }}>
+      <g transform={yon === -1 ? "translate(100,0) scale(-1,1)" : undefined}>
+        <path d="M14 35 L2 18 L4 52 Z" fill={yuzgec} />
+        <ellipse cx="50" cy="35" rx="38" ry="22" fill={renk} />
+        {cizgili && <path d="M38 15 Q34 35 38 55 M52 13 Q48 35 52 57" stroke="#fff" strokeWidth="4" fill="none" opacity=".85" />}
+        <path d="M46 14 Q56 2 66 15 Z" fill={yuzgec} />
+        <circle cx="74" cy="30" r="5.5" fill="#fff" /><circle cx="75.5" cy="30" r="3" fill="#111" />
+        <path d="M84 40 Q80 44 76 41" stroke="#7C2D12" strokeWidth="2" fill="none" strokeLinecap="round" />
+      </g>
+    </svg>
+  );
+}
+const DG_SEKILLER = {
+  // Hızlı Eşleştir için şekil setleri
+  renkli: [
+    { k: "r1", c: <circle cx="50" cy="50" r="34" fill="#EF4444" /> },
+    { k: "r2", c: <rect x="17" y="17" width="66" height="66" rx="6" fill="#3B82F6" /> },
+    { k: "r3", c: <polygon points="50,12 88,84 12,84" fill="#22C55E" /> },
+    { k: "r4", c: <polygon points="50,10 61,38 92,38 67,57 76,88 50,70 24,88 33,57 8,38 39,38" fill="#EAB308" /> },
+    { k: "r5", c: <path d="M50 86 C20 64 10 46 18 32 C26 18 44 20 50 34 C56 20 74 18 82 32 C90 46 80 64 50 86 Z" fill="#EC4899" /> },
+    { k: "r6", c: <polygon points="50,8 90,50 50,92 10,50" fill="#8B5CF6" /> },
+  ],
+  tek: [
+    { k: "t1", c: <circle cx="50" cy="50" r="34" fill="none" stroke="#1E293B" strokeWidth="8" /> },
+    { k: "t2", c: <rect x="17" y="17" width="66" height="66" fill="none" stroke="#1E293B" strokeWidth="8" /> },
+    { k: "t3", c: <rect x="17" y="17" width="66" height="66" rx="22" fill="none" stroke="#1E293B" strokeWidth="8" /> },
+    { k: "t4", c: <polygon points="50,14 86,82 14,82" fill="none" stroke="#1E293B" strokeWidth="8" strokeLinejoin="round" /> },
+    { k: "t5", c: <polygon points="50,86 86,18 14,18" fill="none" stroke="#1E293B" strokeWidth="8" strokeLinejoin="round" /> },
+    { k: "t6", c: <polygon points="50,10 88,50 50,90 12,50" fill="none" stroke="#1E293B" strokeWidth="8" strokeLinejoin="round" /> },
+    { k: "t7", c: <><circle cx="50" cy="50" r="34" fill="none" stroke="#1E293B" strokeWidth="8" /><circle cx="50" cy="50" r="8" fill="#1E293B" /></> },
+  ],
+  cizgi: [
+    { k: "c1", c: <path d="M20 20 V80 H80" fill="none" stroke="#1E293B" strokeWidth="9" strokeLinecap="round" /> },
+    { k: "c2", c: <path d="M80 20 V80 H20" fill="none" stroke="#1E293B" strokeWidth="9" strokeLinecap="round" /> },
+    { k: "c3", c: <path d="M20 20 H80 M50 20 V80" fill="none" stroke="#1E293B" strokeWidth="9" strokeLinecap="round" /> },
+    { k: "c4", c: <path d="M20 80 H80 M50 80 V20" fill="none" stroke="#1E293B" strokeWidth="9" strokeLinecap="round" /> },
+    { k: "c5", c: <path d="M20 20 L50 80 L80 20" fill="none" stroke="#1E293B" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" /> },
+    { k: "c6", c: <path d="M20 80 L50 20 L80 80" fill="none" stroke="#1E293B" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" /> },
+    { k: "c7", c: <path d="M20 20 H80 V80" fill="none" stroke="#1E293B" strokeWidth="9" strokeLinecap="round" /> },
+    { k: "c8", c: <path d="M20 50 H80 M50 20 V80" fill="none" stroke="#1E293B" strokeWidth="9" strokeLinecap="round" /> },
+  ],
+};
+function DGSekil({ s }) { return <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ display: "block" }}>{s.c}</svg>; }
+function dgRast(n) { return Math.floor(Math.random() * n); }
+function dgKaristir(a) { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = dgRast(i + 1); [b[i], b[j]] = [b[j], b[i]]; } return b; }
+function dgOrt(a) { return a.length ? a.reduce((s, x) => s + x, 0) / a.length : null; }
+
+// ── Oyun 1: Yıldız Avcısı (Git/Gitme) ──
+function DGOyunYildiz({ seviye: L, yasGrubu, bitir }) {
+  const [gorunen, setGorunen] = useState(null);
+  const [geri, setGeri] = useState(null);
+  const [kalan, setKalan] = useState(0);
+  const R = useRef({ zaman: 0, deneme: null, sonuc: { hit: 0, kacan: 0, kom: 0, dogruRed: 0, fazla: 0, rt: [] }, bitti: false });
+  const stimSure = Math.max(420, 1050 - 60 * (L - 1));
+  const nogoOran = 0.2 + 0.02 * (L - 1);
+  const toplamSure = (yasGrubu === "ilkokul" ? 50 + 4 * L : 60 + 8 * L) * 1000;
+  const nogoTurleri = L <= 3 ? ["bulut"] : L <= 6 ? ["kalp", "bulut"] : L <= 7 ? ["turuncu", "kalp"] : ["turuncu"];
+  useEffect(() => {
+    const r = R.current; r.bas = performance.now();
+    let zt;
+    const denemeBitir = () => {
+      const d = r.deneme;
+      if (d) {
+        if (d.tur === "hedef") { if (!d.basti) { r.sonuc.kacan++; } }
+        else { if (!d.basti) r.sonuc.dogruRed++; }
+      }
+      r.deneme = null; setGorunen(null);
+    };
+    const yeni = () => {
+      if (r.bitti) return;
+      const gecen = performance.now() - r.bas;
+      setKalan(Math.max(0, Math.ceil((toplamSure - gecen) / 1000)));
+      if (gecen >= toplamSure) { r.bitti = true; sonlandir(); return; }
+      const nogo = Math.random() < nogoOran;
+      const tur = nogo ? nogoTurleri[dgRast(nogoTurleri.length)] : "hedef";
+      r.deneme = { tur, bas: performance.now(), basti: false };
+      setGorunen({ tur, n: Date.now() });
+      zt = setTimeout(() => {
+        setGorunen(null);
+        zt = setTimeout(() => { denemeBitir(); zt = setTimeout(yeni, Math.max(350, 1000 - 55 * (L - 1)) + dgRast(300)); }, 250);
+      }, stimSure);
+    };
+    zt = setTimeout(yeni, 600);
+    const sonlandir = () => {
+      const s = r.sonuc, top = s.hit + s.kacan + s.kom + s.dogruRed;
+      const dogruluk = top ? (s.hit + s.dogruRed) / (top + s.fazla * 0.5) : 0;
+      bitir({ dogruluk, ozet: `İsabet ${s.hit}/${s.hit + s.kacan} · Yanlış basma ${s.kom} · Ort. tepki ${s.rt.length ? Math.round(dgOrt(s.rt)) + " ms" : "—"}`, detay: { ...s, rt: undefined, rtOrt: dgOrt(s.rt) } });
+    };
+    return () => { r.bitti = true; clearTimeout(zt); };
+  }, []);
+  function bas() {
+    const r = R.current, d = r.deneme;
+    if (!d) { r.sonuc.fazla++; setGeri({ t: "fazla", n: Date.now() }); return; }
+    if (d.basti) { r.sonuc.fazla++; return; }
+    d.basti = true;
+    if (d.tur === "hedef") { r.sonuc.hit++; r.sonuc.rt.push(performance.now() - d.bas); setGeri({ t: "iyi", n: Date.now() }); }
+    else { r.sonuc.kom++; setGeri({ t: "kotu", n: Date.now() }); }
+  }
+  useEffect(() => { if (!geri) return; const t = setTimeout(() => setGeri(null), 350); return () => clearTimeout(t); }, [geri]);
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-between", padding: "50px 12px 18px" }}>
+      <div style={{ fontSize: 13, color: "#C7D2FE", fontWeight: 700 }}>⏱ {kalan} sn</div>
+      <div style={{ width: "min(46vw, 230px)", height: "min(46vw, 230px)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: geri ? `0 0 0 10px ${geri.t === "iyi" ? "#86EFAC" : "#FCA5A5"}` : "none", transition: "box-shadow .12s", background: "radial-gradient(circle, rgba(255,255,255,.16) 0%, rgba(255,255,255,.04) 70%)", border: "2px solid rgba(199,210,254,.35)" }}>
+        {gorunen && <div style={{ width: "80%", height: "80%" }}><DGYildizSekli tur={gorunen.tur} /></div>}
+      </div>
+      <button onPointerDown={e => { e.preventDefault(); bas(); }} style={{ width: "min(78vw, 360px)", height: 88, borderRadius: 44, border: "none", background: "linear-gradient(180deg,#FBBF24,#F59E0B)", color: "#fff", fontSize: 28, fontWeight: 900, boxShadow: "0 8px 18px rgba(180,120,0,.35)", touchAction: "none" }}>⭐ YAKALA</button>
+    </div>
+  );
+}
+
+// ── Oyun 2: Gizli Hazine (görsel tarama) ──
+function DGOyunHazine({ seviye: L, yasGrubu, bitir }) {
+  const turSayisi = yasGrubu === "ilkokul" ? 4 : 5;
+  const n = Math.min(yasGrubu === "ilkokul" ? 6 : 8, 3 + Math.ceil(L / 2));
+  const hedefSayi = Math.min(n * n - 4, 2 + Math.floor(L / 2));
+  const turSure = (yasGrubu === "ilkokul" ? Math.max(18, 36 - 2 * L) : Math.max(12, 32 - 2 * L)) * 1000;
+  const HEDEF = { renk: "#F97316", yon: 1, cizgili: true, yuzgec: "#2563EB" };
+  const celdiriciUret = () => {
+    const secenek = [
+      { renk: "#3B82F6", yon: Math.random() < .5 ? 1 : -1, cizgili: true, yuzgec: "#1E3A8A" },
+      { renk: "#22C55E", yon: Math.random() < .5 ? 1 : -1, cizgili: true, yuzgec: "#166534" },
+      { renk: "#A855F7", yon: Math.random() < .5 ? 1 : -1, cizgili: true, yuzgec: "#6B21A8" },
+    ];
+    if (L >= 4) secenek.push({ ...HEDEF, yon: -1 }, { ...HEDEF, yon: -1 });
+    if (L >= 7) secenek.push({ ...HEDEF, cizgili: false }, { ...HEDEF, yuzgec: "#F97316" });
+    return secenek[dgRast(secenek.length)];
+  };
+  const izgaraUret = () => {
+    const hucre = Array.from({ length: n * n }, () => ({ ...celdiriciUret(), hedef: false }));
+    dgKaristir(hucre.map((_, i) => i)).slice(0, hedefSayi).forEach(i => { hucre[i] = { ...HEDEF, hedef: true }; });
+    return hucre.map((h, i) => ({ ...h, i, durum: null }));
+  };
+  const [tur, setTur] = useState(1);
+  const [izgara, setIzgara] = useState(izgaraUret);
+  const [kalan, setKalan] = useState(turSure / 1000);
+  const R = useRef({ bulunan: 0, yanlis: 0, toplamHedef: 0, zamanindaBiten: 0, turBas: performance.now(), gecis: false });
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const r = R.current;
+      if (r.gecis) return;
+      const k = Math.max(0, Math.ceil((turSure - (performance.now() - r.turBas)) / 1000));
+      setKalan(k);
+      if (k <= 0) turBitir(false);
+    }, 250);
+    return () => clearInterval(iv);
+  }, [tur]);
+  function turBitir(tamam) {
+    const r = R.current;
+    if (r.gecis) return;
+    r.gecis = true;
+    r.toplamHedef += hedefSayi;
+    if (tamam) r.zamanindaBiten++;
+    setTimeout(() => {
+      if (tur >= turSayisi) {
+        const dogruluk = r.bulunan / Math.max(1, r.toplamHedef + r.yanlis);
+        bitir({ dogruluk, hizOk: r.zamanindaBiten >= Math.ceil(turSayisi * 0.6), ozet: `Bulunan ${r.bulunan}/${r.toplamHedef} · Yanlış ${r.yanlis} · Süresinde biten tur ${r.zamanindaBiten}/${turSayisi}`, detay: { bulunan: r.bulunan, toplamHedef: r.toplamHedef, yanlis: r.yanlis } });
+        return;
+      }
+      setIzgara(izgaraUret()); setTur(t => t + 1); r.turBas = performance.now(); r.gecis = false; setKalan(turSure / 1000);
+    }, 700);
+  }
+  function dokun(h) {
+    const r = R.current;
+    if (r.gecis || h.durum) return;
+    const yeni = izgara.map(x => x.i === h.i ? { ...x, durum: h.hedef ? "ok" : "x" } : x);
+    if (h.hedef) r.bulunan++; else r.yanlis++;
+    setIzgara(yeni);
+    if (h.hedef && yeni.filter(x => x.hedef && x.durum === "ok").length === hedefSayi) turBitir(true);
+  }
+  const bulunanBuTur = izgara.filter(x => x.hedef && x.durum === "ok").length;
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 10px 14px", gap: 10, minHeight: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, background: "rgba(255,255,255,.85)", borderRadius: 14, padding: "6px 12px" }}>
+        <div style={{ width: 56, height: 40 }}><DGBalik {...HEDEF} /></div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: "#0F172A" }}>Bu balıktan {hedefSayi} tane bul!<div style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>Tur {tur}/{turSayisi} · {bulunanBuTur}/{hedefSayi} · ⏱ {kalan} sn</div></div>
+      </div>
+      <div style={{ flex: 1, minHeight: 0, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: "min(94vw, 62vh, 560px)", aspectRatio: "1 / 1", display: "grid", gridTemplateColumns: `repeat(${n}, 1fr)`, gap: 4, background: "rgba(255,255,255,.5)", borderRadius: 16, padding: 6 }}>
+          {izgara.map(h => (
+            <div key={h.i} onPointerDown={e => { e.preventDefault(); dokun(h); }} style={{ position: "relative", borderRadius: 8, background: h.durum === "ok" ? "#DCFCE7" : h.durum === "x" ? "#FEE2E2" : "rgba(255,255,255,.75)", display: "flex", alignItems: "center", justifyContent: "center", padding: "8%", touchAction: "none" }}>
+              <DGBalik {...h} />
+              {h.durum && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 900, color: h.durum === "ok" ? "#16A34A" : "#DC2626" }}>{h.durum === "ok" ? "✓" : "✗"}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Oyun 3: Kırmızı Işık (dur sinyali görevi) ──
+function DGOyunIsik({ seviye: L, yasGrubu, bitir }) {
+  const ikiYon = !(yasGrubu === "ilkokul" && L <= 3);
+  const denemeSayi = yasGrubu === "ilkokul" ? 30 + 2 * L : 40 + 3 * L;
+  const sonTarih = Math.max(800, 1600 - 70 * L);
+  const [ok, setOk] = useState(null); // {yon, renk}
+  const [geri, setGeri] = useState(null);
+  const [sayac, setSayac] = useState(0);
+  const R = useRef({ i: 0, d: null, ssd: 220, s: { goDogru: 0, goYanlis: 0, goGec: 0, stopBasari: 0, stopHata: 0, rt: [], ssdler: [] }, bitti: false });
+  useEffect(() => {
+    const r = R.current; let zt, zt2;
+    const sonraki = () => {
+      if (r.bitti) return;
+      if (r.i >= denemeSayi) { r.bitti = true; return son(); }
+      r.i++; setSayac(r.i);
+      const stop = r.i > 3 && Math.random() < 0.25;
+      const yon = ikiYon ? (Math.random() < .5 ? -1 : 1) : 1;
+      r.d = { yon, stop, bas: performance.now(), yanit: null, dur: false, ssdPlan: r.ssd };
+      if (stop) r.s.ssdler.push(r.ssd);
+      setOk({ yon, renk: "yesil" });
+      if (stop) zt2 = setTimeout(() => { if (r.d && !r.d.yanit) { r.d.dur = true; r.d.ssd = r.ssd; setOk({ yon, renk: "kirmizi" }); } }, r.ssd);
+      zt = setTimeout(() => {
+        const d = r.d; r.d = null; setOk(null);
+        if (d.stop) {
+          if (!d.yanit) { r.s.stopBasari++; r.ssd = Math.min(sonTarih - 100, r.ssd + 50); setGeri({ t: "dur", n: Date.now() }); }
+        } else if (!d.yanit) { r.s.goGec++; setGeri({ t: "gec", n: Date.now() }); }
+        zt = setTimeout(sonraki, 650 + dgRast(450));
+      }, sonTarih);
+    };
+    const son = () => {
+      const s = r.s, goTop = s.goDogru + s.goYanlis + s.goGec;
+      const rtOrt = dgOrt(s.rt), ssdOrt = dgOrt(s.ssdler);
+      bitir({ dogruluk: goTop ? s.goDogru / goTop : 0, hizOk: rtOrt === null || rtOrt < sonTarih * 0.75,
+        ozet: `Doğru ${s.goDogru}/${goTop} · Durabildiği ${s.stopBasari}/${s.stopBasari + s.stopHata}${rtOrt && ssdOrt ? ` · Durma süresi ≈${Math.round(rtOrt - ssdOrt)} ms` : ""}`,
+        detay: { ...s, rt: undefined, ssdler: undefined, rtOrt, ssrt: rtOrt && ssdOrt ? rtOrt - ssdOrt : null } });
+    };
+    zt = setTimeout(sonraki, 700);
+    return () => { r.bitti = true; clearTimeout(zt); clearTimeout(zt2); };
+  }, []);
+  function yanit(yon) {
+    const r = R.current, d = r.d;
+    if (!d || d.yanit) return;
+    d.yanit = yon;
+    if (d.stop) { r.s.stopHata++; r.ssd = Math.max(50, r.ssd - 50); setGeri({ t: "fren", n: Date.now() }); return; }
+    if (!ikiYon || yon === d.yon) { r.s.goDogru++; r.s.rt.push(performance.now() - d.bas); setGeri({ t: "iyi", n: Date.now() }); }
+    else { r.s.goYanlis++; setGeri({ t: "yon", n: Date.now() }); }
+  }
+  useEffect(() => { if (!geri) return; const t = setTimeout(() => setGeri(null), 500); return () => clearTimeout(t); }, [geri]);
+  const MESAJ = { iyi: ["👍", "#16A34A"], dur: ["👏 Durdun!", "#16A34A"], fren: ["✋ Fren!", "#EA580C"], yon: ["↔ Yön!", "#DC2626"], gec: ["⏰ Hızlan", "#D97706"] };
+  const buton = (yon, et) => (
+    <button onPointerDown={e => { e.preventDefault(); yanit(yon); }} style={{ flex: 1, maxWidth: 220, height: 96, borderRadius: 22, border: "none", background: "linear-gradient(180deg,#34D399,#059669)", color: "#fff", fontSize: 36, fontWeight: 900, boxShadow: "0 8px 18px rgba(5,120,80,.3)", touchAction: "none" }}>{et}</button>
+  );
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-between", padding: "50px 12px 18px" }}>
+      <div style={{ fontSize: 13, color: "#475569", fontWeight: 700 }}>{sayac}/{denemeSayi}</div>
+      <div style={{ position: "relative", width: "min(60vw, 260px)", height: "min(60vw, 260px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {ok && (
+          <svg viewBox="0 0 100 100" width="100%" height="100%">
+            <circle cx="50" cy="50" r="46" fill={ok.renk === "yesil" ? "#DCFCE7" : "#FEE2E2"} stroke={ok.renk === "yesil" ? "#22C55E" : "#EF4444"} strokeWidth="5" />
+            {ok.renk === "kirmizi" ? <><rect x="22" y="38" width="56" height="24" rx="5" fill="#EF4444" /><text x="50" y="56" textAnchor="middle" fontSize="16" fontWeight="900" fill="#fff" fontFamily="Arial">DUR</text></>
+              : <g transform={ok.yon === -1 ? "translate(100,0) scale(-1,1)" : undefined}><path d="M22 42 H58 V28 L82 50 L58 72 V58 H22 Z" fill="#16A34A" /></g>}
+          </svg>
+        )}
+        {geri && <div style={{ position: "absolute", bottom: -34, fontSize: 18, fontWeight: 900, color: MESAJ[geri.t][1] }}>{MESAJ[geri.t][0]}</div>}
+      </div>
+      <div style={{ display: "flex", gap: 14, width: "100%", justifyContent: "center" }}>
+        {ikiYon ? <>{buton(-1, "◀")}{buton(1, "▶")}</> : buton(1, "BAS")}
+      </div>
+    </div>
+  );
+}
+
+// ── Oyun 4: Kural Değiştir (görev değiştirme) ──
+function DGOyunKural({ seviye: L, yasGrubu, bitir }) {
+  const denemeSayi = yasGrubu === "ilkokul" ? 24 + 2 * L : 30 + 3 * L;
+  const sonTarih = Math.max(1300, (yasGrubu === "ilkokul" ? 3600 : 3000) - 180 * L);
+  const kuralUret = (i, onceki) => {
+    if (L <= 2) return i < denemeSayi / 2 ? "renk" : "sekil";
+    if (L <= 5) return Math.floor(i / 4) % 2 === 0 ? "renk" : "sekil";
+    const p = 0.25 + 0.03 * (L - 6);
+    return i === 0 ? "renk" : (Math.random() < p ? (onceki === "renk" ? "sekil" : "renk") : onceki);
+  };
+  const [d, setD] = useState(null);
+  const [geri, setGeri] = useState(null);
+  const R = useRef({ i: 0, kural: null, s: { dogru: 0, yanlis: 0, gec: 0, rtGecis: [], rtTekrar: [] }, bitti: false, d: null });
+  const yeni = () => {
+    const r = R.current;
+    if (r.bitti) return;
+    if (r.i >= denemeSayi) { r.bitti = true; const s = r.s, top = s.dogru + s.yanlis + s.gec; const g = dgOrt(s.rtGecis), t = dgOrt(s.rtTekrar);
+      bitir({ dogruluk: top ? s.dogru / top : 0, hizOk: (dgOrt([...s.rtGecis, ...s.rtTekrar]) || 0) < sonTarih * 0.7, ozet: `Doğru ${s.dogru}/${top}${g && t ? ` · Geçiş maliyeti ${Math.round(g - t)} ms` : ""}`, detay: { ...s, rtGecis: undefined, rtTekrar: undefined, gecisMaliyeti: g && t ? g - t : null } }); return; }
+    const kural = kuralUret(r.i, r.kural);
+    const gecis = r.kural !== null && kural !== r.kural;
+    r.kural = kural; r.i++;
+    const yeniD = { kural, gecis, renk: Math.random() < .5 ? "mavi" : "sari", sekil: Math.random() < .5 ? "daire" : "ucgen", bas: performance.now(), no: r.i };
+    r.d = yeniD; setD(yeniD);
+    clearTimeout(r.zt);
+    r.zt = setTimeout(() => { if (r.d === yeniD) { r.s.gec++; r.d = null; setGeri({ t: "gec", n: Date.now() }); setD(null); r.zt = setTimeout(yeni, 600); } }, sonTarih);
+  };
+  useEffect(() => { const r = R.current; r.zt = setTimeout(yeni, 700); return () => { r.bitti = true; clearTimeout(r.zt); }; }, []);
+  function yanit(taraf) {
+    const r = R.current, x = r.d;
+    if (!x) return;
+    r.d = null; clearTimeout(r.zt);
+    const dogruTaraf = x.kural === "renk" ? (x.renk === "mavi" ? "sol" : "sag") : (x.sekil === "daire" ? "sol" : "sag");
+    const rt = performance.now() - x.bas;
+    if (taraf === dogruTaraf) { r.s.dogru++; (x.gecis ? r.s.rtGecis : r.s.rtTekrar).push(rt); setGeri({ t: "iyi", n: Date.now() }); }
+    else { r.s.yanlis++; setGeri({ t: "kotu", n: Date.now() }); }
+    setD(null);
+    r.zt = setTimeout(yeni, 450);
+  }
+  useEffect(() => { if (!geri) return; const t = setTimeout(() => setGeri(null), 400); return () => clearTimeout(t); }, [geri]);
+  const RENK = { mavi: "#2563EB", sari: "#EAB308" };
+  const kart = x => (
+    <svg viewBox="0 0 100 100" width="100%" height="100%">
+      {x.sekil === "daire" ? <circle cx="50" cy="52" r="34" fill={RENK[x.renk]} /> : <polygon points="50,14 88,84 12,84" fill={RENK[x.renk]} strokeLinejoin="round" />}
+    </svg>
+  );
+  const buton = (taraf) => (
+    <button onPointerDown={e => { e.preventDefault(); yanit(taraf); }} style={{ flex: 1, maxWidth: 230, height: 110, borderRadius: 20, border: "3px solid #CBD5E1", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: 14, boxShadow: "0 6px 14px rgba(0,0,0,.08)", touchAction: "none" }}>
+      <svg viewBox="0 0 40 40" width="44" height="44"><rect x="4" y="4" width="32" height="32" rx="8" fill={taraf === "sol" ? RENK.mavi : RENK.sari} /></svg>
+      <svg viewBox="0 0 40 40" width="44" height="44">{taraf === "sol" ? <circle cx="20" cy="20" r="15" fill="none" stroke="#334155" strokeWidth="4" /> : <polygon points="20,5 36,34 4,34" fill="none" stroke="#334155" strokeWidth="4" strokeLinejoin="round" />}</svg>
+    </button>
+  );
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-between", padding: "48px 12px 18px" }}>
+      <div style={{ minHeight: 64, display: "flex", alignItems: "center" }}>
+        {d && <div style={{ padding: "10px 22px", borderRadius: 16, background: d.kural === "renk" ? "#7C3AED" : "#0F766E", color: "#fff", fontSize: 24, fontWeight: 900, letterSpacing: 2, boxShadow: d.gecis ? "0 0 0 6px #FDE68A" : "none" }}>{d.kural === "renk" ? "🎨 RENK" : "🔷 ŞEKİL"}</div>}
+      </div>
+      <div style={{ width: "min(48vw, 210px)", height: "min(48vw, 210px)", borderRadius: 24, background: "#fff", boxShadow: geri ? `0 0 0 8px ${geri.t === "iyi" ? "#86EFAC" : "#FCA5A5"}` : "0 6px 16px rgba(0,0,0,.08)", display: "flex", alignItems: "center", justifyContent: "center", transition: "box-shadow .12s" }}>
+        {d && <div style={{ width: "78%", height: "78%" }}>{kart(d)}</div>}
+      </div>
+      <div style={{ display: "flex", gap: 14, width: "100%", justifyContent: "center" }}>{buton("sol")}{buton("sag")}</div>
+    </div>
+  );
+}
+
+// ── Oyun 5: Hızlı Eşleştir (işlemleme hızı) ──
+function DGOyunHizli({ seviye: L, yasGrubu, bitir }) {
+  const sure = (yasGrubu === "ilkokul" ? 45 : 60) * 1000;
+  const k = Math.min(6, 3 + Math.floor(L / 3));
+  const set = L <= 3 ? DG_SEKILLER.renkli : L <= 6 ? DG_SEKILLER.tek : DG_SEKILLER.cizgi;
+  const hedefSayi = Math.round(((yasGrubu === "ilkokul" ? 16 : 26) + L * 1.6) * sure / 60000);
+  const turUret = () => { const secim = dgKaristir(set).slice(0, k); return { hedef: secim[dgRast(k)], secim: dgKaristir(secim), n: Math.random() }; };
+  const [t, setT] = useState(turUret);
+  const [kalan, setKalan] = useState(sure / 1000);
+  const [geri, setGeri] = useState(null);
+  const R = useRef({ dogru: 0, hata: 0, bas: performance.now(), bitti: false });
+  useEffect(() => {
+    const r = R.current;
+    const iv = setInterval(() => {
+      const kk = Math.max(0, Math.ceil((sure - (performance.now() - r.bas)) / 1000));
+      setKalan(kk);
+      if (kk <= 0 && !r.bitti) { r.bitti = true; clearInterval(iv);
+        bitir({ dogruluk: r.dogru / Math.max(1, r.dogru + r.hata), hizOk: r.dogru >= hedefSayi, ozet: `Doğru ${r.dogru} · Hata ${r.hata} · Hedef hız ${hedefSayi}`, detay: { dogru: r.dogru, hata: r.hata, hedefSayi } }); }
+    }, 200);
+    return () => { r.bitti = true; clearInterval(iv); };
+  }, []);
+  function sec(s) {
+    const r = R.current; if (r.bitti) return;
+    if (s.k === t.hedef.k) { r.dogru++; setGeri({ t: "iyi", n: Date.now() }); setT(turUret()); }
+    else { r.hata++; setGeri({ t: "kotu", n: Date.now() }); }
+  }
+  useEffect(() => { if (!geri) return; const x = setTimeout(() => setGeri(null), 220); return () => clearTimeout(x); }, [geri]);
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-between", padding: "48px 12px 18px", gap: 12 }}>
+      <div style={{ fontSize: 13, color: "#475569", fontWeight: 700 }}>⏱ {kalan} sn · ✓ {R.current.dogru}</div>
+      <div style={{ width: "min(36vw, 150px)", height: "min(36vw, 150px)", borderRadius: 22, background: "#fff", padding: 12, boxShadow: geri ? `0 0 0 8px ${geri.t === "iyi" ? "#86EFAC" : "#FCA5A5"}` : "0 6px 16px rgba(0,0,0,.08)" }}>
+        <DGSekil s={t.hedef} />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${k <= 4 ? 2 : 3}, 1fr)`, gap: 10, width: "min(92vw, 460px)" }}>
+        {t.secim.map(s => (
+          <button key={s.k + t.n} onPointerDown={e => { e.preventDefault(); sec(s); }} style={{ aspectRatio: "1 / 1", borderRadius: 16, border: "2px solid #CBD5E1", background: "#fff", padding: 14, touchAction: "none" }}><DGSekil s={s} /></button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const DG_OYUN_BILESEN = { yildiz: DGOyunYildiz, hazine: DGOyunHazine, isik: DGOyunIsik, kural: DGOyunKural, hizli: DGOyunHizli };
+const DG_OYUN_ZEMIN = {
+  yildiz: "linear-gradient(180deg,#1E1B4B 0%,#4338CA 100%)", hazine: "linear-gradient(180deg,#A5F3FC 0%,#0EA5E9 100%)",
+  isik: "linear-gradient(180deg,#E2E8F0 0%,#CBD5E1 100%)", kural: "linear-gradient(180deg,#FDF4FF 0%,#E9D5FF 100%)", hizli: "linear-gradient(180deg,#FEF9C3 0%,#FDE68A 100%)",
+};
+function DGOrnek({ oyun }) {
+  const kutu = (c, et) => <div style={{ textAlign: "center" }}><div style={{ width: 64, height: 64, margin: "0 auto" }}>{c}</div><div style={{ fontSize: 12, fontWeight: 800, marginTop: 4 }}>{et}</div></div>;
+  if (oyun === "yildiz") return <div style={{ display: "flex", gap: 14, justifyContent: "center" }}>{kutu(<DGYildizSekli tur="hedef" />, "✅ Bas")}{kutu(<DGYildizSekli tur="bulut" />, "❌")}{kutu(<DGYildizSekli tur="kalp" />, "❌")}{kutu(<DGYildizSekli tur="turuncu" />, "❌")}</div>;
+  if (oyun === "hazine") return <div style={{ display: "flex", gap: 14, justifyContent: "center" }}>{kutu(<DGBalik />, "✅ Bul")}{kutu(<DGBalik yon={-1} />, "❌ Ters")}{kutu(<DGBalik renk="#3B82F6" yuzgec="#1E3A8A" />, "❌")}</div>;
+  if (oyun === "isik") return <div style={{ display: "flex", gap: 14, justifyContent: "center" }}>{kutu(<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="#DCFCE7" stroke="#22C55E" strokeWidth="5" /><path d="M22 42 H58 V28 L82 50 L58 72 V58 H22 Z" fill="#16A34A" /></svg>, "Okun yönüne bas")}{kutu(<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="#FEE2E2" stroke="#EF4444" strokeWidth="5" /><rect x="22" y="38" width="56" height="24" rx="5" fill="#EF4444" /></svg>, "Kırmızı: DUR")}</div>;
+  if (oyun === "kural") return <div style={{ fontSize: 13, lineHeight: 1.6, color: "#334155" }}>🎨 <b>RENK</b> yazıyorsa: mavi → sol, sarı → sağ.<br />🔷 <b>ŞEKİL</b> yazıyorsa: daire → sol, üçgen → sağ.</div>;
+  if (oyun === "hizli") return <div style={{ fontSize: 13, color: "#334155" }}>Üstteki şeklin aynısını alttaki seçeneklerden bul — olabildiğince hızlı!</div>;
+  return null;
+}
+// Oyun çerçevesi: tanıtım → geri sayım → oyun → sonuç; isteğe bağlı çeldirici katmanı
+function DGOyunCercevesi({ oyun, seviye, yasGrubu, cel, onBitti, onKapat }) {
+  const [faz, setFaz] = useState("tanit");
+  const [sayi, setSayi] = useState(3);
+  const [sonuc, setSonuc] = useState(null);
+  const [aktifCel, setAktifCel] = useState([]);
+  const sesRef = useRef(null);
+  const Oyun = DG_OYUN_BILESEN[oyun];
+  const bilgi = DG_OYUNLAR[oyun];
+  const basZamani = useRef(0);
+  async function basla() {
+    if (cel === "isitsel" || cel === "kombine") { if (!sesRef.current) sesRef.current = cdtSesMotoruOlustur(); try { await sesRef.current.ctx.resume(); } catch (e) {} }
+    try { if (!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); } catch (e) {}
+    setFaz("geri"); setSayi(3);
+  }
+  useEffect(() => {
+    if (faz !== "geri") return;
+    if (sayi <= 0) { basZamani.current = performance.now(); setFaz("oyun"); return; }
+    const t = setTimeout(() => setSayi(s => s - 1), 700);
+    return () => clearTimeout(t);
+  }, [faz, sayi]);
+  // Çeldirici zamanlayıcı (oyun sırasında köşelerde/kenarlarda klipler)
+  useEffect(() => {
+    if (faz !== "oyun" || !cel) return;
+    const klipler = Object.keys(CDT_KLIPLER), konumlar = ["sol-ust", "sag-ust", "sol-alt", "sag-alt"];
+    let son = null, zt, sesler = [], iptal = false;
+    const planla = (gecikme) => {
+      zt = setTimeout(() => {
+        if (iptal) return;
+        let k; do { k = klipler[dgRast(klipler.length)]; } while (k === son); son = k;
+        const sure = Math.round(CDT_KLIPLER[k].sure * 1000);
+        const c = { id: Date.now() + "-" + k, klip: k, konum: konumlar[dgRast(4)] };
+        if (cel === "gorsel" || cel === "kombine") setAktifCel([c]);
+        if ((cel === "isitsel" || cel === "kombine") && sesRef.current) sesler.push(cdtSesCal(sesRef.current, k, sure));
+        zt = setTimeout(() => { setAktifCel([]); planla(1000 + dgRast(3000)); }, sure);
+      }, gecikme);
+    };
+    planla(1500);
+    return () => { iptal = true; clearTimeout(zt); sesler.forEach(s => s.dur()); setAktifCel([]); };
+  }, [faz, cel]);
+  useEffect(() => () => {
+    try { if (sesRef.current) sesRef.current.ctx.close(); } catch (e) {}
+    try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen(); } catch (e) {}
+  }, []);
+  function oyunBitti(s) {
+    const yeniSeviye = dgSeviyeGuncelle(seviye, s);
+    const tam = { ...s, oyun, seviye, yeniSeviye, yildiz: dgYildiz(s.dogruluk), sureMs: Math.round(performance.now() - basZamani.current), cel: cel || null, tarih: today() };
+    setSonuc(tam); setFaz("sonuc");
+  }
+  const KONUM = { "sol-ust": { left: 6, top: 44 }, "sag-ust": { right: 6, top: 44 }, "sol-alt": { left: 6, bottom: 120 }, "sag-alt": { right: 6, bottom: 120 } };
+  const kart = { background: "#fff", borderRadius: 22, padding: "20px 18px", maxWidth: 520, width: "100%", boxShadow: "0 10px 30px rgba(0,0,0,.18)", textAlign: "center", margin: "auto" };
+  const koyu = oyun === "yildiz";
+  return ReactDOM.createPortal(
+    <div style={{ position: "fixed", inset: 0, zIndex: 100000, background: DG_OYUN_ZEMIN[oyun], display: "flex", flexDirection: "column", overflow: "hidden", userSelect: "none", WebkitUserSelect: "none", fontFamily: "Arial, Helvetica, sans-serif", touchAction: "manipulation" }}>
+      <style>{CDT_STIL}</style>
+      <button onClick={() => { if (faz !== "oyun" || window.confirm("Oyundan çıkılsın mı? Bu oyunun sonucu kaydedilmez.")) onKapat(); }} style={{ position: "absolute", top: 8, left: 8, zIndex: 5, width: 36, height: 36, borderRadius: "50%", border: "none", background: "rgba(255,255,255,.85)", color: "#555", fontSize: 16 }}>✕</button>
+      <div style={{ position: "absolute", top: 12, right: 12, zIndex: 5, fontSize: 12, fontWeight: 800, color: koyu ? "#E0E7FF" : "#334155" }}>{bilgi.ikon} {bilgi.ad} · Seviye {seviye}{cel ? " · çeldiricili" : ""}</div>
+      {aktifCel.map(c => (
+        <div key={c.id} className="cdt-c" style={{ position: "absolute", ...KONUM[c.konum], width: "min(34vw, 220px)", height: "min(22vw, 140px)", pointerEvents: "none", zIndex: 1 }}
+          dangerouslySetInnerHTML={{ __html: cdtCeldiriciSvg(c.klip, Math.round(CDT_KLIPLER[c.klip].sure * 1000)) }} />
+      ))}
+      {faz === "tanit" && (
+        <div style={{ flex: 1, display: "flex", padding: 16, overflowY: "auto" }}>
+          <div style={kart}>
+            <div style={{ display: "flex", justifyContent: "center" }}><DGBaykus boyut={70} /></div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: "#312E81", margin: "6px 0 4px" }}>{bilgi.ikon} {bilgi.ad}</div>
+            <div style={{ fontSize: 15, color: "#334155", marginBottom: 12 }}>{bilgi.aciklama}</div>
+            <div style={{ background: "#F8FAFC", borderRadius: 14, padding: 12, marginBottom: 14 }}><DGOrnek oyun={oyun} /></div>
+            {cel && <div style={{ fontSize: 13, color: "#7C2D12", background: "#FFF7ED", borderRadius: 10, padding: "6px 10px", marginBottom: 12 }}>Bu turda ekranda {cel === "isitsel" ? "sesler" : cel === "gorsel" ? "resimler" : "resimler ve sesler"} olacak. "Gördüm/duydum, döndüm!" de ve oyuna dön.</div>}
+            <button onClick={basla} style={{ border: "none", borderRadius: 16, padding: "14px 30px", fontSize: 19, fontWeight: 900, background: "#4F46E5", color: "#fff", boxShadow: "0 6px 16px rgba(79,70,229,.35)" }}>Başla ▶</button>
+          </div>
+        </div>
+      )}
+      {faz === "geri" && <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 96, fontWeight: 900, color: koyu ? "#fff" : "#312E81" }}>{sayi}</div>}
+      {faz === "oyun" && <Oyun seviye={seviye} yasGrubu={yasGrubu} bitir={oyunBitti} />}
+      {faz === "sonuc" && sonuc && (
+        <div style={{ flex: 1, display: "flex", padding: 16 }}>
+          <div style={kart}>
+            <div style={{ fontSize: 44, letterSpacing: 6 }}>{"⭐".repeat(sonuc.yildiz)}<span style={{ opacity: .2 }}>{"⭐".repeat(3 - sonuc.yildiz)}</span></div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: "#312E81", margin: "6px 0" }}>{sonuc.yildiz === 3 ? "Muhteşem!" : sonuc.yildiz === 2 ? "Çok iyi!" : "İyi deneme!"}</div>
+            <div style={{ fontSize: 15, color: "#334155", marginBottom: 6 }}>Doğruluk: <b>%{Math.round(sonuc.dogruluk * 100)}</b></div>
+            <div style={{ fontSize: 13, color: "#64748B", marginBottom: 10 }}>{sonuc.ozet}</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: sonuc.yeniSeviye > seviye ? "#16A34A" : sonuc.yeniSeviye < seviye ? "#D97706" : "#475569", marginBottom: 16 }}>
+              {sonuc.yeniSeviye > seviye ? `🎉 Seviye atladın: ${seviye} → ${sonuc.yeniSeviye}` : sonuc.yeniSeviye < seviye ? `Bir sonraki tur biraz daha kolay: seviye ${sonuc.yeniSeviye}` : `Seviye ${seviye}'de devam`}
+            </div>
+            <button onClick={() => onBitti(sonuc)} style={{ border: "none", borderRadius: 16, padding: "13px 30px", fontSize: 18, fontWeight: 900, background: "#16A34A", color: "#fff" }}>Kaydet ve Dön ✓</button>
+          </div>
+        </div>
+      )}
+    </div>,
+    document.body
+  );
+}
+
+// ── DGP kağıt-kalem etkinlikleri (yazdırılabilir, her basımda yeni üretilir) ──
+function dgKagitBaslik(baslik, yonerge, b) {
+  return `<div style="font-family:Arial,sans-serif;border-bottom:2px solid #312E81;padding-bottom:6px;margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px">
+      <div><div style="font-size:18px;font-weight:700;color:#312E81">${baslik}</div><div style="font-size:12px;color:#333;margin-top:3px">${yonerge}</div></div>
+      <div style="font-size:11px;color:#444;text-align:right;line-height:1.7">Ad: <b>${cdtEsc(b.ogrenci || "................................")}</b><br>Tarih: ${cdtEsc(b.tarih || ".... / .... / ........")} · Süre: ........ sn</div>
+    </div></div>`;
+}
+const DG_KAGIT_SEKIL = {
+  yildizDolu: '<polygon points="10,1 12.6,7.4 19.5,7.6 14,11.8 16,18.6 10,14.6 4,18.6 6,11.8 0.5,7.6 7.4,7.4" fill="#111"/>',
+  yildizBos:  '<polygon points="10,1 12.6,7.4 19.5,7.6 14,11.8 16,18.6 10,14.6 4,18.6 6,11.8 0.5,7.6 7.4,7.4" fill="none" stroke="#111" stroke-width="1.4"/>',
+  daire:      '<circle cx="10" cy="10" r="8" fill="#111"/>',
+  ucgen:      '<polygon points="10,1.5 19,18 1,18" fill="#111"/>',
+  kare:       '<rect x="2" y="2" width="16" height="16" fill="#111"/>',
+};
+function dgSvgKucuk(ic, boy = 20) { return `<svg width="${boy}" height="${boy}" viewBox="0 0 20 20" style="display:block;margin:auto">${ic}</svg>`; }
+function dgKagitTarama(yg, b) {
+  if (yg === "ilkokul") {
+    const turler = ["yildizDolu", "yildizBos", "daire", "ucgen", "kare"];
+    const sat = 10, sut = 12; let hedef = 0, hucreler = "";
+    for (let r = 0; r < sat; r++) {
+      hucreler += "<tr>";
+      for (let c = 0; c < sut; c++) {
+        const t = Math.random() < 0.22 ? "yildizDolu" : turler[1 + dgRast(4)];
+        if (t === "yildizDolu") hedef++;
+        hucreler += `<td style="padding:5px;border:1px solid #eee">${dgSvgKucuk(DG_KAGIT_SEKIL[t], 26)}</td>`;
+      }
+      hucreler += "</tr>";
+    }
+    return dgKagitBaslik("🔍 Hedef Tarama", `Satır satır, soldan sağa git. Bütün <b>dolu yıldızları</b> ${dgSvgKucuk(DG_KAGIT_SEKIL.yildizDolu, 14).replace("display:block;margin:auto", "display:inline-block;vertical-align:middle")} bul ve üzerini çiz.`, b)
+      + `<table style="border-collapse:collapse;margin:auto">${hucreler}</table>`
+      + `<div style="font-size:10px;color:#777;margin-top:10px">Uygulayıcı için: hedef sayısı = ${hedef}. Atlanan ve yanlış işaretlenen sayısını ve süreyi kaydedin.</div>`;
+  }
+  const hedefler = ["b", "d"];
+  const sat = 16, sut = 24; let hedef = 0, satirlar = "";
+  for (let r = 0; r < sat; r++) {
+    let s = "";
+    for (let c = 0; c < sut; c++) {
+      const h = Math.random() < 0.3 ? hedefler[dgRast(2)] : ["p", "q"][dgRast(2)];
+      if (hedefler.includes(h)) hedef++;
+      s += `<span style="display:inline-block;width:22px;text-align:center">${h}</span>`;
+    }
+    satirlar += `<div style="font-family:'Courier New',monospace;font-size:19px;line-height:1.75;letter-spacing:1px;white-space:nowrap">${s}</div>`;
+  }
+  return dgKagitBaslik("🔍 Hedef Tarama", "Satır satır, soldan sağa git. Bütün <b>b</b> ve <b>d</b> harflerini bul ve üzerini çiz. <b>p</b> ve <b>q</b> harflerine dokunma.", b)
+    + `<div style="margin:auto;width:max-content">${satirlar}</div>`
+    + `<div style="font-size:10px;color:#777;margin-top:10px">Uygulayıcı için: hedef sayısı = ${hedef}. Atlanan, yanlış işaretlenen ve süre kaydedilir; aynı sayfa 2 hafta sonra tekrar verilerek ilerleme görülebilir.</div>`;
+}
+const DG_KOD_SEMBOL = [
+  '<path d="M3 17 L10 3 L17 17" fill="none" stroke="#111" stroke-width="2"/>',
+  '<path d="M3 10 H17" stroke="#111" stroke-width="2"/>',
+  '<circle cx="10" cy="10" r="6" fill="none" stroke="#111" stroke-width="2"/>',
+  '<path d="M4 4 L16 16 M16 4 L4 16" stroke="#111" stroke-width="2"/>',
+  '<path d="M10 3 V17 M3 10 H17" stroke="#111" stroke-width="2"/>',
+  '<path d="M4 4 V16 H16" fill="none" stroke="#111" stroke-width="2"/>',
+  '<path d="M3 3 H17 V17" fill="none" stroke="#111" stroke-width="2"/>',
+  '<path d="M3 14 Q10 2 17 14" fill="none" stroke="#111" stroke-width="2"/>',
+  '<rect x="5" y="5" width="10" height="10" fill="none" stroke="#111" stroke-width="2"/>',
+];
+function dgKagitKodlama(yg, b) {
+  const k = yg === "ilkokul" ? 5 : 9;
+  const semboller = dgKaristir(DG_KOD_SEMBOL).slice(0, k);
+  const anahtar = semboller.map((s, i) => `<td style="border:1.5px solid #111;width:38px;text-align:center;padding:2px"><div style="font-size:16px;font-weight:700;border-bottom:1px solid #111">${i + 1}</div><div style="height:28px;display:flex;align-items:center">${dgSvgKucuk(s, 22)}</div></td>`).join("");
+  const sat = yg === "ilkokul" ? 6 : 8, sut = yg === "ilkokul" ? 10 : 15;
+  let satirlar = "", sayac = 0;
+  for (let r = 0; r < sat; r++) {
+    let s = "";
+    for (let c = 0; c < sut; c++) {
+      const n = 1 + dgRast(k);
+      const ornek = sayac < 3; sayac++;
+      s += `<td style="border:1px solid #111;width:36px;text-align:center;padding:0"><div style="font-size:15px;font-weight:700;border-bottom:1px solid #111;line-height:22px">${n}</div><div style="height:30px;display:flex;align-items:center">${ornek ? dgSvgKucuk(semboller[n - 1], 20) : ""}</div></td>`;
+    }
+    satirlar += `<table style="border-collapse:collapse;margin:0 auto 10px">${"<tr>" + s + "</tr>"}</table>`;
+  }
+  return dgKagitBaslik("🔣 Şifre Çözme (Kodlama)", `Her sayının altına anahtardaki işaretini çiz. Sırayla, hiç atlamadan ve olabildiğince hızlı çalış. İlk 3 kutu örnek. ${yg === "ilkokul" ? "Süre: 2 dakika." : "Süre: 90 saniye."}`, b)
+    + `<div style="text-align:center;font-size:12px;font-weight:700;margin-bottom:4px">ANAHTAR</div><table style="border-collapse:collapse;margin:0 auto 16px"><tr>${anahtar}</tr></table>${satirlar}`
+    + `<div style="font-size:10px;color:#777">Uygulayıcı için: süre sonunda doğru çizilen kutuları sayın (örnekler hariç). Hız ve doğruluk ayrı ayrı izlenir.</div>`;
+}
+function dgDaireYerlestir(n, W, H, r) {
+  const p = [];
+  for (let deneme = 0; deneme < 5000 && p.length < n; deneme++) {
+    const x = r + 6 + Math.random() * (W - 2 * r - 12), y = r + 6 + Math.random() * (H - 2 * r - 12);
+    if (p.every(q => (q.x - x) ** 2 + (q.y - y) ** 2 > (2.6 * r) ** 2)) p.push({ x, y });
+  }
+  return p;
+}
+function dgTakipSvg(etiketler, W, H) {
+  const r = 17, p = dgDaireYerlestir(etiketler.length, W, H, r);
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="border:1px solid #ccc;border-radius:6px">${p.map((q, i) => `<circle cx="${q.x.toFixed(0)}" cy="${q.y.toFixed(0)}" r="${r}" fill="${i === 0 ? "#DCFCE7" : i === etiketler.length - 1 ? "#FEE2E2" : "#fff"}" stroke="#111" stroke-width="1.6"/><text x="${q.x.toFixed(0)}" y="${(q.y + 6).toFixed(0)}" text-anchor="middle" font-size="16" font-family="Arial" font-weight="700">${etiketler[i]}</text>`).join("")}</svg>`;
+}
+function dgKagitTakip(yg, b) {
+  if (yg === "ilkokul") {
+    const et = Array.from({ length: 15 }, (_, i) => String(i + 1));
+    return dgKagitBaslik("🔢 Sayı Takibi", "Kalemini kaldırmadan 1'den başlayıp 2, 3, 4... diye sırayla sayıları birleştir. Yeşil daire başlangıç, kırmızı daire bitiş.", b)
+      + dgTakipSvg(et, 700, 880) + `<div style="font-size:10px;color:#777;margin-top:6px">Uygulayıcı için: süreyi ve hata sayısını kaydedin; hata olduğunda öğrenciyi son doğru daireye yönlendirin.</div>`;
+  }
+  const a = Array.from({ length: 25 }, (_, i) => String(i + 1));
+  const harf = ["A", "B", "C", "Ç", "D", "E", "F", "G", "Ğ", "H", "I", "İ"], bb = [];
+  for (let i = 0; i < 13; i++) { bb.push(String(i + 1)); if (i < 12) bb.push(harf[i]); }
+  return dgKagitBaslik("🔢 Sayı Takibi", "<b>A bölümü:</b> 1'den 25'e sırayla birleştir. <b>B bölümü:</b> sayı ve harfi sırayla değiştirerek birleştir: 1 → A → 2 → B → 3 → C → 4 → Ç ... (alfabe sırasıyla) Kalemini kaldırma.", b)
+    + `<div style="font-size:12px;font-weight:700;margin:4px 0">A bölümü</div>${dgTakipSvg(a, 700, 430)}`
+    + `<div style="font-size:12px;font-weight:700;margin:10px 0 4px">B bölümü</div>${dgTakipSvg(bb, 700, 430)}`
+    + `<div style="font-size:10px;color:#777;margin-top:6px">Uygulayıcı için: iki bölümün süresini ayrı kaydedin. B − A süre farkı, dikkati kurallar arasında değiştirme (esneklik) yükünü gösterir.</div>`;
+}
+function dgLabirentSvg(n, W) {
+  const zi = Array.from({ length: n * n }, () => ({ k: true, d: true, g: true, b: true, z: false })); // kuzey doğu güney batı
+  const id = (x, y) => y * n + x, yigin = [[0, 0]]; zi[0].z = true;
+  while (yigin.length) {
+    const [x, y] = yigin[yigin.length - 1];
+    const komsu = [[0, -1, "k", "g"], [1, 0, "d", "b"], [0, 1, "g", "k"], [-1, 0, "b", "d"]]
+      .map(([dx, dy, a, c]) => [x + dx, y + dy, a, c]).filter(([nx, ny]) => nx >= 0 && ny >= 0 && nx < n && ny < n && !zi[id(nx, ny)].z);
+    if (!komsu.length) { yigin.pop(); continue; }
+    const [nx, ny, a, c] = komsu[dgRast(komsu.length)];
+    zi[id(x, y)][a] = false; zi[id(nx, ny)][c] = false; zi[id(nx, ny)].z = true; yigin.push([nx, ny]);
+  }
+  zi[0].b = false; zi[n * n - 1].d = false;
+  const h = W / n; let yol = "";
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const c = zi[id(x, y)], X = x * h + 4, Y = y * h + 4;
+    if (c.k) yol += `M${X} ${Y}H${X + h}`; if (c.b) yol += `M${X} ${Y}V${Y + h}`;
+    if (y === n - 1 && c.g) yol += `M${X} ${Y + h}H${X + h}`; if (x === n - 1 && c.d) yol += `M${X + h} ${Y}V${Y + h}`;
+  }
+  return `<svg width="100%" viewBox="0 0 ${W + 8} ${W + 8}"><path d="${yol}" stroke="#111" stroke-width="2.4" stroke-linecap="square" fill="none"/><text x="2" y="${4 + h * 0.65}" font-size="${Math.min(16, h * 0.6)}" font-family="Arial">▶</text><text x="${W - h * 0.6}" y="${W + 4 - h * 0.3}" font-size="${Math.min(16, h * 0.6)}" font-family="Arial">★</text></svg>`;
+}
+function dgKagitLabirent(yg, b) {
+  return dgKagitBaslik("🌀 Labirent", "Başlamadan önce gözünle yolu planla (Dur-Düşün-Yap!). Sonra kalemini kaldırmadan ▶'den ★'a git; duvarlara değme.", b)
+    + `<div style="max-width:640px;margin:auto">${dgLabirentSvg(yg === "ilkokul" ? 10 : 18, 640)}</div>`
+    + `<div style="font-size:10px;color:#777;margin-top:6px">Uygulayıcı için: planlama süresini (kaleme dokunmadan bakma) ve çıkmaz sokağa girme sayısını not edin. Hızlı ama çok hatalı çözüm dürtüsellik işaretidir.</div>`;
+}
+function dgKagitStroop(yg, b) {
+  if (yg === "ilkokul") {
+    const gunes = '<circle cx="20" cy="20" r="9" fill="#FACC15"/><path d="M20 3V8M20 32V37M3 20H8M32 20H37M8 8L11 11M29 29L32 32M8 32L11 29M29 11L32 8" stroke="#F59E0B" stroke-width="2.5"/>';
+    const ay = '<path d="M26 6 A15 15 0 1 0 26 34 A11 11 0 1 1 26 6 Z" fill="#1E3A8A"/><circle cx="31" cy="10" r="1.6" fill="#1E3A8A"/><circle cx="34" cy="18" r="1.2" fill="#1E3A8A"/>';
+    let h = "";
+    for (let r = 0; r < 6; r++) { h += "<tr>"; for (let c = 0; c < 8; c++) h += `<td style="padding:6px;border:1px solid #ddd"><svg width="48" height="48" viewBox="0 0 40 40">${Math.random() < .5 ? gunes : ay}</svg></td>`; h += "</tr>"; }
+    return dgKagitBaslik("🎨 Ters Söyle (Gece–Gündüz)", "Satır satır git. <b>Güneşi</b> görünce <b>\"GECE\"</b>, <b>ayı</b> görünce <b>\"GÜNDÜZ\"</b> de. Yüksek sesle ve olabildiğince hızlı!", b)
+      + `<table style="border-collapse:collapse;margin:auto">${h}</table>`
+      + `<div style="font-size:10px;color:#777;margin-top:8px">Uygulayıcı için: süreyi ve yanlış söylenenleri kaydedin. Önce bir satırı doğru söyleme (güneş→gündüz) ile ısınma yapılabilir.</div>`;
+  }
+  const RENK = [["KIRMIZI", "#DC2626"], ["MAVİ", "#2563EB"], ["YEŞİL", "#16A34A"], ["SARI", "#CA8A04"]];
+  const satir = (fn) => { let s = ""; for (let c = 0; c < 6; c++) s += `<td style="padding:8px 10px;text-align:center">${fn()}</td>`; return `<tr>${s}</tr>`; };
+  let kutular = "", uyumsuz = "";
+  for (let r = 0; r < 3; r++) kutular += satir(() => `<div style="width:64px;height:22px;background:${RENK[dgRast(4)][1]};border-radius:4px;margin:auto"></div>`);
+  for (let r = 0; r < 6; r++) uyumsuz += satir(() => { const k = dgRast(4); let m; do { m = dgRast(4); } while (m === k); return `<span style="font-size:20px;font-weight:800;color:${RENK[m][1]};font-family:Arial">${RENK[k][0]}</span>`; });
+  return dgKagitBaslik("🎨 Ters Söyle (Renk–Kelime)", "<b>1. bölüm:</b> kutuların rengini söyle. <b>2. bölüm:</b> kelimeyi OKUMA — yazının <b>RENGİNİ</b> söyle (\"MAVİ\" kırmızı yazılmışsa \"kırmızı\" de). Yüksek sesle, hızlı ve doğru.", b)
+    + `<div style="font-size:12px;font-weight:700">1. bölüm — renkleri söyle</div><table style="margin:4px auto 14px">${kutular}</table>`
+    + `<div style="font-size:12px;font-weight:700">2. bölüm — yazının rengini söyle</div><table style="margin:4px auto">${uyumsuz}</table>`
+    + `<div style="font-size:10px;color:#777;margin-top:8px">Uygulayıcı için: iki bölümün süresini ve hatalarını ayrı kaydedin. 2. bölümdeki yavaşlama ve hatalar ketleme yükünü gösterir.</div>`;
+}
+function dgBaykusSvgMetin(boy) {
+  return `<svg viewBox="0 0 100 100" width="${boy}" height="${boy}"><path d="M22 30 L30 8 L42 26 Z" fill="#7A5230"/><path d="M78 30 L70 8 L58 26 Z" fill="#7A5230"/><ellipse cx="50" cy="58" rx="34" ry="38" fill="#9A6B3F"/><ellipse cx="50" cy="70" rx="20" ry="22" fill="#E9CFA4"/><circle cx="35" cy="42" r="14" fill="#fff"/><circle cx="65" cy="42" r="14" fill="#fff"/><circle cx="36" cy="43" r="7" fill="#2B1A0E"/><circle cx="64" cy="43" r="7" fill="#2B1A0E"/><path d="M45 52 L55 52 L50 60 Z" fill="#F59E0B"/></svg>`;
+}
+function dgKagitKart(yg, b) {
+  const adimlar = yg === "ilkokul"
+    ? [["✋", "DUR", "Elini masaya koy."], ["👀", "BAK", "Ne görüyorum?"], ["🤔", "DÜŞÜN", "Ne yapmam gerekiyor?"], ["✅", "YAP ve KONTROL ET", "Yap, sonra bir kez kontrol et."]]
+    : [["✋", "DUR", "Başlamadan önce bir nefes al."], ["❓", "NE İSTENİYOR?", "Yönergeyi sonuna kadar oku, anahtar kelimelerin altını çiz."], ["🗺️", "PLANIM NE?", "Hangi adımlarla yapacağım? Önce hangisi?"], ["✅", "YAP ve KONTROL ET", "Bitirince geri dön, eksik ve yanlışları kontrol et."]];
+  const kart = `<div style="border:2px dashed #999;border-radius:14px;padding:12px;margin-bottom:14px;page-break-inside:avoid">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">${dgBaykusSvgMetin(54)}<div><div style="font-size:20px;font-weight:800;color:#312E81">Dur – Düşün – Yap</div><div style="font-size:11px;color:#555">${cdtEsc(b.ogrenci || "")} · Odi'nin dikkat kartı</div></div></div>
+    <table style="width:100%;border-collapse:separate;border-spacing:6px">${adimlar.map(([ik, ad, m], i) => `<tr><td style="width:44px;font-size:26px;text-align:center;background:#EEF2FF;border-radius:10px">${ik}</td><td style="background:#F8FAFC;border-radius:10px;padding:6px 10px"><div style="font-size:15px;font-weight:800;color:#1E1B4B">${i + 1}. ${ad}</div><div style="font-size:12px;color:#333">${m}</div></td></tr>`).join("")}</table>
+    <div style="font-size:11px;color:#666;margin-top:6px">Kullandığın her seferde bir çentik at: ____________________________________________</div></div>`;
+  return dgKagitBaslik("🦉 Dur-Düşün-Yap Kartı", "Kartları kes. Birini ders masana, birini kalem kutuna koy.", b) + kart + kart;
+}
+function dgKagitIzleme(yg, b) {
+  const gunler = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"];
+  const ders = yg === "ilkokul" ? 5 : 7;
+  const hucre = yg === "ilkokul" ? '<span style="font-size:15px;letter-spacing:4px">😊 😐 😟</span>' : '<span style="font-size:12px;letter-spacing:6px">1 2 3</span>';
+  const tablo = `<table style="width:100%;border-collapse:collapse;font-size:12px"><tr><th style="border:1px solid #999;padding:5px;background:#EEF2FF">Ders</th>${gunler.map(g => `<th style="border:1px solid #999;padding:5px;background:#EEF2FF">${g}</th>`).join("")}</tr>
+    ${Array.from({ length: ders }, (_, i) => `<tr><td style="border:1px solid #999;padding:6px;text-align:center;font-weight:700">${i + 1}. ders</td>${gunler.map(() => `<td style="border:1px solid #999;padding:6px;text-align:center">${hucre}</td>`).join("")}</tr>`).join("")}</table>`;
+  const ogretmen = `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:6px"><tr><th style="border:1px solid #999;padding:5px;background:#FEF3C7;text-align:left">Hedef davranış (danışmanla birlikte belirlenir)</th>${gunler.map(g => `<th style="border:1px solid #999;padding:5px;background:#FEF3C7">${g.slice(0, 3)}</th>`).join("")}</tr>
+    ${["1. ..........................................................", "2. ..........................................................", "3. .........................................................."].map(h => `<tr><td style="border:1px solid #999;padding:8px">${h}</td>${gunler.map(() => '<td style="border:1px solid #999;padding:8px;text-align:center">E / H</td>').join("")}</tr>`).join("")}</table>`;
+  return dgKagitBaslik("✅ Öz-İzleme Çizelgesi", yg === "ilkokul" ? "Her dersin sonunda kendine sor: \"Dikkatim derste miydi?\" Uygun yüzü daire içine al." : "Her dersin sonunda dikkatini puanla: 1 = çoğunlukla dağınık, 2 = ara ara, 3 = çoğunlukla derste.", b)
+    + tablo
+    + `<div style="margin-top:14px;font-size:14px;font-weight:700;color:#92400E">Öğretmen Günlük Dikkat Kartı</div><div style="font-size:11px;color:#555">Öğretmen gün sonunda her hedef için E (evet) / H (hayır) işaretler. Haftada en az 3 günde hedeflerin yarısına ulaşılırsa öğrenci ailesiyle kararlaştırılan küçük ödülü alır.</div>`
+    + ogretmen
+    + `<div style="font-size:10px;color:#777;margin-top:10px">Öz-izleme ve günlük rapor kartı, sınıf içi dikkat sorunlarında en çok kanıt bulunan yöntemler arasındadır; oyunlarda kazanılan becerinin sınıfa taşınmasını sağlar.</div>`;
+}
+const DG_KAGIT_URET = { tarama: dgKagitTarama, kodlama: dgKagitKodlama, takip: dgKagitTakip, labirent: dgKagitLabirent, stroop: dgKagitStroop, kart: dgKagitKart, izleme: dgKagitIzleme };
+function dgKagitYazdir(tur, yasGrubu, bilgi) {
+  const html = DG_KAGIT_URET[tur](yasGrubu, bilgi || {});
+  const tmpId = "dg-kagit-" + Date.now();
+  const tmp = document.createElement("div");
+  tmp.id = tmpId;
+  Object.assign(tmp.style, { position: "absolute", left: "-9999px", top: "0", width: "760px", fontFamily: "Arial, sans-serif", color: "#111" });
+  tmp.innerHTML = html;
+  document.body.appendChild(tmp);
+  raporIndir(tmpId, "Dikkat_" + DG_KAGITLAR[tur].ad.replace(/[^A-Za-zÇĞİÖŞÜçğıöşü0-9]+/g, "_") + (bilgi && bilgi.ogrenci ? "_" + String(bilgi.ogrenci).replace(/\s+/g, "_") : ""));
+  setTimeout(() => { const el = document.getElementById(tmpId); if (el) el.remove(); }, 8000);
+}
+
+// ── DGP: öğretmen ve veli önerileri ──
+const DG_OGRETMEN = {
+  surdurme: "Uzun görevleri 10-15 dakikalık parçalara bölün; her parça sonunda kısa kontrol ve geri bildirim verin.",
+  secici: "Öğrenciyi öğretmene yakın, kapı ve pencereden uzak oturtun; tahtada yalnızca o anki görevle ilgili bilgi kalsın.",
+  inhibisyon: "Söz almadan önce el kaldırma ve 'içinden 3'e kadar say' kuralını görsel ipucuyla hatırlatın; doğru beklemeyi hemen övün.",
+  motor: "Hareket ihtiyacına yapılandırılmış çıkış verin (kâğıt dağıtma, tahta silme); sessiz sıkma topu gibi araçlara izin verin.",
+  hiz: "Süreli görevlerde ek süre tanıyın; yönergeleri kısa ve maddeli verin, hızdan çok doğruluğu ödüllendirin.",
+  celdirici: "Bağımsız çalışmada sessiz köşe seçeneği sunun; sınavlarda mümkünse daha sessiz bir ortam sağlayın.",
+};
+const DG_VELI = [
+  "Her gün aynı saatte, aynı sessiz köşede ödev rutini oluşturun; masada yalnızca o işin malzemesi olsun.",
+  "Ödevi 10-15 (ilkokulda 10) dakikalık parçalara bölün; aralarda 2-3 dakikalık hareket molası verin.",
+  "Uyku düzenine dikkat edin (ilkokul 9-12, ortaokul 8-10 saat) ve yatmadan önceki 1 saatte ekranı kapatın.",
+  "Programdaki 'gizli görevi' her hafta birlikte yapın; çabayı sonuçtan daha çok övün.",
+  "Yönergeleri tek tek, göz teması kurarak verin ve çocuğunuza tekrar ettirin.",
+];
+function dgProgramHtml(veri, b) {
+  const plan = dgPlanOlustur(veri.vurgular || [], veri.yasGrubu);
+  const vurgu = (veri.vurgular || []).length
+    ? `<ul style="margin:4px 0 0 18px;padding:0">${veri.vurgular.map(v => `<li><b style="color:${DG_VURGU[v.key].renk}">${DG_VURGU[v.key].ad}</b> — ${cdtEsc(v.neden)}</li>`).join("")}</ul>`
+    : `<div>ÇDT sonucunda belirgin zayıf alan yok ya da ÇDT uygulanmamış; program dengeli (tüm alanlar) olarak hazırlandı.</div>`;
+  const ogr = [...new Set((veri.vurgular || []).map(v => v.key))].map(k => `<li>${DG_OGRETMEN[k]}</li>`).join("") + "<li>Öz-İzleme Çizelgesi ve Günlük Dikkat Kartını her gün kısa bir süre ayırarak doldurun.</li>";
+  return `<div style="font-family:Arial,sans-serif;color:#111;font-size:12px">
+    <div style="display:flex;align-items:center;gap:12px;border-bottom:2px solid #312E81;padding-bottom:8px">
+      ${dgBaykusSvgMetin(56)}
+      <div style="flex:1"><div style="font-size:19px;font-weight:700;color:#312E81">Dikkat Güçlendirme Programı — Kişisel Plan</div>
+      <div style="font-size:11.5px;color:#555">12 oturum · haftada 2 · oturum başına ${veri.yasGrubu === "ilkokul" ? "30-35" : "40-45"} dk · ${veri.yasGrubu === "ilkokul" ? "İlkokul" : "Ortaokul"} grubu</div></div>
+      <div style="font-size:11.5px;text-align:right;line-height:1.6"><b>${cdtEsc(b.ogrenci)}</b>${b.sinif ? " · " + cdtEsc(b.sinif) : ""}<br>Başlangıç: ${cdtEsc(b.tarih || "")}${veri.kaynakCdtTarih ? `<br>Dayanak ÇDT: ${cdtEsc(veri.kaynakCdtTarih)}` : ""}</div>
+    </div>
+    <div style="margin-top:10px;background:#F5F3FF;border-radius:8px;padding:8px 10px"><b>Öncelikli çalışma alanları</b>${vurgu}</div>
+    <div style="margin-top:10px;font-size:11.5px;line-height:1.55">Her oturum: <b>açılış</b> (gizli görevin konuşulması) → <b>2 dijital oyun</b> (zorluk otomatik ayarlanır) → <b>kağıt-kalem etkinliği</b> → <b>strateji</b> → <b>hareket molası</b> → <b>gizli görev</b> (ev/sınıf aktarımı). Programın başında ve sonunda Çeldiricili Dikkat Testi (ÇDT) uygulanarak değişim ölçülür.</div>
+    <table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:11px">
+      <tr style="background:#312E81;color:#fff"><th style="padding:5px">#</th><th style="padding:5px;text-align:left">Tema</th><th style="padding:5px;text-align:left">Oyunlar</th><th style="padding:5px;text-align:left">Kağıt-kalem</th><th style="padding:5px;text-align:left">Strateji</th><th style="padding:5px;text-align:left">Gizli görev</th></tr>
+      ${plan.map((o, i) => `<tr style="background:${i % 2 ? "#F8FAFC" : "#fff"};page-break-inside:avoid"><td style="padding:5px;text-align:center;font-weight:700">${o.no}</td><td style="padding:5px">${o.tema}${o.cel ? ` <span style="color:#7C3AED">(${o.cel === "gorsel" ? "görsel" : o.cel === "isitsel" ? "işitsel" : "görsel+işitsel"} çeldirici)</span>` : ""}</td><td style="padding:5px">${o.oyunlar.map(g => DG_OYUNLAR[g].ad).join(", ")}</td><td style="padding:5px">${DG_KAGITLAR[o.kagit].ad}</td><td style="padding:5px"><b>${o.strateji.ad}</b></td><td style="padding:5px">${o.ev}</td></tr>`).join("")}
+    </table>
+    <div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap">
+      <div style="flex:1 1 300px;background:#FFFBEB;border-radius:8px;padding:8px 10px;page-break-inside:avoid"><b>Öğretmene öneriler</b><ul style="margin:4px 0 0 18px;padding:0">${ogr}</ul></div>
+      <div style="flex:1 1 300px;background:#ECFDF5;border-radius:8px;padding:8px 10px;page-break-inside:avoid"><b>Aileye öneriler</b><ul style="margin:4px 0 0 18px;padding:0">${DG_VELI.map(x => `<li>${x}</li>`).join("")}</ul></div>
+    </div>
+    <div style="margin-top:10px;font-size:10px;color:#666;line-height:1.5">Program; Sohlberg ve Mateer'in dikkat modeli, Pay Attention!, ATTENTIONER, ACTIVATE ve öz-düzenleme araştırmalarından yararlanılarak hazırlanmıştır. Araştırmalar, bilgisayar tabanlı dikkat çalışmalarının tek başına sınıf davranışına aktarımının sınırlı olduğunu; strateji öğretimi, öz-izleme ve öğretmen-aile işbirliğiyle birlikte uygulandığında daha etkili olduğunu göstermektedir. Program tanı ya da ilaç tedavisinin yerine geçmez.</div>
+  </div>`;
+}
+function dgIlerlemeGrafik(oynamalar) {
+  const W = 640, H = 200, sol = 30, sag = 12, ust = 26, alt = 26;
+  const anahtarlar = Object.keys(DG_OYUNLAR);
+  const RENK = { yildiz: "#EAB308", hazine: "#0EA5E9", isik: "#DC2626", kural: "#7C3AED", hizli: "#2563EB" };
+  const seriler = anahtarlar.map(k => { const o = oynamalar.filter(x => x.oyun === k); return { k, n: o.length ? [o[0].seviye, ...o.map(x => x.yeniSeviye || x.seviye)] : [] }; }).filter(s => s.n.length);
+  const maxN = Math.max(2, ...seriler.map(s => s.n.length));
+  const gx = i => sol + (i / (maxN - 1)) * (W - sol - sag), gy = v => ust + (1 - (v - 1) / 9) * (H - ust - alt);
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;max-width:${W}px">
+    ${[1, 4, 7, 10].map(v => `<line x1="${sol}" y1="${gy(v)}" x2="${W - sag}" y2="${gy(v)}" stroke="#EEE"/><text x="${sol - 6}" y="${gy(v) + 4}" text-anchor="end" font-size="10" fill="#888">${v}</text>`).join("")}
+    ${seriler.map(s => `<polyline points="${s.n.map((v, i) => `${gx(i)},${gy(v)}`).join(" ")}" fill="none" stroke="${RENK[s.k]}" stroke-width="2.6" stroke-linejoin="round"/>${s.n.map((v, i) => `<circle cx="${gx(i)}" cy="${gy(v)}" r="3" fill="${RENK[s.k]}"/>`).join("")}`).join("")}
+    ${seriler.map((s, i) => `<rect x="${sol + i * 120}" y="4" width="10" height="10" rx="2" fill="${RENK[s.k]}"/><text x="${sol + 14 + i * 120}" y="13" font-size="11" fill="#333">${DG_OYUNLAR[s.k].ad}</text>`).join("")}
+    <text x="${W / 2}" y="${H - 6}" text-anchor="middle" font-size="10" fill="#888">Oynanış sırası → (dikey eksen: seviye 1-10)</text>
+  </svg>`;
+}
+
+// ── DGP danışman paneli ──
+function DGPaneli({ seciliAd, seciliSinif, seciliNumara, testKayitlari, setTestKayitlari }) {
+  const [sekme, setSekme] = useState("program");
+  const [yg, setYg] = useState(() => dgYasGrubu(seciliSinif));
+  const [oynanan, setOynanan] = useState(null);
+  const [seciliOturum, setSeciliOturum] = useState(null);
+  const [not, setNot] = useState("");
+  const [durum, setDurum] = useState("");
+  useEffect(() => { setYg(dgYasGrubu(seciliSinif)); setSeciliOturum(null); setDurum(""); setSekme("program"); }, [seciliAd, seciliSinif]);
+
+  const tumKayitlar = pdrSozlukOku(testKayitlari, seciliAd, seciliSinif, seciliNumara) || [];
+  const program = tumKayitlar.filter(k => k.tip === "dikkat_egitim").sort((a, b) => String(b.id).localeCompare(String(a.id)))[0] || null;
+  const cdtler = tumKayitlar.filter(k => k.tip === "dikkat_cdt").sort((a, b) => pdrTarihMs(b.tarih) - pdrTarihMs(a.tarih) || String(b.id).localeCompare(String(a.id)));
+  const sonCdt = cdtler[0] || null;
+  const sonCdtSonuc = sonCdt ? cdtPuanla(sonCdt.veri) : null;
+  const onerilenVurgu = dgVurgularHesapla(sonCdtSonuc);
+
+  async function kaydetKayit(yeniKayit) {
+    const liste = [yeniKayit, ...tumKayitlar.filter(k => k.id !== yeniKayit.id)];
+    const guncel = pdrSozlukYaz(testKayitlari, seciliAd, seciliSinif, liste, seciliNumara);
+    setTestKayitlari(guncel);
+    try { await saveTestKayitlari(guncel); setDurum("✓ Kaydedildi"); } catch (e) { setDurum("⚠ Kaydedilirken sorun oluştu — bağlantıyı kontrol edin."); }
+    setTimeout(() => setDurum(""), 2500);
+  }
+  function programOlustur() {
+    if (program && !window.confirm("Bu öğrencinin mevcut programı arşivlenip yeni bir program başlatılsın mı? (Eski kayıt silinmez.)")) return;
+    const veri = dgYeniProgramVerisi(yg, onerilenVurgu, sonCdt);
+    kaydetKayit({ id: uid(), kategori: "objektif", testAdi: "Dikkat Güçlendirme Programı", tip: "dikkat_egitim", tarih: today(), not: "", veri });
+  }
+  function oyunBitti(sonuc) {
+    const o = oynanan; setOynanan(null);
+    if (!program) return;
+    const v = { ...program.veri, seviyeler: { ...program.veri.seviyeler, [sonuc.oyun]: sonuc.yeniSeviye }, oynamalar: [...(program.veri.oynamalar || []), { oyun: sonuc.oyun, seviye: sonuc.seviye, yeniSeviye: sonuc.yeniSeviye, dogruluk: Math.round(sonuc.dogruluk * 1000) / 1000, yildiz: sonuc.yildiz, ozet: sonuc.ozet, tarih: sonuc.tarih, oturum: o && o.oturumNo || null, cel: sonuc.cel }] };
+    kaydetKayit({ ...program, veri: v });
+  }
+  function oturumTamamla(no) {
+    const oturumlar = [...(program.veri.oturumlar || []).filter(x => x.no !== no), { no, tarih: today(), tamam: true, not: not.trim() }].sort((a, b) => a.no - b.no);
+    kaydetKayit({ ...program, veri: { ...program.veri, oturumlar } });
+    setNot(""); setSeciliOturum(null);
+  }
+  function yazdirHtml(html, ad) {
+    const tmpId = "dg-plan-" + Date.now();
+    const tmp = document.createElement("div"); tmp.id = tmpId;
+    Object.assign(tmp.style, { position: "absolute", left: "-9999px", top: "0", width: "800px", fontFamily: "Arial, sans-serif" });
+    tmp.innerHTML = html; document.body.appendChild(tmp);
+    raporIndir(tmpId, ad);
+    setTimeout(() => { const el = document.getElementById(tmpId); if (el) el.remove(); }, 8000);
+  }
+
+  if (!seciliAd) return <div style={{ fontSize: 12.5, color: MUTED, padding: 10 }}>Önce yukarıdan bir öğrenci seçin.</div>;
+  const kart = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 14, marginBottom: 12, boxShadow: "0 4px 12px rgba(20,40,32,0.10)" };
+  const btn = (renk, dolu) => ({ padding: "8px 12px", borderRadius: 9, border: dolu ? "none" : `1px solid ${renk}55`, background: dolu ? renk : "#fff", color: dolu ? "#fff" : renk, fontSize: 12.5, fontWeight: 800, cursor: "pointer" });
+  const bilgi = { ogrenci: seciliAd, sinif: seciliSinif, tarih: today() };
+  const vurguRozet = (v) => <span key={v.key} style={{ display: "inline-block", fontSize: 11, fontWeight: 800, color: DG_VURGU[v.key].renk, background: DG_VURGU[v.key].renk + "14", border: `1px solid ${DG_VURGU[v.key].renk}44`, borderRadius: 20, padding: "2px 9px", margin: "0 5px 5px 0" }}>{DG_VURGU[v.key].ad}</span>;
+
+  const ust = (
+    <div style={{ ...kart, background: "linear-gradient(135deg,#EEF2FF 0%,#FFFFFF 70%)", borderColor: "#C7D2FE" }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <DGBaykus boyut={58} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 15, fontWeight: 900, color: "#312E81" }}>Dikkat Güçlendirme Programı</div>
+          <div style={{ fontSize: 11.5, color: MUTED, marginTop: 2 }}>12 oturum · animasyonlu uyarlanabilir oyunlar + kağıt-kalem + strateji + hareket + ev/sınıf görevi</div>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (!program) {
+    return (
+      <div>
+        {oynanan && <DGOyunCercevesi {...oynanan} onBitti={() => setOynanan(null)} onKapat={() => setOynanan(null)} />}
+        {ust}
+        <div style={kart}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: TEXT, marginBottom: 8 }}>Program oluştur</div>
+          {sonCdt ? (
+            <div style={{ fontSize: 12, color: TEXT, lineHeight: 1.55, marginBottom: 10 }}>
+              Dayanak: <b>ÇDT ({sonCdt.tarih})</b> — {cdtKisaOzet(sonCdt.veri)}
+              <div style={{ marginTop: 8 }}>{onerilenVurgu.length ? onerilenVurgu.map(vurguRozet) : <span style={{ color: MUTED }}>Belirgin zayıf alan yok — dengeli program önerilir.</span>}</div>
+              {onerilenVurgu.length > 0 && <div style={{ fontSize: 11, color: MUTED }}>{onerilenVurgu.map(v => `${DG_VURGU[v.key].ad}: ${v.neden}`).join(" · ")}</div>}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: "#92400E", background: "#FFFBEB", borderRadius: 8, padding: "8px 10px", marginBottom: 10, lineHeight: 1.5 }}>Bu öğrenciye henüz ÇDT uygulanmamış. Program dengeli olarak oluşturulabilir; ancak kişiselleştirme ve önce/sonra karşılaştırması için önce ÇDT uygulamanız önerilir.</div>
+          )}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: MUTED }}>YAŞ GRUBU</span>
+            {["ilkokul", "ortaokul"].map(g => <button key={g} onClick={() => setYg(g)} style={btn("#4F46E5", yg === g)}>{g === "ilkokul" ? "İlkokul (1-4)" : "Ortaokul (5-8)"}</button>)}
+          </div>
+          <button onClick={programOlustur} style={{ ...btn("#4F46E5", true), padding: "11px 16px", fontSize: 14 }}>🦉 Programı Oluştur</button>
+          {durum && <span style={{ marginLeft: 10, fontSize: 12, fontWeight: 700, color: "#15803D" }}>{durum}</span>}
+        </div>
+        <div style={kart}>
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: TEXT, marginBottom: 6 }}>Programsız deneme</div>
+          <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 8 }}>Oyunları ve kağıtları önce kendiniz deneyebilirsiniz (sonuç kaydedilmez).</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{Object.entries(DG_OYUNLAR).map(([k, o]) => <button key={k} onClick={() => setOynanan({ oyun: k, seviye: dgBaslangicSeviyesi(yg), yasGrubu: yg, cel: null })} style={btn("#4F46E5")}>{o.ikon} {o.ad}</button>)}</div>
+        </div>
+      </div>
+    );
+  }
+
+  const v = program.veri, plan = dgPlanOlustur(v.vurgular || [], v.yasGrubu);
+  const tamamlar = new Set((v.oturumlar || []).filter(o => o.tamam).map(o => o.no));
+  const siradaki = plan.find(o => !tamamlar.has(o.no)) || null;
+  const gosterilen = plan.find(o => o.no === (seciliOturum || (siradaki && siradaki.no))) || plan[11];
+  const oturumOyunlari = (v.oynamalar || []).filter(x => x.oturum === gosterilen.no);
+  const toplamYildiz = (v.oynamalar || []).reduce((s, x) => s + (x.yildiz || 0), 0);
+  const programBas = pdrTarihMs(program.tarih);
+  const sonrakiCdt = cdtler.find(k => pdrTarihMs(k.tarih) > programBas || (pdrTarihMs(k.tarih) === programBas && k.id !== v.kaynakCdtId && String(k.id) > String(program.id)));
+  const ilkCdt = cdtler.find(k => k.id === v.kaynakCdtId) || null;
+  const adim = (ikon, baslik, icerik, sag) => (
+    <div style={{ display: "flex", gap: 10, padding: "9px 0", borderTop: `1px solid ${BORDER}` }}>
+      <div style={{ fontSize: 20, width: 28, textAlign: "center", flexShrink: 0 }}>{ikon}</div>
+      <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 12.5, fontWeight: 800, color: TEXT }}>{baslik}</div><div style={{ fontSize: 12, color: TEXT, lineHeight: 1.5, marginTop: 2 }}>{icerik}</div></div>
+      {sag && <div style={{ flexShrink: 0, alignSelf: "center" }}>{sag}</div>}
+    </div>
+  );
+  return (
+    <div>
+      {oynanan && <DGOyunCercevesi {...oynanan} onBitti={oyunBitti} onKapat={() => setOynanan(null)} />}
+      {ust}
+      <div style={{ ...kart, padding: "10px 14px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 12.5, color: TEXT }}>
+            <b>{tamamlar.size}/12</b> oturum · <b>{toplamYildiz}</b> ⭐ · {v.yasGrubu === "ilkokul" ? "İlkokul" : "Ortaokul"} · başlangıç {program.tarih}
+            <div style={{ marginTop: 5 }}>{(v.vurgular || []).length ? v.vurgular.map(vurguRozet) : <span style={{ fontSize: 11, color: MUTED }}>Dengeli program</span>}</div>
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <button onClick={() => yazdirHtml(dgProgramHtml(v, { ...bilgi, tarih: program.tarih }), "Dikkat_Programi_" + seciliAd.replace(/\s+/g, "_"))} style={btn("#312E81", true)}>🖨 Kişisel Plan</button>
+            <button onClick={programOlustur} style={btn("#64748B")}>↻ Yeni program</button>
+          </div>
+        </div>
+        <div style={{ height: 8, background: "#E0E7FF", borderRadius: 4, marginTop: 8, overflow: "hidden" }}><div style={{ width: `${tamamlar.size / 12 * 100}%`, height: "100%", background: "#4F46E5" }} /></div>
+        {durum && <div style={{ fontSize: 12, fontWeight: 700, color: durum.startsWith("✓") ? "#15803D" : "#B45309", marginTop: 6 }}>{durum}</div>}
+      </div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+        {[["program", "📋 Oturumlar"], ["serbest", "🎮 Serbest oyun"], ["kagit", "✏️ Kağıt-kalem"], ["ilerleme", "📈 İlerleme"]].map(([k, a]) => <button key={k} onClick={() => setSekme(k)} style={btn("#4F46E5", sekme === k)}>{a}</button>)}
+      </div>
+
+      {sekme === "program" && (
+        <div style={kart}>
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 10 }}>
+            {plan.map(o => (
+              <button key={o.no} onClick={() => setSeciliOturum(o.no)} title={o.tema} style={{ width: 34, height: 34, borderRadius: "50%", border: gosterilen.no === o.no ? "2px solid #312E81" : `1px solid ${BORDER}`, background: tamamlar.has(o.no) ? "#16A34A" : gosterilen.no === o.no ? "#EEF2FF" : "#fff", color: tamamlar.has(o.no) ? "#fff" : TEXT, fontWeight: 800, fontSize: 12.5, cursor: "pointer" }}>{tamamlar.has(o.no) ? "✓" : o.no}</button>
+            ))}
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 900, color: "#312E81" }}>Oturum {gosterilen.no} — {gosterilen.tema}{tamamlar.has(gosterilen.no) && <span style={{ fontSize: 11, color: "#16A34A", marginLeft: 8 }}>✓ tamamlandı ({(v.oturumlar || []).find(x => x.no === gosterilen.no)?.tarih})</span>}</div>
+          {gosterilen.cel && <div style={{ fontSize: 11.5, color: "#6D28D9", marginTop: 3 }}>Bu oturumda oyunlar {gosterilen.cel === "gorsel" ? "görsel" : gosterilen.cel === "isitsel" ? "işitsel" : "görsel + işitsel"} çeldiricilerle oynanır.</div>}
+          <div style={{ marginTop: 8 }}>
+            {adim("👋", "Açılış (3 dk)", gosterilen.acilis)}
+            {gosterilen.oyunlar.map((g, i) => {
+              const oynandi = oturumOyunlari.filter(x => x.oyun === g);
+              return <React.Fragment key={g + i}>{adim(DG_OYUNLAR[g].ikon, `Oyun ${i + 1}: ${DG_OYUNLAR[g].ad} — seviye ${v.seviyeler[g] || 1}`, <>{DG_OYUNLAR[g].beceri}. {oynandi.length > 0 && <span style={{ color: "#16A34A", fontWeight: 700 }}>Oynandı: {oynandi.map(x => "⭐".repeat(x.yildiz) + ` %${Math.round(x.dogruluk * 100)}`).join(" · ")}</span>}</>,
+                <button onClick={() => setOynanan({ oyun: g, seviye: v.seviyeler[g] || 1, yasGrubu: v.yasGrubu, cel: gosterilen.cel, oturumNo: gosterilen.no })} style={btn("#4F46E5", true)}>▶ Oyna</button>)}</React.Fragment>;
+            })}
+            {adim(DG_KAGITLAR[gosterilen.kagit].ikon, `Kağıt-kalem: ${DG_KAGITLAR[gosterilen.kagit].ad}`, DG_KAGITLAR[gosterilen.kagit].beceri + ". Her yazdırmada yeni bir sayfa üretilir.",
+              <button onClick={() => dgKagitYazdir(gosterilen.kagit, v.yasGrubu, bilgi)} style={btn("#0F766E", true)}>🖨 Yazdır</button>)}
+            {adim("🧠", `Strateji: ${gosterilen.strateji.ad}`, gosterilen.strateji.metin)}
+            {adim("🤸", "Hareket molası (3 dk)", gosterilen.hareket)}
+            {adim("🏠", "Gizli görev (ev / sınıf)", gosterilen.ev)}
+          </div>
+          {!tamamlar.has(gosterilen.no) && (
+            <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 10, marginTop: 4 }}>
+              <textarea value={not} onChange={e => setNot(e.target.value)} placeholder="Oturum notu (gözlem, öğrencinin stratejiyi kullanımı, gizli görevin sonucu)…" rows={2} style={{ width: "100%", boxSizing: "border-box", borderRadius: 8, border: `1px solid ${BORDER}`, padding: 8, fontSize: 12.5, fontFamily: "inherit" }} />
+              <button onClick={() => oturumTamamla(gosterilen.no)} style={{ ...btn("#16A34A", true), marginTop: 6 }}>✓ Oturumu tamamla</button>
+              {gosterilen.no === 12 && <div style={{ fontSize: 11.5, color: "#92400E", marginTop: 6 }}>Son oturumdan sonra ÇDT'yi yeniden uygulayın; ilerleme sekmesinde önce/sonra karşılaştırması çıkar.</div>}
+            </div>
+          )}
+          {tamamlar.has(gosterilen.no) && (v.oturumlar || []).find(x => x.no === gosterilen.no)?.not && <div style={{ fontSize: 12, color: MUTED, marginTop: 8 }}>Not: {(v.oturumlar || []).find(x => x.no === gosterilen.no).not}</div>}
+        </div>
+      )}
+
+      {sekme === "serbest" && (
+        <div style={kart}>
+          <div style={{ fontSize: 12, color: MUTED, marginBottom: 10 }}>Oturum dışında ek alıştırma (sonuç kaydedilir, seviyeler güncellenir). Kısa ve sık oynamak (günde 10-15 dk) uzun ve seyrek oynamaktan daha etkilidir.</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 }}>
+            {Object.entries(DG_OYUNLAR).map(([k, o]) => (
+              <div key={k} style={{ border: `1px solid ${BORDER}`, borderRadius: 10, padding: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: TEXT }}>{o.ikon} {o.ad} <span style={{ fontSize: 11, color: "#4F46E5" }}>· seviye {v.seviyeler[k] || 1}</span></div>
+                <div style={{ fontSize: 11.5, color: MUTED, margin: "3px 0 8px" }}>{o.beceri}</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <button onClick={() => setOynanan({ oyun: k, seviye: v.seviyeler[k] || 1, yasGrubu: v.yasGrubu, cel: null })} style={btn("#4F46E5", true)}>▶ Oyna</button>
+                  <button onClick={() => setOynanan({ oyun: k, seviye: v.seviyeler[k] || 1, yasGrubu: v.yasGrubu, cel: "kombine" })} style={btn("#7C3AED")}>+ çeldirici</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {sekme === "kagit" && (
+        <div style={kart}>
+          <div style={{ fontSize: 12, color: MUTED, marginBottom: 10 }}>Her yazdırmada yeni ve farklı bir sayfa üretilir ({v.yasGrubu === "ilkokul" ? "ilkokul" : "ortaokul"} düzeyinde). Sınıfta ya da evde ek alıştırma olarak da verilebilir.</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 }}>
+            {Object.entries(DG_KAGITLAR).map(([k, o]) => (
+              <div key={k} style={{ border: `1px solid ${BORDER}`, borderRadius: 10, padding: 10, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                <div><div style={{ fontSize: 13, fontWeight: 800, color: TEXT }}>{o.ikon} {o.ad}</div><div style={{ fontSize: 11, color: MUTED }}>{o.beceri}</div></div>
+                <button onClick={() => dgKagitYazdir(k, v.yasGrubu, bilgi)} style={btn("#0F766E", true)}>🖨</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {sekme === "ilerleme" && (
+        <div style={kart}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: TEXT, marginBottom: 6 }}>Oyun seviyeleri</div>
+          {(v.oynamalar || []).length ? <div dangerouslySetInnerHTML={{ __html: dgIlerlemeGrafik(v.oynamalar) }} /> : <div style={{ fontSize: 12, color: MUTED }}>Henüz oyun oynanmadı.</div>}
+          <div style={{ fontSize: 13, fontWeight: 800, color: TEXT, margin: "14px 0 6px" }}>ÇDT önce / sonra</div>
+          {ilkCdt && sonrakiCdt ? (() => {
+            const a = cdtPuanla(ilkCdt.veri), b = cdtPuanla(sonrakiCdt.veri);
+            return (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead><tr style={{ background: BG }}><th style={{ textAlign: "left", padding: 6 }}>İndeks</th><th style={{ padding: 6 }}>Önce ({ilkCdt.tarih})</th><th style={{ padding: 6 }}>Sonra ({sonrakiCdt.tarih})</th><th style={{ padding: 6 }}>Değişim (z)</th></tr></thead>
+                  <tbody>{a.indeksler.map((x, i) => { const y = b.indeksler[i]; const d = (x.z !== null && y.z !== null) ? y.z - x.z : null; return (
+                    <tr key={x.k} style={{ borderTop: `1px solid ${BORDER}` }}><td style={{ padding: 6, fontWeight: 700, color: x.renk }}>{x.ad}</td><td style={{ padding: 6, textAlign: "center" }}>{x.ham} {x.z !== null && `(z ${x.z.toFixed(2)})`}</td><td style={{ padding: 6, textAlign: "center" }}>{y.ham} {y.z !== null && `(z ${y.z.toFixed(2)})`}</td>
+                      <td style={{ padding: 6, textAlign: "center", fontWeight: 800, color: d === null ? MUTED : d >= 0.5 ? "#16A34A" : d <= -0.5 ? "#DC2626" : "#64748B" }}>{d === null ? "—" : `${d >= 0 ? "+" : ""}${d.toFixed(2)}`}</td></tr>); })}</tbody>
+                </table>
+                <div style={{ fontSize: 10.5, color: MUTED, marginTop: 6 }}>Yeşil: en az 0,5 z iyileşme · Kırmızı: en az 0,5 z düşüş. Aynı testin tekrarında küçük bir alıştırma etkisi beklenir; değişimi öğretmen/veli gözlemiyle birlikte değerlendirin.</div>
+              </div>
+            );
+          })() : <div style={{ fontSize: 12, color: MUTED }}>{ilkCdt ? "Program sonunda ÇDT'yi yeniden uygulayınca karşılaştırma burada görünecek." : "Program bir ÇDT sonucuna dayanmıyor; önce/sonra karşılaştırması için program sonunda ÇDT uygulanabilir."}</div>}
+          {(v.oynamalar || []).length > 0 && (
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: TEXT, marginBottom: 6 }}>Son oyunlar</div>
+              {[...v.oynamalar].reverse().slice(0, 12).map((x, i) => (
+                <div key={i} style={{ fontSize: 11.5, color: TEXT, padding: "4px 0", borderTop: `1px solid ${BORDER}` }}>{x.tarih} · {DG_OYUNLAR[x.oyun].ikon} {DG_OYUNLAR[x.oyun].ad} · sv {x.seviye}→{x.yeniSeviye} · {"⭐".repeat(x.yildiz)} %{Math.round(x.dogruluk * 100)}{x.oturum ? ` · oturum ${x.oturum}` : " · serbest"}{x.cel ? " · çeldiricili" : ""} <span style={{ color: MUTED }}>— {x.ozet}</span></div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+// ===== DG BİTİŞ =====
+
+
 // Bir test kaydının kısa özet metnini üretir — liste ve rapor görünümünde
 // kullanılır, testin tipine göre farklı alanlardan oluşturulur.
 function testSonucOzeti(k) {
@@ -10476,6 +11649,7 @@ function testSonucOzeti(k) {
       return `${cevaplanan}/56 madde · en olumsuz alan: ${enOlumsuz?.ad || "—"} (${enOlumsuz?.["-"] || 0} adet -)`;
     }
     case "dikkat_cdt": return cdtKisaOzet(v);
+    case "dikkat_egitim": return dgKisaOzet(v);
     case "scas_cocuk": {
       const cevaplar = v.cevaplar || [];
       const cevaplanan = cevaplar.filter(c => c.puan !== undefined && c.puan !== null).length;
@@ -11079,6 +12253,9 @@ KURALLAR:
                   <div style={{ display:"flex", gap:8, marginTop:8 }}>
                     <button onClick={()=>setKategori("cdt")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #5B4BD6`, background:"linear-gradient(135deg,#F4F1FF,#FFFFFF)", color:"#3B2E8F", fontSize:13, fontWeight:800, cursor:"pointer" }}>🎯 Çeldiricili Dikkat Testi (ÇDT) — dokunmatik</button>
                   </div>
+                  <div style={{ display:"flex", gap:8, marginTop:8 }}>
+                    <button onClick={()=>setKategori("dg")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #4F46E5`, background:"linear-gradient(135deg,#EEF2FF,#FFFFFF)", color:"#312E81", fontSize:13, fontWeight:800, cursor:"pointer" }}>🦉 Dikkat Güçlendirme Programı</button>
+                  </div>
                   {(kademe === "ortaokul" || kademe === "lise") && (
                     <div style={{ display:"flex", flexDirection:"column", gap:8, marginTop:8 }}>
                       <button onClick={()=>setKategori("butunlesik")} style={{ width:"100%", padding:"14px 8px", borderRadius:12, border:`2px solid ${BLUE}`, background:"#EEF2FF", color:"#3730A3", fontSize:13, fontWeight:800, cursor:"pointer" }}>🧩 Bütünleşik Değerlendirme</button>
@@ -11103,6 +12280,11 @@ KURALLAR:
                   <div style={{ display:"flex", gap:8, marginTop:8 }}>
                     <button onClick={()=>setKategori("cast")} style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid #2A6F77`, background:"#E7F5F6", color:"#2A6F77", fontSize:13, fontWeight:800, cursor:"pointer" }}>🔬 Otizm Spektrumu Kapsamlı Taraması</button>
                   </div>
+                </div>
+              ) : kategori === "dg" ? (
+                <div>
+                  <button onClick={()=>setKategori(null)} style={{ background:"none", border:"none", color:MUTED, fontSize:12, cursor:"pointer", marginBottom:8, padding:0 }}>← Kategoriyi değiştir</button>
+                  <DGPaneli seciliAd={seciliAd} seciliSinif={seciliSinif} seciliNumara={seciliNumara} testKayitlari={testKayitlari} setTestKayitlari={setTestKayitlari} />
                 </div>
               ) : kategori === "cdt" ? (
                 <div>
