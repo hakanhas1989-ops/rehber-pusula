@@ -8517,6 +8517,33 @@ function beierKategoriOzetiHesapla(maddeler) {
     return { ad: kat.ad, maddeler: kat.maddeler, ...sayac };
   });
 }
+// Beier Form A'nın "Madde Çözümleme Kağıdı" mantığına dayanan, TAMAMEN
+// KURAL TABANLI (AI kullanılmaz, ücretsiz) çözümleme/analiz katmanı. Her
+// alanın +/-/0 sayımına bakıp, cevaplanan maddelerin çoğunluğu hangi yöndeyse
+// ona göre bir etiket üretir. Bu, AI'ın yazdığı "Genel Yorum"un YERİNE değil,
+// YANINA eklenen, danışmanın tek bakışta hangi alanların dikkat gerektirdiğini
+// görebileceği ücretsiz bir özet katmanıdır. Eşitlik durumları (örn. + ile 0
+// eşitse) KESİN bir tarafa yazılmaz, "Karışık/dengeli yanıtlar"a düşer —
+// yanıltıcı netlik izlenimi vermemek için kurallar kasıtlı olarak katı (>).
+function beierKategoriYorumUret(kategoriOzeti) {
+  return kategoriOzeti.map(k => {
+    const cevaplanan = k["+"] + k["-"] + k["0"];
+    let etiket = "Henüz cevaplanmadı", renk = MUTED, oncelik = -1;
+    if (cevaplanan > 0) {
+      if (k["-"] > k["+"] && k["-"] > k["0"]) { etiket = "Olumsuz tutum eğilimi"; renk = "#C0392B"; oncelik = 2; }
+      else if (k["+"] > k["-"] && k["+"] > k["0"]) { etiket = "Olumlu tutum eğilimi"; renk = "#1A8C5B"; oncelik = 0; }
+      else if (k["0"] >= cevaplanan / 2) { etiket = "Belirgin bir eğilim yok (nötr ağırlıklı)"; renk = "#8B8698"; oncelik = 0; }
+      else { etiket = "Karışık/dengeli yanıtlar"; renk = "#B07D1A"; oncelik = 1; }
+    }
+    return { ...k, etiket, renk, oncelik, cevaplanan };
+  });
+}
+// Alanları önce en çok dikkat gerektirenden (olumsuz eğilim) başlayarak
+// sıralar — danışman bir bakışta hangi alanlara öncelik vermesi gerektiğini
+// görsün diye. Eşit öncelikte olanlar arasında "-" sayısı çoğa göre sıralanır.
+function beierOncelikSiraliAlanlar(kategoriYorumlu) {
+  return [...kategoriYorumlu].sort((a, b) => (b.oncelik - a.oncelik) || (b["-"] - a["-"]));
+}
 
 // ── Mesleki Eğilim Belirleme Testi (160 Madde) ───────────────────────────────
 // Kaynak: rehberlikservisim.com — kağıt üzerinde 160 maddelik ilgi envanteri.
@@ -12514,6 +12541,23 @@ KURALLAR:
                       </div>
                     )}
 
+                    {maddeler.length > 0 && (() => {
+                      const yorumlu = beierOncelikSiraliAlanlar(beierKategoriYorumUret(kategoriler));
+                      return (
+                        <div style={{ marginBottom:12 }}>
+                          <div style={{ fontSize:11, fontWeight:700, color:PURPLE, marginBottom:6 }}>🆓 ÜCRETSİZ ÇÖZÜMLEME VE ANALİZ (AI kullanılmaz, kural tabanlı)</div>
+                          <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                            {yorumlu.map(k => (
+                              <div key={k.ad} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 9px", background:"#fff", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:6, fontSize:11 }}>
+                                <span style={{ color:TEXT, flex:1 }}>{k.ad}</span>
+                                <span style={{ color:k.renk, fontWeight:700, fontSize:10.5, flexShrink:0, marginLeft:8 }}>{k.etiket}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     <div style={{ fontSize:11, color:MUTED, marginBottom:8 }}>
                       Yüklemeden önce ya da sonra, aşağıdaki 56 maddeyi kağıtla karşılaştırıp cevabı/puanı düzeltebilirsin.
                     </div>
@@ -12706,6 +12750,7 @@ KURALLAR:
                     })()}
                     {beierMi && detayAcik && (() => {
                       const kategoriler = beierKategoriOzetiHesapla(k.veri?.maddeler||[]);
+                      const yorumlu = beierKategoriYorumUret(kategoriler);
                       return (
                         <div style={{ marginTop:10, borderTop:`1px solid ${BORDER}`, paddingTop:10, display:"flex", flexDirection:"column", gap:6 }}>
                           {k.veri?.guvenlikUyarisi && (
@@ -12714,13 +12759,16 @@ KURALLAR:
                               <div style={{ fontSize:11, color:"#8B2E22", lineHeight:1.5 }}>{k.veri.guvenlikUyarisi}</div>
                             </div>
                           )}
-                          {kategoriler.map(kat => (
-                            <div key={kat.ad} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 8px", background: kat["-"]>0 ? "#FDECEA" : BG, borderRadius:8 }}>
+                          {yorumlu.map(kat => (
+                            <div key={kat.ad} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 8px", background: kat["-"]>0 ? "#FDECEA" : BG, borderRadius:8, flexWrap:"wrap", gap:4 }}>
                               <div style={{ fontSize:11.5, fontWeight:700, color:TEXT }}>{kat.ad}</div>
-                              <div style={{ display:"flex", gap:8, fontSize:11, fontWeight:800 }}>
-                                <span style={{ color:"#1A8C5B" }}>+{kat["+"]}</span>
-                                <span style={{ color:"#C0392B" }}>-{kat["-"]}</span>
-                                <span style={{ color:MUTED }}>0:{kat["0"]}</span>
+                              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                                <span style={{ fontSize:9.5, fontWeight:700, color:kat.renk }}>{kat.etiket}</span>
+                                <div style={{ display:"flex", gap:6, fontSize:11, fontWeight:800 }}>
+                                  <span style={{ color:"#1A8C5B" }}>+{kat["+"]}</span>
+                                  <span style={{ color:"#C0392B" }}>-{kat["-"]}</span>
+                                  <span style={{ color:MUTED }}>0:{kat["0"]}</span>
+                                </div>
                               </div>
                             </div>
                           ))}
