@@ -17501,7 +17501,7 @@ function OgrenciYonetim({
                   style={{ flex:1, padding:"8px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, fontSize:13, boxSizing:"border-box" }} />
                 <button onClick={() => { setSinifGuncelleAcik(false); }} style={{ padding:"8px 12px", background:BG, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, fontSize:12, fontWeight:700, color:MUTED, cursor:"pointer" }}>İptal</button>
                 <button onClick={async () => {
-                  const yAd = yeniAdDegeri.trim(), yeSinif = yeniSinifDegeri.trim();
+                  const yAd = pdrSoyadMaskele(yeniAdDegeri.trim()), yeSinif = yeniSinifDegeri.trim();
                   if (!yAd || !yeSinif || (yAd === seciliOgrenci && yeSinif === seciliOgrenciSinif)) { setSinifGuncelleAcik(false); return; }
                   await onSinifGuncelle(seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara, yAd, yeSinif);
                   setSinifGuncelleAcik(false);
@@ -22842,6 +22842,8 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
             setIlerlemeNotlari={setIlerlemeNotlari}
             onRaporAc={(data) => setRaporVerisi(raporVerisiOlustur({ ...data, ogrenciProfilleri2: profiles2, mudahalePlan, riskListesi, sinavTuru, testKayitlari, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, liseTaramalar, benlikOlcekleri, kademe, hazirlikNotlari, ilerlemeNotlari, sevkler, ogrenciler }))}
             onSinifGuncelle={async (eskiAd, eskiSinif, eskiNumara, yeniAd, yeniSinif) => {
+              // Gizlilik: elle düzeltilen ad da yeni eklenen öğrencilerdeki gibi maskelenir
+              yeniAd = pdrSoyadMaskele(yeniAd);
               const ayniMi = (ad, sinif, no) => pdrAyniOgrenci(eskiAd, eskiSinif, ad, sinif, eskiNumara, no);
 
               const yeniOgrenciler = ogrenciler.map(o => ayniMi(o.studentName, o.className, o.numara) ? { ...o, studentName: yeniAd, className: yeniSinif } : o);
