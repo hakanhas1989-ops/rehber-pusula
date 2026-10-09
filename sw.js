@@ -1,4 +1,4 @@
-const CACHE_NAME = "pdr-v10";
+const CACHE_NAME = "pdr-v11";
 
 // Push bildirimi (FCM) — uygulama kapalıyken/arka plandayken gelen
 // bildirimleri göstermek için Firebase Messaging bu service worker
@@ -25,7 +25,6 @@ const CACHE_URLS = [
   "./icon.png",
   "https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js",
   "https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js",
-  "https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.2/babel.min.js",
   "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
 ];
 
@@ -77,7 +76,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Statik kütüphaneler (React, Babel vb.): önce önbellek, hızlı yükleme için.
+  // Statik kütüphaneler (React, XLSX vb.): önce önbellek, hızlı yükleme için.
   event.respondWith(
     caches.match(event.request)
       .then(cached => {
