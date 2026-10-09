@@ -22914,6 +22914,9 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
               const yeniTestKayitlari = pdrSozlukTasi(testKayitlari);
               setTestKayitlari(yeniTestKayitlari); await saveTestKayitlari(yeniTestKayitlari);
 
+              const yeniKonuHaritasi = pdrSozlukTasi(konuHaritasiVerisi);
+              setKonuHaritasiVerisi(yeniKonuHaritasi); await saveKonuHaritasi(yeniKonuHaritasi);
+
               // Sosyometri özel yapı: secimler hem anahtar (kimin seçimleri)
               // hem de değer dizisi (kimleri seçti) olarak öğrenci adı
               // içeriyor — aynı sınıftaki eşleşmeler için ikisini de güncelle.
