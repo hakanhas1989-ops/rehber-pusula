@@ -1131,6 +1131,138 @@ window.storage = {
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 const XLSX = window.XLSX;
 
+// ===== AI GİZLİLİK KALKANI BAŞLANGIÇ =====
+// AI sunucusuna giden HER istek buradan geçer (window.fetch sarmalanır).
+// Gönderilmeden önce metinlerdeki öğrenci adları "Öğrenci-1" gibi bir koda,
+// T.C. kimlik no / telefon / e-posta da "[TELEFON-1]" gibi bir etikete
+// çevrilir; AI'dan dönen yanıttaki kodlar cihazda yeniden gerçek adlara
+// çevrilir. Böylece ad AI şirketine hiç gitmez, ekranda yine ad görünür.
+// Kodlar her istek için yeniden verilir (okul numarası bile gönderilmez).
+// Sınırı: fotoğraf/PDF'in İÇİNDE yazılı olan ad ayıklanamaz.
+const PDR_KALKAN_HEDEFLER = ["pdr-api.hakanhas1989.workers.dev", "rehber-pusula-ai.hakanhas1989.workers.dev"];
+// Küçük harfle yazıldığında sıradan bir kelime de olan adlar — bunlar yalnızca
+// büyük harfle başladığında ad sayılır (metin bozulmasın diye).
+const PDR_KALKAN_KELIME_ADLAR = new Set(["can", "umut", "deniz", "ay", "su", "nur", "gül", "bahar", "yağmur", "barış", "ekin", "ilke", "onur", "doğa", "güneş", "yaz", "kar", "şafak", "sevgi", "sevinç", "mutlu", "ümit", "özgür", "başak", "çiçek", "yıldız", "inci", "ela", "duru", "kaya", "demir", "tuna", "derya", "ırmak", "pınar", "simge", "rüya", "hayal", "sevda", "bulut", "toprak", "çınar", "orman", "aslan", "kartal", "ateş", "bora", "poyraz", "mert", "berk", "ece", "efe", "eren", "arda", "ada", "lale", "melek", "bilge", "akın", "erdem", "cesur", "sarp", "tan", "gök", "ozan", "kutay", "hilal", "dilek", "nazlı", "sabah", "aydın", "kurt", "polat", "çelik", "kılıç", "yılmaz", "öztürk", "şahin", "doğan", "yalçın", "güler", "keskin", "kara", "ak", "uçar", "tekin", "özer", "gündüz", "işık", "ışık"]);
+const PDR_KALKAN = { regex: null, desen: new Map(), parcaSahibi: new Map(), orijinal: new Map(), imza: "" };
+
+function pdrKalkanRegexKac(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+function pdrKalkanBuyukHarf(s) { return s.toLocaleUpperCase("tr"); }
+function pdrKalkanKucukHarf(s) { return s.toLocaleLowerCase("tr"); }
+function pdrKalkanBasHarf(s) { return s.split(/\s+/).map(k => k ? pdrKalkanBuyukHarf(k[0]) + pdrKalkanKucukHarf(k.slice(1)) : k).join(" "); }
+
+// Uygulama öğrenci/kayıt listesini değiştirdikçe çağrılır.
+function pdrKalkanAdlariGuncelle(adlar) {
+  const tekil = [...new Set((adlar || []).map(a => String(a || "").trim().replace(/\s+/g, " ")).filter(a => a.replace(/\*/g, "").length >= 3))];
+  const imza = tekil.join("|");
+  if (imza === PDR_KALKAN.imza) return;
+  PDR_KALKAN.imza = imza;
+  const desen = new Map(); // görünen biçim -> { tur: "tam"|"parca", anahtar }
+  const parcaSahibi = new Map(); // parça (küçük harf) -> Set(tam ad anahtarı)
+  const orijinal = new Map();    // tam ad anahtarı -> kayıtlı yazımı
+  tekil.forEach(tam => {
+    const anahtar = pdrKalkanKucukHarf(tam);
+    if (!orijinal.has(anahtar)) orijinal.set(anahtar, tam);
+    [tam, pdrKalkanBuyukHarf(tam), pdrKalkanKucukHarf(tam), pdrKalkanBasHarf(tam)].forEach(v => desen.set(v, { tur: "tam", anahtar }));
+    tam.split(" ").forEach(p => {
+      const temiz = p.replace(/\*/g, "");
+      if (p.includes("*") || temiz.length < 3) return;
+      const pk = pdrKalkanKucukHarf(p);
+      if (!parcaSahibi.has(pk)) parcaSahibi.set(pk, new Set());
+      parcaSahibi.get(pk).add(anahtar);
+      const bicimler = [pdrKalkanBasHarf(p), pdrKalkanBuyukHarf(p)];
+      if (!PDR_KALKAN_KELIME_ADLAR.has(pk)) bicimler.push(pk);
+      bicimler.forEach(v => { if (!desen.has(v)) desen.set(v, { tur: "parca", anahtar: pk }); });
+    });
+  });
+  PDR_KALKAN.desen = desen;
+  PDR_KALKAN.parcaSahibi = parcaSahibi;
+  PDR_KALKAN.orijinal = orijinal;
+  const liste = [...desen.keys()].sort((a, b) => b.length - a.length).map(pdrKalkanRegexKac);
+  if (typeof window !== "undefined") window.__pdrKalkanAdSayisi = orijinal.size; // denetim için: kaç kişi korunuyor
+  PDR_KALKAN.regex = liste.length ? new RegExp("(^|[^\\p{L}\\p{N}])(" + liste.join("|") + ")(?=[^\\p{L}\\p{N}]|$)", "gu") : null;
+}
+
+// Tek bir istek için kod tablosu
+function pdrKalkanOturum() {
+  return { kod: new Map(), geri: new Map(), sayac: 0, ek: { TC: 0, TELEFON: 0, EPOSTA: 0 }, buIstekteTam: new Set() };
+}
+function pdrKalkanKodVer(o, anahtar, gorunen) {
+  if (!o.kod.has(anahtar)) { o.sayac += 1; const k = "Öğrenci-" + o.sayac; o.kod.set(anahtar, k); o.geri.set(k, gorunen); }
+  return o.kod.get(anahtar);
+}
+function pdrKalkanMetin(s, o) {
+  if (typeof s !== "string" || !s) return s;
+  let t = s;
+  if (PDR_KALKAN.regex) {
+    // 1. tur: bu metinde geçen tam adları topla (parça eşleşmelerini doğru kişiye bağlamak için)
+    t.replace(PDR_KALKAN.regex, (m, on, ad) => { const d = PDR_KALKAN.desen.get(ad); if (d && d.tur === "tam") o.buIstekteTam.add(d.anahtar); return m; });
+    t = t.replace(PDR_KALKAN.regex, (m, on, ad, konum, butun) => {
+      const d = PDR_KALKAN.desen.get(ad);
+      if (!d) return m;
+      // "Prof. Hakan", "Dr. Ayşe" gibi unvanlı adlar öğrenci değildir (ör. AI personası)
+      if (/(Prof|Dr|Doç|Uzm|Av)\.\s*$/.test(butun.slice(Math.max(0, konum - 8), konum + on.length))) return m;
+      if (d.tur === "tam") return on + pdrKalkanKodVer(o, "T:" + d.anahtar, ad);
+      const sahipler = [...(PDR_KALKAN.parcaSahibi.get(d.anahtar) || [])];
+      const buradakiler = sahipler.filter(a => o.buIstekteTam.has(a));
+      const sahip = buradakiler.length === 1 ? buradakiler[0] : sahipler.length === 1 ? sahipler[0] : null;
+      if (sahip) {
+        return on + pdrKalkanKodVer(o, "T:" + sahip, PDR_KALKAN.orijinal.get(sahip) || ad);
+      }
+      return on + pdrKalkanKodVer(o, "P:" + d.anahtar, ad);
+    });
+  }
+  const etiket = (tur, deger) => { o.ek[tur] += 1; const k = `[${tur}-${o.ek[tur]}]`; o.geri.set(k, deger); return k; };
+  t = t.replace(/(^|\D)([1-9]\d{10})(?!\d)/g, (m, on, v) => on + etiket("TC", v));
+  t = t.replace(/(^|[^\d+])((?:\+?90[\s-]?)?0?5\d{2}[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2})(?!\d)/g, (m, on, v) => on + etiket("TELEFON", v));
+  t = t.replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, v => etiket("EPOSTA", v));
+  return t;
+}
+// JSON gövdesini gezer: metinleri ve nesne anahtarlarını ayıklar; fotoğraf/PDF
+// verisine, API anahtarına, model ve eylem adına dokunmaz.
+function pdrKalkanGez(x, o, anahtar) {
+  if (typeof x === "string") return ["apiKey", "model", "action", "media_type", "type"].includes(anahtar) ? x : pdrKalkanMetin(x, o);
+  if (Array.isArray(x)) return x.map(e => pdrKalkanGez(e, o));
+  if (x && typeof x === "object") {
+    if (x.type === "base64" && typeof x.data === "string") return x;
+    const y = {};
+    Object.keys(x).forEach(k => { y[["apiKey", "model", "action"].includes(k) ? k : pdrKalkanMetin(k, o)] = pdrKalkanGez(x[k], o, k); });
+    return y;
+  }
+  return x;
+}
+function pdrKalkanGeriCevir(x, o) {
+  if (typeof x === "string") {
+    let t = x.replace(/Öğrenci-(\d+)/giu, (m, n) => o.geri.get("Öğrenci-" + n) || m);
+    t = t.replace(/\[(TC|TELEFON|EPOSTA)-(\d+)\]/g, m => o.geri.get(m) || m);
+    return t;
+  }
+  if (Array.isArray(x)) return x.map(e => pdrKalkanGeriCevir(e, o));
+  if (x && typeof x === "object") { const y = {}; Object.keys(x).forEach(k => { y[pdrKalkanGeriCevir(k, o)] = pdrKalkanGeriCevir(x[k], o); }); return y; }
+  return x;
+}
+(function pdrKalkanKur() {
+  if (typeof window === "undefined" || !window.fetch || window.__pdrKalkanKuruldu) return;
+  window.__pdrKalkanKuruldu = true;
+  const asil = window.fetch.bind(window);
+  window.fetch = async function (girdi, ayar) {
+    const url = String(girdi && girdi.url ? girdi.url : girdi);
+    if (!PDR_KALKAN_HEDEFLER.some(h => url.includes(h)) || !ayar || typeof ayar.body !== "string") return asil(girdi, ayar);
+    let govde;
+    try { govde = JSON.parse(ayar.body); } catch (e) { return asil(girdi, ayar); }
+    const o = pdrKalkanOturum();
+    const temiz = pdrKalkanGez(govde, o);
+    window.__pdrKalkanSon = { kod: o.sayac, ek: { ...o.ek } }; // test/denetim için: kaç ad gizlendi
+    const yanit = await asil(girdi, { ...ayar, body: JSON.stringify(temiz) });
+    if (o.geri.size === 0) return yanit;
+    const metin = await yanit.text();
+    let cikti = metin;
+    try { cikti = JSON.stringify(pdrKalkanGeriCevir(JSON.parse(metin), o)); } catch (e) { cikti = pdrKalkanGeriCevir(metin, o); }
+    return new Response(cikti, { status: yanit.status, statusText: yanit.statusText, headers: { "Content-Type": yanit.headers.get("Content-Type") || "application/json" } });
+  };
+})();
+// ===== AI GİZLİLİK KALKANI BİTİŞ =====
+
+
 const ACCENT = "#127C56";
 const ACCENT_LIGHT = "#D7EEE1";
 const BG = "#F7F5F0";
@@ -21666,6 +21798,10 @@ export default function App() {
   const [riskListesi, setRiskListesi] = useState([]);
   const [denemeler, setDenemeler] = useState({});
   const [ogrenciler, setOgrenciler] = useState([]);
+  // AI gizlilik kalkanı hangi adları gizleyeceğini buradan öğrenir
+  useEffect(() => {
+    pdrKalkanAdlariGuncelle([...(ogrenciler || []).map(o => o.studentName), ...(records || []).map(r => r.studentName)]);
+  }, [ogrenciler, records]);
   // "Geri tuşuna basıp çıktığımda o öğrenciye tekrar gelsin" — aktifOgrenci
   // artık sadece hafızada değil, tarayıcının kendi yerel deposunda da
   // tutuluyor. Bu TEK değişiklik, aktifOgrenci'yi okuyan HER sekmeyi aynı
