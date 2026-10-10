@@ -12406,6 +12406,11 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
     if (!file) return;
     setScasYukleniyor(true);
     try {
+      // Müşterinin KENDİ API anahtarıyla, Pusula'nın AI sunucusu üzerinden
+      // okunur (istem worker'da, action: "scas_cikar"). Eskiden kişisel
+      // sunucuya gidiyordu — maliyet geliştiriciye yazılıyordu.
+      const apiKey = pdrGetApiKey();
+      if (!apiKey) throw new Error("Önce Ayarlar'dan API anahtarını gir.");
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = e => resolve(e.target.result.split(",")[1]);
@@ -12413,41 +12418,17 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
         reader.readAsDataURL(file);
       });
       const mediaType = file.type || (file.name.toLocaleLowerCase("tr").endsWith(".pdf") ? "application/pdf" : "image/jpeg");
-      const icerikTipi = mediaType === "application/pdf" ? "document" : "image";
-      const maddeListesi = SCAS_MADDELER.map((m,i) => `${i+1}. ${m}`).join("\n");
-      const res = await fetch("https://pdr-api.hakanhas1989.workers.dev", {
+      const res = await fetch(PDR_AI_WORKER_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 4500,
-          system: `Sen bir veri çıkarma asistanısın. Sana yüklenen belge, "Spence Çocuk Kaygı Ölçeği (SCAS-Çocuk)" adlı 44 maddelik bir ölçeğin öğrenci tarafından elle doldurulmuş cevap kağıdıdır — PDF ya da bu kağıdın fotoğrafı olabilir.
-
-Her madde 4'lü Likert tipinde işaretlenmiştir, seçenekler şu sırada ve şu puan değerlerindedir:
-0 = Hiç, 1 = Bazen, 2 = Sık Sık, 3 = Her Zaman
-
-MADDE LİSTESİ (sıra numarası. ifade):
-${maddeListesi}
-
-GÖREVİN: Her madde için öğrencinin işaretlediği seçeneğin HAM puanını (0, 1, 2 ya da 3) oku. Bazı maddeler (11, 17, 26, 31, 38, 43) olumlu/dolgu maddedir ve puanlamaya dahil edilmez ama yine de okunup aynı şekilde raporlanmalı — sen hangi maddenin puanlandığına karar verme, sadece ham işaretlemeyi aktar.
-
-SADECE aşağıdaki JSON formatında döndür, başka hiçbir açıklama, markdown, yorum EKLEME:
-{"cevaplar": [ {"no": 1, "puan": 2}, {"no": 2, "puan": 0} ]}
-
-KURALLAR:
-- "no" 1 ile 44 arasında tam sayı, "puan" 0 ile 3 arasında tam sayı olmalı.
-- Bir maddenin işaretini okuyamıyorsan (bulanık, boş bırakılmış, iki kutu birden işaretli, belirsiz) o maddeyi listeye EKLEME — danışman zaten kaydetmeden önce gözden geçirip elle düzeltecek, yanlış okuma yanlış negatiften (eksik bırakma) daha kötüdür.`,
-          messages: [{
-            role: "user",
-            content: [
-              { type: icerikTipi, source: { type: "base64", media_type: mediaType, data: base64 } },
-              { type: "text", text: "Bu SCAS-Çocuk cevap kağıdını yukarıdaki talimata göre SADECE JSON formatında oku." }
-            ]
-          }]
-        }),
+        body: JSON.stringify({ action: "scas_cikar", apiKey, data: { dosyaBase64: base64, mediaType } }),
       });
       const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      if (data.error) {
+        const m = String(data.error.message || data.error);
+        if (/action|eylem|bilinmeyen|unknown/i.test(m)) throw new Error("Bu özellik sunucuda henüz etkin değil. Maddeleri aşağıdan elle işaretleyebilirsin.");
+        throw new Error(m);
+      }
       const text = data.content?.[0]?.text || "{}";
       const temiz = text.replace(/```json|```/g, "").trim();
       const parsed = JSON.parse(temiz);
