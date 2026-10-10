@@ -598,7 +598,7 @@ function pdrOdemeEkraniGizle() {
 // onaylandığının kanıtı) ve tarayıcı bilgisi
 // basvurular/{uid}.kosulOnay alanına yazılır; geçmiş onaylar
 // kosulOnayGecmis dizisinde birikir.
-const PDR_KOSUL_SURUM = "v4";
+const PDR_KOSUL_SURUM = "v5";
 const PDR_SAGLAYICI = {
   ad: "Rehber Pusula",           // Hizmet sağlayıcının adı soyadı / unvanı buraya yazılabilir
   adres: "",                      // Tebligat adresi (boşsa metinde gösterilmez)
@@ -607,7 +607,7 @@ const PDR_SAGLAYICI = {
 };
 const PDR_ALTYAPI_SAGLAYICILARI = "Google Firebase (giriş, veri saklama, bildirim), Cloudflare (sunucu işlevleri) ve Anthropic (yapay zekâ özellikleri)";
 function pdrSaglayiciSatiri() {
-  return `<b>${PDR_SAGLAYICI.ad}</b>${PDR_SAGLAYICI.adres ? " — " + PDR_SAGLAYICI.adres : ""} · İletişim: ${PDR_SAGLAYICI.eposta} · ${PDR_SAGLAYICI.site}`;
+  return `<b>${PDR_SAGLAYICI.ad}</b>${PDR_SAGLAYICI.adres ? " — " + PDR_SAGLAYICI.adres : ""} · İletişim: ${PDR_SAGLAYICI.eposta} · ${PDR_SAGLAYICI.site} · Ayrıca programı satın aldığınız kişi aracılığıyla da bize ulaşabilirsiniz.`;
 }
 const PDR_BELGELER = [
   { id: "sozlesme", kisa: "Kullanım Sözleşmesi", html: () => `
@@ -633,7 +633,7 @@ const PDR_BELGELER = [
     <p><b>5. Altyapı ve aktarım.</b> Program, ${PDR_ALTYAPI_SAGLAYICILARI} altyapısı üzerinde çalışır; verileriniz yalnızca hizmetin sunulması için bu sağlayıcıların sunucularında işlenir ve bu sunucular yurt dışında bulunabilir. Program verileri sunucuya gitmeden önce sizin cihazınızda, sizin parolanızla şifrelenir; sağlayıcılar dahil kimse içeriği okuyamaz. Yapay zekâ özelliklerinde öğrenci kimlik bilgileri kodlanarak gönderilir. Verileriniz bunlar dışında üçüncü kişilerle paylaşılmaz, satılmaz; kanunen yetkili kurumların talebi saklıdır.</p>
     <p><b>6. Toplama yöntemi.</b> Kayıt formu ve programın kullanımı sırasında elektronik ortamda, otomatik yollarla toplanır.</p>
     <p><b>7. Saklama süresi.</b> Hesabınız açık olduğu sürece; hesap kapatıldıktan sonra yasal zamanaşımı ve ispat yükümlülükleri süresince saklanır, ardından silinir veya anonim hâle getirilir.</p>
-    <p><b>8. Haklarınız (KVKK m.11).</b> Verilerinizin işlenip işlenmediğini öğrenme, bilgi talep etme, amacına uygun kullanılıp kullanılmadığını öğrenme, aktarıldığı üçüncü kişileri bilme, eksik/yanlış işlenmişse düzeltilmesini, şartları oluşmuşsa silinmesini veya yok edilmesini isteme, bu işlemlerin aktarılan kişilere bildirilmesini isteme, otomatik sistemlerle analiz sonucu aleyhinize bir sonuca itiraz etme ve zararın giderilmesini talep etme haklarına sahipsiniz. Başvurularınızı ${PDR_SAGLAYICI.eposta} adresine iletebilirsiniz; en geç 30 gün içinde ücretsiz yanıtlanır.</p>` },
+    <p><b>8. Haklarınız (KVKK m.11).</b> Verilerinizin işlenip işlenmediğini öğrenme, bilgi talep etme, amacına uygun kullanılıp kullanılmadığını öğrenme, aktarıldığı üçüncü kişileri bilme, eksik/yanlış işlenmişse düzeltilmesini, şartları oluşmuşsa silinmesini veya yok edilmesini isteme, bu işlemlerin aktarılan kişilere bildirilmesini isteme, otomatik sistemlerle analiz sonucu aleyhinize bir sonuca itiraz etme ve zararın giderilmesini talep etme haklarına sahipsiniz. Başvurularınızı ${PDR_SAGLAYICI.eposta} adresine ya da programı satın aldığınız kişi aracılığıyla iletebilirsiniz; en geç 30 gün içinde ücretsiz yanıtlanır.</p>` },
   { id: "taahhut", kisa: "Öğrenci Verileri Taahhütnamesi", html: () => `
     <p><b>1. Roller.</b> Programa girilen öğrenci ve veli verilerinin <b>veri sorumlusu</b> Kullanıcı ya da Kullanıcının görev yaptığı kurumdur. Rehber Pusula bu veriler bakımından <b>veri işleyen</b>dir ve verileri yalnızca Kullanıcı adına, hizmeti sunmak amacıyla işler.</p>
     <p><b>2. Kullanıcının taahhütleri.</b> Kullanıcı; (a) öğrenci ve veli verilerini KVKK ve görev yaptığı kurumun mevzuatına uygun bir hukuki sebebe dayanarak işlediğini, (b) ilgili kişilere karşı aydınlatma yükümlülüğünün kendisine/kurumuna ait olduğunu, (c) sağlık, psikolojik durum gibi özel nitelikli verileri yalnızca mesleki gereklilik ölçüsünde ve gerekli özenle gireceğini, (d) amaçla ilgisiz ve aşırı veri girmeyeceğini, (e) fotoğraf ve belge yüklerken üzerindeki kimlik bilgilerini kapatacağını, (f) hesap şifresini ve varsa şifreleme parolasını gizli tutacağını, (g) cihazlarını ekran kilidiyle koruyacağını kabul ve taahhüt eder.</p>
@@ -641,7 +641,7 @@ const PDR_BELGELER = [
     <p><b>4. Altyapı.</b> Hizmet ${PDR_ALTYAPI_SAGLAYICILARI} altyapısı üzerinde çalışır; sunucular yurt dışında bulunabilir. Öğrenci verileri sunucuda yalnızca şifreli hâlde durur ve okunamaz. Yapay zekâ sağlayıcısına kimlik bilgileri kodlanarak gönderilir. Bildirimlerin çalışabilmesi için hatırlatma metinleri şifrelenmez; Kullanıcı hatırlatmalara öğrenci kimliğini açık eden bilgi yazmamaya özen gösterir.</p>
     <p><b>5. Veri ihlali.</b> Rehber Pusula, kendi sorumluluk alanında bir veri ihlali öğrenmesi hâlinde Kullanıcıyı gecikmeksizin ve en geç 72 saat içinde bilgilendirir; Kullanıcının Kurula ve ilgili kişilere bildirim yükümlülüğünü yerine getirmesine destek olur.</p>
     <p><b>6. Silme ve iade.</b> Kullanıcı verilerini dilediği an yedek olarak indirebilir. Hesabın kapatılması ve yazılı talep üzerine veriler en geç 30 gün içinde silinir.</p>
-    <p><b>7. Bilgi talebi.</b> Kullanıcı, verilerinin işlenmesine ilişkin uygulanan tedbirler hakkında ${PDR_SAGLAYICI.eposta} adresinden bilgi talep edebilir.</p>` },
+    <p><b>7. Bilgi talebi.</b> Kullanıcı, verilerinin işlenmesine ilişkin uygulanan tedbirler hakkında ${PDR_SAGLAYICI.eposta} adresinden ya da programı satın aldığı kişi aracılığıyla bilgi talep edebilir.</p>` },
 ];
 
 function pdrKosulGuncelMi(k) { return !!(k && k.onaylandi && k.versiyon === PDR_KOSUL_SURUM); }
