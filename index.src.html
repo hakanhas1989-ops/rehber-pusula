@@ -1151,9 +1151,12 @@ function pdrKalkanKucukHarf(s) { return s.toLocaleLowerCase("tr"); }
 function pdrKalkanBasHarf(s) { return s.split(/\s+/).map(k => k ? pdrKalkanBuyukHarf(k[0]) + pdrKalkanKucukHarf(k.slice(1)) : k).join(" "); }
 
 // Uygulama öğrenci/kayıt listesini değiştirdikçe çağrılır.
-function pdrKalkanAdlariGuncelle(adlar) {
+// siniflar: kayıtlı sınıf adları ("5-A", "7/B"…) — şube harfi de gizlenir,
+// AI yalnızca sınıf DÜZEYİNİ görür ("5-Ş1"). Okul numarası hiç gitmez.
+function pdrKalkanAdlariGuncelle(adlar, siniflar) {
   const tekil = [...new Set((adlar || []).map(a => String(a || "").trim().replace(/\s+/g, " ")).filter(a => a.replace(/\*/g, "").length >= 3))];
-  const imza = tekil.join("|");
+  const sinifTekil = [...new Set((siniflar || []).map(c => String(c || "").trim()).filter(c => c.length >= 2 && /\d/.test(c) && /[\p{L}]/u.test(c)))];
+  const imza = tekil.join("|") + "#" + sinifTekil.join("|");
   if (imza === PDR_KALKAN.imza) return;
   PDR_KALKAN.imza = imza;
   const desen = new Map(); // görünen biçim -> { tur: "tam"|"parca", anahtar }
@@ -1180,11 +1183,14 @@ function pdrKalkanAdlariGuncelle(adlar) {
   const liste = [...desen.keys()].sort((a, b) => b.length - a.length).map(pdrKalkanRegexKac);
   if (typeof window !== "undefined") window.__pdrKalkanAdSayisi = orijinal.size; // denetim için: kaç kişi korunuyor
   PDR_KALKAN.regex = liste.length ? new RegExp("(^|[^\\p{L}\\p{N}])(" + liste.join("|") + ")(?=[^\\p{L}\\p{N}]|$)", "gu") : null;
+  const sListe = [...sinifTekil].sort((a, b) => b.length - a.length).map(pdrKalkanRegexKac);
+  PDR_KALKAN.sinifRegex = sListe.length ? new RegExp("(^|[^\\p{L}\\p{N}])(" + sListe.join("|") + ")(?=[^\\p{L}\\p{N}]|$)", "gu") : null;
 }
+const PDR_KALKAN_NUMARA_ANAHTARLARI = ["numara", "ogrenciNo", "okulNo", "ogrenciNumara", "studentNumber", "ogrNo"];
 
 // Tek bir istek için kod tablosu
 function pdrKalkanOturum() {
-  return { kod: new Map(), geri: new Map(), sayac: 0, ek: { TC: 0, TELEFON: 0, EPOSTA: 0 }, buIstekteTam: new Set() };
+  return { kod: new Map(), geri: new Map(), sayac: 0, ek: { TC: 0, TELEFON: 0, EPOSTA: 0, N: 0 }, sinif: new Map(), numara: new Map(), buIstekteTam: new Set() };
 }
 function pdrKalkanKodVer(o, anahtar, gorunen) {
   if (!o.kod.has(anahtar)) { o.sayac += 1; const k = "Öğrenci-" + o.sayac; o.kod.set(anahtar, k); o.geri.set(k, gorunen); }
@@ -1212,14 +1218,31 @@ function pdrKalkanMetin(s, o) {
     });
   }
   const etiket = (tur, deger) => { o.ek[tur] += 1; const k = `[${tur}-${o.ek[tur]}]`; o.geri.set(k, deger); return k; };
+  // Sınıf: "5-A" -> "5-Ş1" (düzey kalır, şube gizlenir; aynı istekte aynı sınıf hep aynı kod)
+  if (PDR_KALKAN.sinifRegex) {
+    t = t.replace(PDR_KALKAN.sinifRegex, (m, on, c) => {
+      if (!o.sinif.has(c)) { const duzey = (c.match(/\d{1,2}/) || [""])[0]; const k = `${duzey}-Ş${o.sinif.size + 1}`; o.sinif.set(c, k); o.geri.set(k, c); }
+      return on + o.sinif.get(c);
+    });
+  }
+  // Okul numarası: programın kimlik biçimi "No:12" ve kayıt anahtarı "Ad||Sınıf||12" -> "[N-1]"
+  // (Soru no, madde no gibi başka sayılara dokunulmaz.)
+  t = t.replace(/(^|[^\p{L}])(No:)(\d{1,6})(?!\d)/gu, (m, on, no, v) => on + no + pdrKalkanNumara(o, v));
+  t = t.replace(/(\|\|)(\d{1,6})$/, (m, on, v) => on + pdrKalkanNumara(o, v));
   t = t.replace(/(^|\D)([1-9]\d{10})(?!\d)/g, (m, on, v) => on + etiket("TC", v));
   t = t.replace(/(^|[^\d+])((?:\+?90[\s-]?)?0?5\d{2}[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2})(?!\d)/g, (m, on, v) => on + etiket("TELEFON", v));
   t = t.replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, v => etiket("EPOSTA", v));
   return t;
 }
+function pdrKalkanNumara(o, v) {
+  const d = String(v).trim();
+  if (!o.numara.has(d)) { o.ek.N += 1; const k = `[N-${o.ek.N}]`; o.numara.set(d, k); o.geri.set(k, d); }
+  return o.numara.get(d);
+}
 // JSON gövdesini gezer: metinleri ve nesne anahtarlarını ayıklar; fotoğraf/PDF
 // verisine, API anahtarına, model ve eylem adına dokunmaz.
 function pdrKalkanGez(x, o, anahtar) {
+  if (PDR_KALKAN_NUMARA_ANAHTARLARI.includes(anahtar) && (typeof x === "string" || typeof x === "number") && String(x).trim()) return pdrKalkanNumara(o, x);
   if (typeof x === "string") return ["apiKey", "model", "action", "media_type", "type"].includes(anahtar) ? x : pdrKalkanMetin(x, o);
   if (Array.isArray(x)) return x.map(e => pdrKalkanGez(e, o));
   if (x && typeof x === "object") {
@@ -1233,7 +1256,8 @@ function pdrKalkanGez(x, o, anahtar) {
 function pdrKalkanGeriCevir(x, o) {
   if (typeof x === "string") {
     let t = x.replace(/Öğrenci-(\d+)/giu, (m, n) => o.geri.get("Öğrenci-" + n) || m);
-    t = t.replace(/\[(TC|TELEFON|EPOSTA)-(\d+)\]/g, m => o.geri.get(m) || m);
+    t = t.replace(/\[(TC|TELEFON|EPOSTA|N)-(\d+)\]/g, m => o.geri.get(m) || m);
+    t = t.replace(/\d{0,2}-Ş\d+/gu, m => o.geri.get(m) || m);
     return t;
   }
   if (Array.isArray(x)) return x.map(e => pdrKalkanGeriCevir(e, o));
@@ -12729,6 +12753,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                       {mesEgilimYukleniyor ? "⏳ Cevap kağıdı okunuyor…" : "📄 İşaretli Cevap Kağıdını Yükle (PDF ya da Fotoğraf)"}
                       <input type="file" accept="application/pdf,image/*" onChange={e=>handleMesEgilimPdfSec(e.target.files?.[0])} style={{ display:"none" }} disabled={mesEgilimYukleniyor} />
                     </label>
+                    <div style={{ fontSize:11, color:"#92400E", background:"#FFFBEB", borderRadius:8, padding:"6px 9px", marginTop:-6, marginBottom:10, lineHeight:1.45 }}>🔒 Kâğıtta öğrencinin adı yazıyorsa fotoğraflamadan önce kapat — görüntünün içindeki ad gizlenemez.</div>
                     <div style={{ fontSize:11, color:MUTED, marginBottom:10 }}>
                       Yüklemeden önce ya da sonra, aşağıdaki 160 maddeden işaretlemeleri kontrol edip düzeltebilirsin. İşaretli: {isaretli.length} / 160
                     </div>
@@ -12785,6 +12810,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                       {beierYukleniyor ? "⏳ Cevap kağıdı okunuyor…" : "📄 Doldurulmuş Kağıdı Yükle (PDF ya da Fotoğraf)"}
                       <input type="file" accept="application/pdf,image/*" onChange={e=>handleBeierPdfSec(e.target.files?.[0])} style={{ display:"none" }} disabled={beierYukleniyor} />
                     </label>
+                    <div style={{ fontSize:11, color:"#92400E", background:"#FFFBEB", borderRadius:8, padding:"6px 9px", marginTop:-6, marginBottom:10, lineHeight:1.45 }}>🔒 Kâğıtta öğrencinin adı yazıyorsa fotoğraflamadan önce kapat — görüntünün içindeki ad gizlenemez.</div>
 
                     {form.guvenlikUyarisi && (
                       <div style={{ background:"#FDECEA", border:`2px solid #C0392B`, borderRadius:10, padding:12, marginBottom:12 }}>
@@ -12885,6 +12911,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
                       {scasYukleniyor ? "⏳ Form okunuyor…" : "📄 Doldurulmuş Formu Yükle (PDF ya da Fotoğraf)"}
                       <input type="file" accept="application/pdf,image/*" onChange={e=>handleScasPdfSec(e.target.files?.[0])} style={{ display:"none" }} disabled={scasYukleniyor} />
                     </label>
+                    <div style={{ fontSize:11, color:"#92400E", background:"#FFFBEB", borderRadius:8, padding:"6px 9px", marginTop:-6, marginBottom:10, lineHeight:1.45 }}>🔒 Kâğıtta öğrencinin adı yazıyorsa fotoğraflamadan önce kapat — görüntünün içindeki ad gizlenemez.</div>
 
                     <div style={{ fontSize:10.5, color:"#8B5A00", marginBottom:12, lineHeight:1.5, background:"#FFF4E5", border:"1px solid #E8C27A", borderRadius:8, padding:8 }}>
                       ℹ️ Bu ölçek 9-12 yaş grubunda geçerliliği gösterilmiş bir kaygı tarama aracıdır. Yüzdelik dilim ve düzey (Normal/Hafif Yüksek/Yüksek/Çok Yüksek) etiketleri, Spence'in resmi normatif örneklemindeki (N=4.916) ortalama/standart sapma değerlerinden hesaplanan YAKLAŞIK bir dönüşümdür — ampirik norm tablosunun birebir aynısı değildir. Yaş bandı öğrencinin sınıf düzeyinden tahmin edilir (5-6. sınıf ≈ 8-11, 7-8. sınıf ≈ 12-15), doğum tarihinden değil. {!cinsiyet && "Öğrencinin cinsiyeti kayıtlı olmadığı için karma-cinsiyet normu kullanılıyor (daha isabetli sonuç için Sınıf ekranından cinsiyeti işaretleyebilirsin)."} {!yasGrubu && "Sınıf düzeyi okunamadığı için yüzdelik dilim hesaplanamıyor, sadece ham puanlar gösteriliyor."}
@@ -21781,7 +21808,10 @@ export default function App() {
   const [ogrenciler, setOgrenciler] = useState([]);
   // AI gizlilik kalkanı hangi adları gizleyeceğini buradan öğrenir
   useEffect(() => {
-    pdrKalkanAdlariGuncelle([...(ogrenciler || []).map(o => o.studentName), ...(records || []).map(r => r.studentName)]);
+    pdrKalkanAdlariGuncelle(
+      [...(ogrenciler || []).map(o => o.studentName), ...(records || []).map(r => r.studentName)],
+      [...(ogrenciler || []).map(o => o.className), ...(records || []).map(r => r.className)]
+    );
   }, [ogrenciler, records]);
   // "Geri tuşuna basıp çıktığımda o öğrenciye tekrar gelsin" — aktifOgrenci
   // artık sadece hafızada değil, tarayıcının kendi yerel deposunda da
