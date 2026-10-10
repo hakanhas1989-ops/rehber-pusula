@@ -417,10 +417,6 @@ body {
             <a href="#" id="pdr-tos-link" style="color:#1A4D3B;font-weight:600;text-decoration:underline">Kullanım Sözleşmesi, Öğrenci Verileri Taahhütnamesi ve KVKK Aydınlatma Metni</a>'ni okudum, kabul ediyorum.
           </label>
         </div>
-        <div style="display:flex;align-items:flex-start;gap:8px">
-          <input type="checkbox" id="pdr-riza-checkbox" style="width:16px;min-width:16px;height:16px;margin:3px 0 0 0;flex-shrink:0" />
-          <label for="pdr-riza-checkbox" id="pdr-riza-label" style="font-size:11.5px;color:#555;line-height:1.5;flex:1;min-width:0">Hizmetin sunulabilmesi için verilerimin yurt dışında sunucuları bulunabilen altyapı sağlayıcıları (Google, Cloudflare, Anthropic) aracılığıyla işlenmesine ve yurt dışına aktarılmasına açık rıza veriyorum.</label>
-        </div>
       </div>
       <button type="submit" id="pdr-login-btn">Giriş Yap</button>
       <div id="pdr-login-error"></div>
@@ -599,17 +595,17 @@ function pdrOdemeEkraniGizle() {
 // Kullanıcıya onaya sunulan metinler. Metin değişirse PDR_KOSUL_SURUM
 // artırılır → tüm kullanıcılar bir sonraki girişte yeni sürümü onaylar.
 // Her onayda: sürüm, tarih, metinlerin SHA-256 özeti (hangi metnin
-// onaylandığının kanıtı), açık rıza tercihi ve tarayıcı bilgisi
+// onaylandığının kanıtı) ve tarayıcı bilgisi
 // basvurular/{uid}.kosulOnay alanına yazılır; geçmiş onaylar
 // kosulOnayGecmis dizisinde birikir.
-const PDR_KOSUL_SURUM = "v2";
+const PDR_KOSUL_SURUM = "v3";
 const PDR_SAGLAYICI = {
   ad: "Rehber Pusula",           // Hizmet sağlayıcının adı soyadı / unvanı buraya yazılabilir
   adres: "",                      // Tebligat adresi (boşsa metinde gösterilmez)
   eposta: PDR_ADMIN_EMAIL,
   site: "rehberpusula.com",
 };
-const PDR_YURTDISI_SAGLAYICILAR = "Google LLC (Firebase: kimlik doğrulama, veri tabanı, bildirim), Cloudflare, Inc. (sunucu işlevleri) ve Anthropic PBC (yapay zekâ özellikleri)";
+const PDR_ALTYAPI_SAGLAYICILARI = "Google Firebase (giriş, veri saklama, bildirim), Cloudflare (sunucu işlevleri) ve Anthropic (yapay zekâ özellikleri)";
 function pdrSaglayiciSatiri() {
   return `<b>${PDR_SAGLAYICI.ad}</b>${PDR_SAGLAYICI.adres ? " — " + PDR_SAGLAYICI.adres : ""} · İletişim: ${PDR_SAGLAYICI.eposta} · ${PDR_SAGLAYICI.site}`;
 }
@@ -634,7 +630,7 @@ const PDR_BELGELER = [
     <p><b>2. İşlenen kişisel verileriniz.</b> Kimlik ve iletişim: e-posta adresi. Müşteri işlem: başvuru tarihi, hesap/ödeme durumu, erişim süresi. İşlem güvenliği: oturum bilgileri, bildirim için cihaz jetonu, sözleşme onay kayıtları (tarih, sürüm, tarayıcı bilgisi). Programa girdiğiniz ayarlar (okul kademesi vb.).</p>
     <p><b>3. İşleme amaçları.</b> Hesabın açılması ve yönetimi; hizmetin sunulması; ödeme ve erişim süresinin takibi; bildirimlerin gönderilmesi; güvenliğin sağlanması; sözleşme onaylarının ispatı; yasal yükümlülüklerin yerine getirilmesi.</p>
     <p><b>4. Hukuki sebepler.</b> KVKK m.5/2-c (sözleşmenin kurulması ve ifası), m.5/2-ç (hukuki yükümlülük), m.5/2-e (bir hakkın tesisi, kullanılması veya korunması) ve m.5/2-f (veri sorumlusunun meşru menfaati).</p>
-    <p><b>5. Aktarım.</b> Verileriniz yalnızca hizmetin sunulması için kullanılan altyapı sağlayıcılarına aktarılır: ${PDR_YURTDISI_SAGLAYICILAR}. Bu sağlayıcıların sunucuları yurt dışında bulunabilir; aktarım KVKK m.9'a uygun olarak yapılır. Verileriniz bunlar dışında üçüncü kişilerle paylaşılmaz, satılmaz; kanunen yetkili kurumların talebi saklıdır.</p>
+    <p><b>5. Altyapı ve aktarım.</b> Program, ${PDR_ALTYAPI_SAGLAYICILARI} altyapısı üzerinde çalışır; verileriniz yalnızca hizmetin sunulması için bu sağlayıcıların sunucularında işlenir ve bu sunucular yurt dışında bulunabilir. "Cihazda Şifreleme" açıkken program verileri sunucuya gitmeden önce sizin cihazınızda, sizin parolanızla şifrelenir; sağlayıcılar dahil kimse içeriği okuyamaz. Yapay zekâ özelliklerinde öğrenci kimlik bilgileri kodlanarak gönderilir. Verileriniz bunlar dışında üçüncü kişilerle paylaşılmaz, satılmaz; kanunen yetkili kurumların talebi saklıdır.</p>
     <p><b>6. Toplama yöntemi.</b> Kayıt formu ve programın kullanımı sırasında elektronik ortamda, otomatik yollarla toplanır.</p>
     <p><b>7. Saklama süresi.</b> Hesabınız açık olduğu sürece; hesap kapatıldıktan sonra yasal zamanaşımı ve ispat yükümlülükleri süresince saklanır, ardından silinir veya anonim hâle getirilir.</p>
     <p><b>8. Haklarınız (KVKK m.11).</b> Verilerinizin işlenip işlenmediğini öğrenme, bilgi talep etme, amacına uygun kullanılıp kullanılmadığını öğrenme, aktarıldığı üçüncü kişileri bilme, eksik/yanlış işlenmişse düzeltilmesini, şartları oluşmuşsa silinmesini veya yok edilmesini isteme, bu işlemlerin aktarılan kişilere bildirilmesini isteme, otomatik sistemlerle analiz sonucu aleyhinize bir sonuca itiraz etme ve zararın giderilmesini talep etme haklarına sahipsiniz. Başvurularınızı ${PDR_SAGLAYICI.eposta} adresine iletebilirsiniz; en geç 30 gün içinde ücretsiz yanıtlanır.</p>` },
@@ -642,17 +638,16 @@ const PDR_BELGELER = [
     <p><b>1. Roller.</b> Programa girilen öğrenci ve veli verilerinin <b>veri sorumlusu</b> Kullanıcı ya da Kullanıcının görev yaptığı kurumdur. Rehber Pusula bu veriler bakımından <b>veri işleyen</b>dir ve verileri yalnızca Kullanıcı adına, hizmeti sunmak amacıyla işler.</p>
     <p><b>2. Kullanıcının taahhütleri.</b> Kullanıcı; (a) öğrenci ve veli verilerini KVKK ve görev yaptığı kurumun mevzuatına uygun bir hukuki sebebe dayanarak işlediğini, (b) ilgili kişilere karşı aydınlatma yükümlülüğünün kendisine/kurumuna ait olduğunu, (c) sağlık, psikolojik durum gibi özel nitelikli verileri yalnızca mesleki gereklilik ölçüsünde ve gerekli özenle gireceğini, (d) amaçla ilgisiz ve aşırı veri girmeyeceğini, (e) fotoğraf ve belge yüklerken üzerindeki kimlik bilgilerini kapatacağını, (f) hesap şifresini ve varsa şifreleme parolasını gizli tutacağını, (g) cihazlarını ekran kilidiyle koruyacağını kabul ve taahhüt eder.</p>
     <p><b>3. Rehber Pusula'nın taahhütleri.</b> Rehber Pusula; verileri hizmet dışında hiçbir amaçla kullanmaz, satmaz, paylaşmaz ve içeriklerine erişmez. Uygulanan teknik tedbirler: hesap bazlı erişim kuralları (her kullanıcı yalnızca kendi verisine erişir), isteğe bağlı cihazda uçtan uca şifreleme (AES-256; bu durumda veriler sunucuda Rehber Pusula dahil kimse tarafından okunamaz), yapay zekâya giden metinlerde ad / okul numarası / şube / T.C. no / telefon / e-posta kodlaması, öğrenci soyadlarının otomatik maskelenmesi, hareketsizlikte otomatik oturum kapatma.</p>
-    <p><b>4. Alt işleyenler.</b> Hizmet, şu altyapı sağlayıcıları kullanılarak sunulur: ${PDR_YURTDISI_SAGLAYICILAR}. Sunucular yurt dışında bulunabilir. Yapay zekâ sağlayıcısına kimlik bilgileri kodlanarak gönderilir. Bildirimlerin çalışabilmesi için hatırlatma metinleri şifrelenmez; Kullanıcı hatırlatmalara öğrenci kimliğini açık eden bilgi yazmamaya özen gösterir.</p>
+    <p><b>4. Altyapı.</b> Hizmet ${PDR_ALTYAPI_SAGLAYICILARI} altyapısı üzerinde çalışır; sunucular yurt dışında bulunabilir. "Cihazda Şifreleme" açıkken öğrenci verileri sunucuda yalnızca şifreli hâlde durur ve okunamaz; Kullanıcının bu özelliği açması önerilir. Yapay zekâ sağlayıcısına kimlik bilgileri kodlanarak gönderilir. Bildirimlerin çalışabilmesi için hatırlatma metinleri şifrelenmez; Kullanıcı hatırlatmalara öğrenci kimliğini açık eden bilgi yazmamaya özen gösterir.</p>
     <p><b>5. Veri ihlali.</b> Rehber Pusula, kendi sorumluluk alanında bir veri ihlali öğrenmesi hâlinde Kullanıcıyı gecikmeksizin ve en geç 72 saat içinde bilgilendirir; Kullanıcının Kurula ve ilgili kişilere bildirim yükümlülüğünü yerine getirmesine destek olur.</p>
     <p><b>6. Silme ve iade.</b> Kullanıcı verilerini dilediği an yedek olarak indirebilir. Hesabın kapatılması ve yazılı talep üzerine veriler en geç 30 gün içinde silinir.</p>
     <p><b>7. Bilgi talebi.</b> Kullanıcı, verilerinin işlenmesine ilişkin uygulanan tedbirler hakkında ${PDR_SAGLAYICI.eposta} adresinden bilgi talep edebilir.</p>` },
 ];
-const PDR_ACIK_RIZA_METNI = `Hizmetin sunulabilmesi için hesap ve kullanım verilerimin (ve programa girdiğim verilerin) yurt dışında sunucuları bulunabilen ${PDR_YURTDISI_SAGLAYICILAR} aracılığıyla işlenmesine ve bu amaçla yurt dışına aktarılmasına açık rıza veriyorum.`;
 
 function pdrKosulGuncelMi(k) { return !!(k && k.onaylandi && k.versiyon === PDR_KOSUL_SURUM); }
 function pdrBelgeDuzMetin() {
   const d = document.createElement("div");
-  d.innerHTML = PDR_BELGELER.map(b => b.html()).join("\n") + "\n" + PDR_ACIK_RIZA_METNI;
+  d.innerHTML = PDR_BELGELER.map(b => b.html()).join("\n");
   return d.textContent.replace(/\s+/g, " ").trim();
 }
 async function pdrBelgeOzeti() {
@@ -661,11 +656,11 @@ async function pdrBelgeOzeti() {
     return Array.from(new Uint8Array(h)).map(x => x.toString(16).padStart(2, "0")).join("");
   } catch (e) { return ""; }
 }
-async function pdrKosulOnayKaydi(acikRiza) {
-  return { onaylandi: true, tarih: Date.now(), versiyon: PDR_KOSUL_SURUM, belgeOzeti: await pdrBelgeOzeti(), acikRizaYurtdisi: !!acikRiza, tarayici: (navigator.userAgent || "").slice(0, 200) };
+async function pdrKosulOnayKaydi() {
+  return { onaylandi: true, tarih: Date.now(), versiyon: PDR_KOSUL_SURUM, belgeOzeti: await pdrBelgeOzeti(), tarayici: (navigator.userAgent || "").slice(0, 200) };
 }
-async function pdrKosulOnayYaz(uid, acikRiza) {
-  const kayit = await pdrKosulOnayKaydi(acikRiza);
+async function pdrKosulOnayYaz(uid) {
+  const kayit = await pdrKosulOnayKaydi();
   const FV = firebase.firestore && firebase.firestore.FieldValue;
   const ek = FV && FV.arrayUnion ? { kosulOnayGecmis: FV.arrayUnion(kayit) } : {};
   await pdrDb.collection("basvurular").doc(uid).update({ kosulOnay: kayit, ...ek });
@@ -693,7 +688,6 @@ window.pdrBelgeleriGoster = function () {
   el.innerHTML = `<div style="max-width:560px;width:100%;max-height:90vh;overflow-y:auto;background:#fff;color:#1A1A1A;border-radius:16px;padding:20px 18px;box-shadow:0 20px 50px rgba(0,0,0,0.4);font-family:system-ui,sans-serif">
     <div style="font-weight:800;font-size:16px;margin-bottom:10px;color:#1A4D3B">🧭 Rehber Pusula — Sözleşme ve KVKK Metinleri <span style="font-size:11px;color:#666;font-weight:600">(${PDR_KOSUL_SURUM})</span></div>
     ${pdrBelgeSekmeleri("pdr-belge-icerik")}
-    <div style="font-size:11.5px;color:#555;margin-top:8px;line-height:1.5"><b>Açık rıza metni:</b> ${PDR_ACIK_RIZA_METNI}</div>
     <button id="pdr-belge-kapat" style="width:100%;margin-top:12px;padding:11px;background:#1FA971;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer">Kapat</button></div>`;
   el.style.display = "flex";
   pdrBelgeSekmeleriBagla(el, "pdr-belge-icerik");
@@ -720,7 +714,6 @@ function pdrOnayEksikGoster(uid) {
       <div style="margin-top:12px">
         ${satir("pdr-onay-cb-sozlesme", "<b>Kullanım Sözleşmesi</b>'ni ve <b>Öğrenci Verileri İşleme Taahhütnamesi</b>'ni okudum, kabul ediyorum.")}
         ${satir("pdr-onay-cb-aydinlatma", "<b>KVKK Aydınlatma Metni</b>'ni okudum, bilgilendirildim.")}
-        ${satir("pdr-onay-cb-riza", PDR_ACIK_RIZA_METNI)}
       </div>
       <div id="pdr-onay-eksik-hata" style="color:#C0392B;font-size:12px;margin-bottom:10px;min-height:14px;"></div>
       <button id="pdr-onay-eksik-kabul" style="width:100%;padding:12px;background:#1FA971;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;margin-bottom:8px;">Onaylıyorum, Devam Et</button>
@@ -731,13 +724,13 @@ function pdrOnayEksikGoster(uid) {
   document.getElementById("pdr-onay-eksik-kabul").onclick = async () => {
     const hata = document.getElementById("pdr-onay-eksik-hata");
     const isaretli = id => document.getElementById(id).checked;
-    if (!isaretli("pdr-onay-cb-sozlesme") || !isaretli("pdr-onay-cb-aydinlatma") || !isaretli("pdr-onay-cb-riza")) {
-      hata.textContent = "Devam etmek için üç kutucuğun da işaretlenmesi gerekiyor."; return;
+    if (!isaretli("pdr-onay-cb-sozlesme") || !isaretli("pdr-onay-cb-aydinlatma")) {
+      hata.textContent = "Devam etmek için iki kutucuğun da işaretlenmesi gerekiyor."; return;
     }
     const btn = document.getElementById("pdr-onay-eksik-kabul");
     btn.disabled = true; btn.textContent = "Kaydediliyor…";
     try {
-      await pdrKosulOnayYaz(uid, true);
+      await pdrKosulOnayYaz(uid);
       // Onay kaydedildi — giriş akışı baştan çalışsın ki program yüklensin
       // (eskiden ekran kapanıyor ama program yüklenmeden boş kalıyordu).
       location.reload();
@@ -1138,7 +1131,6 @@ if (pdrToggleMode) {
       pdrPass2.required = false;
       if (pdrTosRow) pdrTosRow.style.display = "none";
       if (pdrTosCheckbox) pdrTosCheckbox.checked = false;
-      const pdrRizaSifirla = document.getElementById("pdr-riza-checkbox"); if (pdrRizaSifirla) pdrRizaSifirla.checked = false;
       pdrToggleMode.textContent = "Hesabınız yok mu? Kayıt olun";
     }
     if (pdrLoginError) pdrLoginError.textContent = "";
@@ -1327,11 +1319,6 @@ if (pdrLoginForm) {
         pdrLoginError.textContent = "Devam etmek için sözleşme ve KVKK metinlerini onaylamanız gerekiyor.";
         return;
       }
-      const pdrRizaCb = document.getElementById("pdr-riza-checkbox");
-      if (pdrRizaCb && !pdrRizaCb.checked) {
-        pdrLoginError.textContent = "Hizmet bu altyapı sağlayıcıları olmadan çalışamadığı için açık rıza kutucuğunun da işaretlenmesi gerekiyor.";
-        return;
-      }
     }
 
     pdrLoginBtn.disabled = true;
@@ -1340,7 +1327,7 @@ if (pdrLoginForm) {
       if (pdrIsRegisterMode) {
         const cred = await pdrAuth.createUserWithEmailAndPassword(email, pass);
         if (cred && cred.user) {
-          const ilkOnay = await pdrKosulOnayKaydi(true);
+          const ilkOnay = await pdrKosulOnayKaydi();
           await pdrDb.collection("basvurular").doc(cred.user.uid).set({
             email: email, tarih: Date.now(), durum: "bekliyor", ucretsiz: false, odemeAlindi: false,
             kosulOnay: ilkOnay, kosulOnayGecmis: [ilkOnay]
@@ -16820,7 +16807,7 @@ function KullaniciOnaylari() {
                     <div style={{ fontSize: 11, color: MUTED }}>{b.tarih ? new Date(b.tarih).toLocaleDateString("tr-TR") : ""}</div>
                     {b.kosulOnay?.onaylandi ? (
                       <div style={{ fontSize: 10, color: b.kosulOnay.versiyon === PDR_KOSUL_SURUM ? "#1A8C5B" : "#B07D1A", marginTop: 2 }}>
-                        {b.kosulOnay.versiyon === PDR_KOSUL_SURUM ? "✓" : "⚠"} Sözleşme/KVKK {b.kosulOnay.versiyon || "v1"} onaylandı — {new Date(b.kosulOnay.tarih).toLocaleString("tr-TR")}{b.kosulOnay.acikRizaYurtdisi ? " · açık rıza ✓" : ""}{b.kosulOnay.versiyon !== PDR_KOSUL_SURUM ? " (güncel sürüm bir sonraki girişte istenecek)" : ""}
+                        {b.kosulOnay.versiyon === PDR_KOSUL_SURUM ? "✓" : "⚠"} Sözleşme/KVKK {b.kosulOnay.versiyon || "v1"} onaylandı — {new Date(b.kosulOnay.tarih).toLocaleString("tr-TR")}{b.kosulOnay.versiyon !== PDR_KOSUL_SURUM ? " (güncel sürüm bir sonraki girişte istenecek)" : ""}
                       </div>
                     ) : (
                       <div style={{ fontSize: 10, color: "#B07D1A", marginTop: 2 }}>⚠ Onay kaydı yok (eski kayıt — girişte istenecek)</div>
