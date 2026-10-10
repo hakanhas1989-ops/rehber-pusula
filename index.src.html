@@ -598,7 +598,7 @@ function pdrOdemeEkraniGizle() {
 // onaylandığının kanıtı) ve tarayıcı bilgisi
 // basvurular/{uid}.kosulOnay alanına yazılır; geçmiş onaylar
 // kosulOnayGecmis dizisinde birikir.
-const PDR_KOSUL_SURUM = "v3";
+const PDR_KOSUL_SURUM = "v4";
 const PDR_SAGLAYICI = {
   ad: "Rehber Pusula",           // Hizmet sağlayıcının adı soyadı / unvanı buraya yazılabilir
   adres: "",                      // Tebligat adresi (boşsa metinde gösterilmez)
@@ -617,7 +617,7 @@ const PDR_BELGELER = [
     <p><b>4. Ücret.</b> Hesabın etkin kalması için belirlenen ücretin ödenmesi ya da Rehber Pusula tarafından ücretsiz kullanıcı olarak tanımlanmış olunması gerekir. Erişim süresi dolan veya ödemesi yapılmayan hesaplar erişime kapatılabilir; bu durumda veriler silinmez, Kullanıcı yedeğini alabilir.</p>
     <p><b>5. Öğrenci verileri.</b> Sisteme girilen öğrenci ve veli verilerinin veri sorumlusu Kullanıcı ya da Kullanıcının görev yaptığı kurumdur; Rehber Pusula bu verileri yalnızca hizmeti sunmak için, Kullanıcı adına işler (veri işleyen). Ayrıntılar "Öğrenci Verileri İşleme Taahhütnamesi"ndedir ve bu sözleşmenin parçasıdır.</p>
     <p><b>6. Yapay zekâ özellikleri.</b> Yapay zekâ çıktıları öneri niteliğindedir; hatalı olabilir ve mesleki karar Kullanıcıya aittir. Yapay zekâ sağlayıcısına giden metinlerde öğrenci adları, okul numaraları, şube bilgisi, T.C. kimlik numarası, telefon ve e-posta otomatik olarak kodlanır. Yüklenen fotoğraf ve PDF'lerin içindeki yazılar kodlanamaz; Kullanıcı bu belgelerdeki kimlik bilgilerini yüklemeden önce kapatmakla yükümlüdür. Yapay zekâ kullanım ücreti, Kullanıcının kendi API anahtarı üzerinden doğrudan Kullanıcıya yansır.</p>
-    <p><b>7. Cihazda şifreleme ve parola.</b> Kullanıcı isteğe bağlı olarak verilerini kendi belirlediği bir parolayla şifreleyebilir. Bu parola hiçbir yerde saklanmaz ve Rehber Pusula tarafından bilinmez. <b>Parolanın unutulması ya da kaybedilmesi halinde şifreli veriler kurtarılamaz; bundan doğan veri kaybından Kullanıcı sorumludur.</b></p>
+    <p><b>7. Cihazda şifreleme ve parola.</b> Programdaki veriler, sunucuya gönderilmeden önce Kullanıcının kendi belirlediği bir parolayla Kullanıcının cihazında şifrelenir; bu şifreleme zorunludur ve ilk girişte kurulur. Bu parola hiçbir yerde saklanmaz ve Rehber Pusula tarafından bilinmez. <b>Parolanın unutulması ya da kaybedilmesi halinde şifreli veriler kurtarılamaz; bundan doğan veri kaybından Kullanıcı sorumludur.</b></p>
     <p><b>8. Yedekleme.</b> Kullanıcı, verilerinin yedeğini program içindeki "Yedeği İndir" özelliğiyle düzenli olarak almakla yükümlüdür. İndirilen yedek dosyası şifresizdir; güvenli saklanmasından Kullanıcı sorumludur.</p>
     <p><b>9. Fikri mülkiyet.</b> Yazılımın kaynak kodu, tasarımı ve içerikleri Rehber Pusula'ya aittir. Kopyalanamaz, çoğaltılamaz, tersine mühendislik yapılamaz, başka bir ürün olarak satılamaz veya üçüncü kişilere devredilemez. İhlal hâlinde hesap askıya alınabilir ve yasal yollara başvurulabilir.</p>
     <p><b>10. Hizmetin sürekliliği ve sorumluluk.</b> Rehber Pusula hizmetin kesintisiz ve hatasız olması için makul özeni gösterir; ancak altyapı sağlayıcılarından, internet bağlantısından veya mücbir sebeplerden kaynaklanan kesinti ve veri kayıplarından, Kullanıcının yedek almamasından ya da parolasını kaybetmesinden doğan zararlardan sorumlu tutulamaz. Rehber Pusula'nın sorumluluğu, her hâlükârda Kullanıcının son 12 ayda ödediği ücretle sınırlıdır; kast ve ağır ihmal hâlleri saklıdır.</p>
@@ -630,15 +630,15 @@ const PDR_BELGELER = [
     <p><b>2. İşlenen kişisel verileriniz.</b> Kimlik ve iletişim: e-posta adresi. Müşteri işlem: başvuru tarihi, hesap/ödeme durumu, erişim süresi. İşlem güvenliği: oturum bilgileri, bildirim için cihaz jetonu, sözleşme onay kayıtları (tarih, sürüm, tarayıcı bilgisi). Programa girdiğiniz ayarlar (okul kademesi vb.).</p>
     <p><b>3. İşleme amaçları.</b> Hesabın açılması ve yönetimi; hizmetin sunulması; ödeme ve erişim süresinin takibi; bildirimlerin gönderilmesi; güvenliğin sağlanması; sözleşme onaylarının ispatı; yasal yükümlülüklerin yerine getirilmesi.</p>
     <p><b>4. Hukuki sebepler.</b> KVKK m.5/2-c (sözleşmenin kurulması ve ifası), m.5/2-ç (hukuki yükümlülük), m.5/2-e (bir hakkın tesisi, kullanılması veya korunması) ve m.5/2-f (veri sorumlusunun meşru menfaati).</p>
-    <p><b>5. Altyapı ve aktarım.</b> Program, ${PDR_ALTYAPI_SAGLAYICILARI} altyapısı üzerinde çalışır; verileriniz yalnızca hizmetin sunulması için bu sağlayıcıların sunucularında işlenir ve bu sunucular yurt dışında bulunabilir. "Cihazda Şifreleme" açıkken program verileri sunucuya gitmeden önce sizin cihazınızda, sizin parolanızla şifrelenir; sağlayıcılar dahil kimse içeriği okuyamaz. Yapay zekâ özelliklerinde öğrenci kimlik bilgileri kodlanarak gönderilir. Verileriniz bunlar dışında üçüncü kişilerle paylaşılmaz, satılmaz; kanunen yetkili kurumların talebi saklıdır.</p>
+    <p><b>5. Altyapı ve aktarım.</b> Program, ${PDR_ALTYAPI_SAGLAYICILARI} altyapısı üzerinde çalışır; verileriniz yalnızca hizmetin sunulması için bu sağlayıcıların sunucularında işlenir ve bu sunucular yurt dışında bulunabilir. Program verileri sunucuya gitmeden önce sizin cihazınızda, sizin parolanızla şifrelenir; sağlayıcılar dahil kimse içeriği okuyamaz. Yapay zekâ özelliklerinde öğrenci kimlik bilgileri kodlanarak gönderilir. Verileriniz bunlar dışında üçüncü kişilerle paylaşılmaz, satılmaz; kanunen yetkili kurumların talebi saklıdır.</p>
     <p><b>6. Toplama yöntemi.</b> Kayıt formu ve programın kullanımı sırasında elektronik ortamda, otomatik yollarla toplanır.</p>
     <p><b>7. Saklama süresi.</b> Hesabınız açık olduğu sürece; hesap kapatıldıktan sonra yasal zamanaşımı ve ispat yükümlülükleri süresince saklanır, ardından silinir veya anonim hâle getirilir.</p>
     <p><b>8. Haklarınız (KVKK m.11).</b> Verilerinizin işlenip işlenmediğini öğrenme, bilgi talep etme, amacına uygun kullanılıp kullanılmadığını öğrenme, aktarıldığı üçüncü kişileri bilme, eksik/yanlış işlenmişse düzeltilmesini, şartları oluşmuşsa silinmesini veya yok edilmesini isteme, bu işlemlerin aktarılan kişilere bildirilmesini isteme, otomatik sistemlerle analiz sonucu aleyhinize bir sonuca itiraz etme ve zararın giderilmesini talep etme haklarına sahipsiniz. Başvurularınızı ${PDR_SAGLAYICI.eposta} adresine iletebilirsiniz; en geç 30 gün içinde ücretsiz yanıtlanır.</p>` },
   { id: "taahhut", kisa: "Öğrenci Verileri Taahhütnamesi", html: () => `
     <p><b>1. Roller.</b> Programa girilen öğrenci ve veli verilerinin <b>veri sorumlusu</b> Kullanıcı ya da Kullanıcının görev yaptığı kurumdur. Rehber Pusula bu veriler bakımından <b>veri işleyen</b>dir ve verileri yalnızca Kullanıcı adına, hizmeti sunmak amacıyla işler.</p>
     <p><b>2. Kullanıcının taahhütleri.</b> Kullanıcı; (a) öğrenci ve veli verilerini KVKK ve görev yaptığı kurumun mevzuatına uygun bir hukuki sebebe dayanarak işlediğini, (b) ilgili kişilere karşı aydınlatma yükümlülüğünün kendisine/kurumuna ait olduğunu, (c) sağlık, psikolojik durum gibi özel nitelikli verileri yalnızca mesleki gereklilik ölçüsünde ve gerekli özenle gireceğini, (d) amaçla ilgisiz ve aşırı veri girmeyeceğini, (e) fotoğraf ve belge yüklerken üzerindeki kimlik bilgilerini kapatacağını, (f) hesap şifresini ve varsa şifreleme parolasını gizli tutacağını, (g) cihazlarını ekran kilidiyle koruyacağını kabul ve taahhüt eder.</p>
-    <p><b>3. Rehber Pusula'nın taahhütleri.</b> Rehber Pusula; verileri hizmet dışında hiçbir amaçla kullanmaz, satmaz, paylaşmaz ve içeriklerine erişmez. Uygulanan teknik tedbirler: hesap bazlı erişim kuralları (her kullanıcı yalnızca kendi verisine erişir), isteğe bağlı cihazda uçtan uca şifreleme (AES-256; bu durumda veriler sunucuda Rehber Pusula dahil kimse tarafından okunamaz), yapay zekâya giden metinlerde ad / okul numarası / şube / T.C. no / telefon / e-posta kodlaması, öğrenci soyadlarının otomatik maskelenmesi, hareketsizlikte otomatik oturum kapatma.</p>
-    <p><b>4. Altyapı.</b> Hizmet ${PDR_ALTYAPI_SAGLAYICILARI} altyapısı üzerinde çalışır; sunucular yurt dışında bulunabilir. "Cihazda Şifreleme" açıkken öğrenci verileri sunucuda yalnızca şifreli hâlde durur ve okunamaz; Kullanıcının bu özelliği açması önerilir. Yapay zekâ sağlayıcısına kimlik bilgileri kodlanarak gönderilir. Bildirimlerin çalışabilmesi için hatırlatma metinleri şifrelenmez; Kullanıcı hatırlatmalara öğrenci kimliğini açık eden bilgi yazmamaya özen gösterir.</p>
+    <p><b>3. Rehber Pusula'nın taahhütleri.</b> Rehber Pusula; verileri hizmet dışında hiçbir amaçla kullanmaz, satmaz, paylaşmaz ve içeriklerine erişmez. Uygulanan teknik tedbirler: hesap bazlı erişim kuralları (her kullanıcı yalnızca kendi verisine erişir), zorunlu cihazda uçtan uca şifreleme (AES-256; veriler sunucuda Rehber Pusula dahil kimse tarafından okunamaz), yapay zekâya giden metinlerde ad / okul numarası / şube / T.C. no / telefon / e-posta kodlaması, öğrenci soyadlarının otomatik maskelenmesi, hareketsizlikte otomatik oturum kapatma.</p>
+    <p><b>4. Altyapı.</b> Hizmet ${PDR_ALTYAPI_SAGLAYICILARI} altyapısı üzerinde çalışır; sunucular yurt dışında bulunabilir. Öğrenci verileri sunucuda yalnızca şifreli hâlde durur ve okunamaz. Yapay zekâ sağlayıcısına kimlik bilgileri kodlanarak gönderilir. Bildirimlerin çalışabilmesi için hatırlatma metinleri şifrelenmez; Kullanıcı hatırlatmalara öğrenci kimliğini açık eden bilgi yazmamaya özen gösterir.</p>
     <p><b>5. Veri ihlali.</b> Rehber Pusula, kendi sorumluluk alanında bir veri ihlali öğrenmesi hâlinde Kullanıcıyı gecikmeksizin ve en geç 72 saat içinde bilgilendirir; Kullanıcının Kurula ve ilgili kişilere bildirim yükümlülüğünü yerine getirmesine destek olur.</p>
     <p><b>6. Silme ve iade.</b> Kullanıcı verilerini dilediği an yedek olarak indirebilir. Hesabın kapatılması ve yazılı talep üzerine veriler en geç 30 gün içinde silinir.</p>
     <p><b>7. Bilgi talebi.</b> Kullanıcı, verilerinin işlenmesine ilişkin uygulanan tedbirler hakkında ${PDR_SAGLAYICI.eposta} adresinden bilgi talep edebilir.</p>` },
@@ -787,7 +787,9 @@ function pdrClearLocalCache() {
 const PDR_SIFRE_META = "pdr-sifreleme-meta";
 const PDR_SIFRE_MUAF = new Set([PDR_SIFRE_META, "pdr-hatirlatmalar", "fcmTokens"]);
 const PDR_SIFRE_TUR = 310000;
-const PDR_SIFRE = { anahtar: null, acik: false, hatali: new Set(), uid: null };
+const PDR_SIFRE = { anahtar: null, acik: false, hatali: new Set(), uid: null, metaKesin: false };
+// true ise şifrelemesi olmayan hesap, girişte parola belirlemeden devam edemez
+const PDR_SIFRE_ZORUNLU = true;
 
 function pdrB64(buf) { const b = new Uint8Array(buf); let s = ""; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); }
 function pdrB64Coz(s) { const b = atob(s); const u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
@@ -826,7 +828,9 @@ function pdrSifreUygulanir(key) { return !!(PDR_SIFRE.acik && PDR_SIFRE.anahtar 
 // HATA fırlatır (çağıran yerel kopyaya düşer) ve o anahtara yazmayı kilitler.
 async function pdrSifreliDegeriAc(key, ham) {
   if (typeof ham !== "string" || !ham.startsWith("ENC1:")) return ham;
-  if (!PDR_SIFRE.anahtar) { PDR_SIFRE.hatali.add(key); pdrSifreUyariGoster(); throw new Error("SIFRE_ANAHTARI_YOK"); }
+  // Şifreli belge görüldü ama anahtar yok (ör. şifreleme bilgisi okunamadı):
+  // hesap şifreli demektir — tüm yazmalar kilitlenir, veri ezilmez.
+  if (!PDR_SIFRE.anahtar) { PDR_SIFRE.acik = true; PDR_SIFRE.hatali.add(key); pdrSifreUyariGoster(); throw new Error("SIFRE_ANAHTARI_YOK"); }
   try { return await pdrSifreCoz(ham); }
   catch (e) { PDR_SIFRE.hatali.add(key); pdrSifreUyariGoster(); throw new Error("SIFRE_COZULEMEDI"); }
 }
@@ -861,9 +865,13 @@ async function pdrSifreMetaOku(uid) {
       new Promise((_, rej) => setTimeout(() => rej(new Error("zaman aşımı")), 8000)),
     ]);
     const v = snap.exists ? snap.data().value : null;
-    try { if (v) localStorage.setItem("pdr_sifre_meta_" + uid, v); else localStorage.removeItem("pdr_sifre_meta_" + uid); } catch (e) {}
+    // Önbellekten gelen "yok" bilgisi kesin değildir (çevrimdışı olabilir)
+    PDR_SIFRE.metaKesin = !(snap.metadata && snap.metadata.fromCache);
+    try { if (v) localStorage.setItem("pdr_sifre_meta_" + uid, v); else if (PDR_SIFRE.metaKesin) localStorage.removeItem("pdr_sifre_meta_" + uid); } catch (e) {}
+    if (!v && !PDR_SIFRE.metaKesin) { const yerel = localStorage.getItem("pdr_sifre_meta_" + uid); return yerel ? JSON.parse(yerel) : null; }
     return v ? JSON.parse(v) : null;
   } catch (e) {
+    PDR_SIFRE.metaKesin = false;
     const yerel = localStorage.getItem("pdr_sifre_meta_" + uid);
     return yerel ? JSON.parse(yerel) : null;
   }
@@ -873,12 +881,64 @@ async function pdrSifreMetaOku(uid) {
 async function pdrSifrelemeHazirla(uid) {
   PDR_SIFRE.uid = uid; PDR_SIFRE.anahtar = null; PDR_SIFRE.acik = false; PDR_SIFRE.meta = null;
   const meta = await pdrSifreMetaOku(uid);
-  if (!meta) return;
+  if (!meta) {
+    // Yalnızca sunucu "şifreleme yok" dediyse kurulum istenir — çevrimdışı/
+    // belirsiz durumda yeni anahtar üretmek mevcut şifreli veriyi kilitleyebilirdi.
+    if (PDR_SIFRE_ZORUNLU && PDR_SIFRE.metaKesin && pdrSifreDestekleniyor()) {
+      const sonuc = await pdrZorunluSifreKur(uid);
+      if (sonuc === "zaten-var") return pdrSifrelemeHazirla(uid);
+    }
+    return;
+  }
   PDR_SIFRE.acik = true; PDR_SIFRE.meta = meta;
   if (!pdrSifreDestekleniyor()) { alert("Verilerin şifreli ama bu tarayıcı şifre çözmeyi desteklemiyor. Güncel bir tarayıcı (Chrome, Safari, Edge) kullan."); return; }
   const kayitli = await pdrAnahtarGetir(uid);
   if (kayitli) { PDR_SIFRE.anahtar = kayitli; return; }
   PDR_SIFRE.anahtar = await pdrParolaSor(meta, uid);
+}
+// Zorunlu şifreleme kurulumu (ilk girişte, şifrelemesi olmayan hesap için)
+function pdrZorunluSifreKur(uid) {
+  return new Promise((resolve) => {
+    if (window.pdrSplashGizle) window.pdrSplashGizle();
+    const ort = document.createElement("div");
+    ort.id = "pdr-sifre-kur-ekrani";
+    ort.style.cssText = "position:fixed;inset:0;z-index:99999;background:linear-gradient(160deg,#0F3D2E,#1F1638);display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,-apple-system,Segoe UI,sans-serif;overflow-y:auto";
+    ort.innerHTML = '<div style="background:#fff;border-radius:18px;max-width:400px;width:100%;padding:22px;box-shadow:0 20px 50px rgba(0,0,0,.35);margin:auto">' +
+      '<div style="font-size:30px;text-align:center">🔒</div>' +
+      '<div style="font-size:18px;font-weight:800;text-align:center;color:#1a1a1a;margin:6px 0 6px">Verilerini şifrele</div>' +
+      '<div style="font-size:13px;color:#444;line-height:1.55;margin-bottom:10px">Öğrenci verilerinin gizliliği için tüm kayıtların, sunucuya gitmeden önce <b>bu cihazda, senin belirleyeceğin parolayla</b> şifrelenir. Sunucuda yalnızca okunamaz metin durur; Rehber Pusula dahil kimse okuyamaz.</div>' +
+      '<ul style="font-size:12.5px;color:#444;line-height:1.55;margin:0 0 12px 18px;padding:0">' +
+      '<li>Bu parola giriş şifrenden ayrıdır; yeni bir cihazda bir kez sorulur.</li>' +
+      '<li><b>Parolayı unutursan verilerin kurtarılamaz.</b> Parola hiçbir yere kaydedilmez.</li>' +
+      '<li>Parolanı bir yere yaz ve güvenli sakla. Programda düzenli olarak "Yedeği İndir"i kullan.</li></ul>' +
+      '<input id="pdr-kur-p1" type="password" autocomplete="new-password" placeholder="Şifreleme parolası (en az 8 karakter)" style="width:100%;box-sizing:border-box;padding:11px;border:1.5px solid #ccc;border-radius:10px;font-size:15px;margin-bottom:8px">' +
+      '<input id="pdr-kur-p2" type="password" autocomplete="new-password" placeholder="Parola (tekrar)" style="width:100%;box-sizing:border-box;padding:11px;border:1.5px solid #ccc;border-radius:10px;font-size:15px;margin-bottom:8px">' +
+      '<label style="display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:#333;line-height:1.45;margin-bottom:8px"><input id="pdr-kur-onay" type="checkbox" style="margin-top:3px"> Parolamı güvenli bir yere yazdım. Unutursam verilerimin kurtarılamayacağını anladım.</label>' +
+      '<div id="pdr-kur-hata" style="color:#B91C1C;font-size:12.5px;font-weight:700;min-height:18px"></div>' +
+      '<button id="pdr-kur-btn" style="width:100%;padding:12px;border:none;border-radius:10px;background:#127C56;color:#fff;font-size:15px;font-weight:800;margin-top:4px;cursor:pointer">Şifrele ve devam et</button>' +
+      '<button id="pdr-kur-cikis" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:10px;background:#fff;color:#555;font-size:13px;margin-top:10px;cursor:pointer">Çıkış yap</button></div>';
+    document.body.appendChild(ort);
+    const $ = (id) => ort.querySelector("#" + id);
+    $("pdr-kur-btn").onclick = async () => {
+      const p1 = $("pdr-kur-p1").value, p2 = $("pdr-kur-p2").value, hata = $("pdr-kur-hata"), btn = $("pdr-kur-btn");
+      hata.textContent = "";
+      if (p1.length < 8) { hata.textContent = "Parola en az 8 karakter olmalı."; return; }
+      if (p1 !== p2) { hata.textContent = "İki parola aynı değil."; return; }
+      if (!$("pdr-kur-onay").checked) { hata.textContent = "Devam etmek için kutucuğu işaretle."; return; }
+      btn.disabled = true; btn.textContent = "Şifreleniyor…";
+      try {
+        const r = await window.pdrSifrelemeyiAc(p1, (i, n) => { btn.textContent = `Şifreleniyor… ${i}/${n}`; });
+        if (r && r.hatalar && r.hatalar.length) console.warn("Bazı belgeler şifrelenemedi, açılışta yeniden denenecek:", r.hatalar);
+        ort.remove(); resolve("tamam");
+      } catch (e) {
+        if (/zaten açık/.test(e.message)) { ort.remove(); resolve("zaten-var"); return; }
+        hata.textContent = "Şifreleme başlatılamadı (" + e.message + "). İnternet bağlantını kontrol edip tekrar dene; verilerinde değişiklik yapılmadı.";
+        btn.disabled = false; btn.textContent = "Şifrele ve devam et";
+      }
+    };
+    $("pdr-kur-cikis").onclick = async () => { await pdrAuth.signOut(); location.reload(); };
+    setTimeout(() => $("pdr-kur-p1").focus(), 50);
+  });
 }
 // Basit, bağımsız (React'tan önce çalışan) parola ekranı
 function pdrParolaSor(meta, uid) {
@@ -922,14 +982,18 @@ window.pdrSifreDurum = () => ({ destek: pdrSifreDestekleniyor(), acik: PDR_SIFRE
 window.pdrSifrelemeyiAc = async (parola, ilerleme) => {
   const user = pdrAuth.currentUser; if (!user) throw new Error("Giriş yapılmamış");
   if (!pdrSifreDestekleniyor()) throw new Error("Bu tarayıcı şifrelemeyi desteklemiyor");
-  if (await pdrSifreMetaOku(user.uid)) throw new Error("Şifreleme zaten açık");
   const ham = crypto.getRandomValues(new Uint8Array(32));
   const meta = await pdrMetaUret(ham, parola);
   const anahtar = await crypto.subtle.importKey("raw", ham, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
   ham.fill(0);
   // Doğrulama: meta parolayla gerçekten açılabiliyor mu?
   await pdrVeriAnahtariAc(meta, parola);
-  await pdrDb.collection("users").doc(user.uid).collection("data").doc(PDR_SIFRE_META).set({ value: JSON.stringify(meta), chunked: false, updatedAt: Date.now() });
+  const metaRef = pdrDb.collection("users").doc(user.uid).collection("data").doc(PDR_SIFRE_META);
+  await pdrDb.runTransaction(async (t) => {
+    const mevcut = await t.get(metaRef);
+    if (mevcut.exists) throw new Error("Şifreleme zaten açık");
+    t.set(metaRef, { value: JSON.stringify(meta), chunked: false, updatedAt: Date.now() });
+  });
   try { localStorage.setItem("pdr_sifre_meta_" + user.uid, JSON.stringify(meta)); } catch (e) {}
   PDR_SIFRE.anahtar = anahtar; PDR_SIFRE.acik = true; PDR_SIFRE.meta = meta;
   await pdrAnahtarSakla(user.uid, anahtar);
@@ -23324,7 +23388,7 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
       {kvkkBildirimGoster && (
         <div style={{ background: "#EEF2FF", borderBottom: "1px solid #C7D2FE", padding: "10px 16px", display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ fontSize: 12, color: "#3B4FD8", lineHeight: 1.5, flex: 1 }}>
-            🔒 Verilerine yalnızca sen erişebilirsin. Ayarlar'dan "Cihazda Şifreleme"yi açarsan sunucuda kimse okuyamaz. Öğrenci verilerinin veri sorumlusu sen/kurumunsun — ayrıntı: Ayarlar → Sözleşme ve KVKK Metinleri.
+            🔒 Verilerin cihazında senin parolanla şifreleniyor; sunucuda kimse okuyamaz. Öğrenci verilerinin veri sorumlusu sen/kurumunsun — ayrıntı: Ayarlar → Sözleşme ve KVKK Metinleri.
           </div>
           <button onClick={async () => { setKvkkBildirimGoster(false); await saveKvkkBildirimGorunduMu(); }} style={{
             background: "none", border: "none", color: "#3B4FD8", fontSize: 18, fontWeight: 800, cursor: "pointer", flexShrink: 0, lineHeight: 1, padding: 4
