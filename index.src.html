@@ -3105,6 +3105,9 @@ function pdrKapaliRiskAnalizi(riskForm, gorusmeler = [], profil1 = null, kademe 
   const veriYok = !gecerli.length && !n;
   if (veriYok) duzey = { "Yüksek": "YÜKSEK", "Orta": "ORTA", "Düşük": "HAFİF" }[riskForm.oncelik] || "ORTA";
   if (duzey === "HAFİF" && (denemeRisk === "yuksek" || istismarIpucu || ozGecmisVar)) duzey = "ORTA";
+  // Kritik durum yoksa YÜKSEK düzey, en az iki işlev alanında bozulma (ya da yasa dışı madde,
+  // depresif çekirdek belirtiler) gerektirir — tek alanda etkilenme orta düzeyde kalır
+  if (duzey === "YÜKSEK" && !kritikTurler.length && islev.size < 2 && !guncelGuclu("Madde Kullanımı", 3) && !(guncelGuclu("Duygusal", 3) && islev.size >= 1) && riskForm.oncelik !== "Yüksek") duzey = "ORTA";
   if (kritikTurler.length) duzey = "YÜKSEK";
   if (aileFaktor.has("ailede intihar/kendine zarar öyküsü") && duzey === "HAFİF") duzey = "ORTA";
 
@@ -4386,6 +4389,413 @@ function pdrKapaliButunlesikYorum(v) {
   return s.join("\n") + KS_ALT;
 }
 // ===== KAPALI SİSTEM: DENEME, MEB RAPORU, VELİ MEKTUBU, BÜTÜNLEŞİK BİTİŞ =====
+
+// ===== KAPALI SİSTEM: SÜPERVİZYON BAŞLANGIÇ =====
+// Bütün öğrenci verilerinden kapalı (yapay zekâsız) süpervizyon raporu ve hazır
+// soru menüsüne öğrenciye özel yanıtlar. Veri cihazdan çıkmaz.
+
+// Ortak bağlam: tüm veriler tek nesnede, çekirdek çözümleme bir kez yapılır
+function ksSupBaglam({ gorusmeler = [], profil1 = null, profil2 = null, denemeGirilen = [], dersListesi = [], sinavTuru = "lgs", riskler = [], mudahaleler = [], sevkler = [], butunlesik = null, kademe = "" }) {
+  const notlar = [...gorusmeler].filter(g => g && (g.summary || "").trim()).sort(ksTarihSirala);
+  const kd = kademe || "ortaokul";
+  const denemeOzet = denemeGirilen && denemeGirilen.length ? ksDenemeOzetHesapla(denemeGirilen, sinavTuru) : null;
+  const r = ksCekirdek(notlar, "", profil1 && profil1.scores ? profil1 : null, kd, denemeOzet);
+  const c = r.cekirdek;
+  const alt = ksAltTema(c, r.tur);
+  const sade = (b) => ksSade(b.ifade);
+  const temaVar = (tur, re) => (c.turIfade[tur] || []).some(b => re.test(sade(b)));
+  const kaygi = temaVar("Duygusal", /kaygi|sinav|stres|panik|endise|titre|gergin|korku/);
+  const depresif = temaVar("Duygusal", /umutsuz|degersiz|zevk alm|mutsuz|agli|isteksiz|moralsiz|ise yaramaz|icine kapan/);
+  const toplamlar = (denemeGirilen || []).slice().sort((a, b) => a.no - b.no).map(d => d.toplam);
+  const denemeEgim = ksEgim(toplamlar);
+  const notPuan = notlar.length ? pdrKapaliProfilPuani(notlar, "", denemeOzet).puan : null;
+  // Son görüşmeden bu yana geçen gün
+  let sonGun = null;
+  if (notlar.length) {
+    const a = ksTarihAnahtar(notlar[notlar.length - 1].date);
+    if (a !== "00000000") { const d = new Date(+a.slice(0, 4), +a.slice(4, 6) - 1, +a.slice(6, 8)); sonGun = Math.round((Date.now() - d.getTime()) / 86400000); }
+  }
+  // Direnç / konuşmama ipuçları
+  const direnc = notlar.some(g => /(konusmak istem|konusmadi|cevap verm|sessiz kaldi|gorusmeye gelmek istem|gelmedi|direnc|isteksiz|kisa cevap|tek kelime)/.test(ksSade(g.summary)));
+  return { notlar, kd, denemeOzet, r, c, alt, kaygi, depresif, denemeEgim, toplamlar, notPuan, sonGun, direnc, profil1, profil2, denemeGirilen, dersListesi, sinavTuru, riskler, mudahaleler, sevkler, butunlesik };
+}
+
+const KS_YAKLASIM = {
+  "Duygusal": "Bilişsel davranışçı yaklaşım (Beck): duygu-düşünce-davranış döngüsünün fark ettirilmesi, işlevsel olmayan düşüncelerin sorgulanması ve kademeli yüzleşme. Duygu düzenleme becerileri için Gross'un modeli rehber alınabilir.",
+  "Öz Zarar": "Güvenlik odaklı kriz müdahalesi: risk değerlendirmesi (C-SSRS), güvenlik planı (Stanley-Brown), araçlara erişimin kısıtlanması ve uzman tedavisiyle eş zamanlı okul desteği.",
+  "İhmal-İstismar": "Koruma odaklı yaklaşım: yasal bildirim, güvenli ortamın sağlanması ve travma bilgili (trauma-informed) okul desteği; terapötik çalışma uzman kurumlarla birlikte yürütülmeli.",
+  "Toplumsal Cinsiyet Temelli Şiddet": "Hak temelli ve koruma odaklı yaklaşım: yasal süreçlerin işletilmesi ve eğitime devamın güvence altına alınması.",
+  "Akran-Zorbalık": "Bütüncül okul yaklaşımı (Olweus): mağdurun güvenliği, zorbalık yapanla ayrı çalışma, seyircilerin harekete geçirilmesi ve sınıf ikliminin güçlendirilmesi; bireysel düzeyde atılganlık eğitimi.",
+  "Davranış": "Davranışçı ve sistemik yaklaşım: işlevsel davranış analizi (ABC), olumlu davranış desteği ve tutarlı pekiştirme; davranışın altındaki ihtiyacı (Adler: ait olma/önemsenme) anlamak.",
+  "Aile": "Aile sistemleri yaklaşımı (Minuchin, Bowen): çocuğu çatışmanın merkezinden çıkarmak, aile-okul iletişimini düzenli hâle getirmek; bireysel düzeyde destekleyici danışma.",
+  "Yas-Kayıp": "Yas danışmanlığı (Worden'ın yas görevleri): kaybın gerçekliğini kabul, acıyı yaşama, kaybedilenin olmadığı dünyaya uyum ve kaybedilenle bağın sürdürülmesi.",
+  "Travma": "Travma bilgili yaklaşım: önce güvenlik ve istikrar, ardından duygu düzenleme; travma odaklı terapi gerekiyorsa uzmana yönlendirme (TF-BDT).",
+  "Teknoloji-Ekran Bağımlılığı": "Motivasyonel görüşme (Miller ve Rollnick): değişim için öğrencinin kendi nedenlerini ortaya çıkarmak; aileyle davranışsal anlaşma ve alternatif etkinlikler.",
+  "Devamsızlık": "İşlevsel yaklaşım: devamsızlığın işlevini (kaçınma, ilgi, somut kazanç) belirleyip kademeli okula dönüş planı; altta yatan nedene yönelik müdahale.",
+  "Akademik": "Çözüm odaklı kısa süreli yaklaşım ve öz-düzenlemeli öğrenme (Zimmerman): küçük, ulaşılabilir hedefler, başarı deneyimleriyle öz-yeterliğin (Bandura) güçlendirilmesi.",
+  "Özel Öğrenme Güçlüğü": "Eğitsel değerlendirme ve uyarlama: RAM süreci, sınıf içi uyarlamalar ve güçlü yönlere dayalı öğretim; öz güvenin korunması.",
+  "Madde Kullanımı": "Motivasyonel görüşme ve zarar azaltma ilkeleriyle birlikte uzman (ÇEMATEM) yönlendirmesi; akran çevresi ve boş zaman düzenlemesi.",
+  "Ekonomik Güçlük": "Ekolojik yaklaşım (Bronfenbrenner): kaynaklara erişim ve sosyal hizmetlerle iş birliği; öğrencinin benlik algısının korunması.",
+  "Göç-Uyum Süreci": "Kültüre duyarlı danışma ve uyum odaklı yaklaşım: dil desteği, akran eşleştirmesi, aidiyetin güçlendirilmesi.",
+  "Sağlık": "Biyopsikososyal yaklaşım: sağlık durumunun okul yaşamına etkisinin yönetilmesi ve duygusal uyumun desteklenmesi.",
+  "Adli Süreç-Danışmanlık Tedbiri": "Danışmanlık tedbiri yönergesine uygun yapılandırılmış izlem; okula bağlılığın ve koruyucu etkenlerin güçlendirilmesi.",
+  "Diğer": "Gelişimsel ve önleyici rehberlik: güçlü yönlerin keşfi, ihtiyaçların netleştirilmesi.",
+};
+
+// ── Süpervizyon raporu ───────────────────────────────────────────────────────
+function pdrKapaliSupervizyon(girdi) {
+  const X = ksSupBaglam(girdi);
+  const { r, c, notlar } = X;
+  const s = [];
+  if (!notlar.length && !(X.denemeGirilen || []).length && !(X.profil1 && X.profil1.scores)) {
+    return "KLİNİK İZLENİM: Bu öğrenci için henüz görüşme notu, profil ya da deneme verisi yok. Süpervizyon için önce en az bir görüşme kaydı gerekli; ilk görüşmede güven ilişkisi kurma, güçlü yönleri ve ihtiyaçları keşfetme önerilir." + KS_ALT;
+  }
+
+  // KLİNİK İZLENİM
+  const izl = [];
+  izl.push(`${notlar.length} görüşme kaydı incelendi. Öne çıkan alan: ${r.tur.toLocaleLowerCase("tr")}${X.alt ? " (" + KS_ALT_AD[X.alt].toLocaleLowerCase("tr") + ")" : ""}; güncel risk düzeyi ${r.duzey.toLocaleLowerCase("tr")}${r.ikincil !== "Yok" ? `, eşlik eden alan: ${r.ikincil.toLocaleLowerCase("tr")}` : ""}.`);
+  if (r.islev.length) izl.push(`İşlevselliğin etkilendiği alanlar: ${r.islev.map(a => KS_ISLEV_AD[a]).join(", ")}.`);
+  if (X.profil1 && X.profil1.scores) {
+    const sc = X.profil1.scores;
+    const g = KS_BOYUTLAR.filter(b => sc[b] >= 4).map(b => KS_BOYUT_BILGI[b].ad.toLocaleLowerCase("tr"));
+    const z = KS_BOYUTLAR.filter(b => sc[b] > 0 && sc[b] <= 2).map(b => KS_BOYUT_BILGI[b].ad.toLocaleLowerCase("tr"));
+    if (g.length || z.length) izl.push(`Profilde ${g.length ? "güçlü alanlar: " + g.join(", ") : ""}${g.length && z.length ? "; " : ""}${z.length ? "desteklenmesi gereken alanlar: " + z.join(", ") : ""}.`);
+  }
+  if (X.denemeOzet) izl.push(`Deneme ortalaması ${X.denemeOzet.ortalama}/${X.denemeOzet.toplam}${X.toplamlar.length >= 2 ? `, eğilim ${X.denemeEgim >= 1 ? "yükselen" : X.denemeEgim <= -1 ? "düşen" : "yatay"}` : ""}.`);
+  if (c.tonKotu) izl.push("Görüşme notlarının tonu zaman içinde olumsuz yönde değişmiş.");
+  else if (c.tonIyi) izl.push("Görüşme notlarının tonu zaman içinde olumlu yönde gelişiyor.");
+  s.push("KLİNİK İZLENİM: " + izl.join(" "));
+
+  // VAKA FORMÜLASYONU (5P)
+  const tetikleyen = [], zemin = [], surduren = [];
+  const olayTur = ["Yas-Kayıp", "Travma", "Aile", "Akran-Zorbalık", "Göç-Uyum Süreci", "İhmal-İstismar"];
+  olayTur.forEach(t => {
+    const b = (c.turIfade[t] || []).filter(x => x.guc >= 2).sort((a, b2) => a.gorusme - b2.gorusme)[0];
+    if (b) tetikleyen.push(`${t.toLocaleLowerCase("tr")} (${b.etiket}: "${b.ifade.length > 70 ? b.ifade.slice(0, 68) + "…" : b.ifade}")`);
+  });
+  if (X.kaygi && X.sinavTuru === "lgs") tetikleyen.push("sınav dönemi / LGS hazırlık süreci");
+  c.aileFaktor.forEach(a => zemin.push(a));
+  if ((c.turPuan["Özel Öğrenme Güçlüğü"] || 0) >= 2) zemin.push("öğrenme/dikkat güçlüğüne işaret eden bulgular");
+  if ((c.turPuan["Sağlık"] || 0) >= 2) zemin.push("sağlık sorunu");
+  if ((c.turPuan["Ekonomik Güçlük"] || 0) >= 2) zemin.push("ekonomik güçlük");
+  if (c.ozGecmisVar) zemin.push("geçmişte öz zarar öyküsü");
+  const d2 = X.profil2 && X.profil2.d2; if (d2 && parseFloat(d2.PR) < 25) zemin.push(`düşük dikkat performansı (D2 yüzdelik ${d2.PR})`);
+  if (X.profil1 && X.profil1.scores && X.profil1.scores.ozguven > 0 && X.profil1.scores.ozguven <= 2) zemin.push("düşük öz güven");
+  if (r.islev.includes("devam") || (c.turPuan["Devamsızlık"] || 0) >= 2) surduren.push("kaçınma (okula gelmeme/devamsızlık) — kısa vadede rahatlatıp uzun vadede sorunu büyütür");
+  if (c.ekranBelirti === "Var") surduren.push("ekran kullanımı ve uyku düzensizliği");
+  else if (r.islev.includes("uyku")) surduren.push("uyku düzensizliği");
+  if (X.depresif || (c.turIfade["Duygusal"] || []).some(b => /degersiz|basaramayacag|yapamam|yetersiz/.test(ksSade(b.ifade)))) surduren.push("kendine yönelik olumsuz düşünceler (başaramayacağı, değersiz olduğu inancı)");
+  if (r.islev.includes("aile")) surduren.push("süregen aile içi çatışma");
+  if ((c.turPuan["Akran-Zorbalık"] || 0) >= 2 && r.islev.includes("sosyal")) surduren.push("akranlardan uzaklaşma ve yalnızlık");
+  const bt = X.butunlesik;
+  if (bt && (bt.gizliGucler || []).length) surduren.push(`düşük akademik benlik algısı (${bt.gizliGucler.map(g => g.ad).join(", ")}: yapabildiği hâlde kendini yetersiz görüyor)`);
+  if (X.denemeEgim <= -1 && X.kaygi) surduren.push("düşen sonuçların kaygıyı, kaygının da performansı düşürdüğü bir kısır döngü olasılığı");
+  const koruyan = c.koruyucu.filter(k => !/rehberlik sürecine/.test(k));
+  if (bt && (bt.gizliGucler || []).length) koruyan.push(`ölçülen akademik yeterlik (${bt.gizliGucler.map(g => g.ad).join(", ")})`);
+  s.push("VAKA FORMÜLASYONU (5P modeli):\n" + [
+    `- Sunulan sorun: ${r.tur !== "Diğer" ? r.tur.toLocaleLowerCase("tr") + (X.alt ? " — " + KS_ALT_AD[X.alt].toLocaleLowerCase("tr") : "") + (r.islev.length ? "; " + r.islev.map(a => KS_ISLEV_AD[a]).join(", ") + " alanlarında etkilenme" : "") : "kayıtlarda belirgin bir sorun alanı yok"}.`,
+    `- Yatkınlaştırıcı etkenler: ${zemin.length ? zemin.join("; ") : "kayıtlarda belirgin bir yatkınlaştırıcı etken yok (aile öyküsü, gelişim ve sağlık bilgisi sorulmalı)"}.`,
+    `- Tetikleyici etkenler: ${tetikleyen.length ? tetikleyen.join("; ") : "kayıtlarda belirli bir tetikleyici olay görünmüyor (sorunun ne zaman ve neyle başladığı sorulmalı)"}.`,
+    `- Sürdürücü etkenler: ${surduren.length ? surduren.join("; ") : "kayıtlardan belirgin bir sürdürücü etken çıkarılamadı"}.`,
+    `- Koruyucu etkenler: ${koruyan.length ? koruyan.join("; ") : "kayıtlarda belirgin koruyucu etken yok — güçlü yönler ve destek kaynakları keşfedilmeli"}.`,
+  ].join("\n"));
+
+  // ÇALIŞMA HİPOTEZLERİ (sınanabilir)
+  const h = [];
+  const akdDusus = X.denemeEgim <= -1 || r.islev.includes("akademik") || (c.turPuan["Akademik"] || 0) >= 2;
+  if (akdDusus && X.kaygi) h.push(["Akademik düşüş bilgi eksikliğinden çok kaygının performansa yansımasından kaynaklanıyor olabilir.", "Kaygısız bir ortamda (ödev, kısa quiz) performansı ile deneme performansını karşılaştır; denemede 'bildiği soruyu kaçırma' yaşantısını sor."]);
+  if (akdDusus && c.ekranBelirti === "Var") h.push(["Ekran kullanımı → uyku düzensizliği → dikkat ve akademik düşüş zinciri işliyor olabilir.", "1 haftalık uyku ve ekran saati kaydı tut; uyku düzeldiğinde derse katılımın değişip değişmediğine bak."]);
+  if ((r.islev.includes("devam") || (c.turPuan["Devamsızlık"] || 0) >= 2) && (c.turPuan["Akran-Zorbalık"] || 0) >= 2) h.push(["Devamsızlık, akran ortamından kaçınma işlevi görüyor olabilir.", "Gelmek istemediği günlerde okulda ne olacağını düşündüğünü sor; teneffüs ve ders arası gözlem iste."]);
+  else if (r.islev.includes("devam") && X.kaygi) h.push(["Okula gelmeme, kaygı yaratan durumlardan kaçınma olabilir (okul reddi).", "Sabahları belirtilerin (karın ağrısı vb.) hafta sonu da olup olmadığını veliden öğren."]);
+  if ((c.turPuan["Davranış"] || 0) >= 2 && ((c.turPuan["Aile"] || 0) >= 2 || r.islev.includes("aile"))) h.push(["Okuldaki davranış sorunları, evdeki çatışmanın ya da ilgi ihtiyacının dışavurumu olabilir.", "Davranışların ev olaylarıyla zamanlamasını karşılaştır (ABC kaydı + veli görüşmesi)."]);
+  if ((c.turPuan["Yas-Kayıp"] || 0) >= 2 && (X.depresif || r.islev.length >= 2)) h.push(["Duygusal belirtiler ve işlev kaybı yaşanan kayıpla ilişkili yas sürecinin parçası olabilir.", "Belirtilerin kayıptan önce var olup olmadığını ve zaman içindeki seyrini sor; 6 ay sınırını izle."]);
+  if (bt && (bt.gizliGucler || []).length) h.push([`Öğrencinin ${bt.gizliGucler.map(g => g.ad).join(", ")} dersindeki düşük benlik algısı, çaba ve hedef belirlemeyi sınırlıyor olabilir.`, "Ölçülen sonuçlarını birlikte inceleyip kendi değerlendirmesiyle karşılaştırın; tepkisini gözlemle."]);
+  if ((c.turPuan["Özel Öğrenme Güçlüğü"] || 0) >= 2 && akdDusus) h.push(["Akademik güçlüğün bir bölümü özgül öğrenme ya da dikkat güçlüğünden kaynaklanıyor olabilir.", "Öğretmen gözlem formu ve ÖÖG ön değerlendirmesiyle sına; güçlük farklı derslerde ve ortamlarda tutarlı mı bak."]);
+  if (X.depresif && !(c.turPuan["Yas-Kayıp"] || 0)) h.push(["Görülen içe kapanma ve isteksizlik depresif bir tablonun belirtisi olabilir.", "Belirtilerin süresini (2 hafta+), yaygınlığını ve ölüm düşüncesini doğrudan değerlendir."]);
+  if (!h.length && r.tur !== "Diğer") h.push([`Mevcut tablo büyük ölçüde ${r.tur.toLocaleLowerCase("tr")} alanıyla açıklanıyor; başka bir alanın katkısı kayıtlarda görünmüyor.`, "Sorunun başlangıcını, sıklığını ve öğrencinin kendi açıklamasını sor; diğer alanlarda (aile, akran, akademik) kısa tarama yap."]);
+  s.push("ÇALIŞMA HİPOTEZLERİ (kesin yargı değil, sınanacak varsayımlar):\n" + (h.length ? h.slice(0, 4).map(([a, b], i) => `${i + 1}. ${a}\n   Sınamak için: ${b}`).join("\n") : "Hipotez üretmek için kayıtlar yetersiz."));
+
+  // SÜREÇ DEĞERLENDİRMESİ
+  const sd = [];
+  const aktifRiskTur = (X.riskler || []).map(x => KS_FORM_TUR[x.riskTuru] || x.riskTuru);
+  if ((r.duzey === "YÜKSEK" || r.duzey === "ORTA") && !aktifRiskTur.length) sd.push(`Notlara göre ${r.duzey.toLocaleLowerCase("tr")} düzeyde risk görünüyor ama aktif bir risk kaydı yok — risk listesine eklenmesi önerilir.`);
+  if (aktifRiskTur.length && r.tur !== "Diğer" && !aktifRiskTur.includes(r.tur) && !c.kritikTurler.length) sd.push(`Aktif risk kaydı (${aktifRiskTur.join(", ")}) ile notlarda öne çıkan alan (${r.tur}) farklı; risk kaydının güncellenmesi gerekebilir.`);
+  if ((X.mudahaleler || []).length) {
+    const hedefMetin = ksSade(X.mudahaleler.map(m => m.hedef || "").join(" "));
+    const anahtar = { "Duygusal": /kaygi|duygu|stres|ofke|uzuntu|depres/, "Akademik": /akademik|ders|calisma|not|deneme|basari/, "Akran-Zorbalık": /zorbalik|akran|arkadas|guven/, "Aile": /aile|veli|ev/, "Teknoloji-Ekran Bağımlılığı": /ekran|telefon|oyun|teknoloji/, "Devamsızlık": /devam|okula gel/, "Davranış": /davranis|ofke|kural|kavga/ }[r.tur];
+    if (anahtar && !anahtar.test(hedefMetin)) sd.push(`Aktif müdahale planının hedefi ("${X.mudahaleler[0].hedef}") notlarda öne çıkan alanı (${r.tur.toLocaleLowerCase("tr")}) doğrudan hedeflemiyor; plan gözden geçirilmeli.`);
+    else sd.push("Aktif müdahale planı notlarda öne çıkan alanla uyumlu.");
+  } else if (r.tur !== "Diğer") sd.push("Aktif bir müdahale planı yok; 'Müdahale' ekranında kapalı sistemle plan oluşturulabilir.");
+  const bekleyen = (X.sevkler || []).filter(x => x.sonucBekleniyor);
+  if (bekleyen.length) sd.push(`${bekleyen.length} yönlendirmenin sonucu bekleniyor; kurumla ve veliyle iletişim kurulmalı.`);
+  if (X.sonGun !== null && ((r.duzey === "YÜKSEK" && X.sonGun > 7) || (r.duzey === "ORTA" && X.sonGun > 21))) sd.push(`Son görüşmenin üzerinden ${X.sonGun} gün geçmiş; ${r.duzey.toLocaleLowerCase("tr")} risk düzeyi için izlem aralığı uzun.`);
+  if (X.profil1 && X.profil1.scores && X.notPuan) {
+    const cel = KS_BOYUTLAR.filter(b => X.profil1.scores[b] >= 4 && X.notPuan[b] <= 2).map(b => KS_BOYUT_BILGI[b].ad);
+    if (cel.length) sd.push(`Profil puanları ile son notlar çelişiyor (${cel.join(", ")}: puan yüksek, notlar güçlüğe işaret ediyor); profil güncellenmeli.`);
+  } else if (notlar.length >= 2) sd.push("Profil 1 puanları girilmemiş; 'Kapalı Sistemle Puanla' ile notlardan oluşturulabilir.");
+  if (bt && (bt.eksikler || []).length) sd.push(`Uygulanmamış ölçme araçları: ${bt.eksikler.join(", ")}.`);
+  if (c.sorgulanan.length) sd.push("Daha önce sorgulanmış kritik konular (öz zarar vb.) izlem görüşmelerinde düzenli olarak yeniden sorulmalı.");
+  s.push("SÜREÇ DEĞERLENDİRMESİ:\n" + (sd.length ? sd.map(x => "- " + x).join("\n") : "- Kayıtlarda süreçle ilgili belirgin bir eksik görünmüyor."));
+
+  // KRİTİK GÖZLEMLER
+  const kg = [];
+  if (c.kritikTurler.length) kg.push(`Öğrencinin güvenliğini ilgilendiren ifadeler var (${c.kritikTurler.join(", ")}): bu durum diğer bütün hedeflerin önüne geçer; mevzuatın öngördüğü bildirim ve yönlendirme adımları eksiksiz atılmalı.`);
+  if (c.istismarIpucu && !c.kritikTurler.includes("İhmal-İstismar")) kg.push("İhmal/istismar açısından dikkat gerektiren ipuçları var; yönlendirici olmadan gözlem sürdürülmeli.");
+  if (c.ozGecmisVar) kg.push("Geçmiş öz zarar öyküsü, gelecekteki risk için güçlü bir yordayıcıdır; güncel durum her görüşmede sorulmalı.");
+  if (c.cevreFaktor.length) kg.push(`Yakın çevrede: ${c.cevreFaktor.join(", ")}.`);
+  if (X.denemeOzet && X.denemeOzet.risk === "dusuk" && r.duzey !== "HAFİF") kg.push("Akademik başarısı iyi olduğu için güçlüğü gözden kaçabilir; başarılı görünen öğrencilerde içsel sıkıntı daha geç fark edilir.");
+  if (X.direnc) kg.push("Notlarda görüşmeye isteksizlik/direnç ipuçları var; zorlamak yerine ilişkiyi güçlendirmeye öncelik ver.");
+  s.push("KRİTİK GÖZLEMLER:\n" + (kg.length ? kg.map(x => "- " + x).join("\n") : "- Gözden kaçmış olabilecek belirgin bir risk saptanmadı."));
+
+  // ÖNERİLEN YAKLAŞIM
+  const plan = KS_PLAN[X.alt] || KS_PLAN[r.tur] || KS_PLAN["Diğer"];
+  const adim = plan.adimlar(X.kd).slice(0, 4).map(a => a.replace(/^(\d+(-\d+)?\. hafta|BUGÜN) – /, ""));
+  s.push(`ÖNERİLEN YAKLAŞIM:\nKuramsal çerçeve: ${KS_YAKLASIM[r.tur] || KS_YAKLASIM["Diğer"]}\nÖncelikli adımlar:\n${adim.map((a, i) => `${i + 1}. ${a}`).join("\n")}${r.ikincil !== "Yok" && KS_YAKLASIM[r.ikincil] ? `\nEşlik eden alan (${r.ikincil}) için: ${KS_YAKLASIM[r.ikincil]}` : ""}`);
+
+  // İZLEM VE GÖSTERGELER (kesin öngörü yerine)
+  const iz = [`Gidişatı izlemek için göstergeler: ${plan.kontrol}`];
+  iz.push(`Yeniden değerlendirme: ${r.duzey === "YÜKSEK" ? "1 hafta içinde" : r.duzey === "ORTA" ? "2-3 hafta içinde" : "4-6 hafta içinde"}.`);
+  iz.push("Durumun ağırlaştığını gösteren işaretler (işlev kaybının yeni alanlara yayılması, ölüm düşünceleri, devamsızlığın artması, ani davranış değişikliği) görülürse plan beklenmeden uzman yönlendirmesi yapılmalı.");
+  if (koruyan.length) iz.push(`Olumlu gidişi destekleyecek kaynaklar: ${koruyan.slice(0, 3).join(", ")}.`);
+  s.push("İZLEM VE GÖSTERGELER:\n" + iz.map(x => "- " + x).join("\n"));
+  s.push("\nBu rapor, kayıtlardaki ifadelerden kural tabanlı olarak üretilmiş bir süpervizyon çerçevesidir; klinik yargının yerini tutmaz.");
+  return s.join("\n") + KS_ALT;
+}
+
+// ── Hazır soru menüsü ────────────────────────────────────────────────────────
+const KS_SORU_MENUSU = [
+  { id: "temel_sorun", grup: "Değerlendirme", soru: "Bu öğrencinin temel sorunu ne görünüyor?" },
+  { id: "risk_acil", grup: "Değerlendirme", soru: "Risk düzeyi nedir, acil bir durum var mı?" },
+  { id: "yonlendirme", grup: "Değerlendirme", soru: "Yönlendirme (RAM / sağlık kuruluşu) gerekli mi?" },
+  { id: "olcme", grup: "Değerlendirme", soru: "Hangi ölçme araçlarını uygulamalıyım?" },
+  { id: "profil_tutarlilik", grup: "Değerlendirme", soru: "Profil puanları görüşme notlarıyla tutarlı mı?" },
+  { id: "kaygi", grup: "Müdahale", soru: "Bu öğrencide kaygıyı nasıl ele almalıyım?" },
+  { id: "teknik", grup: "Müdahale", soru: "Hangi kuramsal yaklaşım ve teknikleri kullanabilirim?" },
+  { id: "plan_yeterli", grup: "Müdahale", soru: "Müdahale planı yeterli mi, neyi değiştirmeliyim?" },
+  { id: "direnc", grup: "Müdahale", soru: "Görüşmede isteksiz/konuşmuyor, ne yapmalıyım?" },
+  { id: "sonraki_seans", grup: "Müdahale", soru: "Bir sonraki seansı nasıl yapılandırmalıyım?" },
+  { id: "oz_zarar", grup: "Müdahale", soru: "Öz zarar riskini nasıl değerlendirmeliyim?" },
+  { id: "sinav", grup: "Müdahale", soru: "Sınav kaygısı ve LGS süreci için ne önerirsin?" },
+  { id: "motivasyon", grup: "Müdahale", soru: "Akademik motivasyonu nasıl artırabilirim?" },
+  { id: "zorbalik", grup: "Müdahale", soru: "Akran zorbalığına nasıl müdahale etmeliyim?" },
+  { id: "ekran", grup: "Müdahale", soru: "Ekran/telefon kullanımı için ne yapmalıyım?" },
+  { id: "veli_gorusme", grup: "Aile", soru: "Veli görüşmesinde ne söylemeliyim?" },
+  { id: "aile_isbirligi", grup: "Aile", soru: "Aile ile iş birliğini nasıl güçlendirebilirim?" },
+  { id: "aile_olay", grup: "Aile", soru: "Ailede boşanma ya da kayıp varsa nasıl yaklaşmalıyım?" },
+  { id: "ogretmen", grup: "Okul", soru: "Öğretmenlerle nasıl iş birliği yapmalıyım, ne paylaşmalıyım?" },
+  { id: "uyarlama", grup: "Okul", soru: "Sınıf içinde öğretmene hangi uyarlamaları önermeliyim?" },
+  { id: "gizlilik", grup: "Etik ve süreç", soru: "Gizlilik sınırları nedir, kimi ne zaman bilgilendirmeliyim?" },
+  { id: "kapatma", grup: "Etik ve süreç", soru: "Bu vakayı ne zaman kapatabilirim?" },
+  { id: "gozden_kacan", grup: "Etik ve süreç", soru: "Süreçte gözden kaçırdığım bir şey var mı?" },
+  { id: "kariyer", grup: "Kariyer", soru: "Kariyer ve lise tercihi konusunda ne önerirsin?" },
+];
+
+function pdrKapaliSoruYanitla(soruId, girdi) {
+  const X = ksSupBaglam(girdi);
+  const { r, c } = X;
+  const S = KS_SORU_MENUSU.find(x => x.id === soruId);
+  const kanit = (t) => { const b = (c.turIfade[t] || []).slice().sort((a, b2) => b2.gorusme - a.gorusme)[0]; return b ? ` (${b.etiket}: "${b.ifade.length > 80 ? b.ifade.slice(0, 78) + "…" : b.ifade}")` : ""; };
+  const yok = (konu) => `Kayıtlarda ${konu} ile ilgili bir ifade bulunmuyor; bu nedenle aşağıdakiler genel çerçevedir.`;
+  const satir = [];
+  const ekle = (...x) => x.filter(Boolean).forEach(y => satir.push(y));
+  switch (soruId) {
+    case "temel_sorun": {
+      if (r.tur === "Diğer" && !r.islev.length) ekle("Kayıtlarda belirgin bir sorun alanı görünmüyor. Öğrencinin kendi gündemini, güçlü yönlerini ve ihtiyaçlarını keşfetmeye yönelik açık uçlu bir görüşme önerilir.");
+      else {
+        ekle(`Öne çıkan alan ${r.tur.toLocaleLowerCase("tr")}${X.alt ? " — " + KS_ALT_AD[X.alt].toLocaleLowerCase("tr") : ""}${kanit(r.tur)}. Risk düzeyi ${r.duzey.toLocaleLowerCase("tr")}.`);
+        if (r.islev.length) ekle(`Etkilenen işlev alanları: ${r.islev.map(a => KS_ISLEV_AD[a]).join(", ")}.`);
+        if (r.ikincil !== "Yok") ekle(`Eşlik eden alan: ${r.ikincil.toLocaleLowerCase("tr")}. ${r.ikincil === "Akademik" ? "Akademik düşüş büyük olasılıkla ana sorunun sonucudur; yalnızca ders çalışmaya odaklanmak yeterli olmaz." : ""}`);
+        ekle(`Bu bir değerlendirme önerisidir; "sorunu sen nasıl anlatırsın?" sorusuyla öğrencinin kendi tanımını almak, tabloyu netleştirir.`);
+      }
+      break;
+    }
+    case "risk_acil": {
+      ekle(`Risk türü: ${r.tur}; düzey: ${r.duzey.toLocaleLowerCase("tr")}. Acil müdahale: ${r.acil ? "EVET" : "hayır"}.`);
+      if (c.kritikTurler.length) ekle(`Gerekçe: ${c.kritikTurler.join(", ")} ile ilgili ifadeler${kanit(c.kritikTurler[0])}. Aynı gün okul yönetimi bilgilendirilmeli ve ilgili yönergeye göre hareket edilmeli.`);
+      if (r.cssrs.length) ekle(`Öz zarar taraması (C-SSRS): ${r.cssrs.map(x => KS_CSSRS_AD[x]).join(", ")}.`);
+      if (!r.acil) ekle(r.duzey === "ORTA" ? "Planlı müdahale ve 2 hafta içinde izlem yeterli görünüyor." : r.duzey === "YÜKSEK" ? "Acil değil ama yakın izlem (1 hafta) ve uzman yönlendirmesi değerlendirilmeli." : "Düzenli izlem yeterli görünüyor.");
+      ekle("Ayrıntılı değerlendirme için Risk ekranında 'Kapalı Sistemle Analiz' kullanılabilir.");
+      break;
+    }
+    case "yonlendirme": {
+      const y = [];
+      if (c.kritikTurler.includes("Öz Zarar")) y.push("Çocuk-ergen psikiyatrisi — AYNI GÜN (öz zarar/intihar riski).");
+      if (c.kritikTurler.includes("İhmal-İstismar") || c.kritikTurler.includes("Toplumsal Cinsiyet Temelli Şiddet")) y.push("Yasal bildirim (Cumhuriyet Başsavcılığı / kolluk / ASHB 183) — okul yönetimi aracılığıyla, gecikmeksizin.");
+      if ((c.turPuan["Madde Kullanımı"] || 0) >= 2) y.push("ÇEMATEM (çocuk ve ergen madde bağımlılığı tedavi merkezi) — düzenli kullanım şüphesinde.");
+      if ((c.turPuan["Özel Öğrenme Güçlüğü"] || 0) >= 2) y.push("RAM — öğrenme/dikkat güçlüğü bulguları ön değerlendirmeyle desteklenirse.");
+      if (X.depresif && r.islev.length >= 2) y.push("Çocuk-ergen ruh sağlığı birimi — depresif belirtiler 2 haftadan uzun sürüyor ve işlevselliği bozuyorsa.");
+      if ((c.turPuan["Travma"] || 0) >= 2) y.push("Travma odaklı terapi için ruh sağlığı birimi — belirtiler 1 aydan uzun sürüyorsa.");
+      if (X.kaygi && r.islev.length >= 2 && !y.length) y.push("Ruh sağlığı uzmanı — kaygı belirtileri okul müdahalesine rağmen 4-6 hafta içinde azalmıyorsa.");
+      const d2 = X.profil2 && X.profil2.d2; if (d2 && parseFloat(d2.PR) < 10) y.push("Çocuk psikiyatrisi (dikkat değerlendirmesi) — D2 yüzdelik sırası çok düşük ve belirtiler birden çok ortamda görülüyorsa.");
+      ekle(y.length ? "Kayıtlara göre değerlendirilmesi gereken yönlendirmeler:\n" + y.map(x => "- " + x).join("\n") : "Kayıtlara göre şu an zorunlu bir yönlendirme gerekmiyor; okul içi müdahale ve izlem yeterli görünüyor.");
+      ekle("Yönlendirmede veliyle yüz yüze görüşülmeli, yönlendirme nedeni sade dille açıklanmalı ve sonuç takip edilmelidir (Sevk ekranına kaydedilebilir).");
+      break;
+    }
+    case "olcme": {
+      const o = [];
+      if (X.kaygi) o.push("Kaygı belirtileri için bir kaygı tarama ölçeği (örn. programdaki SCAS).");
+      if (X.depresif) o.push("Depresif belirtiler için yaşa uygun bir depresyon tarama ölçeği.");
+      if ((c.turPuan["Özel Öğrenme Güçlüğü"] || 0) >= 1 || (X.profil2 && X.profil2.d2 && parseFloat(X.profil2.d2.PR) < 25)) o.push("Dikkat için D2 / Çeldiricili Dikkat Testi ve ÖÖG ön değerlendirme aracı.");
+      if ((c.turPuan["Akran-Zorbalık"] || 0) >= 1) o.push("Sınıf içi konum için sosyometri.");
+      if (X.r.tur === "Akademik" || (c.turPuan["Akademik"] || 0) >= 1) o.push("Akademik Benlik Kavramı Ölçeği ve Düzey Taraması (yapabiliyor/inanıyor karşılaştırması için).");
+      if (X.kd !== "ilkokul") o.push("Kariyer planlaması için Mesleki Eğilim Testi.");
+      if (X.butunlesik && (X.butunlesik.eksikler || []).length) o.push(`Bütünleşik değerlendirmede eksik olanlar: ${X.butunlesik.eksikler.join(", ")}.`);
+      ekle("Önerilen ölçme araçları:\n" + (o.length ? o.map(x => "- " + x).join("\n") : "- Kayıtlara göre özel bir ölçme aracı gerekmiyor; genel tarama yeterli."));
+      ekle("Ölçme sonuçları tek başına tanı koymaz; görüşme ve gözlemle birlikte yorumlanmalıdır.");
+      break;
+    }
+    case "profil_tutarlilik": {
+      if (!(X.profil1 && X.profil1.scores)) { ekle("Profil 1 puanları girilmemiş. Profil ekranında 'Kapalı Sistemle Puanla' ile notlardan puan oluşturabilirsin."); break; }
+      if (!X.notPuan) { ekle("Karşılaştırma için görüşme notu yok."); break; }
+      const f = KS_BOYUTLAR.map(b => [b, X.profil1.scores[b] || 0, X.notPuan[b]]).filter(([, p, n]) => p && Math.abs(p - n) >= 2);
+      ekle(f.length ? "Puan ile notların belirgin biçimde ayrıştığı boyutlar:\n" + f.map(([b, p, n]) => `- ${KS_BOYUT_BILGI[b].ad}: girilen ${p}, notlara göre ~${n}`).join("\n") + "\nPuanlar eski olabilir ya da notlarda bu alanla ilgili bilgi eksik olabilir; profili güncellemeyi düşün." : "Girilen profil puanları görüşme notlarıyla genel olarak tutarlı.");
+      break;
+    }
+    case "kaygi": {
+      if (!X.kaygi) ekle(yok("kaygı"));
+      else ekle(`Notlarda kaygı ifadeleri var${kanit("Duygusal")}${X.alt === "sinavKaygisi" ? "; tablo sınav kaygısı ağırlıklı" : ""}.`);
+      const p = KS_PLAN[X.alt === "sinavKaygisi" ? "sinavKaygisi" : "kaygi"];
+      ekle("Önerilen sıra (BDT temelli):\n" + p.adimlar(X.kd).slice(0, 5).map((a, i) => `${i + 1}. ${a.replace(/^(\d+(-\d+)?\. hafta|BUGÜN) – /, "")}`).join("\n"));
+      ekle(`İzlem: ${p.kontrol}`);
+      break;
+    }
+    case "teknik": {
+      ekle(`Ana alan (${r.tur}): ${KS_YAKLASIM[r.tur] || KS_YAKLASIM["Diğer"]}`);
+      if (r.ikincil !== "Yok" && KS_YAKLASIM[r.ikincil]) ekle(`Eşlik eden alan (${r.ikincil}): ${KS_YAKLASIM[r.ikincil]}`);
+      ekle(X.kd === "ilkokul" ? "Yaş grubu nedeniyle oyun, resim, hikâye ve somut materyallerle çalışma; ebeveyn katılımı yüksek tutulmalı." : X.kd === "lise" ? "Lise döneminde öğrencinin özerkliği gözetilerek iş birliğine dayalı hedef belirleme ve motivasyonel görüşme ön planda olmalı." : "Ortaokul döneminde kısa, yapılandırılmış oturumlar ve somut ev çalışmaları etkili olur.");
+      break;
+    }
+    case "plan_yeterli": {
+      const p = KS_PLAN[X.alt] || KS_PLAN[r.tur] || KS_PLAN["Diğer"];
+      if (!(X.mudahaleler || []).length) ekle(`Aktif müdahale planı yok. Notlara göre önerilen hedef: ${p.hedef(r.islev)}\nMüdahale ekranında 'Kapalı Sistemle Müdahale Planı' ile ayrıntılı plan oluşturulabilir.`);
+      else {
+        const hedef = X.mudahaleler.map(m => m.hedef).join("; ");
+        ekle(`Aktif plan hedefi: "${hedef}".`);
+        const olculebilir = /\d|hafta|ay|olcek|puan|gun|sayi|%/.test(ksSade(hedef));
+        ekle(olculebilir ? "Hedef ölçülebilir öğeler içeriyor." : "Hedef ölçülebilir değil; süre ve ölçüt eklenmeli (örn. '8 hafta içinde kaygı derecesinin 0-10'da 3 puan düşmesi').");
+        ekle(`Notlara göre önerilen hedefle karşılaştır: ${p.hedef(r.islev)}`);
+        ekle(`Kontrol ölçütü: ${p.kontrol}`);
+      }
+      break;
+    }
+    case "direnc": {
+      ekle(X.direnc ? "Notlarda görüşmeye isteksizlik/konuşmama ipuçları var." : "Notlarda belirgin bir direnç ifadesi yok; yine de genel öneriler:");
+      ekle("- Direnci bir 'sorun' değil, ilişkiye dair bir bilgi olarak gör; zorlamak yerine merakla yaklaş.\n- Motivasyonel görüşme: açık uçlu sorular, yansıtma, onaylama ve özetleme; değişim konuşmasını öğrenciden bekle.\n- Gizlilik ve sınırlarını yeniden açıkla; görüşmenin amacını öğrencinin diliyle birlikte belirle.\n- Doğrudan konuşmak zorsa ilgi alanı üzerinden başla (oyun, spor, müzik); ilkokulda oyun ve resim kullan.\n- Ölçekleme sorusu: '0-10 arasında buraya gelmek ne kadar istediğin bir şey?' — sonra 'neden 0 değil?'\n- Kısa ve öngörülebilir görüşmeler planla; tek seferde çok şey isteme.");
+      break;
+    }
+    case "sonraki_seans": {
+      const sh = pdrKapaliSeansHazirlik({ gorusmeler: X.notlar, mudahaleler: X.mudahaleler, riskler: X.riskler, kademe: X.kd });
+      ekle(sh.split("SORULACAK SORULAR:")[0].replace(/^ÖNCEKİ SEANSLARDAN ÖZET:[^\n]*\n/, "").trim());
+      ekle("Ayrıntılı not (sorular ve etkinlik önerisiyle) için öğrencinin özet kartında 'Seans Hazırlık' → 'Kapalı Sistemle Hazırlık Notu' kullanılabilir.");
+      break;
+    }
+    case "oz_zarar": {
+      if (r.cssrs.length) ekle(`Notlarda güncel öz zarar ifadeleri var: ${r.cssrs.map(x => KS_CSSRS_AD[x]).join(", ")}${kanit("Öz Zarar")}. AYNI GÜN değerlendirme ve yönlendirme gerekir.`);
+      else if (c.ozGecmisVar) ekle("Notlarda geçmişe ait öz zarar ifadesi var; güncel durum her görüşmede sorulmalı.");
+      else if (c.sorgulanan.some(b => b.tur === "Öz Zarar")) ekle("Öz zarar daha önce sorgulanmış ve olumsuz yanıt alınmış; izlemde kısaca yeniden sorulmalı.");
+      else ekle("Notlarda öz zarar ifadesi yok.");
+      ekle("Değerlendirme basamakları (C-SSRS tarama):\n" + KS_SORULAR["Öz Zarar"].map(x => "- " + x).join("\n"));
+      ekle("Doğrudan sormak riski artırmaz. Yöntem, plan, niyet ya da son 3 ayda girişim varsa risk yüksektir: öğrenciyi yalnız bırakma, okul yönetimini ve veliyi aynı gün bilgilendir, çocuk-ergen psikiyatrisine yönlendir, yazılı güvenlik planı hazırla.");
+      break;
+    }
+    case "sinav": {
+      if (X.denemeOzet) ekle(`Deneme ortalaması ${X.denemeOzet.ortalama}/${X.denemeOzet.toplam}${X.toplamlar.length >= 2 ? `, eğilim deneme başına ${X.denemeEgim >= 0 ? "+" : ""}${X.denemeEgim.toFixed(1)} net` : ""}.`);
+      ekle(X.kaygi ? `Notlarda sınav kaygısı/stres ifadeleri var${kanit("Duygusal")}.` : "Notlarda belirgin sınav kaygısı ifadesi yok.");
+      ekle("Öneriler:\n- Sonuç hedefleri yerine süreç hedefleri (her gün belirli sayıda soru, haftalık konu tekrarı).\n- Deneme öncesi kısa rutin: nefes egzersizi + olumlu, gerçekçi iç konuşma.\n- Felaketleştirici düşünceleri ('kazanamazsam her şey biter') fark edip sorgulama.\n- Deneme sonrası yanlış analizi; netlerin karşılaştırılmasından çok konu eksiklerine odaklanma.\n- Veliyle: başkalarıyla karşılaştırmama, çabayı takdir etme, uyku ve beslenme düzeni.");
+      ekle("Ayrıntılı analiz için Akademik → Deneme ekranında 'Kapalı Sistemle Deneme Analizi' kullanılabilir.");
+      break;
+    }
+    case "motivasyon": {
+      ekle(r.tur === "Akademik" || (c.turPuan["Akademik"] || 0) >= 1 ? `Notlarda akademik güçlük var${kanit("Akademik")}.` : yok("akademik güçlük"));
+      if (X.kaygi || X.depresif) ekle("Önce dikkat: Motivasyon düşüklüğünün altında kaygı ya da duygusal bir güçlük olabilir; bu ele alınmadan motivasyon çalışması sınırlı kalır.");
+      if (X.butunlesik && (X.butunlesik.gizliGucler || []).length) ekle(`Öğrenci ${X.butunlesik.gizliGucler.map(g => g.ad).join(", ")} dersinde yapabildiği hâlde kendini yetersiz görüyor; ölçülen sonuçlarını göstermek öz-yeterliği (Bandura) doğrudan destekler.`);
+      ekle("Öneriler:\n- Küçük, ulaşılabilir ve haftalık izlenen hedefler (çözüm odaklı yaklaşım).\n- Başarı deneyimi: önce güçlü olduğu dersten başlayıp ivme kazanmak.\n- Hedefi kendi değerleri ve ilgileriyle ilişkilendirmek (neden önemli?).\n- İlerlemeyi görselleştirmek (grafik, çizelge).\n- Sonuç değil çabayı takdir etmek (öğretmen ve veliyle birlikte).");
+      break;
+    }
+    case "zorbalik": {
+      ekle((c.turPuan["Akran-Zorbalık"] || 0) >= 1 ? `Notlarda akran sorunu/zorbalık ifadeleri var${kanit("Akran-Zorbalık")}.` : yok("zorbalık"));
+      ekle("Müdahale sırası:\n" + KS_PLAN["Akran-Zorbalık"].adimlar(X.kd).map((a, i) => `${i + 1}. ${a.replace(/^(\d+(-\d+)?\. hafta|BUGÜN) – /, "")}`).join("\n"));
+      ekle(`İzlem: ${KS_PLAN["Akran-Zorbalık"].kontrol}`);
+      break;
+    }
+    case "ekran": {
+      ekle(c.ekranBelirti === "Var" ? `Ekran taraması: belirti VAR. ${c.ekranGerekce}` : c.ekranBelirti === "Yetersiz Veri" ? `Ekran taraması: yetersiz veri. ${c.ekranGerekce}` : "Notlarda ekran kullanımına ilişkin ifade yok.");
+      ekle("Öneriler:\n" + KS_PLAN["Teknoloji-Ekran Bağımlılığı"].adimlar(X.kd).map((a, i) => `${i + 1}. ${a.replace(/^(\d+(-\d+)?\. hafta|BUGÜN) – /, "")}`).join("\n"));
+      break;
+    }
+    case "veli_gorusme": {
+      if (c.kritikTurler.some(t => t !== "Öz Zarar")) ekle("⚠ Önce: Notlarda ihmal/istismar ya da şiddet şüphesi var. Şüphe aile içindeyse veliye bilgi vermeden önce yasal bildirim yapılmalı ve yetkili kurumların yönlendirmesi beklenmelidir.");
+      if (c.kritikTurler.includes("Öz Zarar")) ekle("⚠ Öz zarar riski nedeniyle veli aynı gün, yüz yüze ya da telefonla bilgilendirilmeli; görüşmede güvenlik önlemleri (araçlara erişimin kısıtlanması) ve yönlendirme konuşulmalı.");
+      const kor = c.koruyucu.filter(k => !/rehberlik sürecine/.test(k)).slice(0, 2);
+      ekle(`Görüşme yapısı:\n1. Açılış: Öğrencinin güçlü yönleriyle başla${kor.length ? " (" + kor.join(", ") + ")" : ""}; amacın birlikte çözüm bulmak olduğunu belirt.\n2. Konu: ${r.tur !== "Diğer" ? `${r.tur} konusundaki gözlemlerini yargılamadan ve somut davranışlarla anlat` : "Öğrencinin okul yaşamına dair genel bilgilendirme yap"}; öğrencinin sana anlattığı özel ayrıntıları onun izni olmadan aktarma (gizlilik — güvenlik riski hariç).\n3. Dinleme: Velinin evdeki gözlemlerini ve kendi açıklamasını sor.\n4. Ortak plan: Evde yapılabilecek 1-2 somut adım belirleyin${c.ekranBelirti === "Var" ? " (örn. ekran süresi anlaşması)" : X.kaygi ? " (örn. sınav sonuçlarına aşırı vurgu yapmamak, uyku düzeni)" : ""}.\n5. Kapanış: Bir sonraki iletişim tarihini belirle.`);
+      ekle("Kaçınılacaklar: suçlayıcı dil, tanı koyar gibi konuşmak, öğrenciyi başkalarıyla karşılaştırmak.");
+      break;
+    }
+    case "aile_isbirligi": {
+      ekle("- Düzenli ve kısa iletişim (2-3 haftada bir telefon/mesaj) — yalnızca sorun olduğunda aranmamak.\n- Olumlu gelişmeleri de paylaşmak; velinin okulu 'kötü haber kaynağı' olarak algılamasını önlemek.\n- Evde uygulanacak tek ve somut bir hedef belirlemek; çok sayıda öneri yerine izlenebilir bir adım.\n- Velinin bilgi ve deneyimine değer vermek (iş birliği, uzman-öğreten ilişkisi değil).\n- Gerekirse veli eğitimi ya da aile danışmanlığına yönlendirmek.");
+      if ((c.turPuan["Aile"] || 0) >= 2) ekle(`Notlarda aile içi güçlük ifadeleri var${kanit("Aile")}; görüşmede çocuğu çatışmanın merkezine koymamaya dikkat et.`);
+      break;
+    }
+    case "aile_olay": {
+      const bos = (c.turIfade["Aile"] || []).some(b => /bosan|ayri|ayril|velayet/.test(ksSade(b.ifade)));
+      const kay = (c.turPuan["Yas-Kayıp"] || 0) >= 2;
+      if (!bos && !kay) ekle(yok("boşanma ya da kayıp"));
+      if (bos || !kay) ekle("Boşanma/ayrılık sürecinde:\n- Çocuğa durumun kendi suçu olmadığını açıkça söylemek.\n- Ebeveynlere: çocuğu çatışmanın, mesaj taşımanın ve taraf tutmanın dışında tutmak; rutinleri korumak; diğer ebeveyni kötülememek.\n- Okulda güvenli bir yetişkin ve duygularını ifade edebileceği alan sağlamak.\n- Velayet/görüşme düzeni konusunda okulun hangi ebeveynle nasıl iletişim kuracağını netleştirmek.");
+      if (kay || !bos) ekle("Kayıp/yas sürecinde:\n- Yas tepkilerini normalleştirmek; ölümü yaşına uygun, dürüst ve somut dille konuşmak.\n- Anma çalışmaları (anı kutusu, mektup).\n- Öğretmenleri bilgilendirip esneklik istemek.\n- 6 aydan uzun süren ya da işlevselliği ciddi bozan tepkilerde uzmana yönlendirmek.");
+      break;
+    }
+    case "ogretmen": {
+      ekle("- Paylaşım ilkesi: Öğretmenle öğrencinin okulda desteklenmesi için gereken kadar bilgi paylaşılır; görüşmede anlatılan özel ayrıntılar paylaşılmaz.\n- Öğretmenden gözlem iste: davranışın ne zaman, hangi derste, hangi durumda ortaya çıktığı.\n- Ortak dil ve tutarlılık: olumlu davranışı fark etme, sınırları aynı biçimde uygulama.\n- Kısa ve düzenli geri bildirim (haftalık 5 dakikalık görüşme ya da form).");
+      if (c.kritikTurler.length) ekle("Kritik durumda yalnızca okul yönetimi ve öğrencinin güvenliği için bilmesi gereken öğretmenler, gerekli olduğu kadar bilgilendirilmelidir.");
+      break;
+    }
+    case "uyarlama": {
+      const u = [];
+      if (X.kaygi) u.push("Kaygı: sınavlarda sessiz bir köşe/ek süre olanağı, sözlü sunumlarda kademeli katılım, sonuçların sınıf önünde açıklanmaması.");
+      if ((c.turPuan["Özel Öğrenme Güçlüğü"] || 0) >= 1) u.push("Öğrenme/dikkat: ön sırada oturma, kısa ve tek adımlı yönergeler, görsel destek, ek süre, ödevlerin parçalara bölünmesi.");
+      if ((c.turPuan["Akran-Zorbalık"] || 0) >= 1) u.push("Akran sorunu: oturma düzeni, grup çalışmalarında destekleyici akranlarla eşleştirme, teneffüs gözetimi.");
+      if ((c.turPuan["Davranış"] || 0) >= 1) u.push("Davranış: mola alabileceği bir yöntem, olumlu davranışın anında fark edilmesi, net ve önceden bilinen kurallar.");
+      if (X.depresif || (c.turPuan["Yas-Kayıp"] || 0) >= 2) u.push("Duygusal güçlük/yas: geçici ödev esnekliği, derste duygusal zorlandığında güvenli bir yere gidebilme izni.");
+      if ((c.turPuan["Göç-Uyum Süreci"] || 0) >= 1) u.push("Uyum: görsel destekli anlatım, rehber arkadaş, sade dil.");
+      ekle(u.length ? "Önerilebilecek uyarlamalar:\n" + u.map(x => "- " + x).join("\n") : "Kayıtlara göre özel bir sınıf içi uyarlama gerekmiyor; öğretmenden gözlem istemek yeterli.");
+      break;
+    }
+    case "gizlilik": {
+      ekle("Temel ilke: Öğrencinin görüşmede paylaştıkları gizlidir ve izni olmadan paylaşılmaz.\nGizliliğin sınırları (öğrenciye görüşmenin başında açıklanmalı):\n- Kendisine zarar verme riski (öz zarar/intihar).\n- Başkasına zarar verme riski.\n- İhmal, istismar ya da şiddete maruz kalma (yasal bildirim yükümlülüğü).\n- Yasal zorunluluklar (mahkeme kararı vb.).\nBu durumlarda paylaşım, yalnızca güvenliği sağlamak için gereken kişilerle ve gereken kadar yapılır; mümkünse öğrenciye önceden söylenir.");
+      if (c.kritikTurler.length) ekle(`Bu öğrencide gizlilik sınırına giren bir durum var (${c.kritikTurler.join(", ")}): okul yönetimi bilgilendirilmeli ve ilgili yönerge uygulanmalı.`);
+      break;
+    }
+    case "kapatma": {
+      const p = KS_PLAN[X.alt] || KS_PLAN[r.tur] || KS_PLAN["Diğer"];
+      ekle(`Vaka kapatma ölçütleri:\n- Müdahale hedefine ulaşılması: ${p.kontrol}\n- Risk düzeyinin en az iki izlemde 'hafif' kalması ve işlev kaybının ortadan kalkması.\n- Öğrencinin ve velinin de ilerlemeyi doğrulaması.\n- Yönlendirmelerin sonuçlanmış olması.`);
+      ekle(`Mevcut durum: risk düzeyi ${r.duzey.toLocaleLowerCase("tr")}${c.tonIyi ? ", notların tonu olumlu yönde gelişiyor" : ""}. ${r.duzey === "HAFİF" && !r.islev.length ? "Kapatmaya yaklaşılmış görünüyor; bir izlem görüşmesiyle doğrulanabilir." : "Kapatmak için henüz erken görünüyor."}`);
+      ekle("Kapatırken: öğrenciye kazanımlarını özetle, gerektiğinde yeniden başvurabileceğini söyle ve dönem sonunda kısa bir izlem planla.");
+      break;
+    }
+    case "gozden_kacan": {
+      const rap = pdrKapaliSupervizyon(girdi);
+      const parca = rap.split("SÜREÇ DEĞERLENDİRMESİ:")[1] || "";
+      ekle("Süreç denetimi:" + parca.split("ÖNERİLEN YAKLAŞIM:")[0].replace("KRİTİK GÖZLEMLER:", "\nKritik gözlemler:").trimEnd());
+      break;
+    }
+    case "kariyer": {
+      const p2 = X.profil2 || {};
+      if (p2.kariyer_hedef || (p2.ilgiler || []).length) {
+        const ana = pdrKapaliP2Analizi({ ...p2, gorusmeler: [], denemeGirilen: X.denemeGirilen || [], dersListesi: X.dersListesi || [], sinavTuru: X.sinavTuru, kademe: X.kd });
+        const ik = (ana.match(/İLGİ-KARİYER UYUMU: ([^\n]+)/) || [])[1];
+        if (ik) ekle(ik);
+      } else ekle("Profil 2'de kariyer hedefi ve ilgi alanları girilmemiş.");
+      if (X.butunlesik && X.butunlesik.meslek && X.butunlesik.meslek.sutunlar && X.butunlesik.meslek.sutunlar[0]) { const u = X.butunlesik.meslek.sutunlar[0]; ekle(`Mesleki eğilim testinde en yüksek ilgi: ${u.harf} (${u.meslekler}).`); }
+      if (X.denemeOzet) ekle(`Deneme ortalaması ${X.denemeOzet.ortalama}/${X.denemeOzet.toplam}; hedef okul türü bu düzey ve eğilimle birlikte değerlendirilmeli.`);
+      ekle("Öneriler:\n- İlgi, yetenek (ölçülen başarı) ve değerleri birlikte ele alan bir kariyer görüşmesi.\n- Lise türlerinin ve hedef mesleğe giden eğitim yolunun birlikte araştırılması.\n- Ailenin beklentisi ile öğrencinin ilgisinin ayrı ayrı konuşulması.\n- Kesin yönlendirme yerine seçenekleri ve her birinin gereklerini gösterme.");
+      break;
+    }
+    default: ekle("Bu soru için yanıt bulunamadı.");
+  }
+  return satir.join("\n") + "\n\n(Kapalı Sistem yanıtı: kayıtlardaki ifadelerden kural tabanlı olarak üretildi; yapay zekâ kullanılmadı, veri dışarı gönderilmedi.)";
+}
+// ===== KAPALI SİSTEM: SÜPERVİZYON BİTİŞ =====
+
 
 
 
@@ -18244,7 +18654,9 @@ function YilSecimEkrani({ yillar, setYillar, aktifYil, setAktifYil, ogrenciler, 
 // ── Özet Kartı Bileşeni (Seans Öncesi Hazırlık) ─────────────────────────────
 function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denemeGirilen, denemeAvg, mudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, setTab, devamsizlikGecmisi, onDevamsizlikGuncelle, kademe, olayKayitlari, onOlayEkle }) {
   const [hazirlikAiLoading, setHazirlikAiLoading] = useState(false);
-  const [aktifPanel, setAktifPanel] = useState("ozet"); // ozet | hazirlik | ilerleme
+  const [aktifPanel, setAktifPanel] = useState("ozet"); // ozet | hazirlik | ilerleme | supervizyon
+  const [ksSupervizyon, setKsSupervizyon] = useState("");
+  useEffect(() => { setKsSupervizyon(""); }, [ogrenci, ogrenciSinif]);
   const [devGuncelleAcik, setDevGuncelleAcik] = useState(false);
   // NOT: "en güncel" kaydı TARİHE göre sıralayıp bulmak, aynı tarihte birden
   // fazla kayıt varsa (örn. Excel'den 6 gün, sonra aynı gün manuel 0 gün)
@@ -18324,7 +18736,7 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
     <div>
       {/* Panel seçici */}
       <div style={{display:"flex", gap:6, marginBottom:14, flexWrap:"wrap"}}>
-        {[["ozet","📊 Özet"],["hazirlik","🎯 Seans Hazırlık"],["ilerleme","📈 İlerleme"]].map(([k,l])=>(
+        {[["ozet","📊 Özet"],["hazirlik","🎯 Seans Hazırlık"],["ilerleme","📈 İlerleme"],["supervizyon","🧭 Süpervizyon"]].map(([k,l])=>(
           <button key={k} onClick={()=>setAktifPanel(k)} style={{
             padding:"6px 12px", border:`1px solid ${aktifPanel===k ? ACCENT : BORDER}`,
             background:aktifPanel===k ? ACCENT_LIGHT : "#fff",
@@ -18333,6 +18745,31 @@ function OzetKarti({ ogrenci, ogrenciSinif, ogrRec, ogrP1, ogrP2, ogrRisk, denem
           }}>{l}</button>
         ))}
       </div>
+
+      {/* ── KAPALI SÜPERVİZYON PANELİ ───────────────────────── */}
+      {aktifPanel === "supervizyon" && (
+        <div>
+          <div style={{background:"#EEF7F2",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:12,color:"#0F4D38",lineHeight:1.6}}>
+            🧭 <b>Kapalı Süpervizyon.</b> Öğrencinin bütün kayıtlarını (görüşmeler, profil, deneme, risk, müdahale) bir araya getirip vaka formülasyonu (5P), sınanabilir çalışma hipotezleri, süreç denetimi ve izlem göstergeleri çıkarır. Yapay zekâ kullanılmaz; veri cihazdan çıkmaz.
+          </div>
+          <button onClick={() => setKsSupervizyon(pdrKapaliSupervizyon({
+              gorusmeler: ogrRec, profil1: ogrP1 || null, profil2: ogrP2 || null, denemeGirilen: denemeGirilen || [],
+              dersListesi: aktifDersler("lgs"), sinavTuru: "lgs", riskler: (ogrRisk || []).filter(x => !x.kapandi),
+              mudahaleler: ogrMudahale, sevkler: [], butunlesik: null, kademe: ksKademeTahmin(ogrenciSinif, kademe) }))}
+            style={{width:"100%", padding:"12px", marginBottom:12, background:"linear-gradient(135deg, #1F7A5A 0%, #0F4D38 100%)", color:"#fff", border:"none", borderRadius:10, fontSize:14, fontWeight:800, cursor:"pointer"}}>
+            🔒 Kapalı Sistemle Süpervizyon Raporu <span style={{fontWeight:500,fontSize:11}}>(ücretsiz · veri dışarı çıkmaz)</span>
+          </button>
+          {ksSupervizyon && (
+            <div style={{background:CARD,border:"2px solid #1F7A5A22",borderRadius:12,padding:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <div style={{fontSize:11,fontWeight:800,color:"#0F4D38",textTransform:"uppercase"}}>🧭 Süpervizyon Raporu</div>
+                <button onClick={() => { try { navigator.clipboard.writeText(ksSupervizyon); } catch (e) {} }} style={{background:"none",border:`1px solid ${BORDER}`,borderRadius:8,padding:"3px 10px",fontSize:11,cursor:"pointer",color:MUTED}}>📋 Kopyala</button>
+              </div>
+              <div style={{fontSize:12.5,color:TEXT,lineHeight:1.75,whiteSpace:"pre-wrap"}}>{ksSupervizyon}</div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── ÖZET PANELİ ─────────────────────────────────────── */}
       {aktifPanel === "ozet" && (
