@@ -2476,6 +2476,727 @@ function kademeBaglamMetni(kademe) {
 // Worker'da — kod kopyalansa bile risk analizinin gerçek mantığı görünmez.
 // Client sadece ham veriyi Worker'a gönderir, kendi API anahtarını kullanarak.
 const PDR_AI_WORKER_URL = "https://rehber-pusula-ai.hakanhas1989.workers.dev";
+// ===== KAPALI SİSTEM: RİSK ANALİZİ BAŞLANGIÇ =====
+// Yapay zekâ ve internet kullanmadan, tamamen cihaz içinde çalışan kural tabanlı
+// risk değerlendirmesi ("Kapalı Sistem"). Hiçbir veri dışarı gönderilmez; aynı
+// kayıtlar her zaman aynı sonucu verir.
+//
+// Nasıl çalışır?
+//  1) Notlar cümleciklere ayrılır; Türkçe karaktersiz yazım ("kaygili") da tanınır.
+//  2) Her cümlecikte risk ifadeleri aranır; her bulgu için şunlara bakılır:
+//     olumsuzlama ("kaygılı değil"), kimden söz edildiği ("annesi kaygılı"),
+//     geçmişte kalıp kalmadığı ("geçen yıl…"), şiddet/sıklık ("sürekli", "bazen").
+//  3) İşlevsellik bozulması (uyku, yeme, akademik, sosyal, aile, devam, bedensel)
+//     alan alan sayılır — risk düzeyinin klinik ölçüsü budur.
+//  4) Kendine zarar ifadeleri Columbia İntihar Şiddet Derecelendirme Ölçeği
+//     (C-SSRS) tarama basamaklarına göre ayrıca sınıflanır.
+//  5) Deneme sonuçları, profil puanları, görüşme tonundaki değişim ve danışmanın
+//     önceliği birleştirilerek tür, düzey, aciliyet ve öneriler üretilir.
+// Çıktı metni AI risk analiziyle aynı başlıkları kullanır; ayrıca yapılandırılmış
+// sonuç (tur, duzey, ...) döner, kayıt bu yapıdan yapılır.
+
+// ── Metin hazırlama ────────────────────────────────────────────────────────────
+// Türkçe harfler sadeleştirilir (uzunluk korunur → orijinal metinle konum eşleşir)
+const KS_HARF = { "ç": "c", "ğ": "g", "ı": "i", "ö": "o", "ş": "s", "ü": "u", "â": "a", "î": "i", "û": "u", "i̇": "i" };
+function ksSade(s) {
+  const k = String(s || "").toLocaleLowerCase("tr");
+  let o = "";
+  for (const ch of k) o += KS_HARF[ch] !== undefined ? KS_HARF[ch] : ch;
+  return o.length === String(s || "").length ? o : o; // (tr küçültme tek karakter → uzunluk korunur)
+}
+// Kalıp yalnızca kelime başında eşleşsin diye öne sınır eklenir (lookbehind kullanılmaz — eski Safari uyumu)
+function ksDerle(kaynak) { return new RegExp("(^|[^a-z0-9])(" + kaynak + ")", "g"); }
+
+// Cümleciklere ayırma: noktalama ve "ama/fakat/ancak" bağlaçları
+function ksCumlecikler(metin) {
+  const orj = String(metin || "");
+  const sade = ksSade(orj);
+  const parcalar = [];
+  const ayrac = /[.!?;\n]+|\s(?:ama|fakat|ancak|lakin)\s/g;
+  let bas = 0, m;
+  while ((m = ayrac.exec(sade)) !== null) {
+    if (m.index > bas) parcalar.push({ s: sade.slice(bas, m.index), o: orj.slice(bas, m.index) });
+    bas = m.index + m[0].length;
+  }
+  if (bas < sade.length) parcalar.push({ s: sade.slice(bas), o: orj.slice(bas) });
+  return parcalar.map(p => ({ s: " " + p.s.trim() + " ", o: p.o.trim() })).filter(p => p.o.length > 1);
+}
+
+// ── Bağlam çözümleme ───────────────────────────────────────────────────────────
+// Olumsuzlama: eşleşmenin SONRASINDA (Türkçe'de yüklem sonda), kısa mesafede aranır
+const KS_OLUMSUZ_KELIME = /^\s*(?:\S+\s+){0,6}?(yok|yoktur|yoktu|degil|degildir|olmadig\w*|olmadi\w*|rastlanmadi|gorulmedi|gozlenmedi|saptanmadi|bulunmadi|bulunmuyor|reddet\w*|inkar\w*|belirtmedi|soylemedi|ifade etmedi)(?=[^a-z]|$)/;
+const KS_OLUMSUZ_EK = /m[ia](yor|yan|z|di|dig|mis|yacak)|m[e](yen|z|di|dig|mis|yecek)|m[u](yor|yan|z|du|dug|mus)|mu?yor/;
+// Olumsuz ek taşıdığı hâlde süreklilik bildiren fiiller ("kaygısı geçmiyor")
+const KS_SUREKLILIK = /^(gec|azal|bit|dur|din|birak|kontrol ed|engel ol|onle|duzel|iyiles|toparla|kurtul)/;
+
+function ksOlumsuzMu(cumle, son, icNeg, sonKelime) {
+  let sonra = cumle.slice(son).replace(/olup olmadig\w*/g, " ");
+  // Tarama sorusu kalıbı: "… olup olmadığı soruldu, var olduğunu söyledi"
+  if (/^\s*(?:\S+\s+){0,3}?(olup olmadig)/.test(cumle.slice(son))) {
+    const cevap = cumle.slice(son).replace(/^.*?(soruldu\w*|sordu\w*|sorgulandi\w*|soruldugunda|sorulunca)/, "");
+    if (/(^|[^a-z])(var|evet|kabul et|oldugunu soyle|oldugunu anlat|oldugunu belirt)/.test(cevap)) return false;
+    if (/(olmadig|yok|hayir|reddet|inkar)/.test(cevap)) return true;
+  }
+  sonra = sonra.split(",")[0];   // olumsuzluk virgülün ötesine taşmaz
+  if (KS_OLUMSUZ_KELIME.test(sonra)) return true;
+  if (icNeg) return false;
+  // Eşleşen kelimenin kalan eki + sonraki kelime
+  const kalan = (sonKelime || "") + /^[a-z]*/.exec(sonra)[0];
+  const sonraki = (/^[a-z]*\s+([a-z]+)/.exec(sonra) || [, ""])[1];
+  if (KS_OLUMSUZ_EK.test(kalan) && !KS_SUREKLILIK.test(kalan)) return true;
+  if (sonraki && KS_OLUMSUZ_EK.test(sonraki) && !KS_SUREKLILIK.test(sonraki) && !/^(istemiyor|istemedi|yapamiyor|edemiyor|yapamadi)/.test(sonraki)) return true;
+  return false;
+}
+
+// Üçüncü kişi: "annesi çok kaygılı", "babasının kaygısı" → bulgu öğrenciye ait değil
+const KS_UCUNCU = /(anne(?:si|sinin|sine)?|baba(?:si|sinin|sina)?|kardes(?:i|inin)|abla(?:si|sinin)|abi(?:si|sinin)|agabey(?:i|inin)|teyze(?:si|sinin)|dayi(?:si|sinin)|amca(?:si|sinin)|hala(?:si|sinin)|dede(?:si|sinin)|nine(?:si|sinin)|anneanne(?:si|sinin)|babaanne(?:si|sinin)|arkadas(?:i|inin)|kuzen(?:i|inin)|veli(?:si|sinin)|ailesi(?:nin)?|ebeveyn\w*|uvey (?:annesi|babasi))\s+(?:(?:de|da|cok|asiri|son zamanlarda|surekli|hep|uzun suredir|bir suredir|ciddi|gecen|ay|yil|sene|hafta|yillar|once|daha|eskiden|kucukken|bir|sure|zamandir|yillardir|aylardir|ayrica|de cok)\s+){0,3}$/;
+function ksUcuncuKisi(cumle, bas) {
+  const m = KS_UCUNCU.exec(cumle.slice(Math.max(0, bas - 60), bas));
+  if (!m) return null;
+  return /^(arkadas|kuzen)/.test(m[1]) ? "cevre" : "aile";
+}
+
+// Kurgu / medya / ödev bağlamı: "romandaki karakterin intiharı" öğrenciye ait değildir
+const KS_KURGU = /(karakter\w*|kahraman\w*|film\w*|dizi(de|deki|nin|si)\w*|roman\w*|hikaye\w*|oyku\w*|kitap(ta|taki|in)\w*|haber\w*|odev(i|in|ini)? icin|edebiyat\w*|sarki\w*|belgesel\w*|unlu bir\w*|islenirken|islendi\w*|konusu(nu|nda)?|izlerken|okurken)(?=[^a-z]|$)/;
+// Geçmiş / çözülmüş durum
+const KS_GECMIS = /(gecen (yil|sene|donem)|eskiden|daha once|kucukken|onceki (yil|sene|okul)|gecmiste|yillar once|bir zamanlar|\w+m[iu]s(t[iu]|ti)\b)/;
+const KS_COZULDU = /(artik (yok|yapmiyor|olmuyor|degil|gecti)|gecti|duzeldi|iyilesti|kalmadi|son buldu|azaldi|hafifledi|geriledi|atlatti)(?=[^a-z]|$)/;
+
+// Şiddet / sıklık
+const KS_ARTIRAN = /(cok|asiri|surekli|her gun|hep|giderek|yogun|ciddi|siddetli|durmadan|her zaman|devamli|katlanilmaz|dayanilmaz|hic durmadan|son derece)(?=[^a-z]|$)/;
+const KS_AZALTAN = /(biraz|bazen|ara sira|nadiren|hafif|zaman zaman|arada bir|pek degil|bir kez|bir defa)(?=[^a-z]|$)/;
+const KS_SURE = /(\d+)\s*(haftadir|aydir|yildir|hafta boyunca|aydan beri|haftadan beri)|(haftalardir|aylardir|yillardir|uzun suredir|bir suredir|donem basindan beri|okullar acildigindan beri|yaz tatilinden beri|gecen donemden beri)/;
+
+// ── Sözlük: risk türleri ───────────────────────────────────────────────────────
+// [tür, güç(1-3), kalıp(sade yazım, regex), seçenekler]
+//  ogr: true → öğrencinin kendi durumu (üçüncü kişiye aitse sayılmaz)
+//  icNeg: kalıp zaten olumsuz biçim içeriyor (olumsuzlama aranmaz)
+//  cssrs: Öz zarar basamağı (1 ölüm isteği, 2 aktif düşünce, 3 yöntem, 4 niyet, 5 plan, 6 girişim, 7 kendine zarar davranışı)
+const KS_SOZLUK = [
+  // Öz zarar — C-SSRS basamakları
+  ["Öz Zarar", 3, "olmek ist\\w*|olsem\\w*|olup gitsem|keske (hic )?dogmasaydim|keske olsem|yasamak ist(emiyor|emedig\\w*|emedi\\w*)|yasamanin (anlami|bir anlami) yok|yasamaya deger\\w* (bir sey )?(yok|degil)|uyuyup uyanmamak|bir daha uyanmasam|yok olmak ist\\w*|ortadan kaybolmak ist\\w*|herkes bensiz daha|benim olmam(am)? (daha )?iyi|kimse ozlemez|dayanamiyorum artik|her seyi bitirmek ist\\w*", { ogr: true, icNeg: true, cssrs: 1 }],
+  ["Öz Zarar", 3, "intihar (dusunce\\w*|etmeyi dusun\\w*|etmek ist\\w*|edece\\w*)|kendini oldurme(yi|k) (dusun\\w*|ist\\w*)|kendimi oldur\\w*|kendini oldur\\w*|canina kiy\\w*|canima kiy\\w*|hayatina son ver\\w*|hayatima son ver\\w*|intihari dusun\\w*|intihar\\w*", { ogr: true, cssrs: 2 }],
+  ["Öz Zarar", 3, "(ilac|hap)(lar)?(la|i icerek| icerek) (olmek|kendini)|koprude?n atla\\w*|yuksekten atla\\w*|kendini as\\w*|bileklerini kes\\w*|nasil (yapacagini|olecegini|intihar)\\w*|yontem\\w* (arastir|dusun)\\w*", { ogr: true, cssrs: 3 }],
+  ["Öz Zarar", 3, "yapacagini soyle\\w*|yapmaya karar ver\\w*|niyetinde\\w*|yapacagim dedi", { ogr: true, cssrs: 4 }],
+  ["Öz Zarar", 3, "intihar plan\\w*|plan(i|ini) var\\w*|ilac biriktir\\w*|hap biriktir\\w*|veda (mektub|not)\\w*|vedalas\\w*|esyalarini dagit\\w*|tarih belirle\\w*", { ogr: true, cssrs: 5 }],
+  ["Öz Zarar", 3, "intihar giris\\w*|intihara kalkis\\w*|kendini oldurmeye calis\\w*|hap(lari)? icti|ilac(lari)? icti|asiri doz\\w*|zehirle\\w*", { ogr: true, cssrs: 6 }],
+  ["Öz Zarar", 3, "kendine zarar\\w*|kendini kes\\w*|kollarini kes\\w*|kolunu kes\\w*|kolunda(ki)? kesik\\w*|kollarinda(ki)? kesik\\w*|bileginde\\w* kesik\\w*|jilet\\w*|kendini yak\\w*|kafasini duvara\\w*|kendini isir\\w*|kendini tirmala\\w*|kendine vur\\w*|kendini yarala\\w*|kesik iz\\w*", { ogr: true, cssrs: 7 }],
+
+  // İhmal / istismar (fail genellikle üçüncü kişidir → üçüncü kişi filtresi uygulanmaz)
+  ["İhmal-İstismar", 3, "(internet|instagram|tiktok|snapchat|discord|oyun|sosyal medya|whatsapp)\\w* (uzerinden |ustunden )?(tanistig|tanidig|konustug|yazistig)\\w* (biri|birisi|kisi|adam|yetiskin)\\w*.{0,40}(bulus|fotograf|goruntu|kamera|gizli|hediye|para)\\w*|yuz yuze bulusmak ist\\w*|ailesinden gizli(yor|ce)? (konus|bulus|yazis)\\w*|istismar\\w*|cinsel\\w*|taciz\\w*|kotu dokun\\w*|uygunsuz dokun\\w*|mahrem\\w*|ciplak\\w*|fotograf(ini|larini)? ist(edi|iyor)\\w*|yasca buyuk biri\\w*|ensest\\w*", {}],
+  ["İhmal-İstismar", 3, "(annesi|babasi|uvey (annesi|babasi)|abisi|agabeyi|ablasi|dedesi|amcasi|dayisi|eniste\\w*|evdekiler|ailesi) (onu |kendisini |cocugu )?(dov|vur|tokat at|kemerle|sopayla|darp|yak|kilitle|evden kov|ac birak|sigarayla)\\w*", {}],
+  ["İhmal-İstismar", 3, "dayak (yiyor|yedi\\w*|atiyor)|evde (dovul|siddet gor)\\w*|siddet goruyor|darp edil\\w*|kemerle\\w*|sopayla\\w*|evden kovul\\w*|eve kilitle\\w*|ac birakil\\w*|ac kaliyor|evde (tek basina|yalniz) birakil\\w*|gunlerce (yalniz|tek basina)\\w*", {}],
+  ["İhmal-İstismar", 3, "tokat iz\\w*|tokat at\\w*|tokatla\\w*|yuzunde\\w* (iz|morluk|yara|kizariklik)\\w*|vucudunda\\w* (morluk|iz|yara)\\w*|sirtinda\\w* (morluk|iz)\\w*", { icNeg: true }],
+  ["İhmal-İstismar", 2, "ailesinden gizli\\w*|internette tanistig\\w*|internetten tanistig\\w*|morluk\\w*|morarma\\w*|yara iz\\w*|sigara yanig\\w*|ac geliyor|ac (olarak )?okula|kirli kiyafet\\w*|hijyen\\w*|bakimsiz\\w*|ihmal\\w*|asagiliyor|hakaret ediyor|surekli bagiriyor|tehdit ediyor|kendini guvende hissetm\\w*|eve gitmek ist(emiyor|emedig\\w*)|eve gitmekten kork\\w*", { icNeg: true }],
+
+  // Toplumsal cinsiyet temelli şiddet
+  ["Toplumsal Cinsiyet Temelli Şiddet", 3, "erken evlil\\w*|evlendiril\\w*|evlendirme\\w*|nisanla\\w*|nisanli\\w*|soz kesil\\w*|basl[i]k para\\w*|kiz oldugu icin\\w*|okuldan alin\\w*|okula gondermeyecek\\w*|okutmayacak\\w*|imam nikah\\w*", {}],
+
+  // Madde
+  ["Madde Kullanımı", 3, "esrar\\w*|bonzai\\w*|uyusturucu\\w*|madde kullan\\w*|uyarici hap\\w*|hap kullan\\w*|tiner\\w*|bali kokla\\w*|eroin\\w*|kokain\\w*|metamfetamin\\w*|ecstasy\\w*|extacy\\w*|skunk\\w*", { ogr: true }],
+  ["Madde Kullanımı", 2, "sigara (iciyor|icti\\w*|icerken|kullan\\w*|baslad\\w*)|sigara\\w*|elektronik sigara\\w*|vape\\w*|puff\\w*|nargile\\w*|alkol\\w*|icki\\w*|sarhos\\w*", { ogr: true }],
+
+  // Travma
+  ["Travma", 3, "travma\\w*|deprem\\w*|enkaz\\w*|trafik kaza\\w*|kaza (gecir|yasa)\\w*|yangin\\w*|saldiriya ugra\\w*|siddete tanik\\w*|olume tanik\\w*|savas\\w*|kacirildi\\w*", {}],
+  ["Travma", 2, "kabus\\w*|irkil\\w*|aklindan cikm(iyor|adig\\w*)|gozunun onune gel\\w*|tekrar tekrar yasiyor|o gunu hatirla\\w*|panik atak\\w*", { ogr: true, icNeg: true }],
+
+  // Yas / kayıp
+  ["Yas-Kayıp", 3, "vefat\\w*|hayatini kaybet\\w*|(annesi|babasi|dedesi|ninesi|anneannesi|babaannesi|kardesi|ablasi|abisi|agabeyi|teyzesi|dayisi|amcasi|halasi|kuzeni|yakin arkadasi|arkadasi) ((gecen|bu|bir) (hafta|ay|yil|sene|gun) |gecenlerde |\\d+ (gun|hafta|ay|yil) once )?(vefat|kaybedil)\\w*|(annesini|babasini|dedesini|ninesini|anneannesini|babaannesini|kardesini|ablasini|abisini|teyzesini|dayisini|amcasini|halasini|yakinini|arkadasini) kaybet\\w*|cenaze\\w*|rahmetli\\w*|yas (tut|sure)\\w*|kaybin(i|in) ardindan|sehit\\w*|olumunden (beri|sonra)\\w*|olumuyle\\w*", {}],
+  ["Yas-Kayıp", 3, "(annesi|babasi|dedesi|ninesi|anneannesi|babaannesi|kardesi|ablasi|abisi|agabeyi|teyzesi|dayisi|amcasi|halasi|kuzeni|yakin arkadasi|arkadasi) ((gecen|bu|bir) (hafta|ay|yil|sene|gun) |gecenlerde |yakin zamanda |\\d+ (gun|hafta|ay|yil) once )?(oldu|olmus)\\w*|olumu\\w*|olumun\\w*", { oIcermeli: "öl" }],
+  ["Yas-Kayıp", 2, "ozluyor\\w*|ozlem\\w*|mezar\\w*", {}],
+
+  // Akran / zorbalık (öğrenci mağdur)
+  ["Akran-Zorbalık", 3, "zorbalig(a|in) ugra\\w*|zorbalik goruyor|siber zorbalik\\w*|(arkadaslari|arkadasi|sinif arkadaslari|bazi arkadaslari|ogrenciler|bazi ogrenciler|cocuklar|ust sinif\\w*|sinifindaki\\w*|ayni siniftaki\\w*) (onu |kendisini |ona |kendisine )?(dov|it|vur|tekmele|tehdit|sikistir|parasini al|alay|dalga gec|dislan|lakap tak|kufur|hakaret)\\w*|dovul\\w*|itilip kakil\\w*|tehdit edil\\w*|parasi alin\\w*|sakali\\w*|fotografi (yayil|paylasil)\\w*|hakkinda dedikodu\\w*", {}],
+  ["Akran-Zorbalık", 2, "zorba\\w*|dalga gec(iyor|iliyor|ildig\\w*|ilmis\\w*|tiler\\w*|iyorlar\\w*)|alay edil\\w*|alay ediyor\\w*|lakap tak\\w*|dislan\\w*|oyuna alm(iyor|adilar\\w*|iyorlar\\w*)|gruba alm\\w*|kimse (onunla )?konusm\\w*|kimse onunla oturm\\w*|arkadasi yok|hic arkadasi yok|arkadas edinemi\\w*|yalniz (kaliyor|birakiliyor|oturuyor)|teneffuste yalniz", { icNeg: true }],
+
+  // Davranış (öğrenci fail ya da kural dışı davranış)
+  ["Davranış", 3, "kavga (cikar)\\w*|(arkadasini|arkadasina|arkadaslarini|arkadaslarina|bir ogrenciyi|bir ogrenciye|sinif arkadasini|sinif arkadasina|kucuk ogrenci\\w*|ogretmenine|ogretmenini) (dov|vur|it|tekmele|tehdit|saldir)\\w*|saldirgan\\w*|disiplin\\w*|hirsizlik\\w*|tahrip\\w*|kapi\\w* kir\\w*|esya\\w* kir\\w*|\\w+ firlat\\w*|firlatt\\w*|(sira\\w*|masa\\w*|duvar\\w*|kapi\\w*|camlar\\w*) (vur|tekmele|yumrukla|kir)\\w*|bicak\\w*|baskalarina zarar\\w*|hayvanlara (zarar|eziyet)\\w*", { ogr: true }],
+  ["Davranış", 2, "kavga (et|ediyor)\\w*|kavgaya karis\\w*|kufur\\w*|kufret\\w*|disiplin\\w*|kural ihlal\\w*|dersi bozuyor|derste rahatsiz\\w*|ogretmen\\w* (karsi gel|kufur|hakaret)\\w*|yalan soyl\\w*|hirsizlik\\w*|caliyor|caldi\\w*|esya\\w* zarar\\w*|tahrip\\w*|durtusel\\w*|ofke patlama\\w*|ofke nobet\\w*|zorbalik yapiyor\\w*|zorbalik yapti\\w*|baskalarina zarar\\w*|hayvanlara (zarar|eziyet)\\w*", { ogr: true }],
+  ["Davranış", 1, "yerinde duram\\w*|sirasinda duram\\w*|surekli ayaga kalk\\w*|ders(i)? isleyeme\\w*|soz dinlem\\w*|kurallara uym\\w*|derse gec\\w*|telefonla oyna\\w* derste", { ogr: true, icNeg: true }],
+
+  // Aile
+  ["Aile", 3, "bosan\\w*|ayri yasi\\w*|ayrildi\\w*|ayrilik\\w*|velayet\\w*|baba(si)? cezaevi\\w*|anne(si)? cezaevi\\w*|cezaevinde\\w*|evi terk\\w*|aileyi terk\\w*|anne(si)? (evden )?gitti|baba(si)? (evden )?gitti|aile ici siddet\\w*|evde siddet\\w*", {}],
+  ["Aile", 2, "evde kavga\\w*|annesiyle (kavga|tartis|catis)\\w*|babasiyla (kavga|tartis|catis)\\w*|anne ve babasi (kavga|tartis)\\w*|ailede (catisma|sorun|kavga|huzursuzluk)\\w*|evde huzur (yok|kalmadi)|aile ici (catisma|sorun)\\w*|ilgilenmiyor\\w*|ilgisiz (aile|anne|baba)\\w*|baskici\\w*|asiri koruyucu\\w*|asiri kontrolcu\\w*|surekli ceza\\w*|kardes kiskancl\\w*|yeni kardes\\w*|uvey\\w*|anne(si)? hasta\\w*|baba(si)? hasta\\w*|baba(si)? issiz\\w*|ailesiyle sorun\\w*|evden kacmak ist\\w*|evden kac\\w*", { icNeg: true }],
+
+  // Teknoloji / ekran
+  ["Teknoloji-Ekran Bağımlılığı", 2, "oyun bagimli\\w*|telefon bagimli\\w*|ekran bagimli\\w*|internet bagimli\\w*|bagimli gibi\\w*|telefonsuz duram\\w*|telefonu elinden birakm\\w*|saatlerce (oyun|telefon|tablet|bilgisayar|ekran|youtube|tiktok|instagram)\\w*|gece(leri)? (gec saate kadar )?(oyun|telefon|tablet)\\w*|gece (saat )?\\d+\\S* kadar\\w*|sabaha kadar (oyun|telefon|tablet|bilgisayar)\\w*|gunde \\d+ saat (oyun|telefon|ekran|tablet|bilgisayar)\\w*", { ogr: true, icNeg: true }],
+  ["Teknoloji-Ekran Bağımlılığı", 1, "telefon\\w*|tablet\\w*|bilgisayar oyun\\w*|oyun oyna\\w*|online oyun\\w*|sosyal medya\\w*|instagram\\w*|tiktok\\w*|youtube\\w*|discord\\w*|roblox\\w*|minecraft\\w*|pubg\\w*|free fire\\w*|fortnite\\w*|valorant\\w*|ekran\\w*|playstation\\w*|play station\\w*", { ogr: true }],
+
+  // Devamsızlık
+  ["Devamsızlık", 2, "devamsiz\\w*|okula gel(mi|me)\\w*|okula gitmek ist(emi|emedi)\\w*|okula gitm(iyor|ek istemiyor)\\w*|ozursuz\\w*|okuldan kac\\w*|derse girm(iyor|edi)\\w*|derslerden kac\\w*|sik sik rapor\\w*|okul reddi\\w*|sabahlari okula\\w*", { ogr: true, icNeg: true }],
+  ["Devamsızlık", 1, "gec gel(iyor|di)\\w*|gec kal(iyor|di)\\w*", { ogr: true }],
+
+  // Duygusal
+  ["Duygusal", 3, "umudu (yok|olmadig\\w*|kalmadi\\w*)|hic umudu\\w*|gelecege dair (hic )?umud\\w* (yok|olmadig|kalmadi)\\w*|gelecek (kaygisi|endisesi) yok|depresyon\\w*|depresif\\w*|umutsuz\\w*|degersiz\\w*|ise yaramaz\\w*|hicbir seyden zevk alm\\w*|hicbir sey yapmak ist\\w*|panik\\w*|surekli agli\\w*|her gun agli\\w*|kendini suclu\\w*|kendinden nefret\\w*|kimse beni sevm\\w*|kimse onu sevm\\w*|hayatin anlam\\w*", { ogr: true, icNeg: true }],
+  ["Duygusal", 2, "kaygi\\w*|endise\\w*|korku\\w*|korkuyor\\w*|kork(tu|uyor)\\w*|uzgun\\w*|uzuntu\\w*|mutsuz\\w*|aglad\\w*|agliyor\\w*|aglama\\w*|icine kapan\\w*|ice kapan\\w*|yalniz hiss\\w*|ofke(?! (patlama|nobet))\\w*|sinirli\\w*|sinirlen\\w*|stres\\w*|gergin\\w*|huzursuz\\w*|moral\\w* bozuk|moralsiz\\w*|cani sikkin|canı sıkkın|ici daral\\w*|bunal\\w*|carpinti\\w*|kalbi carp\\w*|nefes alam\\w*|elleri titre\\w*|kus(uyor|tu|ma)\\w*|bulanti\\w*|sinav kaygi\\w*|ozguven\\w* dusuk|kendine guven\\w* (yok|dusuk|az)|kendini yetersiz\\w*|mukemmeliyetci\\w*|takinti\\w*|kirgin\\w*|kuskun\\w*|hassas\\w*|alingan\\w*", { ogr: true }],
+  ["Duygusal", 1, "uyuyam\\w*|uykusuz\\w*|istahsiz\\w*|istahi (yok|azal)\\w*|karin agri\\w*|bas agri\\w*|mide bulanti\\w*|yorgun\\w*|isteksiz\\w*|enerjisi (yok|dusuk)|motivasyon\\w* (yok|dusuk|dustu)|sessizles\\w*|cekingen\\w*|utangac\\w*", { ogr: true, icNeg: true }],
+
+  // Özel öğrenme güçlüğü / dikkat
+  ["Özel Öğrenme Güçlüğü", 2, "okumada (gucluk|zorluk)\\w*|okuma guclug\\w*|yazmada (gucluk|zorluk)\\w*|harfleri karistir\\w*|b ile d\\w*|ters yaz\\w*|heceleyerek\\w*|disleksi\\w*|diskalkuli\\w*|disgrafi\\w*|oog\\w*|ozel ogrenme\\w*|ram(a)? yonlendir\\w*|bep\\b|dikkat eksik\\w*|dehb\\w*|hiperaktiv\\w*|odaklanam\\w*|dikkati cabuk dagil\\w*|dikkatini toplayam\\w*|unutkan\\w*|yonergeleri takip edem\\w*|sayilari karistir\\w*|carpim tablosu\\w*", { ogr: true, icNeg: true }],
+
+  // Sağlık
+  ["Sağlık", 2, "kronik\\w*|diyabet\\w*|seker hasta\\w*|epilepsi\\w*|astim\\w*|ameliyat\\w*|hastane\\w*|tedavi gor\\w*|kalp\\w*|kanser\\w*|losemi\\w*|alerji\\w*|ilac kullan\\w*|psikiyatri\\w*|tani al\\w*|rahatsizlig\\w*|hastalig\\w*|bayil\\w*|nobet geci\\w*", { ogr: true }],
+
+  // Ekonomik
+  ["Ekonomik Güçlük", 2, "maddi (sikinti|durum|imkan|zorluk|gucluk)\\w*|ekonomik (sikinti|zorluk|gucluk)\\w*|geçim\\w*|gecim (sikinti|derd)\\w*|issiz\\w*|kira\\w* (odeyem|borc)\\w*|borc\\w*|harcligi yok|harclik\\w*|kirtasiye\\w*( malzeme\\w*)? (alam|yok|eksik)\\w*|yemek parasi (yok|olmad)\\w*|beslenme(si)? (yok|getirm|getirem)\\w*|calismak zorunda\\w*|ise gidiyor|pazarda calis\\w*|is yerinde calis\\w*|okuldan sonra calis\\w*|okul cikisi calis\\w*|(dukkan|tamirhane|sanayi|fabrika|atolye|kafe|market)\\w* calis\\w*|para kazanmak zorunda\\w*|eve bakiyor|tek basina \\d+ cocug\\w*|burs\\w*|yardim al\\w*|sosyal yardim\\w*|ayakkabisi yirtik|montu yok|odeyem\\w*|karsilayam\\w*", { icNeg: true }],
+
+  // Göç
+  ["Göç-Uyum Süreci", 2, "goc\\w*|suriye\\w*|afgan\\w*|irak\\w*|iran\\w*|yabanci uyruk\\w*|turkce(yi)? bilm\\w*|turkcesi (zayif|yetersiz|az)\\w*|turkceyi az\\w*|dil engel\\w*|dil sorun\\w*|gecici koruma\\w*|multeci\\w*|siginmaci\\w*|yeni tasin\\w*|baska sehirden\\w*|uyum sorun\\w*|uyum sagla(ya|ma)\\w*|hicbir sey anlam\\w*|anlamadigini soyl\\w*", { icNeg: true }],
+
+  // Adli
+  ["Adli Süreç-Danışmanlık Tedbiri", 3, "danismanlik tedbir\\w*|mahkeme\\w*|karakol\\w*|savcilik\\w*|polis\\w*|adli\\w*|denetimli serbest\\w*|gozaltina\\w*|ifade ver\\w*|suca (karis|surukle)\\w*|cocuk subesi\\w*", {}],
+
+  // Akademik
+  ["Akademik", 2, "notlari dus\\w*|basarisi dus\\w*|basarisiz\\w*|zayif not\\w*|zayif(lari)? var|dersleri(nde)? (gerile|dus)\\w*|netleri dus\\w*|netler(i)? dustu|odev(lerini)? yap(mi|ma)\\w*|odev getirm\\w*|ders calism\\w*|derslere ilgisiz\\w*|derslere katilm\\w*|sinif tekrar\\w*|sinifta kal\\w*|lgs (kaygi|stres)\\w*|calisma aliskanlig\\w* (yok|zayif)|deneme(ler)?(de)? dusuk", { ogr: true, icNeg: true }],
+];
+const KS_SOZLUK_DERLI = KS_SOZLUK.map(([tur, guc, kalip, sec]) => ({ tur, guc, re: ksDerle(kalip), sec: sec || {} }));
+const KS_KRITIK = ["Öz Zarar", "İhmal-İstismar", "Toplumsal Cinsiyet Temelli Şiddet"];
+// Üçüncü kişiye ait olunca aileye risk faktörü olarak yansıyan türler
+const KS_AILEYE_YANSIR = { "Öz Zarar": "ailede intihar/kendine zarar öyküsü", "Madde Kullanımı": "ailede madde/alkol kullanımı", "Duygusal": "ailede ruhsal güçlük", "Sağlık": "ailede ciddi hastalık", "Davranış": null, "Teknoloji-Ekran Bağımlılığı": null, "Devamsızlık": null, "Akademik": null, "Özel Öğrenme Güçlüğü": null, "Travma": "ailede travmatik yaşantı" };
+
+// ── İşlevsellik alanları ──────────────────────────────────────────────────────
+const KS_ISLEV = [
+  ["uyku", "uyuyam\\w*|uykusuz\\w*|uyku (sorun|duzen\\w* bozul|problem)\\w*|uykusu bozul\\w*|gec yat\\w*|sabah(lari)? kalkam\\w*|kabus\\w*|derste uyu\\w*|cok uyuyor|gece uyanip"],
+  ["yeme", "istahsiz\\w*|istahi (yok|azal|kesil)\\w*|yemek yem(iyor|edi|eme)\\w*|kilo kayb\\w*|kilo ver\\w*|asiri yemek\\w*|surekli yiyor|ogun atl\\w*"],
+  ["akademik", "notlari dus\\w*|basarisi dus\\w*|netleri dus\\w*|netler(i)? dustu|odev(lerini)? yap(mi|ma)\\w*|derslere katilm\\w*|ders calism\\w*|derslere ilgisiz\\w*|dersleri bos ver\\w*|sinifta kal\\w*|derslerden kopt\\w*|dersi takip edem\\w*"],
+  ["sosyal", "arkadaslarindan uzaklas\\w*|icine kapan\\w*|ice kapan\\w*|yalniz kal(iyor|di)\\w*|kimseyle konusm\\w*|sosyal etkinlik\\w* katilm\\w*|odasindan cikm\\w*|disari cikm\\w*|arkadasi yok|hic arkadasi yok|arkadaslarini gormek istem\\w*|teneffuste yalniz|sessizles\\w*|insanlardan kac\\w*"],
+  ["aile", "evde kavga\\w*|annesiyle (kavga|tartis|catis)\\w*|babasiyla (kavga|tartis|catis)\\w*|ailesiyle (kavga|tartis|catis|sorun)\\w*|eve gitmek ist(emi|emedi)\\w*|evden kac\\w*|(telefon|oyun|ekran) (yuzunden|icin) (kavga|tartis)\\w*"],
+  ["devam", "okula gel(mi|me)\\w*|devamsiz\\w*|okula gitmek ist(emi|emedi)\\w*|ozursuz\\w*|okuldan kac\\w*|derse girm\\w*|sik sik rapor\\w*"],
+  ["bedensel", "kus(uyor|tu|ma)\\w*|kalbi carp\\w*|nefes alam\\w*|karin agri\\w*|bas agri\\w*|mide bulanti\\w*|sik sik revir\\w*|revire gid\\w*|kusma\\w*|carpinti\\w*"],
+].map(([alan, k]) => ({ alan, re: ksDerle(k) }));
+const KS_ISLEV_AD = { uyku: "uyku", yeme: "yeme/iştah", akademik: "akademik işleyiş", sosyal: "sosyal ilişkiler", aile: "aile içi ilişkiler", devam: "okula devam", bedensel: "bedensel yakınmalar" };
+
+// ── Ekran ölçütleri ───────────────────────────────────────────────────────────
+const KS_EKRAN_ANAHTAR = ksDerle("telefon\\w*|tablet\\w*|oyun\\w*|sosyal medya\\w*|instagram\\w*|tiktok\\w*|youtube\\w*|ekran\\w*|discord\\w*|bilgisayar\\w*|roblox\\w*|minecraft\\w*|pubg\\w*|playstation\\w*|internet\\w*");
+const KS_EKRAN_OLCUT = [
+  ["uyku düzeninde bozulma / geç saatlere kadar ekran", "gec saate kadar\\w*|gece (saat )?\\d+\\S* kadar\\w*|okula gec gel\\w*|gece(leri)? (gec saate kadar )?(oyun|telefon|tablet|bilgisayar)\\w*|gece yarisina kadar\\w*|sabaha kadar\\w*|uykusuz\\w*|sabah(lari)? kalkam\\w*|gec yat\\w*|derste uyu\\w*|uyku duzen\\w*"],
+  ["sosyal etkinliklerden / yüz yüze ilişkilerden çekilme", "arkadaslarindan uzaklas\\w*|disari cikm\\w*|odasindan cikm\\w*|yuz yuze\\w*|sosyal etkinlik\\w*|icine kapan\\w*|kimseyle gorusm\\w*|arkadaslarini gormek istem\\w*|eskiden sevdigi\\w*"],
+  ["akademik performansta düşüş", "notlari dus\\w*|basarisi dus\\w*|netleri dus\\w*|netler(i)? dustu|odev(lerini)? yap(mi|ma)\\w*|ders calism\\w*|derslere ilgisiz\\w*"],
+  ["azaltma girişiminde başarısızlık / kısıtlanınca huzursuzluk-öfke", "(telefon|tablet|oyun|bilgisayar)\\w* (alininca|alindiginda|kisitlaninca|yasaklaninca|elinden alin)\\w*|telefonu alinca|kisitlayinca|yasaklayinca|birakam\\w*|azaltam\\w*|kontrol edem\\w*|sure sinir\\w*|telefonsuz duram\\w*|elinden birakm\\w*|bagimli\\w*"],
+  ["aile içi çatışmanın ekran kullanımı etrafında yoğunlaşması", "(telefon|oyun|ekran|tablet|bilgisayar|internet)\\w* (yuzunden|icin|konusunda) (kavga|tartis|catis|sorun)\\w*|(telefon|oyun)\\w* (yuzunden|icin) (annesiyle|babasiyla|ailesiyle)"],
+  ["günlük kullanım süresinin aşırı olması", "gunde ([4-9]|1[0-9]) saat\\w*|saatlerce\\w*|butun gun\\w*|tum gun\\w*|okuldan gelince hemen\\w*|ders calismak yerine\\w*"],
+].map(([ad, k]) => ({ ad, re: ksDerle(k) }));
+
+// ── Koruyucu faktörler ────────────────────────────────────────────────────────
+const KS_KORUYUCU = [
+  ["destekleyici aile", "destekleyici (aile|anne|baba)\\w*|ailesi (cok )?(ilgili|destek)\\w*|annesi (cok )?(ilgili|destek)\\w*|babasi (cok )?(ilgili|destek)\\w*|ailesiyle (iyi|yakin|guzel)\\w*|veli (cok )?(ilgili|isbirlig)\\w*|aile (isbirligine|gorusmesine) acik"],
+  ["ebeveynlerden biriyle yakın ilişki", "annesiyle (cok )?yakin|babasiyla (cok )?yakin|annesine (cok )?(bagli|guveniyor)|babasina (cok )?(bagli|guveniyor)|anneannesiyle yakin|babaannesiyle yakin|dedesiyle yakin|ablasiyla yakin|abisiyle yakin"],
+  ["akran desteği", "yakin arkadas\\w*|arkadaslari var|arkadas cevresi (iyi|genis)\\w*|sevilen bir ogrenci|arkadaslariyla (iyi|uyumlu)\\w*|en iyi arkadas\\w*"],
+  ["spor / sanat / hobi gibi ilgi alanları", "spor\\w*|futbol\\w*|basketbol\\w*|voleybol\\w*|yuzme\\w*|muzik\\w*|enstruman\\w*|gitar\\w*|piyano\\w*|keman\\w*|resim\\w*|cizim\\w*|dans\\w*|satranc\\w*|kitap okumay\\w*|hobi\\w*|kurs\\w*|izci\\w*|robotik\\w*|kodlama\\w*|tiyatro\\w*"],
+  ["başarılı olduğu alanlar", "basarili\\w*|yetenekli\\w*|derece\\w*|odul\\w*|takdir\\w*|tesekkur belge\\w*"],
+  ["öğretmenle olumlu ilişki", "ogretmeniyle (iyi|olumlu|yakin)\\w*|ogretmenini (cok )?sev\\w*|ogretmenine guven\\w*|sinif ogretmeni (ilgili|destek)\\w*"],
+  ["yardım istemeye açık olması", "yardim ist\\w*|kendisi (gorusmeye )?geldi|kendiliginden geldi|kendi istegiyle\\w*|gorusmeye istekli\\w*|acik(ca)? paylas\\w*|anlatmaya istekli\\w*|destek almak ist\\w*"],
+  ["değişime / gelişime istekli olması", "motive\\w*|istekli\\w*|hedef(i|leri) var|hedef koy\\w*|cabaliyor\\w*|gayret\\w*|kararli\\w*|degismek ist\\w*"],
+  ["olumlu başa çıkma becerileri", "nefes egzersiz\\w*|duygularini ifade ed\\w*|sakinlesebil\\w*|problem coz\\w*|gunluk tut\\w*|basa cikabil\\w*"],
+].map(([ad, k]) => ({ ad, re: ksDerle(k) }));
+
+// ── Görüşme tonu ──────────────────────────────────────────────────────────────
+const KS_TON_EKSI = ksDerle("uzgun\\w*|mutsuz\\w*|agla\\w*|ofke\\w*|sinir\\w*|kavga\\w*|yalniz\\w*|kork\\w*|kaygi\\w*|endise\\w*|kotu\\w*|yorgun\\w*|uykusuz\\w*|cekingen\\w*|icine kapan\\w*|sessizles\\w*|umutsuz\\w*|degersiz\\w*|isteksiz\\w*|kirgin\\w*|huzursuz\\w*|gergin\\w*|agri\\w*|stres\\w*|bunal\\w*|moralsiz\\w*|cani sikkin|zorlan\\w*|sikinti\\w*|sorun\\w*|olmek\\w*|intihar\\w*|kendine zarar\\w*");
+const KS_TON_ARTI = ksDerle("mutlu\\w*|iyi\\b|iyiydi|iyi hiss\\w*|keyif\\w*|basari\\w*|olumlu\\w*|rahat\\w*|gulumse\\w*|guldu\\w*|istekli\\w*|motive\\w*|sevin\\w*|umutlu\\w*|heyecan\\w*|katilim\\w*|paylasti\\w*|ilerleme\\w*|gelisme\\w*|memnun\\w*|huzurlu\\w*|enerjik\\w*|neseli\\w*|uyumlu\\w*|toparla\\w*|duzel\\w*|azaldi\\w*");
+function ksSay(re, metin) { re.lastIndex = 0; let n = 0; while (re.exec(metin)) n++; return n; }
+function ksTon(metin) {
+  const c = ksCumlecikler(metin);
+  let p = 0;
+  for (const x of c) {
+    const neg = ksSay(KS_TON_EKSI, x.s), pos = ksSay(KS_TON_ARTI, x.s);
+    const olumsuz = KS_OLUMSUZ_KELIME.test(x.s.replace(/^.*?(uzgun|kaygi|mutsuz|kork|sorun)\w*/, ""));
+    p += olumsuz ? (pos - 0.3 * neg) : (pos - neg);
+  }
+  return c.length ? p / Math.sqrt(c.length) : 0;
+}
+
+const KS_OLAY_TURLERI = ["Yas-Kayıp", "Travma", "Aile", "İhmal-İstismar", "Toplumsal Cinsiyet Temelli Şiddet", "Adli Süreç-Danışmanlık Tedbiri"];
+// ── Sözlük taraması ───────────────────────────────────────────────────────────
+// Bir görüşme metnindeki tüm bulguları bağlamıyla çıkarır
+function ksTara(metin, gorusmeEtiket) {
+  const bulgular = [];
+  const oncekiUcuncu = new Map(); // aynı görüşmede önceki cümlecikte üçüncü kişiye ait bulunan türler
+  for (const c of ksCumlecikler(metin)) {
+    const kurgu = KS_KURGU.test(c.s);
+    const ogrenciVurgu = /(^|[^a-z])(ogrenci|kendisi|kendi|kendine|kendini|kendisinin)(?=[^a-z])/.test(c.s);
+    const oLower = c.o.toLocaleLowerCase("tr");
+    const artirici = KS_ARTIRAN.test(c.s), azaltici = KS_AZALTAN.test(c.s);
+    const sure = KS_SURE.exec(c.s);
+    const gecmis = KS_GECMIS.test(c.s), cozuldu = KS_COZULDU.test(c.s);
+    for (const e of KS_SOZLUK_DERLI) {
+      e.re.lastIndex = 0;
+      let m, ilk = null; const farkli = new Set();
+      while ((m = e.re.exec(c.s)) !== null) {
+        const bas = m.index + m[1].length, son = bas + m[2].length;
+        // Sade yazımda ayırt edilemeyen ö/o farkı ("öldü" / "oldu") orijinal metinden doğrulanır
+        if (e.sec.oIcermeli && !oLower.slice(Math.max(0, bas - 1), son).includes(e.sec.oIcermeli)) continue;
+        const olumsuz = ksOlumsuzMu(c.s, son, e.sec.icNeg, m[2].split(/\s+/).pop());
+        if (olumsuz) { if (!ilk) ilk = { bas, son, olumsuz: true }; continue; }
+        farkli.add(m[2]);
+        if (!ilk || ilk.olumsuz) ilk = { bas, son, olumsuz: false };
+      }
+      if (!ilk) continue;
+      let ucuncu = false;
+      if (e.sec.ogr || e.tur === "Öz Zarar") {
+        ucuncu = ksUcuncuKisi(c.s, ilk.bas) || (!ogrenciVurgu && oncekiUcuncu.get(e.tur)) || false;
+        if (kurgu && KS_KRITIK.concat(["Madde Kullanımı"]).includes(e.tur)) ucuncu = "kurgu";
+      }
+      if (kurgu && ["Travma", "Yas-Kayıp"].includes(e.tur) && !ksUcuncuKisi(c.s, ilk.bas)) { ucuncu = "kurgu";
+      }
+      if (ucuncu) oncekiUcuncu.set(e.tur, ucuncu);
+      bulgular.push({
+        tur: e.tur, guc: e.guc, cssrs: e.sec.cssrs || 0, olumsuz: ilk.olumsuz, ucuncu, kurgu,
+        adet: Math.min(3, farkli.size || 1),
+        // Yaşam olaylarında (yas, travma, aile olayı, istismar) olay geçmişte yaşanmıştır ama etkisi
+        // günceldir — yalnızca açıkça "atlattı/düzeldi" deniyorsa geçmiş sayılır
+        gecmis: KS_OLAY_TURLERI.includes(e.tur) ? cozuldu : (gecmis || cozuldu), cozuldu, artirici, azaltici, sure: !!sure,
+        ifade: c.o.length > 110 ? c.o.slice(0, 108) + "…" : c.o, etiket: gorusmeEtiket,
+      });
+    }
+  }
+  return bulgular;
+}
+function ksIslevTara(metin) {
+  const alanlar = new Set();
+  for (const c of ksCumlecikler(metin)) {
+    for (const i of KS_ISLEV) {
+      i.re.lastIndex = 0; const m = i.re.exec(c.s);
+      if (!m) continue;
+      const bas = m.index + m[1].length, son = bas + m[2].length;
+      if (ksUcuncuKisi(c.s, bas)) continue;
+      if (KS_GECMIS.test(c.s) || KS_COZULDU.test(c.s)) continue;
+      if (ksOlumsuzMu(c.s, son, true)) continue;
+      alanlar.add(i.alan);
+    }
+  }
+  return alanlar;
+}
+
+// ── Önerilen adımlar (düzeye göre) ─────────────────────────────────────────────
+// her tür: { acil: [...] (YÜKSEK'te başa eklenir), temel: [...], hafif: [...] }
+const KS_ADIM = {
+  "Öz Zarar": {
+    acil: ["BUGÜN: Öğrenciyi yalnız bırakmadan, güvenli ve yargısız bir ortamda görüş; ölüm/intihar düşüncesini, planı ve araçlara erişimi doğrudan sor (doğrudan sormak riski artırmaz)."],
+    temel: ["Okul müdürünü bilgilendir ve MEB'in intihar ve kendine zarar verme davranışlarına yönelik okul müdahale yönergesini uygula; görüşmeyi tarih/saat ve öğrencinin kendi ifadeleriyle kaydet.",
+            "Veliyi aynı gün çağır; evde ilaç, kesici alet gibi araçlara erişimin kısıtlanmasını iste ve çocuk-ergen psikiyatrisine yönlendir (acil risk varsa 112).",
+            "Öğrenciyle birlikte yazılı bir güvenlik planı hazırla (uyarı işaretleri, başa çıkma yolları, ulaşabileceği kişiler, 112) ve izlem görüşmelerini haftalık olarak takvime bağla."],
+    hafif: [],
+  },
+  "İhmal-İstismar": {
+    acil: ["BUGÜN: Öğrenciyi sorguya çekmeden, kendi anlattıklarını aynen ve tarihli olarak not al; ayrıntı için ısrar etme, tekrar tekrar anlattırma, yönlendirici soru sorma."],
+    temel: ["Okul müdürünü gecikmeksizin bilgilendir; yasal bildirim yükümlülüğü (Cumhuriyet Başsavcılığı / kolluk / ASHB 183) okul yönetimi aracılığıyla yerine getirilmelidir.",
+            "İstismar şüphesi aile içindeyse veliye bildirim yapmadan önce yetkili kurumların yönlendirmesini bekle; öğrencinin okuldaki güvenliğini ve gizliliğini sağla.",
+            "Bildirim sonrasında öğrencinin okula uyumunu destekleyen izlem görüşmeleri planla; sınıf öğretmenini yalnızca bilmesi gereken kadar bilgilendir."],
+    hafif: [],
+  },
+  "Toplumsal Cinsiyet Temelli Şiddet": {
+    acil: ["Öğrenciyle güvenli bir bireysel görüşme yap; durumu kendi ifadeleriyle tarihli olarak kayda geçir."],
+    temel: ["Okul yönetimini bilgilendir; erken/zorla evlilik ya da eğitimden alınma riski varsa yasal bildirim ve ASHB (183) yönlendirmesini okul yönetimiyle birlikte yap.",
+            "Öğrencinin eğitime devamını destekleyecek kaynakları (burs, yatılılık, şartlı eğitim yardımı) araştır; aileyle eğitim hakkı konusunda görüş.",
+            "Devamını haftalık izle; devamsızlık başlarsa vakit kaybetmeden okul yönetimiyle süreci işlet."],
+    hafif: [],
+  },
+  "Madde Kullanımı": {
+    acil: ["Bu hafta içinde öğrenciyle yargılamadan görüş; kullanılan maddeyi, sıklığı, ortamı ve kimlerle kullandığını anlamaya çalış."],
+    temel: ["Veliyle görüşerek bilgilendir; düzenli kullanım şüphesinde ÇEMATEM'e (çocuk ve ergen madde bağımlılığı merkezi) yönlendir, gerekiyorsa okul yönetimini bilgilendir.",
+            "Akran baskısı, hayır diyebilme ve sağlıklı başa çıkma yolları üzerine bireysel görüşmeler planla; boş zamanını değerlendirebileceği etkinlikleri birlikte belirle."],
+    hafif: ["Öğrenciyle yargılamadan, merak/deneme mi yoksa düzenli kullanım mı olduğunu anlamaya yönelik görüşme yap.",
+            "Veliyi bilgilendir ve evde açık iletişim konusunda psikoeğitim ver; sınıf düzeyinde bağımlılıktan korunma etkinliği planla."],
+  },
+  "Travma": {
+    acil: ["Öğrencinin güvende olduğunu doğrula; anlatmaya zorlamadan, güvenlik duygusunu önceleyen destekleyici bir görüşme yap."],
+    temel: ["Yaşadığı tepkilerin (kabus, irkilme, kaçınma, dikkat güçlüğü) olağan tepkiler olduğunu açıklayan psikoeğitim ver; nefes ve topraklama gibi basit düzenleme becerileri öğret.",
+            "Belirtiler 1 aydan uzun sürüyor ya da işlevselliği bozuyorsa çocuk-ergen ruh sağlığı birimine yönlendir (travma odaklı terapi için).",
+            "Öğretmenleri bilgilendirerek sınıfta öngörülebilir, destekleyici bir ortam sağla; tetikleyici olabilecek durumlara dikkat edilmesini iste."],
+    hafif: ["Destekleyici bir görüşme yap ve olağan stres tepkileri hakkında psikoeğitim ver.",
+            "Aileyi evde gözlemlemeleri gereken belirtiler konusunda bilgilendir."],
+  },
+  "Yas-Kayıp": {
+    acil: [],
+    temel: ["Yas tepkilerini normalleştiren, duygularını ifade etmesine alan açan görüşmeler yap; kaybettiği kişiyi anabileceği yolları (anı kutusu, mektup) birlikte düşün.",
+            "Aileyle görüşerek evdeki yas sürecini ve çocuğun desteklenme biçimini değerlendir; çocuğun sorularına yaşına uygun ve dürüst yanıt verilmesini öner.",
+            "Belirtiler 6 aydan uzun sürüyor, günlük işlevselliği ciddi bozuyor ya da ölüm düşünceleri eşlik ediyorsa uzman desteğine yönlendir."],
+    hafif: ["Destekleyici bir görüşme yap; yas tepkilerinin doğal olduğunu anlat.",
+            "Sınıf öğretmenini bilgilendir; öğrencinin önümüzdeki haftalardaki uyumunu gözlemlemesini iste."],
+  },
+  "Akran-Zorbalık": {
+    acil: ["Öğrencinin güvenliğini sağlamaya yönelik bugün somut önlem al (nöbetçi öğretmen bilgilendirme, teneffüs gözetimi, oturma düzeni)."],
+    temel: ["Olayları tarih, yer ve kişilerle kayda geçir; sınıf rehber öğretmeni ve okul yönetimiyle zorbalığı önleme prosedürünü işlet.",
+            "Zorbalık yapan öğrenci(ler)le ve aileleriyle ayrı ayrı görüş; öğrencinin velisini alınan önlemler konusunda bilgilendir.",
+            "Sınıfta zorbalık, siber zorbalık ve seyirci rolü üzerine rehberlik etkinliği uygula; öğrencinin akran desteğini güçlendirecek eşleştirmeler yap."],
+    hafif: ["Öğrenciyle yaşadıklarını ayrıntılı konuş; kendini savunma ve yardım isteme becerileri üzerine çalış.",
+            "Sınıf öğretmenini bilgilendir ve sınıf içi ilişkileri gözlemlemesini iste; sınıfta arkadaşlık/empati temalı etkinlik planla."],
+  },
+  "Aile": {
+    acil: [],
+    temel: ["Veliyle görüşerek evdeki durumu, çocuğun bu süreçten nasıl etkilendiğini ve ailenin destek kaynaklarını değerlendir.",
+            "Öğrenciye duygularını ifade edebileceği, okulda güvenli bir alan sağla; ailedeki durumun kendi sorumluluğu olmadığını vurgula.",
+            "Gerekirse aile danışmanlığına / ASHB sosyal hizmet merkezine yönlendir; boşanma sürecindeyse ebeveynlere çocuğu çatışmanın dışında tutma konusunda psikoeğitim ver."],
+    hafif: ["Öğrenciyle evdeki değişikliği nasıl yaşadığını konuş; duygularını ifade etmesine alan aç.",
+            "Veliye çocuğun okuldaki durumu hakkında bilgi ver ve evde dikkat etmeleri gerekenleri paylaş."],
+  },
+  "Teknoloji-Ekran Bağımlılığı": {
+    acil: [],
+    temel: ["Öğrenciyle ekran kullanımının süresini, saatlerini ve içeriğini birlikte gözden geçir; yasak yerine kendi belirlediği gerçekçi bir hedefe (örn. yatmadan 1 saat önce ekransız) destek ol.",
+            "Veliye ekran süresi anlaşması, yatak odasında telefon olmaması ve ailece ekransız zaman konusunda psikoeğitim ver; kısıtlamanın öfke yaratabileceğini, tutarlılığın önemli olduğunu anlat.",
+            "Ekran dışı ilgi alanlarını (spor, sanat, kulüp) güçlendirecek seçenekleri birlikte belirle; kontrolsüz kullanım ve işlev kaybı sürerse teknoloji bağımlılığı polikliniğine yönlendirmeyi değerlendir."],
+    hafif: ["Öğrenciyle ekran kullanımının günlük yaşamına etkisini konuş ve küçük bir hedef belirle.",
+            "Veliye ekran süresi ve uyku düzeni konusunda kısa bir bilgilendirme yap."],
+  },
+  "Devamsızlık": {
+    acil: [],
+    temel: ["Devamsızlığın nedenini (sağlık, okul kaygısı, akran sorunu, aile durumu, çalışma) öğrenciyle ve veliyle ayrı ayrı görüşerek belirle.",
+            "Sınıf öğretmeniyle günlük devam takibi kur; okula dönüşü kolaylaştıracak kademeli bir plan ve okulda güvendiği bir yetişkin belirle.",
+            "Devamsızlık sürüyorsa okul yönetimiyle yasal süreçleri ve gerekiyorsa sosyal hizmet yönlendirmesini değerlendir."],
+    hafif: ["Geç kalma/devamsızlığın nedenini öğrenciyle konuş.", "Veliyi bilgilendir ve sınıf öğretmeniyle devam takibi yap."],
+  },
+  "Duygusal": {
+    acil: ["Bu hafta içinde belirtilerin şiddetini, süresini ve ölüm düşüncesi eşlik edip etmediğini doğrudan değerlendiren bir görüşme yap."],
+    temel: ["Belirtilerin ne zamandan beri sürdüğünü, sıklığını ve günlük yaşama etkisini değerlendir; uygun bir tarama ölçeğiyle (örn. kaygı için SCAS) destekle.",
+            "Kaygı/duygu düzenleme becerileri (nefes, düşünceleri fark etme ve sorgulama, problem çözme) üzerine 4-6 oturumluk kısa süreli bireysel çalışma planla.",
+            "Veliyi bilgilendir; belirtiler 2 haftadan uzun sürüyor ya da işlevselliği bozuyorsa çocuk-ergen ruh sağlığı uzmanına yönlendir."],
+    hafif: ["Destekleyici bir görüşme yap; duygularını adlandırmasına ve ifade etmesine yardımcı ol.",
+            "Basit başa çıkma becerileri (nefes, duygu günlüğü) öğret; veliyi evde gözlemlemesi gerekenler konusunda bilgilendir."],
+  },
+  "Davranış": {
+    acil: ["Başkalarına zarar riski varsa bugün okul yönetimiyle güvenlik önlemi al ve veliyi çağır."],
+    temel: ["Davranışın ne zaman, nerede ve hangi tetikleyicilerle ortaya çıktığını öğretmen gözlemiyle belirle (öncül-davranış-sonuç kaydı).",
+            "Öğrenciyle öfke yönetimi, sorumluluk alma ve problem çözme üzerine bireysel görüşmeler yap; olumlu davranışı pekiştiren yazılı bir sözleşme hazırla.",
+            "Veli ve öğretmenlerle ortak, tutarlı bir davranış planı belirle; davranışın altında kaygı, öğrenme güçlüğü ya da aile sorunu olup olmadığını değerlendir."],
+    hafif: ["Öğrenciyle davranışın nedenlerini ve sonuçlarını konuş; alternatif davranışlar belirle.",
+            "Sınıf öğretmeniyle olumlu davranışı fark edip pekiştirme konusunda iş birliği yap."],
+  },
+  "Özel Öğrenme Güçlüğü": {
+    acil: [],
+    temel: ["Öğretmenden okuma, yazma, matematik ve dikkat alanlarında gözlem iste; programdaki ÖÖG ön değerlendirme aracını uygula.",
+            "Bulgular destekliyorsa veliyle görüşerek RAM'a yönlendirme sürecini başlat (dikkat güçlüğü belirgin ise çocuk psikiyatrisi değerlendirmesi de öner).",
+            "Tanı süreci beklenirken sınıf içi uyarlamalar (ek süre, kısa yönergeler, ön sıra, sözlü yanıt) için öğretmenle iş birliği yap; öğrencinin özgüvenini destekle."],
+    hafif: ["Öğretmenle gözlem yap ve öğrencinin hangi alanlarda zorlandığını netleştir.", "Gerekirse ÖÖG ön değerlendirme aracını uygula."],
+  },
+  "Sağlık": {
+    acil: [],
+    temel: ["Veliden sağlık durumu ve okulda dikkat edilmesi gerekenler (acil durum planı, ilaç) hakkında bilgi al.",
+            "Öğretmenleri ve okul yönetimini öğrencinin okuldaki ihtiyaçları konusunda bilgilendir.",
+            "Hastalığın öğrencinin duygusal ve akademik durumuna etkisini izlem görüşmeleriyle takip et; uzun süreli devamsızlıkta hastane/ev eğitimi seçeneklerini değerlendir."],
+    hafif: ["Veliden sağlık durumu hakkında bilgi al.", "Öğrencinin okul uyumunu izle."],
+  },
+  "Ekonomik Güçlük": {
+    acil: [],
+    temel: ["Öğrencinin temel ihtiyaçlarını (beslenme, kırtasiye, kıyafet, ulaşım) gizliliğe dikkat ederek belirle.",
+            "Okul aile birliği, burs olanakları, şartlı eğitim yardımı ve ASHB sosyal yardım kaynaklarına yönlendirme için okul yönetimiyle görüş.",
+            "Öğrencinin çalışmak zorunda kalıp kalmadığını ve bunun eğitime etkisini izle."],
+    hafif: ["İhtiyaçları gizliliğe dikkat ederek belirle.", "Okul olanaklarıyla destek sağla."],
+  },
+  "Göç-Uyum Süreci": {
+    acil: [],
+    temel: ["Öğrencinin dil düzeyini, okula ve akranlara uyumunu değerlendir; gerekirse Türkçe destek programlarına yönlendir.",
+            "Sınıfta akran eşleştirmesi (rehber arkadaş) uygula ve kültürel farklılıklara saygı temalı etkinlik planla.",
+            "Aileyle (gerekirse tercüman desteğiyle) görüşerek okul sistemini ve öğrencinin haklarını anlat."],
+    hafif: ["Öğrencinin uyumunu değerlendir.", "Sınıfta akran eşleştirmesi yap."],
+  },
+  "Adli Süreç-Danışmanlık Tedbiri": {
+    acil: [],
+    temel: ["Danışmanlık tedbiri kararı varsa ilgili yönergeye göre tedbir planını hazırla ve görüşmeleri düzenli kayda geçir.",
+            "Okul yönetimi ve gerekiyorsa sosyal çalışma görevlisiyle iş birliği yap; raporlama tarihlerini takvime al.",
+            "Öğrencinin okula bağlılığını güçlendirecek etkinlik ve sorumluluklar belirle; riskli akran çevresini değerlendir."],
+    hafif: [],
+  },
+  "Akademik": {
+    acil: [],
+    temel: ["Öğrenciyle çalışma alışkanlıklarını, zaman yönetimini ve derslere ilişkin tutumunu değerlendir; düşüşün altında duygusal bir neden olup olmadığını sor.",
+            "Deneme sonuçlarına göre zayıf derslerde haftalık, gerçekçi bir çalışma planı hazırla; ilgili ders öğretmenleriyle iş birliği yap.",
+            "Veliyle görüşerek evdeki çalışma ortamını ve beklentileri konuş."],
+    hafif: ["Öğrenciyle çalışma alışkanlıklarını konuş ve küçük, ulaşılabilir hedefler belirle.",
+            "Gelişimi bir sonraki deneme/yazılı sonrasında yeniden değerlendir."],
+  },
+  "Diğer": {
+    acil: [],
+    temel: ["Durumu daha iyi anlamak için öğrenciyle bireysel görüşme yap ve gözlemleri kayda geçir.",
+            "Gerekli görülürse veli ve öğretmenlerle bilgi paylaşımında bulun."],
+    hafif: ["Öğrenciyle bir tanışma/değerlendirme görüşmesi yap.", "Sınıf öğretmeninden gözlem iste."],
+  },
+};
+
+const KS_ACIKLAMA = {
+  "Öz Zarar": "Ölüm isteği, intihar düşüncesi ya da kendine zarar verme davranışına ilişkin her ifade, sıklığı ve ciddiyeti netleşene kadar ciddiye alınmalıdır.",
+  "İhmal-İstismar": "İhmal ve istismar şüphesi öğrencinin güvenliğini doğrudan ilgilendirir; şüphe düzeyi bile yasal bildirim yükümlülüğü doğurur.",
+  "Toplumsal Cinsiyet Temelli Şiddet": "Bu durum öğrencinin eğitim hakkını ve güvenliğini doğrudan tehdit eder; yasal ve kurumsal süreçlerin işletilmesini gerektirir.",
+  "Madde Kullanımı": "Ergenlik döneminde madde kullanımı gelişmekte olan beyin ve davranış üzerinde kalıcı etkiler bırakabilir; erken müdahale belirleyicidir.",
+  "Travma": "Travmatik yaşantılar uyku, dikkat, duygu düzenleme ve okul işlevselliğini etkileyebilir; güvenlik duygusunun yeniden kurulması önceliklidir.",
+  "Yas-Kayıp": "Yas doğal bir süreçtir; ancak desteklenmediğinde içe kapanma, akademik düşüş ve uzayan yas tepkilerine yol açabilir.",
+  "Akran-Zorbalık": "Süregen zorbalık; kaygı, okul reddi ve benlik saygısında düşüşle ilişkilidir; sistemli ve hızlı müdahale gerektirir.",
+  "Aile": "Aile içindeki güçlükler çocuğun güvenlik duygusunu, duygusal dengesini ve okul performansını doğrudan etkileyebilir.",
+  "Teknoloji-Ekran Bağımlılığı": "Kontrolsüz ekran kullanımı uyku, dikkat, sosyal ilişkiler ve akademik başarıyı olumsuz etkileyebilir.",
+  "Devamsızlık": "Devamsızlık çoğu zaman kendi başına değil, altta yatan başka bir sorunun (kaygı, akran, aile, ekonomik) belirtisidir.",
+  "Duygusal": "Duygusal güçlükler fark edilmediğinde akademik düşüş, sosyal geri çekilme ve bedensel yakınmalar olarak kendini gösterebilir.",
+  "Davranış": "Davranış sorunları çoğunlukla bir ihtiyacın ya da güçlüğün dışavurumudur; tetikleyicilerin anlaşılması müdahalenin temelidir.",
+  "Özel Öğrenme Güçlüğü": "Erken fark edilmeyen öğrenme ve dikkat güçlükleri tekrarlayan başarısızlık, özgüven kaybı ve okuldan soğumaya yol açabilir.",
+  "Sağlık": "Sağlık sorunları devam, katılım ve duygusal uyumu etkileyebilir; okulun uyum sağlaması gerekebilir.",
+  "Ekonomik Güçlük": "Ekonomik güçlük temel ihtiyaçları, okula devamı ve öğrencinin kendini algılayışını etkileyebilir.",
+  "Göç-Uyum Süreci": "Dil ve kültür farklılıkları akran ilişkilerini ve akademik uyumu zorlaştırabilir; aidiyet duygusunun desteklenmesi önemlidir.",
+  "Adli Süreç-Danışmanlık Tedbiri": "Adli süreçteki öğrenciler için düzenli izlem ve okula bağlılığın güçlendirilmesi tekrarın önlenmesinde belirleyicidir.",
+  "Akademik": "Akademik düşüş tek başına değerlendirilmemeli; altında motivasyon, duygusal ya da öğrenmeye ilişkin bir neden olup olmadığına bakılmalıdır.",
+  "Diğer": "Durumun netleşmesi için ek gözlem ve görüşme gereklidir.",
+};
+const KS_CSSRS_AD = { 1: "ölüm isteği", 2: "aktif intihar düşüncesi", 3: "yöntem düşüncesi", 4: "niyet", 5: "plan/hazırlık", 6: "intihar girişimi", 7: "kendine zarar verme davranışı" };
+const KS_FORM_TUR = { "Akran / Zorbalık": "Akran-Zorbalık", "Teknoloji / Ekran Bağımlılığı": "Teknoloji-Ekran Bağımlılığı", "Yas / Kayıp": "Yas-Kayıp", "Göç / Uyum Süreci": "Göç-Uyum Süreci", "Adli Süreç / Danışmanlık Tedbiri": "Adli Süreç-Danışmanlık Tedbiri", "İhmal / İstismar": "İhmal-İstismar" };
+const KS_PROFIL_AD = { akademik: "akademik gelişim", sosyal: "sosyal beceriler", duygusal: "duygusal denge", aile: "aile ilişkileri", ozguven: "öz güven", uyum: "okul uyumu", kariyer: "kariyer farkındalığı", akran: "akran ilişkileri" };
+
+function ksTarihYaz(t) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(t || ""));
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : String(t || "");
+}
+
+// ── Ana işlev ─────────────────────────────────────────────────────────────────
+function pdrKapaliRiskAnalizi(riskForm, gorusmeler = [], profil1 = null, kademe = "", denemeOzet = null) {
+  riskForm = riskForm || {};
+  const notlar = [...(gorusmeler || [])].filter(g => g && (g.summary || "").trim())
+    .sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+  const n = notlar.length;
+  const formTur = KS_FORM_TUR[riskForm.riskTuru] || riskForm.riskTuru || "";
+
+  // 1) Bulgular — güncel görüşmeler daha ağır basar
+  const tumBulgu = [];
+  notlar.forEach((g, i) => {
+    const agirlik = n > 1 ? 0.6 + 0.4 * (i / (n - 1)) : 1;
+    ksTara(g.summary, ksTarihYaz(g.date) || `Görüşme ${i + 1}`).forEach(b => { b.agirlik = agirlik; b.gorusme = i; tumBulgu.push(b); });
+  });
+  if ((riskForm.aciklama || "").trim()) ksTara(riskForm.aciklama, "danışman açıklaması").forEach(b => { b.agirlik = 1; b.gorusme = -1; tumBulgu.push(b); });
+
+  // Üçüncü kişiye ait bulgular → aile risk faktörü
+  const aileFaktor = new Set(), cevreFaktor = new Set();
+  for (const b of tumBulgu) {
+    if (!b.ucuncu || b.olumsuz) continue;
+    if (b.ucuncu === "aile") { const y = KS_AILEYE_YANSIR[b.tur]; if (y) aileFaktor.add(y); }
+    else if (b.ucuncu === "cevre" && b.tur === "Öz Zarar") cevreFaktor.add("yakın çevresinde (arkadaş) kendine zarar/intihar davranışı");
+    else if (b.ucuncu === "cevre" && b.tur === "Madde Kullanımı") cevreFaktor.add("arkadaş çevresinde madde kullanımı");
+  }
+  const gecerli = tumBulgu.filter(b => !b.olumsuz && !b.ucuncu);
+  const sorgulanan = tumBulgu.filter(b => b.olumsuz && !b.ucuncu && KS_KRITIK.includes(b.tur));
+
+  // 2) Tür puanları
+  const turPuan = {}, turGorusme = {}, turIfade = {}, turGuncel = {};
+  for (const b of gecerli) {
+    let p = b.guc * b.agirlik * (1 + 0.5 * ((b.adet || 1) - 1));
+    if (b.artirici) p *= 1.4;
+    if (b.azaltici) p *= 0.6;
+    if (b.gecmis) p *= b.cozuldu ? 0.25 : 0.5;
+    turPuan[b.tur] = (turPuan[b.tur] || 0) + p;
+    (turGorusme[b.tur] = turGorusme[b.tur] || new Set()).add(b.gorusme);
+    (turIfade[b.tur] = turIfade[b.tur] || []).push(b);
+    if (!b.gecmis) turGuncel[b.tur] = true;
+  }
+  // Ailede risk faktörü → Aile türüne katkı
+  if (aileFaktor.size) turPuan["Aile"] = (turPuan["Aile"] || 0) + 1.5 * aileFaktor.size;
+  // Yalnızca genel "telefon/oyun" sözcüğü geçiyorsa (güç 1) ekran türü öne çıkmasın
+  if (turPuan["Teknoloji-Ekran Bağımlılığı"] && !(turIfade["Teknoloji-Ekran Bağımlılığı"] || []).some(b => b.guc >= 2)) turPuan["Teknoloji-Ekran Bağımlılığı"] *= 0.5;
+
+  // 3) Öz zarar (C-SSRS)
+  const ozBulgu = turIfade["Öz Zarar"] || [];
+  const cssrsGuncel = new Set(ozBulgu.filter(b => !b.gecmis).map(b => b.cssrs));
+  const cssrsGecmis = new Set(ozBulgu.filter(b => b.gecmis).map(b => b.cssrs));
+  const cssrsMax = Math.max(0, ...cssrsGuncel);
+  const ozGecmisVar = cssrsGecmis.size > 0;
+
+  // Kritik durum: güncel öz zarar ya da güçlü istismar / TCTŞ bulgusu
+  const kritikTurler = KS_KRITIK.filter(t => (turIfade[t] || []).some(b => !b.gecmis && (b.guc >= 3 || t === "Öz Zarar")) || (t === "İhmal-İstismar" && (turPuan[t] || 0) >= 4.5));
+  const istismarIpucu = (turIfade["İhmal-İstismar"] || []).some(b => b.guc === 2);
+
+  // 4) İşlevsellik
+  const islev = new Set();
+  notlar.slice(-3).forEach(g => ksIslevTara(g.summary).forEach(a => islev.add(a)));   // son 3 görüşme
+  if (riskForm.aciklama) ksIslevTara(riskForm.aciklama).forEach(a => islev.add(a));
+
+  // 5) Diğer veriler
+  const denemeRisk = denemeOzet ? denemeOzet.risk : null;
+  const skor = (profil1 && profil1.scores) || {};
+  const dusukAlan = Object.entries(skor).filter(([, v]) => Number(v) > 0 && Number(v) <= 2).map(([k]) => KS_PROFIL_AD[k] || k);
+  const gucluAlan = Object.entries(skor).filter(([, v]) => Number(v) >= 4).map(([k]) => KS_PROFIL_AD[k] || k);
+  if (denemeRisk === "yuksek") { islev.add("akademik"); turPuan["Akademik"] = (turPuan["Akademik"] || 0) + 2; }
+  else if (denemeRisk === "orta") turPuan["Akademik"] = (turPuan["Akademik"] || 0) + 0.5;
+  const sureVar = gecerli.some(b => b.sure && !b.gecmis);
+
+  // 6) Ton değişimi
+  let tonDegisim = "Yetersiz Veri", tonGerekce = `En az 3 görüşme kaydı gerekir; şu an ${n} kayıt var.`, tonKotu = false, tonIyi = false;
+  if (n >= 3) {
+    const k = Math.max(1, Math.floor(n / 3));
+    const ilk = notlar.slice(0, k).reduce((s, g) => s + ksTon(g.summary), 0) / k;
+    const son = notlar.slice(-k).reduce((s, g) => s + ksTon(g.summary), 0) / k;
+    const fark = son - ilk;
+    const ilkT = ksTarihYaz(notlar[0].date), sonT = ksTarihYaz(notlar[n - 1].date);
+    if (fark <= -1.2) { tonDegisim = "Var"; tonKotu = true; tonGerekce = `${ilkT} tarihli ilk görüşmelerde notların tonu ${ilk >= 0.3 ? "olumlu" : ilk > -0.5 ? "nötr" : "hafif olumsuz"} iken ${sonT} tarihli son görüşmelerde olumsuz duygu ve güçlük ifadeleri belirgin biçimde artmış.`; }
+    else if (fark >= 1.2) { tonDegisim = "Yok"; tonIyi = true; tonGerekce = `Kötüleşme yok; tersine son görüşmelerde (${sonT}) notların tonu ilk görüşmelere göre daha olumlu — olumlu yönde bir gelişme var.`; }
+    else { tonDegisim = "Yok"; tonGerekce = "İlk ve son görüşmelerin duygu tonu ve içeriği arasında belirgin bir kötüleşme görülmedi."; }
+  }
+
+  // 7) Ekran taraması
+  const ekranMetin = ksSade(notlar.map(g => g.summary).join(" . ") + " . " + (riskForm.aciklama || ""));
+  KS_EKRAN_ANAHTAR.lastIndex = 0;
+  const ekranGecti = KS_EKRAN_ANAHTAR.test(" " + ekranMetin);
+  const olcutler = KS_EKRAN_OLCUT.filter(o => { o.re.lastIndex = 0; return o.re.test(" " + ekranMetin); }).map(o => o.ad);
+  const ekranGuclu = (turIfade["Teknoloji-Ekran Bağımlılığı"] || []).some(b => b.guc >= 2);
+  let ekranBelirti, ekranGerekce;
+  if (!n && !(riskForm.aciklama || "").trim()) { ekranBelirti = "Yetersiz Veri"; ekranGerekce = "Görüşme notu bulunmadığı için değerlendirme yapılamadı."; }
+  else if (ekranGecti && (olcutler.length >= 2 || (ekranGuclu && olcutler.length >= 1))) { ekranBelirti = "Var"; ekranGerekce = `Notlarda ekran kullanımıyla birlikte şu ölçütlere dayanak var: ${olcutler.join("; ")}.`; }
+  else if (ekranGecti) { ekranBelirti = "Yetersiz Veri"; ekranGerekce = `Notlarda ekran kullanımından söz ediliyor ancak ölçütlerden ${olcutler.length ? "yalnızca biri (" + olcutler[0] + ")" : "hiçbiri"} karşılanıyor; kullanım süresi, uyku ve aile içi etkisi sorulmalı.`; }
+  else { ekranBelirti = "Yok"; ekranGerekce = "Notlarda ekran, telefon ya da oyun kullanımına ilişkin bir ifade yok."; }
+
+  // 8) Ana tür
+  const sirali = Object.entries(turPuan).sort((a, b) => b[1] - a[1]);
+  let anaTur;
+  if (kritikTurler.length) anaTur = kritikTurler.sort((a, b) => (turPuan[b] || 0) - (turPuan[a] || 0))[0];
+  else if (formTur && formTur !== "Diğer" && (turPuan[formTur] || 0) >= 0.5 * (sirali[0] ? sirali[0][1] : 0)) anaTur = formTur;
+  else if (sirali.length && sirali[0][1] >= 1) anaTur = sirali[0][0];
+  else anaTur = formTur && formTur !== "Diğer" ? formTur : "Diğer";
+  // Kök neden: akademik düşüşün yanında duygusal tablo varsa kök neden duygusal olandır
+  if (!kritikTurler.length && anaTur === "Akademik" && (turPuan["Duygusal"] || 0) >= 2) anaTur = "Duygusal";
+  // Belirti türü (duygusal, akademik, devamsızlık, davranış) öndeyse ve güncel bir yaşam
+  // olayı (yas, travma, aile, zorbalık, göç, ekonomik) varsa kök neden o olaydır
+  const KS_OLAY = ["Yas-Kayıp", "Travma", "Akran-Zorbalık", "Aile", "Göç-Uyum Süreci", "Ekonomik Güçlük"];
+  if (!kritikTurler.length && ["Duygusal", "Akademik", "Devamsızlık", "Davranış", "Özel Öğrenme Güçlüğü"].includes(anaTur) && formTur !== anaTur) {
+    const olay = sirali.find(([t, p]) => KS_OLAY.includes(t) && p >= 2.5 && turGuncel[t]);
+    if (olay) anaTur = olay[0];
+  }
+  // Ekran yalnızca belirti olarak geçiyor ama asıl tablo duygusal/aile ise kök nedeni seç
+  if (!kritikTurler.length && anaTur === "Teknoloji-Ekran Bağımlılığı" && formTur !== anaTur) {
+    const alt = sirali.find(([t, p]) => t !== anaTur && ["Duygusal", "Aile", "Akran-Zorbalık"].includes(t) && p >= (turPuan[anaTur] || 0) * 0.8);
+    if (alt) anaTur = alt[0];
+  }
+
+  // İkincil alan
+  let ikincil = "Yok";
+  const aday = sirali.filter(([t, p]) => t !== anaTur && p >= 2);
+  if (anaTur !== "Akademik" && (denemeRisk === "yuksek" || (turPuan["Akademik"] || 0) >= 2 || (islev.has("akademik") && (turPuan["Akademik"] || 0) > 0))) ikincil = "Akademik";
+  else if (aday.length) ikincil = aday[0][0];
+
+  // 9) Risk düzeyi
+  const anaPuan = turPuan[anaTur] || 0;
+  const anaTekrar = turGorusme[anaTur] ? [...turGorusme[anaTur]].filter(x => x >= 0).length : 0;
+  const cokAlan = sirali.filter(([, p]) => p >= 2).length;
+  let puan = 0;
+  puan += anaPuan >= 6 ? 2 : anaPuan >= 3 ? 1.5 : anaPuan >= 1.5 ? 1 : 0;
+  puan += islev.size >= 4 ? 2.5 : islev.size === 3 ? 1.5 : islev.size === 2 ? 1 : islev.size === 1 ? 0.5 : 0;
+  if (tonIyi) puan -= 1;   // görüşmeler boyunca belirgin düzelme varsa güncel risk daha düşüktür
+  if (anaTekrar >= 2 || sureVar) puan += 1;
+  if (cokAlan >= 3) puan += 1; else if (cokAlan === 2) puan += 0.5;
+  if (tonKotu) puan += 1;
+  if (denemeRisk === "yuksek") puan += 0.5;
+  if (dusukAlan.length >= 3) puan += 0.5;
+  if (aileFaktor.size) puan += 0.5;
+  if (cevreFaktor.size) puan += 0.5;
+  if (ekranBelirti === "Var" && anaTur !== "Teknoloji-Ekran Bağımlılığı") puan += 0.5;
+  puan += { "Yüksek": 1, "Orta": 0, "Düşük": -0.5 }[riskForm.oncelik] || 0;
+  if (["Madde Kullanımı", "Travma", "Adli Süreç-Danışmanlık Tedbiri"].includes(anaTur) && anaPuan >= 2) puan += 1;
+
+  let duzey = puan >= 4.5 ? "YÜKSEK" : puan >= 1.5 ? "ORTA" : "HAFİF";
+  // Doğası gereği müdahale gerektiren güncel durumlar için alt sınırlar
+  const guncelGuclu = (t, g) => (turIfade[t] || []).some(b => !b.gecmis && b.guc >= g && !b.azaltici);
+  if (guncelGuclu("Madde Kullanımı", 3)) duzey = "YÜKSEK";
+  else if (duzey === "HAFİF" && guncelGuclu("Madde Kullanımı", 2)) duzey = "ORTA";
+  // Depresif çekirdek belirtiler (umutsuzluk, değersizlik, zevk alamama) + 3 ve üzeri alanda işlev kaybı → uzman yönlendirmesi gerektirir
+  if (guncelGuclu("Duygusal", 3) && islev.size >= 3) duzey = "YÜKSEK";
+  if (duzey === "HAFİF" && (guncelGuclu("Akran-Zorbalık", 3) || guncelGuclu("Davranış", 3) || guncelGuclu("Yas-Kayıp", 3) || guncelGuclu("Travma", 3) || guncelGuclu("Adli Süreç-Danışmanlık Tedbiri", 3))) duzey = "ORTA";
+  const veriYok = !gecerli.length && !n;
+  if (veriYok) duzey = { "Yüksek": "YÜKSEK", "Orta": "ORTA", "Düşük": "HAFİF" }[riskForm.oncelik] || "ORTA";
+  if (duzey === "HAFİF" && (denemeRisk === "yuksek" || istismarIpucu || ozGecmisVar)) duzey = "ORTA";
+  if (kritikTurler.length) duzey = "YÜKSEK";
+  if (aileFaktor.has("ailede intihar/kendine zarar öyküsü") && duzey === "HAFİF") duzey = "ORTA";
+
+  const acil = kritikTurler.length > 0 || (duzey === "YÜKSEK" && ["Madde Kullanımı", "Travma", "Davranış"].includes(anaTur) && anaPuan >= 4);
+
+  // 10) Değerlendirme metni
+  const parca = [KS_ACIKLAMA[anaTur] || KS_ACIKLAMA["Diğer"]];
+  const anaIf = (turIfade[anaTur] || []).slice().sort((a, b) => (b.gorusme - a.gorusme) || (b.guc - a.guc));
+  if (anaIf.length) {
+    parca.push(`Kayıtlarda bu alana işaret eden ifadeler var (${anaIf[0].etiket}: "${anaIf[0].ifade}")${anaTekrar >= 2 ? ` ve bu tema ${anaTekrar} ayrı görüşmede tekrarlıyor` : ""}${sureVar ? "; notlarda belirtilerin bir süredir devam ettiği belirtilmiş" : ""}.`);
+  } else if (formTur === anaTur && anaTur !== "Diğer") {
+    parca.push("Risk türü danışmanın gözlemine dayanıyor; görüşme notlarında bu alana ilişkin doğrudan bir ifade bulunmuyor.");
+  }
+  if (anaTur === "Öz Zarar") {
+    const bas = [...cssrsGuncel].sort().map(c => KS_CSSRS_AD[c]);
+    parca.push(`Öz zarar taraması (C-SSRS basamaklarına göre): güncel olarak ${bas.length ? bas.join(", ") : "—"} ifadesi var${ozGecmisVar ? "; ayrıca geçmişte öz zarar öyküsü bulunuyor (geçmiş girişim, ileride risk için güçlü bir yordayıcıdır)" : ""}. ${cssrsMax >= 3 && cssrsMax <= 6 ? "Yöntem/plan/girişim basamağına ulaşıldığı için durum en yüksek öncelikle ele alınmalıdır." : cssrsMax === 7 ? "İntihar amacı taşımayan kendine zarar da olsa davranış tekrarlayabilir ve intihar riskini artırır; tıbbi ve ruhsal değerlendirme gerekir." : "Düşünce düzeyinde olsa da aynı gün değerlendirme ve yönlendirme gerekir."}`);
+  } else if (ozGecmisVar) {
+    parca.push("Notlarda geçmişe ait öz zarar/intihar ifadeleri bulunuyor; güncel bir ifade olmasa da düzenli izlem ve her görüşmede güncel durumun sorulması önerilir.");
+  }
+  if (islev.size) parca.push(`İşlevselliğin etkilendiği alanlar: ${[...islev].map(a => KS_ISLEV_AD[a]).join(", ")}${islev.size >= 4 ? " — birden çok alanda işlev kaybı, durumun günlük yaşamı belirgin biçimde etkilediğini gösteriyor" : ""}.`);
+  if (denemeOzet) parca.push(`Deneme ortalaması ${denemeOzet.ortalama}${denemeOzet.toplam ? "/" + denemeOzet.toplam : ""} (${denemeRisk === "yuksek" ? "akademik risk yüksek" : denemeRisk === "orta" ? "akademik risk orta" : "akademik durum iyi"}).`);
+  if (dusukAlan.length) parca.push(`Profilde düşük puanlı alanlar: ${dusukAlan.join(", ")}.`);
+  if (cevreFaktor.size) parca.push(`Yakın çevreye ilişkin dikkat edilmesi gereken durum: ${[...cevreFaktor].join(", ")}${[...cevreFaktor].some(x => x.includes("intihar")) ? " — yakın çevrede yaşanan öz zarar davranışı ergenlerde risk faktörüdür; öğrencinin kendi durumu da doğrudan sorulmalıdır" : ""}.`);
+  if (aileFaktor.size) parca.push(`Ailede risk faktörü olarak değerlendirilmesi gereken durum: ${[...aileFaktor].join(", ")}.`);
+  const notAz = !n || (!anaIf.length && n < 2);
+  if (denemeRisk === "yuksek" && (notAz || puan < 2.5)) parca.push("Not: Deneme sonuçları ile görüşme notları farklı bir tablo çiziyor — akademik risk yüksek görünürken görüşme kayıtları yetersiz/hafif; düşüşün nedenini anlamak için öğrenciyle görüşülmesi önerilir.");
+  if (denemeRisk === "dusuk" && duzey !== "HAFİF" && anaTur !== "Akademik") parca.push("Not: Deneme sonuçları ile görüşme notları farklı bir tablo çiziyor — akademik durum iyi olsa da görüşme kayıtları belirgin bir güçlüğe işaret ediyor; başarılı görünmesi güçlüğün gözden kaçmasına neden olmamalı.");
+  if (anaTur !== "Akademik" && ikincil === "Akademik") parca.push(`Bu durum yalnızca akademik bir sorun olarak ele alınmamalı; akademik düşüş büyük olasılıkla ${anaTur === "Duygusal" ? "altta yatan kaygı/duygusal güçlüğün" : "altta yatan güçlüğün"} sonucudur.`);
+  else if (ikincil !== "Yok" && ikincil !== "Akademik") parca.push(`Tabloya ${ikincil.toLocaleLowerCase("tr")} alanı da eşlik ediyor; müdahalede bu boyut da ele alınmalı.`);
+  if (sorgulanan.length && !kritikTurler.length) parca.push(`Notlarda ${[...new Set(sorgulanan.map(b => b.tur.toLocaleLowerCase("tr")))].join(", ")} konusunun sorgulandığı ve olumsuz yanıt alındığı görülüyor; izlem görüşmelerinde yeniden sorulması önerilir.`);
+  if (istismarIpucu && anaTur !== "İhmal-İstismar") parca.push("Notlarda ihmal/istismar açısından dikkat edilmesi gereken ipuçları var (fiziksel iz, bakım eksikliği ya da eve gitmek istememe gibi); öğrenciyle güvenli bir ortamda konuşulmalı ve gözlem sürdürülmeli.");
+  if (!kritikTurler.length) {
+    if (kademe === "ortaokul") parca.push("Ergenliğe geçiş döneminin olağan dalgalanmaları göz önünde bulundurularak, aşırı patolojikleştirmeden ama yakından izlenmelidir.");
+    else if (kademe === "ilkokul") parca.push("Değerlendirme çocuğun gelişim düzeyi dikkate alınarak, yetişkin bakış açısıyla erken yorum yapılmadan sürdürülmelidir.");
+    else if (kademe === "lise") parca.push("Özerklik ihtiyacına saygı gösterilirken güvenlik riskleri dikkatle izlenmelidir.");
+  }
+
+  // Koruyucu faktörler
+  const koruyucu = [];
+  if (gucluAlan.length) koruyucu.push(`profilde güçlü alanlar (${gucluAlan.join(", ")})`);
+  const tumSade = " " + ksSade(notlar.map(g => g.summary).join(" . ") + " . " + (riskForm.aciklama || "")) + " ";
+  for (const k of KS_KORUYUCU) {
+    k.re.lastIndex = 0; const m = k.re.exec(tumSade);
+    if (!m) continue;
+    const bas = m.index + m[1].length, son = bas + m[2].length;
+    const cumle = tumSade.slice(Math.max(0, tumSade.lastIndexOf(".", bas)), (tumSade.indexOf(".", son) + 1 || tumSade.length));
+    if (ksOlumsuzMu(cumle, cumle.indexOf(m[2]) + m[2].length, false)) continue;
+    koruyucu.push(k.ad);
+  }
+  if (denemeRisk === "dusuk") koruyucu.push("akademik başarısının iyi düzeyde olması");
+  if (n >= 2) koruyucu.push("rehberlik sürecine devam etmesi");
+
+  // Adımlar
+  const tanim = KS_ADIM[anaTur] || KS_ADIM["Diğer"];
+  let adimlar;
+  if (duzey === "YÜKSEK") adimlar = [...tanim.acil, ...tanim.temel];
+  else if (duzey === "ORTA") adimlar = [...tanim.temel];
+  else adimlar = tanim.hafif.length ? [...tanim.hafif] : tanim.temel.slice(0, 2);
+  if (ikincil !== "Yok" && KS_ADIM[ikincil]) {
+    const ek = (duzey === "HAFİF" && KS_ADIM[ikincil].hafif.length ? KS_ADIM[ikincil].hafif : KS_ADIM[ikincil].temel)[0];
+    if (ek && !adimlar.includes(ek)) adimlar.push(`(${ikincil}) ${ek}`);
+  }
+  if (ekranBelirti === "Var" && anaTur !== "Teknoloji-Ekran Bağımlılığı" && ikincil !== "Teknoloji-Ekran Bağımlılığı") adimlar.push("(Ekran kullanımı) " + KS_ADIM["Teknoloji-Ekran Bağımlılığı"].temel[1]);
+  if (cevreFaktor.size && [...cevreFaktor].some(x => x.includes("intihar")) && anaTur !== "Öz Zarar") adimlar.push("Arkadaşının yaşadığı durumu nasıl etkilendiğini konuşarak ele al; öğrencinin kendisinde benzer düşünceler olup olmadığını doğrudan sor ve arkadaşının da okul rehberlik servisine yönlendirildiğinden emin ol.");
+  if (ozGecmisVar && anaTur !== "Öz Zarar") adimlar.push("Geçmişteki öz zarar öyküsü nedeniyle her izlem görüşmesinde güncel ölüm/intihar düşüncesini doğrudan sor.");
+  adimlar.push(duzey === "YÜKSEK" ? "İzlem: 1 hafta içinde (gerekirse daha sık) izlem görüşmesi yap ve sonucu kaydet." : duzey === "ORTA" ? "İzlem: 2 hafta içinde izlem görüşmesi yap; değişim yoksa yönlendirmeyi değerlendir." : "İzlem: 3-4 hafta sonra kısa bir izlem görüşmesi yap.");
+  adimlar = adimlar.slice(0, 7);
+
+  // Dayanak ifadeler (en fazla 6) — en güncel ve en güçlü olanlar
+  const dayanak = gecerli.slice().sort((a, b) => (b.guc * b.agirlik) - (a.guc * a.agirlik)).filter((b, i, d) => d.findIndex(x => x.ifade === b.ifade) === i).slice(0, 6)
+    .map(b => `• ${b.etiket} — ${b.tur}${b.gecmis ? " (geçmiş)" : ""}: "${b.ifade}"`);
+
+  const metin = [
+    `RİSK TÜRÜ: ${anaTur}`,
+    `RİSK DÜZEYİ: ${duzey}`,
+    `RİSK DEĞERLENDİRMESİ: ${parca.join(" ")}`,
+    `İKİNCİL ETKİLENEN ALAN: ${ikincil}`,
+    `KORUYUCU FAKTÖRLER: ${koruyucu.length ? koruyucu.join("; ").replace(/^./, c => c.toLocaleUpperCase("tr")) + "." : "Kayıtlarda belirgin bir koruyucu faktör saptanmadı; sonraki görüşmede öğrencinin güçlü yönleri, ilgi alanları ve güvendiği kişiler keşfedilmeli."}`,
+    `ACİL MÜDAHALE GEREKTİRİR Mİ: ${acil ? "Evet — " + (kritikTurler.length ? "kayıtlarda öğrencinin güvenliğini doğrudan ilgilendiren ifadeler bulunuyor; aynı gün harekete geçilmeli." : "risk düzeyi ve türü birlikte değerlendirildiğinde gecikmeden müdahale edilmelidir.") : "Hayır — planlı müdahale ve düzenli izlem yeterli görünüyor."}`,
+    `ÖNERİLEN ADIMLAR:`,
+    ...adimlar.map((a, i) => `${i + 1}. ${a}`),
+    ``,
+    `TEKNOLOJİ/EKRAN BAĞIMLILIĞI TARAMASI:`,
+    `BELİRTİ: ${ekranBelirti}`,
+    `GEREKÇE: ${ekranGerekce}`,
+    ``,
+    `GÖRÜŞME NOTLARINDA TON/İÇERİK DEĞİŞİMİ:`,
+    `DEĞİŞİM: ${tonDegisim}`,
+    `GEREKÇE: ${tonGerekce}`,
+    ...(dayanak.length ? [``, `DAYANAK İFADELER (değerlendirmenin dayandığı notlar):`, ...dayanak] : []),
+    ``,
+    `— Kapalı Sistem değerlendirmesidir: yapay zekâ kullanılmadan, cihazda üretildi; hiçbir veri dışarı gönderilmedi. Kayıtlardaki ifadelere dayanır, mesleki yargının yerini tutmaz.`,
+  ].join("\n");
+
+  const oncelik = { "YÜKSEK": "Yüksek", "ORTA": "Orta", "HAFİF": "Düşük" }[duzey];
+  return {
+    metin, tur: anaTur, ikincil, duzey, oncelik, acil,
+    teknolojiBagimliligi: ekranBelirti === "Var", teknolojiGerekce: ekranBelirti === "Var" ? ekranGerekce : "",
+    tonDegisim, cssrs: [...cssrsGuncel], islev: [...islev], puan,
+  };
+}
+// ===== KAPALI SİSTEM: RİSK ANALİZİ BİTİŞ =====
+
 async function getRiskAnalizi(riskForm, gorusmeler, profil1, kutuphaneOzetleri = [], kademe = "", denemeOzet = null) {
   const apiKey = pdrGetApiKey();
   if (!apiKey) throw new Error("API_KEY_MISSING");
@@ -22678,7 +23399,7 @@ export default function App() {
     setRiskListesi(updated); await saveRiskListesi(updated);
     setRiskForm({ studentName: "", className: "", numara: "", riskTuru: "", aciklama: "", oncelik: "Orta", tarih: today() });
   }
-  async function handleRiskEkle() {
+  async function handleRiskEkle(yontem) {
     if (!riskForm.studentName.trim()) return;
     setRiskAiLoading(true);
     const ad = riskForm.studentName.toLocaleLowerCase("tr").trim();
@@ -22698,7 +23419,28 @@ export default function App() {
     } else if (ogr7sinif) {
       denemeOzet = { ortalama: ogr7sinif.ortalama, toplam: null, risk: ogr7sinif.risk, kaynak: "Geçmiş dönem denemeleri" };
     }
-    const aiAnaliz = await getRiskAnalizi(riskForm, ogrGorusmeler, ogrP1, kutuphane, kademe, denemeOzet);
+    // 🔒 Kapalı Sistem: yapay zekâ ve internet kullanılmaz, veri cihazdan çıkmaz
+    if (yontem === "kapali") {
+      const ks = pdrKapaliRiskAnalizi(riskForm, ogrGorusmeler, ogrP1, kademe, denemeOzet);
+      // Kapalı sistem türleri "Akran-Zorbalık" biçiminde; listedeki "Akran / Zorbalık" adına çevrilir
+      const ksTurAd = (t) => { const s = t.replace(/-/g, " / "); return ["Akran / Zorbalık","Teknoloji / Ekran Bağımlılığı","Yas / Kayıp","Göç / Uyum Süreci","Adli Süreç / Danışmanlık Tedbiri","İhmal / İstismar"].includes(s) ? s : t; };
+      const item = { id: uid(), tarih: today(), ...riskForm, riskTuru: ksTurAd(ks.tur), ikincilTur: ks.ikincil === "Yok" ? "" : ksTurAd(ks.ikincil), oncelik: ks.oncelik, aiAnaliz: ks.metin, analizYontem: "kapali", analizDuzey: ks.duzey, kapandi: false, teknolojiBagimliligi: ks.teknolojiBagimliligi, teknolojiGerekce: ks.teknolojiGerekce };
+      const updated = [item, ...riskListesi];
+      setRiskListesi(updated); await saveRiskListesi(updated);
+      setRiskForm({ studentName: "", className: "", numara: "", riskTuru: "", aciklama: "", oncelik: "Orta", tarih: today() });
+      setRiskAiLoading(false);
+      return;
+    }
+    let aiAnaliz;
+    try {
+      aiAnaliz = await getRiskAnalizi(riskForm, ogrGorusmeler, ogrP1, kutuphane, kademe, denemeOzet);
+    } catch (e) {
+      setRiskAiLoading(false);
+      alert(e && e.message === "API_KEY_MISSING"
+        ? "AI analizi için Ayarlar'dan API anahtarı girmelisin.\n\nAnahtar olmadan \"🔒 Kapalı Sistem\" ile ücretsiz analiz yapabilirsin."
+        : "AI analizi yapılamadı (" + ((e && e.message) || "bağlantı hatası") + "). İstersen \"🔒 Kapalı Sistem\" ile analiz yapabilirsin.");
+      return;
+    }
     // Risk düzeyini AI cevabından çek
     // Risk düzeyi
     let aiOncelik = riskForm.oncelik;
@@ -22743,7 +23485,7 @@ export default function App() {
       if (gerekceMatch) teknolojiGerekce = gerekceMatch[1].split("\n")[0].trim();
     }
 
-    const item = { id: uid(), tarih: today(), ...riskForm, riskTuru: aiRiskTuru, ikincilTur, oncelik: aiOncelik, aiAnaliz, kapandi: false, teknolojiBagimliligi, teknolojiGerekce };
+    const item = { id: uid(), tarih: today(), ...riskForm, riskTuru: aiRiskTuru, ikincilTur, oncelik: aiOncelik, aiAnaliz, analizYontem: "ai", kapandi: false, teknolojiBagimliligi, teknolojiGerekce };
     const updated = [item, ...riskListesi];
     setRiskListesi(updated); await saveRiskListesi(updated);
     setRiskForm({ studentName: "", className: "", numara: "", riskTuru: "", aciklama: "", oncelik: "Orta", tarih: today() });
@@ -24312,14 +25054,20 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
                 <label style={labelStyle}>TARİH (geçmiş bir görüşmeye ait risk giriyorsan geriye tarihleyebilirsin)</label>
                 <input value={riskForm.tarih} onChange={e => setRiskForm(f=>({...f, tarih:e.target.value}))} placeholder="GG.AA.YYYY" style={inputStyle} />
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button onClick={() => handleRiskEkle("kapali")} disabled={!riskForm.studentName.trim() || riskAiLoading} title="Yapay zekâ kullanmadan, cihazda ve ücretsiz analiz — hiçbir veri dışarı gönderilmez" style={{
+                  flex: "1 1 100%", padding: "13px",
+                  background: (!riskForm.studentName.trim() || riskAiLoading) ? BORDER : "linear-gradient(135deg, #1F7A5A 0%, #0F4D38 100%)",
+                  color: (!riskForm.studentName.trim() || riskAiLoading) ? MUTED : "#fff",
+                  border: "none", borderRadius: 12, fontSize: 14, fontWeight: 800, cursor: "pointer"
+                }}>🔒 Kapalı Sistemle Analiz Et ve Kaydet <span style={{ fontWeight: 600, fontSize: 11.5, opacity: 0.9 }}>(ücretsiz · veri dışarı çıkmaz)</span></button>
                 <button onClick={handleRiskManuelKaydet} disabled={!riskForm.studentName.trim() || !riskForm.riskTuru || riskAiLoading} style={{
                   flex: 1, padding: "13px",
                   background: (!riskForm.studentName.trim() || !riskForm.riskTuru) ? BORDER : CARD,
                   color: (!riskForm.studentName.trim() || !riskForm.riskTuru) ? MUTED : TEXT,
                   border: `2px solid ${BORDER}`, borderRadius: 12, fontSize: 12.5, fontWeight: 800, cursor: "pointer"
                 }}>📝 Elle Kaydet (AI'sız)</button>
-                <button onClick={handleRiskEkle} disabled={!riskForm.studentName.trim() || riskAiLoading} style={{
+                <button onClick={() => handleRiskEkle("ai")} disabled={!riskForm.studentName.trim() || riskAiLoading} style={{
                   flex: 1.3, padding: "13px",
                   background: riskAiLoading ? BORDER : riskForm.studentName ? "linear-gradient(135deg, #FF6B5B 0%, #C0392B 100%)" : BORDER,
                   color: riskAiLoading || !riskForm.studentName ? MUTED : "#fff",
@@ -24384,12 +25132,15 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
                         {r.aciklama && <div style={{ fontSize:12, color:"rgba(255,255,255,0.92)", lineHeight:1.6, marginBottom:10 }}>{r.aciklama}</div>}
                         <div style={{ display:"flex", gap:8 }}>
                           {r.aiAnaliz && (() => {
-                            const duz = r.aiAnaliz.includes("YÜKSEK") ? "YÜKSEK" : r.aiAnaliz.includes("ORTA") ? "ORTA" : "HAFİF";
+                            const duz = r.analizDuzey || (r.aiAnaliz.includes("YÜKSEK") ? "YÜKSEK" : r.aiAnaliz.includes("ORTA") ? "ORTA" : "HAFİF");
                             return (
                               <div style={{ marginBottom:8 }}>
                                 <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
                                   <span style={{ background:"rgba(255,255,255,0.2)", color:"#fff", borderRadius:20, padding:"3px 12px", fontSize:12, fontWeight:800 }}>
                                     {duz==="YÜKSEK"?"🔴":duz==="ORTA"?"🟡":"🟢"} Risk Düzeyi: {duz}
+                                  </span>
+                                  <span style={{ background:"rgba(0,0,0,0.22)", color:"#fff", borderRadius:20, padding:"3px 10px", fontSize:11, fontWeight:700 }}>
+                                    {r.analizYontem === "kapali" ? "🔒 Kapalı Sistem" : "✦ AI"}
                                   </span>
                                 </div>
                                 <div style={{ fontSize:12, color:"#fff", lineHeight:1.7, whiteSpace:"pre-wrap", background:"rgba(0,0,0,0.2)", borderRadius:10, padding:10 }}>
