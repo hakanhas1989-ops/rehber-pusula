@@ -4065,7 +4065,6 @@ function pdrKapaliSeansHazirlik({ gorusmeler = [], mudahaleler = [], riskler = [
   satir.push("\n— Kapalı Sistem hazırlık notudur: yapay zekâ kullanılmadan, cihazda üretildi; hiçbir veri dışarı gönderilmedi.");
   return satir.join("\n");
 }
-// ===== KAPALI SİSTEM: MÜDAHALE VE SEANS BİTİŞ =====
 
 // Programdan çağırırken kullanılan küçük yardımcılar
 function ksKademeTahmin(sinif, kademe) {
@@ -4081,6 +4080,313 @@ function ksDenemeOzetHesapla(denemeGirilen, sinavTuru) {
   const risk = typeof denemeRiskHesapla === "function" ? denemeRiskHesapla(ort, dersler) : (ort / toplam >= 0.61 ? "dusuk" : ort / toplam >= 0.33 ? "orta" : "yuksek");
   return { ortalama: ort.toFixed(1), toplam, risk, kaynak: "Bu dönem denemeleri" };
 }
+// ===== KAPALI SİSTEM: MÜDAHALE VE SEANS BİTİŞ =====
+
+// ===== KAPALI SİSTEM: DENEME, MEB RAPORU, VELİ MEKTUBU, BÜTÜNLEŞİK BAŞLANGIÇ =====
+// Yapay zekâsız, cihaz içinde çalışan dört işlev. Not çözümlemesi ortak çekirdekten gelir.
+
+// Sayılara Türkçe iyelik eki: 30'u, 12'si, 4'ü, 140'ı, 6'sı
+function ksSayiEk(n) {
+  n = Math.abs(Math.round(Number(n) || 0));
+  const birler = ["ı", "i", "si", "ü", "ü", "i", "sı", "si", "i", "u"], onlar = ["", "u", "si", "u", "ı", "si", "ı", "i", "i", "ı"];
+  let ek;
+  if (n === 0) ek = "ı"; else if (n % 10) ek = birler[n % 10]; else if (n % 100) ek = onlar[(n % 100) / 10]; else if (n % 1000) ek = "ü"; else ek = "i";
+  return n + "'" + ek;
+}
+function ksDersler(liste, ek) { return liste.join(", ") + (liste.length > 1 ? " ders" + ({ inde: "lerinde", ine: "lerine" }[ek] || "leri") : " ders" + ({ inde: "inde", ine: "ine" }[ek] || "i")); }
+const KS_ALT = "\n— Kapalı Sistem: yapay zekâ kullanılmadan, cihazda üretildi; hiçbir veri dışarı gönderilmedi.";
+
+// Basit doğrusal eğilim (deneme başına net değişimi)
+function ksEgim(dizi) {
+  const n = dizi.length; if (n < 2) return 0;
+  const xo = (n - 1) / 2, yo = dizi.reduce((a, b) => a + b, 0) / n;
+  let pay = 0, payda = 0;
+  dizi.forEach((y, x) => { pay += (x - xo) * (y - yo); payda += (x - xo) * (x - xo); });
+  return payda ? pay / payda : 0;
+}
+
+// ── 1) Deneme analizi ────────────────────────────────────────────────────────
+function pdrKapaliDenemeAnalizi({ gorusmeler = [], girilen = [], dersListesi = [], sinavTuru = "lgs", kademe = "" }) {
+  const sinavAdi = sinavTuru === "lgs" ? "LGS" : (sinavTuru || "").toUpperCase() || "Sınav";
+  const toplamSoru = dersListesi.reduce((s, d) => s + (d.maks || 0), 0) || 90;
+  const s = [];
+  if (!girilen.length) return "AKADEMİK DURUM: Bu öğrenci için henüz deneme sonucu girilmemiş. Analiz için en az bir deneme sonucu gerekli." + KS_ALT;
+  const sirali = girilen.slice().sort((a, b) => a.no - b.no);
+  const toplamlar = sirali.map(d => d.toplam);
+  const ort = toplamlar.reduce((a, b) => a + b, 0) / toplamlar.length;
+  const yuzde = ort / toplamSoru * 100;
+  const egim = ksEgim(toplamlar);
+  const sd = Math.sqrt(toplamlar.reduce((t, v) => t + Math.pow(v - ort, 2), 0) / toplamlar.length);
+  const son = toplamlar[toplamlar.length - 1], enIyi = Math.max(...toplamlar), enDusuk = Math.min(...toplamlar);
+  const dersler = dersListesi.map(ld => {
+    const v = sirali.map(d => parseFloat((d.nets || {})[ld.key]) || 0);
+    const o = v.reduce((a, b) => a + b, 0) / v.length;
+    const kat = sinavTuru === "lgs" ? (KS_LGS_KATSAYI[ld.key] || 1) : 1;
+    return { ...ld, ort: o, oran: ld.maks ? o / ld.maks : 0, egim: ksEgim(v), kazanc: (ld.maks - o) * kat, son: v[v.length - 1] };
+  });
+
+  // AKADEMİK DURUM
+  const duzey = yuzde >= 85 ? "çok yüksek" : yuzde >= 70 ? "yüksek" : yuzde >= 50 ? "orta" : yuzde >= 33 ? "orta-alt" : "düşük";
+  s.push(`AKADEMİK DURUM: ${sirali.length} denemenin ortalaması ${ort.toFixed(1)}/${toplamSoru} net (%${yuzde.toFixed(0)}); genel performans ${duzey} düzeyde. En yüksek ${enIyi.toFixed(1)}, en düşük ${enDusuk.toFixed(1)} net, son deneme ${son.toFixed(1)} net. Kesin yüzdelik dilim, sınavın o yılki puan dağılımına bağlıdır; resmî tablolarla karşılaştırılmalıdır.`);
+
+  // HEDEF OKUL ARALIĞI
+  if (sinavTuru === "lgs") {
+    const bant = yuzde >= 85 ? "En seçici okullar (fen liseleri, yüksek puanlı Anadolu ve sosyal bilimler liseleri) gerçekçi hedefler arasında."
+      : yuzde >= 70 ? "Nitelikli Anadolu liseleri ve sosyal bilimler liseleri hedeflenebilir; fen lisesi için belirgin bir net artışı gerekir."
+      : yuzde >= 50 ? "Anadolu liseleri ile güçlü mesleki ve teknik Anadolu liseleri hedeflenebilir."
+      : yuzde >= 33 ? "Mesleki ve teknik Anadolu liseleri ile yakın çevredeki Anadolu liseleri ve adrese dayalı yerleştirme seçenekleri öne çıkıyor."
+      : "Öncelik temel konulardaki eksiklerin kapatılması; adrese dayalı yerleştirme ve mesleki programlar öne çıkıyor.";
+    s.push(`HEDEF OKUL ARALIĞI: ${bant} Ortalamadaki her 5 netlik artış hedef aralığını belirgin biçimde değiştirebilir; tercih döneminde güncel taban puan/yüzdelik tablosuyla okul okul karşılaştırma yapılmalı.`);
+  } else {
+    s.push(`HEDEF ARALIĞI: Mevcut ortalama %${yuzde.toFixed(0)} başarı düzeyine karşılık geliyor; hedef program/bölüm seçimi için güncel taban puan ve başarı sırası tabloları kullanılmalı.`);
+  }
+
+  // TREND ANALİZİ
+  const r = ksCekirdek(gorusmeler, "", null, kademe, { ortalama: ort.toFixed(1), toplam: toplamSoru, risk: yuzde >= 61 ? "dusuk" : yuzde >= 33 ? "orta" : "yuksek" });
+  const c = r.cekirdek;
+  const kaygi = (c.turIfade["Duygusal"] || []).some(b => /kaygi|sinav|stres|panik|endise|titre|gergin/.test(ksSade(b.ifade)));
+  let trend;
+  if (sirali.length < 2) trend = "Tek deneme olduğu için eğilim henüz değerlendirilemiyor; en az 3 deneme sonrası anlamlı bir eğilim görülür.";
+  else {
+    const yon = egim >= 1 ? "yükselen" : egim <= -1 ? "düşen" : "yatay (istikrarlı)";
+    trend = `Denemeler boyunca eğilim ${yon}: deneme başına ortalama ${egim >= 0 ? "+" : ""}${egim.toFixed(1)} net. `;
+    if (sd >= 8) trend += `Sonuçlar arasında dalgalanma yüksek (±${sd.toFixed(1)} net); performansın bilgiden çok sınav günü koşullarına (kaygı, dikkat, uyku) bağlı olabileceğini düşündürüyor. `;
+    else if (sd <= 3 && sirali.length >= 3) trend += "Sonuçlar tutarlı; mevcut bilgi düzeyini güvenilir biçimde yansıtıyor. ";
+    if (egim <= -1) trend += kaygi ? "Görüşme notlarındaki kaygı/stres ifadeleri düşüşle birlikte değerlendirilmeli; düşüş bilgi eksikliğinden çok kaygının performansa yansıması olabilir." : "Düşüşün nedeni (çalışma düzeninde değişiklik, motivasyon, yeni konulardaki eksikler ya da yaşamındaki bir değişiklik) öğrenciyle konuşulmalı.";
+    else if (egim >= 1) trend += "Bu olumlu ivme öğrenciye somut olarak gösterilmeli; çabası ile sonuç arasındaki bağı görmesi motivasyonu destekler.";
+  }
+  s.push("TREND ANALİZİ: " + trend.trim());
+
+  // DERS BAZLI ANALİZ
+  if (dersler.length) {
+    const g = dersler.slice().sort((a, b) => b.oran - a.oran);
+    const artan = dersler.filter(d => d.egim >= 0.7 && sirali.length >= 3).map(d => d.label);
+    const dusen = dersler.filter(d => d.egim <= -0.7 && sirali.length >= 3).map(d => d.label);
+    let dba = `En güçlü dersler: ${g.slice(0, 2).map(d => `${d.label} (${d.ort.toFixed(1)}/${d.maks}, %${(d.oran * 100).toFixed(0)})`).join(", ")}. En zayıf dersler: ${g.slice(-2).reverse().map(d => `${d.label} (${d.ort.toFixed(1)}/${d.maks}, %${(d.oran * 100).toFixed(0)})`).join(", ")}. `;
+    if (artan.length) dba += `Yükselişte olan dersler: ${artan.join(", ")}. `;
+    if (dusen.length) dba += `Düşüşte olan dersler: ${dusen.join(", ")} — bu derslerde son dönemde işlenen konulardaki eksikler kontrol edilmeli. `;
+    const zayifEn = g[g.length - 1];
+    dba += `${zayifEn.label} için: ${KS_DERS_STRATEJI[zayifEn.key] || "eksik konuları belirleyip konu tekrarı ve düzenli soru çözümü yap"}.`;
+    s.push("DERS BAZLI ANALİZ: " + dba);
+  }
+
+  // PSİKOLOJİK BAĞLAM
+  let pb;
+  if (!gorusmeler.length) pb = "Görüşme notu bulunmadığı için psikolojik etkenler değerlendirilemiyor. Deneme sonuçlarını konuşmak için kısa bir görüşme önerilir (sınav kaygısı, çalışma düzeni, uyku, motivasyon).";
+  else {
+    const parca = [];
+    if (kaygi) parca.push("notlarda sınav kaygısı/stres ifadeleri var; kaygı, bilinen soruların kaçırılmasına ve süre yönetiminde güçlüğe yol açabilir");
+    if (c.ekranBelirti === "Var") parca.push("ekran kullanımının uyku ve çalışma süresini etkilediğine dair işaretler var");
+    if (r.islev.includes("uyku")) parca.push("uyku düzeninde bozulma bildiriliyor; uykusuzluk dikkat ve hafızayı doğrudan etkiler");
+    if ((c.turPuan["Aile"] || 0) >= 2) parca.push("aile içi güçlükler çalışma ortamını ve motivasyonu etkileyebilir");
+    if ((c.turPuan["Akran-Zorbalık"] || 0) >= 2) parca.push("akran sorunları okula ve derse odaklanmayı zorlaştırabilir");
+    if ((c.turPuan["Özel Öğrenme Güçlüğü"] || 0) >= 2) parca.push("dikkat/öğrenme güçlüğüne işaret eden ifadeler var; netlerdeki düşüklük çabadan bağımsız olabilir");
+    if (c.kritikTurler.length) parca.unshift(`önemli: notlarda öğrencinin güvenliğini ilgilendiren ifadeler var (${c.kritikTurler.join(", ")}); şu an akademik hedefler ikinci planda tutulmalı`);
+    pb = parca.length ? "Görüşme notlarına göre " + parca.join("; ") + "." : "Görüşme notlarında akademik performansı belirgin biçimde etkileyen bir psikolojik etken görünmüyor.";
+    const kor = c.koruyucu.filter(k => !/akademik başarısının|rehberlik sürecine/.test(k));
+    if (kor.length) pb += ` Destekleyici etkenler: ${kor.slice(0, 3).join(", ")}.`;
+  }
+  s.push("PSİKOLOJİK BAĞLAM: " + pb);
+
+  // ÇALIŞMA PLANI
+  const kz = dersler.slice().sort((a, b) => b.kazanc - a.kazanc);
+  const toplamK = kz.reduce((t, d) => t + d.kazanc, 0) || 1, haftalik = sinavTuru === "lgs" ? 12 : 15;
+  const plan1 = kz.length ? `Haftalık yaklaşık ${haftalik} saatlik çalışmanın dağılımı (eksik net × ${sinavTuru === "lgs" ? "LGS katsayısı" : "ağırlık"}): ${kz.slice(0, 5).map(d => `${d.label} ~${Math.max(1, Math.round(haftalik * d.kazanc / toplamK))} saat`).join(", ")}.${sinavTuru === "lgs" ? " Türkçe, Matematik ve Fen 4 katsayılıdır; bu derslerdeki her net diğerlerinin dört katı değerindedir." : ""}` : "Ders verisi yok.";
+  const plan2 = "Deneme stratejisi: Her denemeden sonra yanlış ve boşları konu bazında bir deftere kaydet; bir hafta sonra aynı konulardan soru çöz. Denemeyi gerçek sınav süresiyle çöz, önce emin olduğun soruları yap, takıldığın soruyu işaretleyip geç.";
+  const plan3 = kaygi ? "Kaygı yönetimi: Deneme öncesi 2-3 dakikalık nefes rutini, felaketleştirici düşünceleri ('kazanamazsam her şey biter') fark edip daha gerçekçi düşüncelerle değiştirme; sonuç değil süreç hedefleri (her gün X soru) koy."
+    : egim <= -1 ? "Motivasyon: Kısa vadeli, ulaşılabilir haftalık hedefler belirle; her hafta küçük bir başarıyı birlikte fark edin. Düşüşün nedeni konuşulmadan çalışma süresini artırmak tek başına yeterli olmayabilir."
+    : "Motivasyon: Haftalık küçük hedefler ve düzenli izlem; ilerleme grafiğini öğrenciyle birlikte incele, çabanın karşılığını görmesini sağla.";
+  s.push(`ÇALIŞMA PLANI:\n1. ${plan1}\n2. ${plan2}\n3. ${plan3}`);
+
+  // HEDEF
+  const kalan = sinavTuru === "lgs" ? Math.max(0, 10 - sirali.length) : 5;
+  const artis = Math.max(3, Math.min(12, (egim > 0 ? egim * Math.min(kalan, 6) : 0) + (toplamSoru - ort) * 0.12));
+  const hedefNet = Math.min(toplamSoru, ort + artis);
+  s.push(`HEDEF: Önümüzdeki denemeler için gerçekçi hedef ${hedefNet.toFixed(0)} net civarı (mevcut ortalama ${ort.toFixed(1)}; en çok kazanç ${kz[0] ? kz[0].label : "zayıf dersler"}${kz[1] ? " ve " + kz[1].label : ""} derslerinden beklenir). Hedef okul, bu net düzeyine ulaşıldığında güncel tablolarla yeniden değerlendirilmeli.`);
+  return s.join("\n") + KS_ALT;
+}
+
+// ── 2) MEB dönem sonu raporu ───────────────────────────────────────────────────
+const KS_KONU_ONERI = [
+  [/akademik|ders|deneme|lgs|sinav|basari|calisma/, "Akademik konuların yoğunluğu nedeniyle verimli ders çalışma, zaman yönetimi ve sınav kaygısı konularında sınıf/grup rehberlik etkinlikleri ile veli seminerleri planlanmalıdır."],
+  [/duygu|kaygi|stres|psikolojik|uzuntu|ofke/, "Duygusal konularda başvurunun fazla olması nedeniyle duygu düzenleme ve stresle başa çıkma becerilerine yönelik psikoeğitim grupları oluşturulmalıdır."],
+  [/akran|arkadas|zorbalik|iliski/, "Akran ilişkileri ve zorbalık konularında okul genelinde farkındalık çalışmaları ile sınıf içi iklimi güçlendirecek etkinlikler planlanmalıdır."],
+  [/aile|veli/, "Aile kaynaklı güçlüklere yönelik veli eğitimleri ve aile-okul iş birliğini artıracak etkinlikler düzenlenmelidir."],
+  [/devam|devamsizlik/, "Devamsızlık konusunda sınıf öğretmenleriyle erken uyarı sistemi kurulmalı, devamsızlığın nedenlerine yönelik bireysel izlem sürdürülmelidir."],
+  [/kariyer|meslek|tercih|lise/, "Kariyer ve tercih konularında meslek tanıtım etkinlikleri, ilgi-yetenek envanterleri ve tercih danışmanlığı planlanmalıdır."],
+  [/teknoloji|ekran|telefon|internet|oyun/, "Teknoloji kullanımı konusunda öğrenci ve velilere yönelik bilinçli ve güvenli teknoloji kullanımı seminerleri düzenlenmelidir."],
+  [/davranis|disiplin|kural/, "Davranış konularında olumlu davranış destek yaklaşımıyla sınıf öğretmenleri ve okul yönetimi ile ortak bir plan oluşturulmalıdır."],
+];
+function pdrKapaliMebRaporu({ donem = "", yil = "", toplamGorusme = 0, ogrenciGorusme = 0, veliGorusme = 0, benzersizOgrenci = 0, aktifRisk = 0, sevkSayisi = 0, tamamlananSevk = 0, bekleyenSevk = 0, topKonular = [], riskTurleri = {}, kayitliOgrenci = 0, kapananRisk = 0 }) {
+  const yuzdeS = (a, b) => b ? `%${Math.round(100 * a / b)}` : "—";
+  const digerGorusme = Math.max(0, toplamGorusme - ogrenciGorusme - veliGorusme);
+  const s = [];
+  s.push(`${yil} EĞİTİM-ÖĞRETİM YILI ${String(donem).toLocaleUpperCase("tr")} REHBERLİK VE PSİKOLOJİK DANIŞMANLIK HİZMETLERİ FAALİYET RAPORU`);
+  s.push("");
+  // 1
+  let g = `${donem} süresince rehberlik servisince toplam ${toplamGorusme} görüşme gerçekleştirilmiştir. Bu görüşmelerin ${ksSayiEk(ogrenciGorusme)} öğrenci, ${ksSayiEk(veliGorusme)} veli görüşmesi${digerGorusme ? `, ${ksSayiEk(digerGorusme)} diğer paydaşlarla (öğretmen, idare vb.) yapılan görüşme` : ""} niteliğindedir. Dönem içinde ${benzersizOgrenci} farklı öğrenciye bireysel rehberlik hizmeti ulaştırılmıştır`;
+  if (kayitliOgrenci) g += `; bu sayı kayıtlı ${kayitliOgrenci} öğrencinin ${yuzdeS(benzersizOgrenci, kayitliOgrenci)} kadarına karşılık gelmektedir`;
+  g += ".";
+  if (benzersizOgrenci) g += ` Görüşülen öğrenci başına ortalama ${(ogrenciGorusme / benzersizOgrenci).toFixed(1).replace(".", ",")} görüşme yapılmıştır.`;
+  s.push("1. GENEL DEĞERLENDİRME");
+  s.push(g);
+  s.push("");
+  // 2
+  s.push("2. BİREYSEL GÖRÜŞMELER");
+  let b2 = topKonular.length ? `Bireysel görüşmelerde en sık ele alınan konular sırasıyla ${topKonular.map(([k, v]) => `${k} (${v} görüşme, ${yuzdeS(v, toplamGorusme)})`).join(", ")} olmuştur.` : "Görüşme konularına ilişkin kayıt bulunmamaktadır.";
+  if (veliGorusme && ogrenciGorusme) b2 += ` Veli görüşmelerinin öğrenci görüşmelerine oranı yaklaşık ${(veliGorusme / ogrenciGorusme).toFixed(2).replace(".", ",")} düzeyindedir${veliGorusme / ogrenciGorusme < 0.25 ? "; aile ile iş birliğinin artırılmasına ihtiyaç duyulmaktadır" : ""}.`;
+  s.push(b2);
+  s.push("");
+  // 3
+  s.push("3. RİSK DEĞERLENDİRMESİ");
+  const rt = Object.entries(riskTurleri).sort((a, b) => b[1] - a[1]);
+  const toplamRisk = rt.reduce((t, [, v]) => t + v, 0);
+  let b3 = toplamRisk ? `Dönem içinde ${toplamRisk} öğrenci risk takip listesine alınmış, bunlardan ${ksSayiEk(aktifRisk)} dönem sonu itibarıyla takipte bulunmaktadır${kapananRisk ? `; ${kapananRisk} vaka kapatılmıştır` : ""}. Risk türlerinin dağılımı: ${rt.map(([k, v]) => `${k} (${v})`).join(", ")}.` : "Dönem içinde risk takip listesine alınan öğrenci bulunmamaktadır.";
+  const kritik = rt.filter(([k]) => /öz zarar|istismar|ihmal|şiddet|madde/i.test(k)).reduce((t, [, v]) => t + v, 0);
+  if (kritik) b3 += ` Bu vakaların ${ksSayiEk(kritik)} öz zarar, ihmal-istismar, şiddet ya da madde kullanımı gibi öncelikli müdahale gerektiren türlerdedir; ilgili vakalarda mevzuatın öngördüğü bildirim ve yönlendirme süreçleri işletilmiştir.`;
+  s.push(b3);
+  s.push("");
+  // 4
+  s.push("4. SEVK VE YÖNLENDİRME");
+  s.push(sevkSayisi ? `Dönem içinde ${sevkSayisi} öğrenci ilgili kurumlara (RAM, sağlık kuruluşları vb.) yönlendirilmiştir. Bu yönlendirmelerin ${ksSayiEk(tamamlananSevk)} sonuçlanmış (${yuzdeS(tamamlananSevk, sevkSayisi)}), ${ksSayiEk(bekleyenSevk)} için sonuç beklenmektedir.${bekleyenSevk ? " Sonucu beklenen yönlendirmelerin takibi gelecek dönemde sürdürülecektir." : ""}` : "Dönem içinde kurum dışı sevk ve yönlendirme yapılmamıştır.");
+  s.push("");
+  // 5
+  s.push("5. ÖNERİLER");
+  const oneriler = [];
+  const konuMetni = ksSade(topKonular.map(([k]) => k).join(" "));
+  KS_KONU_ONERI.forEach(([re, m]) => { if (re.test(konuMetni) && oneriler.length < 3) oneriler.push(m); });
+  if (aktifRisk) oneriler.push(`Takipte olan ${aktifRisk} risk vakasının izlemi gelecek dönemde de düzenli olarak sürdürülmeli, sınıf rehber öğretmenleriyle bilgi paylaşımı yapılmalıdır.`);
+  if (kayitliOgrenci && benzersizOgrenci / kayitliOgrenci < 0.3) oneriler.push("Bireysel görüşmelere ulaşılan öğrenci oranının artırılması amacıyla sınıf düzeylerine göre planlı tanışma/tarama görüşmeleri yapılmalıdır.");
+  if (bekleyenSevk) oneriler.push("Sonucu beklenen yönlendirmeler için ilgili kurumlarla iletişim sürdürülmeli, sonuçlar öğrenci dosyalarına işlenmelidir.");
+  if (!oneriler.length) oneriler.push("Önleyici ve gelişimsel rehberlik etkinlikleri yıllık plan doğrultusunda sürdürülmelidir.");
+  oneriler.forEach((o, i) => s.push(`${i + 1}. ${o}`));
+  s.push("");
+  s.push("Bilgilerinize arz ederim.");
+  s.push("");
+  s.push("Psikolojik Danışman / Rehber Öğretmen");
+  s.push("Ad Soyad – İmza");
+  return s.join("\n") + KS_ALT;
+}
+
+// ── 3) Veli mektubu ───────────────────────────────────────────────────────────
+// Türkçe ilgi eki: Elif'in, Ayşe'nin, Doğan'ın, Umut'un, Gönül'ün
+function ksIyelik(ad) {
+  const a = String(ad || "").trim(); if (!a || a === "öğrenciniz") return "öğrencinizin";
+  const k = a.toLocaleLowerCase("tr"); const sesli = k.match(/[aeıioöuü]/g) || ["e"]; const son = sesli[sesli.length - 1];
+  const ek = /[aı]/.test(son) ? "ın" : /[ei]/.test(son) ? "in" : /[ou]/.test(son) ? "un" : "ün";
+  return a + "'" + (/[aeıioöuü]$/.test(k) ? "n" : "") + ek;
+}
+function ksBugunTR() { const d = new Date(); return [d.getDate(), d.getMonth() + 1, d.getFullYear()].map((x, i) => i < 2 ? String(x).padStart(2, "0") : x).join("."); }
+function pdrKapaliVeliMektubu({ ogrenciAd = "", sinif = "", tip = "bilgilendirme", gorusmeler = [], kademe = "" }) {
+  const r = ksCekirdek(gorusmeler, "", null, kademe, null);
+  const c = r.cekirdek;
+  const uyarilar = [];
+  // Güvenlik denetimi: istismar şüphesinde aileye yazılı bildirim yapılmaz
+  if (c.kritikTurler.includes("İhmal-İstismar") || c.kritikTurler.includes("Toplumsal Cinsiyet Temelli Şiddet"))
+    uyarilar.push("Görüşme notlarında ihmal/istismar ya da şiddet şüphesine işaret eden ifadeler var. Bu durumda veliye yazılı bilgi vermeden önce yasal bildirim sürecini okul yönetimiyle başlat ve yetkili kurumların yönlendirmesini bekle; şüphe aile içindeyse mektup GÖNDERİLMEMELİDİR.");
+  if (c.kritikTurler.includes("Öz Zarar"))
+    uyarilar.push("Notlarda öz zarar/intihar riskine ilişkin ifadeler var. Bu tür durumlar mektupla değil, aynı gün telefonla ve yüz yüze görüşmeyle veliye iletilmelidir. Aşağıdaki mektup yalnızca resmî davet amaçlıdır; ayrıntı içermez.");
+  const ad = ogrenciAd || "öğrenciniz";
+  const sinifMetni = sinif ? `${sinif} sınıfı öğrencisi ` : "";
+  // Güçlü yönler (veliye yalnızca olumlu ve genel ifadeler aktarılır; hassas içerik yazılmaz)
+  const gucluler = c.koruyucu.filter(k => !/rehberlik sürecine/.test(k)).slice(0, 3);
+  const alanAdi = { "Akademik": "akademik çalışmaları ve çalışma düzeni", "Duygusal": "duygusal iyi oluşu", "Akran-Zorbalık": "arkadaşlık ilişkileri", "Aile": "okul ve aile iş birliği", "Teknoloji-Ekran Bağımlılığı": "dijital araç kullanımı ve günlük düzeni", "Devamsızlık": "okula devamı", "Davranış": "okul kurallarına uyumu ve sosyal davranışları", "Özel Öğrenme Güçlüğü": "öğrenme süreçleri", "Yas-Kayıp": "yaşadığı kayıp sonrası uyum süreci", "Travma": "yaşadığı zorlayıcı olay sonrası uyumu", "Sağlık": "sağlık durumunun okul yaşamına etkisi", "Göç-Uyum Süreci": "okula uyum süreci", "Ekonomik Güçlük": "okul ihtiyaçları", "Madde Kullanımı": "sağlıklı yaşam alışkanlıkları" };
+  const konu = alanAdi[r.tur] || "okul yaşamı ve gelişimi";
+  const govde = {
+    bilgilendirme: [
+      `Okulumuz ${sinifMetni}${ad} ile rehberlik servisimiz tarafından ${gorusmeler.length ? gorusmeler.length + " kez " : ""}bireysel görüşme yapılmıştır. Bu görüşmeler, öğrencilerimizin akademik, sosyal ve duygusal gelişimlerini desteklemek amacıyla yürütülen rehberlik çalışmalarının bir parçasıdır.`,
+      gucluler.length ? `Görüşmelerimizde öğrencinizin ${gucluler.join(", ")} gibi güçlü yönleri dikkatimizi çekmiştir.` : "",
+      r.tur !== "Diğer" ? `Önümüzdeki süreçte öğrencinizin ${konu} konusunda birlikte desteklenmesinin yararlı olacağını düşünmekteyiz. Bu konuda evde gözlemlediklerinizi bizimle paylaşmanız, okul ve aile olarak aynı yönde ilerlememize katkı sağlayacaktır.` : "Öğrencinizin okul yaşamındaki gelişimini birlikte izlemek amacıyla iletişimimizi sürdürmek isteriz.",
+      "Görüşmelerde paylaşılan bilgiler gizlilik ilkesi çerçevesinde korunmaktadır. Uygun gördüğünüz bir zamanda rehberlik servisimizle görüşmenizi rica ederiz.",
+    ],
+    davet: [
+      `Okulumuz ${sinifMetni}${ksIyelik(ad)} ${konu} hakkında sizinle görüşmek ve öğrencimize birlikte nasıl destek olabileceğimizi konuşmak istiyoruz.`,
+      "Bu amaçla …/…/20… tarihinde saat …:… 'da okulumuz rehberlik servisinde yapılacak görüşmeye katılımınızı rica ederiz. Belirtilen tarihte gelemeyecekseniz, uygun bir zaman belirlemek için okulumuzla iletişime geçmenizi rica ederiz.",
+      "Görüşmede paylaşılacak bilgiler gizlilik ilkesi çerçevesinde değerlendirilecektir.",
+    ],
+    bildirim: [
+      `Okulumuz ${sinifMetni}${ad} ile ilgili olarak sizinle en kısa zamanda yüz yüze görüşmemiz gereken bir konu bulunmaktadır.`,
+      "Konunun önemi nedeniyle ayrıntıları yazılı olarak değil, yüz yüze görüşmede paylaşmayı uygun görmekteyiz. Bu yazıyı aldığınızda okulumuz rehberlik servisi ya da okul idaresiyle ivedilikle iletişime geçmenizi önemle rica ederiz.",
+      "Öğrencimizin iyiliği için okul ve aile olarak birlikte hareket etmemizin büyük önem taşıdığını hatırlatırız.",
+    ],
+    tesekkur: [
+      `Okulumuz ${sinifMetni}${ksIyelik(ad)} gelişimini desteklemek amacıyla yürüttüğümüz rehberlik çalışmalarına göstermiş olduğunuz ilgi ve iş birliği için teşekkür ederiz.`,
+      gucluler.length ? `Öğrencinizin ${gucluler.join(", ")} gibi güçlü yönlerinin gelişiminde aile desteğinin payı büyüktür.` : "Öğrencilerimizin gelişiminde aile desteğinin payı büyüktür.",
+      "Okul ve aile iş birliğinin sürmesi dileğiyle, öğrencinizin eğitim yaşamında başarılar dileriz.",
+    ],
+  }[tip] || [];
+  const konuSatiri = { bilgilendirme: "Öğrenci Hakkında Bilgilendirme", davet: "Veli Görüşmesine Davet", bildirim: "Görüşme Talebi (İvedi)", tesekkur: "Teşekkür" }[tip] || "Bilgilendirme";
+  const metin = [
+    "T.C.",
+    "…………………… KAYMAKAMLIĞI",
+    "…………………… OKULU MÜDÜRLÜĞÜ",
+    "",
+    `Sayı  : ……………                                        ${ksBugunTR()}`,
+    `Konu : ${konuSatiri}`,
+    "",
+    "Sayın Velimiz,",
+    "",
+    ...govde.filter(Boolean).map(p => p + "\n"),
+    "Bilgilerinize rica ederim.",
+    "",
+    "                                                        ……………………………",
+    "                                                 Psikolojik Danışman / Rehber Öğretmen",
+    "",
+    "                                                        ……………………………",
+    "                                                        Okul Müdürü",
+  ].join("\n");
+  const ust = uyarilar.length ? "⚠ DANIŞMAN İÇİN UYARI (mektuba dahil değildir — göndermeden önce silin):\n" + uyarilar.map(u => "- " + u).join("\n") + "\n\n────────────────────────\n\n" : "";
+  return ust + metin + "\n\n(Kapalı Sistem taslağı: noktalı yerleri doldurup gözden geçirdikten sonra kullanın. Mektuba öğrenciye ait hassas ayrıntılar bilinçli olarak yazılmamıştır.)";
+}
+
+// ── 4) Bütünleşik yorum ──────────────────────────────────────────────────────
+function pdrKapaliButunlesikYorum(v) {
+  v = v || {};
+  const esik = v.esik || 50;
+  const FARK = typeof BENLIK_FARK_ESIGI !== "undefined" ? BENLIK_FARK_ESIGI : 20;
+  const satir = (v.satirlar || []).filter(r => r.olculen !== null || r.algi !== null);
+  const iki = satir.filter(r => r.olculen !== null && r.algi !== null);
+  const yeterli = satir.filter(r => r.olculen !== null && r.olculen >= esik).map(r => r.ad);
+  const zayif = satir.filter(r => r.olculen !== null && r.olculen < esik).map(r => r.ad);
+  const dusukAlgi = iki.filter(r => r.fark !== null && r.fark <= -FARK);           // yapabiliyor ama inanmıyor
+  const yuksekAlgi = iki.filter(r => r.fark !== null && r.fark >= FARK && r.olculen < esik); // inanıyor ama henüz yapamıyor
+  const uyumlu = iki.filter(r => r.fark !== null && Math.abs(r.fark) < FARK).map(r => r.ad);
+  const m = v.meslek;
+  const ust = m && m.sutunlar && m.sutunlar[0];
+  const s = [];
+
+  // BİRLİKTE NE SÖYLÜYOR
+  const p = [];
+  if (satir.some(r => r.olculen !== null)) p.push(yeterli.length ? `Düzey taramasına göre ${ksDersler(yeterli, "inde")} geçme eşiğinin (%${esik}) üzerinde${zayif.length ? `; ${ksDersler(zayif, "inde")} eşiğin altında` : ""}.` : `Düzey taramasında derslerin tamamı eşiğin (%${esik}) altında; temel konularda destek önceliklidir.`);
+  if (iki.length) {
+    if (dusukAlgi.length && !yuksekAlgi.length) p.push(`Benlik algısı, ölçülen performansın gerisinde kalıyor: öğrenci özellikle ${ksDersler(dusukAlgi.map(r => r.ad), "inde")} yapabildiğinden daha az yeterli hissediyor.`);
+    else if (yuksekAlgi.length && !dusukAlgi.length) p.push(`Öğrenci ${ksDersler(yuksekAlgi.map(r => r.ad), "inde")} kendini ölçülen düzeyinden daha yeterli görüyor; bu, motivasyon için olumlu ama eksiklerin fark edilmemesine yol açabilir.`);
+    else if (dusukAlgi.length && yuksekAlgi.length) p.push(`Benlik algısı dersler arasında farklılaşıyor: ${ksDersler(dusukAlgi.map(r => r.ad), "inde")} kendini olduğundan zayıf, ${ksDersler(yuksekAlgi.map(r => r.ad), "inde")} ise olduğundan güçlü görüyor.`);
+    else if (uyumlu.length) p.push("Öğrencinin kendine ilişkin algısı ölçülen performansıyla büyük ölçüde örtüşüyor; kendini gerçekçi değerlendiriyor.");
+  }
+  if (ust) p.push(`Mesleki eğilim testinde en belirgin ilgi ${ust.harf} sütununda (${ust.meslekler}; ${String(ust.duzey).toLocaleLowerCase("tr")}). Bu bir ilgi beyanıdır, yetenek ölçümü değildir.`);
+  if ((v.hedefAciklari || []).length) p.push("İlgi duyduğu meslek alanının dayandığı bazı derslerde ölçülen düzey henüz yeterli değil; ilgi ile mevcut akademik hazırlık arasında kapatılması gereken bir mesafe var.");
+  else if (ust && yeterli.length) p.push("İlgi alanı ile akademik olarak yeterli olduğu dersler arasında belirgin bir çelişki görünmüyor.");
+  s.push("BİRLİKTE NE SÖYLÜYOR: " + (p.length ? p.join(" ") : "Yorum için yeterli veri yok."));
+
+  // GÖRÜŞMEDE KONUŞULACAK
+  const k = [];
+  (v.gizliGucler || []).forEach(g => k.push(`${g.ad}: ölçülen düzeyi yeterli (%${g.olculen}) ama kendini yetersiz görüyor (%${g.algi}). Bu dersteki somut başarılarını birlikte görün; "neden kendini yetersiz görüyorsun?" sorusuyla öğrencinin kendine dair inancını konuşun${g.hedefDersi ? " — üstelik bu ders ilgi duyduğu meslek grubunun temel dersi, bu farkı fark etmesi motivasyonunu artırabilir" : ""}.`));
+  (v.hedefAciklari || []).forEach(h => k.push(`İlgi duyduğu ${h.harf} grubundaki meslekler (${h.meslekler}) ${ksDersler((h.zayifDersler || []).map(z => `${z.ad} (%${z.olculen})`), "ine")} dayanıyor. Hedefi değiştirmek yerine bu alanda nasıl ilerleyebileceğini birlikte planlayın; ilginin kaynağını (kendi ilgisi mi, çevre beklentisi mi) da konuşun.`));
+  yuksekAlgi.filter(r => !(v.hedefAciklari || []).some(h => (h.zayifDersler || []).some(z => z.ad === r.ad))).forEach(r => k.push(`${r.ad}: kendini yeterli görüyor (%${r.algi}) ama ölçülen düzey eşiğin altında (%${r.olculen}). Bu derste hangi konuları bildiğini düşündüğünü ve sonuçları nasıl yorumladığını konuşun; kırıcı olmadan, somut sonuçlar üzerinden.`));
+  if (v.baglam && v.baglam.kariyerHedefi && ust) k.push(`Danışmanın girdiği kariyer hedefi (${v.baglam.kariyerHedefi}) ile testteki en yüksek ilgi alanının (${ust.harf}) örtüşüp örtüşmediğini öğrenciyle birlikte değerlendirin.`);
+  if (!k.length) k.push("Belirgin bir çelişki yok; öğrencinin güçlü olduğu derslerden ve ilgi alanlarından hareketle hedeflerini konuşun.");
+  s.push("GÖRÜŞMEDE KONUŞULACAK:\n" + k.slice(0, 4).map((x, i) => `${i + 1}. ${x}`).join("\n"));
+
+  // DİKKAT
+  const d = ["Bu üç aracın kanıt ağırlığı eşit değildir: düzey taraması ölçülmüş performanstır; benlik ölçeği öğrencinin ne hissettiğini, mesleki eğilim testi ise ne istediğini gösterir. Hiçbiri yetenek ölçmez ve tanı koymaz.",
+    "Bu verilerle kesin lise ya da meslek yönlendirmesi yapılmamalıdır; sonuçlar görüşmede konuşulacak başlıklar olarak kullanılmalıdır."];
+  if ((v.eksikler || []).length) d.push(`Uygulanmamış araçlar: ${v.eksikler.join(", ")} — tablo bu araçlar uygulandığında tamamlanır.`);
+  s.push("DİKKAT:\n" + d.map(x => "- " + x).join("\n"));
+  return s.join("\n") + KS_ALT;
+}
+// ===== KAPALI SİSTEM: DENEME, MEB RAPORU, VELİ MEKTUBU, BÜTÜNLEŞİK BİTİŞ =====
+
 
 
 async function getRiskAnalizi(riskForm, gorusmeler, profil1, kutuphaneOzetleri = [], kademe = "", denemeOzet = null) {
@@ -7594,6 +7900,9 @@ function ButunlesikPaneli({ seciliAd, seciliSinif, seciliNumara, kademe,
             </div>
           )}
 
+          <button onClick={() => { setAiHata(""); setAiYorum(pdrKapaliButunlesikYorum(butunlesikVeriOlustur(b, seciliAd, seciliSinif))); }} disabled={aiYukleniyor} title="Yapay zekâ kullanmadan, cihazda ve ücretsiz" style={{
+            width:"100%", padding:"10px", background:"linear-gradient(135deg, #1F7A5A 0%, #0F4D38 100%)", color:"#fff", border:"none", borderRadius:10, fontSize:13, fontWeight:700, cursor:"pointer", marginBottom:8
+          }}>🔒 Kapalı Sistemle Yorumla <span style={{fontWeight:500,fontSize:11}}>(ücretsiz)</span></button>
           <button onClick={handleAiYorum} disabled={aiYukleniyor} style={{
             width:"100%", padding:12, background: aiYukleniyor ? BORDER : PURPLE,
             color: aiYukleniyor ? "#666" : "#fff", border:"none", borderRadius:12,
@@ -17506,7 +17815,7 @@ Risk Türleri: ${Object.entries(riskTurleri).map(([k,v])=>k+": "+v).join(", ")}
     `.trim();
 
     const apiKey = pdrGetApiKey();
-    if (!apiKey) { setAiLoading(false); return; }
+    if (!apiKey) { setAiLoading(false); alert("AI için Ayarlar'dan API anahtarı girmelisin.\n\nAnahtar olmadan \"🔒 Kapalı Sistem\" düğmesiyle ücretsiz analiz yapabilirsin."); return; }
     const res = await fetch(PDR_AI_WORKER_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -17567,7 +17876,13 @@ Risk Türleri: ${Object.entries(riskTurleri).map(([k,v])=>k+": "+v).join(", ")}
       )}
 
       {/* AI Rapor */}
-      <button onClick={handleAiRapor} disabled={aiLoading} style={{width:"100%",padding:"12px",background:aiLoading?BORDER:ACCENT,color:aiLoading?"#666":"#fff",border:"none",borderRadius:12,fontSize:14,fontWeight:800,cursor:"pointer",marginBottom:12}}>
+      <button onClick={() => setAiRapor(pdrKapaliMebRaporu({ donem, yil, toplamGorusme, ogrenciGorusme, veliGorusme, benzersizOgrenci, aktifRisk,
+              sevkSayisi: sevkler.length, tamamlananSevk, bekleyenSevk, topKonular, riskTurleri, kayitliOgrenci: (kayitliListesi || []).length,
+              kapananRisk: riskListesi.filter(r => r.kapandi).length }))} disabled={aiLoading} title="Yapay zekâ kullanmadan, cihazda ve ücretsiz"
+              style={{width:"100%",padding:"11px",background:"linear-gradient(135deg, #1F7A5A 0%, #0F4D38 100%)",color:"#fff",border:"none",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:8}}>
+              🔒 Kapalı Sistemle Dönem Raporu <span style={{fontWeight:500,fontSize:11}}>(ücretsiz · veri dışarı çıkmaz)</span>
+            </button>
+            <button onClick={handleAiRapor} disabled={aiLoading} style={{width:"100%",padding:"12px",background:aiLoading?BORDER:ACCENT,color:aiLoading?"#666":"#fff",border:"none",borderRadius:12,fontSize:14,fontWeight:800,cursor:"pointer",marginBottom:12}}>
         {aiLoading?"⏳ MEB raporu hazırlanıyor...":"📑 AI ile MEB Raporu Oluştur"}
       </button>
 
@@ -17611,7 +17926,7 @@ function VeliMektubu({ kayitliListesi, aktifOgrenci, records }) {
       tesekkur:"Veli iş birliği için teşekkür mektubu"
     };
     const apiKey = pdrGetApiKey();
-    if (!apiKey) { setAiLoading(false); return; }
+    if (!apiKey) { setAiLoading(false); alert("AI için Ayarlar'dan API anahtarı girmelisin.\n\nAnahtar olmadan \"🔒 Kapalı Sistem\" düğmesiyle ücretsiz analiz yapabilirsin."); return; }
     // AI'a gerçek ad yerine kısaltılmış/anonim kimlik gönderiliyor (diğer tüm
     // AI çağrılarıyla tutarlı olsun diye) — mektup metninde geçen kısaltılmış
     // adı, danışmana gösterilen son metinde gerçek adla geri değiştiriyoruz.
@@ -17639,7 +17954,7 @@ function VeliMektubu({ kayitliListesi, aktifOgrenci, records }) {
   return (
     <div>
       <div style={{background:"#F0FAF4",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:13,color:ACCENT,fontWeight:600}}>
-        ✉ Veli Bilgilendirme Mektubu — AI destekli resmi yazı
+        ✉ Veli Bilgilendirme Mektubu — resmi yazı taslağı (🔒 Kapalı Sistem ya da AI)
       </div>
 
       <input placeholder="Öğrenci ara..." value={aramaMetni} onChange={e=>setAramaMetni(e.target.value)} style={{width:"100%",padding:"9px 11px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:9,fontSize:13,boxSizing:"border-box",marginBottom:8}} />
@@ -17657,6 +17972,9 @@ function VeliMektubu({ kayitliListesi, aktifOgrenci, records }) {
         ))}
       </div>
 
+      <button onClick={() => setMektup(pdrKapaliVeliMektubu({ ogrenciAd: seciliAd, sinif: seciliSinif, tip: mektupTipi, gorusmeler: ogrRec, kademe: ksKademeTahmin(seciliSinif) }))} disabled={!seciliAd||aiLoading} title="Yapay zekâ kullanmadan, cihazda ve ücretsiz" style={{width:"100%",padding:"11px",background:seciliAd&&!aiLoading?"linear-gradient(135deg, #1F7A5A 0%, #0F4D38 100%)":BORDER,color:seciliAd&&!aiLoading?"#fff":MUTED,border:"none",borderRadius:10,fontSize:14,fontWeight:800,cursor:"pointer",marginBottom:8}}>
+        🔒 Kapalı Sistemle Mektup Taslağı <span style={{fontWeight:500,fontSize:11}}>(ücretsiz · veri dışarı çıkmaz)</span>
+      </button>
       <button onClick={handleOlustur} disabled={!seciliAd||aiLoading} style={{width:"100%",padding:"11px",background:seciliAd&&!aiLoading?PURPLE:BORDER,color:seciliAd&&!aiLoading?"#fff":MUTED,border:"none",borderRadius:10,fontSize:14,fontWeight:800,cursor:"pointer",marginBottom:12}}>
         {aiLoading?"⏳ Mektup hazırlanıyor...":"✦ AI ile Mektup Oluştur"}
       </button>
@@ -21448,13 +21766,17 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
                     ))}
                   </div>
                   {/* AI Analiz Butonu */}
+                  <button onClick={() => handleDenemeAnaliz(seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara, "kapali")} disabled={denemeAiLoading} title="Yapay zekâ kullanmadan, cihazda ve ücretsiz"
+                    style={{ width:"100%", padding:"11px", background:"linear-gradient(135deg, #1F7A5A 0%, #0F4D38 100%)", color:"#fff", border:"none", borderRadius:10, fontSize:13, fontWeight:700, cursor:"pointer", marginBottom:8 }}>
+                    🔒 Kapalı Sistemle Deneme Analizi <span style={{fontWeight:500,fontSize:11}}>(ücretsiz · veri dışarı çıkmaz)</span>
+                  </button>
                   <button onClick={() => handleDenemeAnaliz(seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara)} disabled={denemeAiLoading}
                     style={{ width:"100%", padding:"11px", background: denemeAiLoading ? BORDER : PURPLE, color: denemeAiLoading ? MUTED : "#fff", border:"none", borderRadius:10, fontSize:13, fontWeight:700, cursor:"pointer", marginBottom: pdrSozlukOku(denemeAnaliz, seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara) ? 12 : 0 }}>
                     {denemeAiLoading ? "⏳ AI analiz yapıyor…" : "✦ AI Deneme & Hazırlık Analizi"}
                   </button>
                   {pdrSozlukOku(denemeAnaliz, seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara) && (
                     <div style={{ background: "#EEF2FF", border: `1px solid #c7ccf5`, borderRadius: 10, padding: 12 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: BLUE, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>✦ AI LGS Hazırlık Analizi</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: BLUE, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>{/Kapalı Sistem/.test(pdrSozlukOku(denemeAnaliz, seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara) || "") ? "🔒 Kapalı Sistem Deneme Analizi" : "✦ AI LGS Hazırlık Analizi"}</div>
                       <div style={{ fontSize: 13, color: TEXT, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{pdrSozlukOku(denemeAnaliz, seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara)}</div>
                     </div>
                   )}
@@ -21497,7 +21819,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
 
                           ${aiMetin ? `
                           <div style="margin-top:20px;">
-                            <div style="font-weight:700; font-size:12px; background:#6D5BD0; color:#fff; padding:6px 10px; border-radius:6px 6px 0 0;">✦ AI LGS Hazırlık Analizi</div>
+                            <div style="font-weight:700; font-size:12px; background:#6D5BD0; color:#fff; padding:6px 10px; border-radius:6px 6px 0 0;">${/Kapalı Sistem/.test(aiMetin || "") ? "🔒 Kapalı Sistem Deneme Analizi" : "✦ AI LGS Hazırlık Analizi"}</div>
                             <div style="border:1px solid #E5D6FA; border-top:none; padding:12px; font-size:11px; white-space:pre-wrap; line-height:1.6;">${esc(aiMetin)}</div>
                           </div>` : ""}
                         </div>`;
@@ -24534,7 +24856,7 @@ export default function App() {
     setSinifListesi(updSinifListesi); await saveSinifListesi(updSinifListesi);
   }
 
-  async function handleDenemeAnaliz(studentName, className, numara) {
+  async function handleDenemeAnaliz(studentName, className, numara, yontem) {
     const ad = studentName.toLocaleLowerCase("tr").trim();
     const gorusmeler = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, studentName, className, r.numara, numara));
     const ogrDeneme = pdrSozlukOku(denemeler, studentName, className, numara) || {};
@@ -24542,7 +24864,16 @@ export default function App() {
       no:parseInt(no), nets, toplam: aktifDenemeDersleri.reduce((s,d)=>s+(parseFloat(nets[d.key])||0),0)
     }));
     setDenemeAiLoading(true);
-    const analiz = await getDenemeAnalizi(studentName, className, numara, gorusmeler, girilen, kutuphane, sinavTuru);
+    // 🔒 Kapalı Sistem: yapay zekâsız, cihaz içi deneme analizi
+    if (yontem === "kapali") {
+      const ks = pdrKapaliDenemeAnalizi({ gorusmeler, girilen, dersListesi: aktifDenemeDersleri, sinavTuru, kademe: ksKademeTahmin(className, kademe) });
+      setDenemeAnaliz(prev => pdrSozlukYaz(prev, studentName, className, ks, numara));
+      setDenemeAiLoading(false);
+      return;
+    }
+    let analiz;
+    try { analiz = await getDenemeAnalizi(studentName, className, numara, gorusmeler, girilen, kutuphane, sinavTuru); }
+    catch (e) { setDenemeAiLoading(false); alert(e && e.message === "API_KEY_MISSING" ? "AI için Ayarlar'dan API anahtarı girmelisin.\n\nAnahtar olmadan \"🔒 Kapalı Sistem\" düğmesiyle ücretsiz analiz yapabilirsin." : "AI analizi yapılamadı: " + ((e && e.message) || "bağlantı hatası")); return; }
     setDenemeAnaliz(prev => pdrSozlukYaz(prev, studentName, className, analiz, numara));
     setDenemeAiLoading(false);
   }
