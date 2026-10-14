@@ -21407,8 +21407,10 @@ function OgrenciYonetim({
                       </div>
                     ))}
                     <div style={{flex:1,textAlign:"right",fontSize:11,color:MUTED}}>
-                      <div>İlk: <b style={{color:TEXT}}>{ogrRec[ogrRec.length-1]?.date}</b></div>
-                      <div>Son: <b style={{color:TEXT}}>{ogrRec[0]?.date}</b></div>
+                      {(() => { const sirali = [...ogrRec].filter(r => r.date).sort((x, y) => pdrTarihMs(x.date) - pdrTarihMs(y.date)); return (<>
+                      <div>İlk: <b style={{color:TEXT}}>{sirali[0]?.date}</b></div>
+                      <div>Son: <b style={{color:TEXT}}>{sirali[sirali.length-1]?.date}</b></div>
+                      </>); })()}
                     </div>
                   </div>
 
@@ -26166,7 +26168,7 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
             }}>📖</button>
             <button onClick={() => { setTab("ogrenciler"); setYilEkrani(true); }} style={{
               background:"rgba(255,255,255,0.25)", color:"#fff", border:"1px solid rgba(255,255,255,0.5)",
-              borderRadius:20, padding:"3px 12px", fontSize:12, fontWeight:800, cursor:"pointer"
+              borderRadius:20, padding:"3px 9px", fontSize:12, fontWeight:800, cursor:"pointer", whiteSpace:"nowrap"
             }}>📅 {aktifYil}</button>
           </div>
         </div>
