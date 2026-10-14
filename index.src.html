@@ -6965,23 +6965,27 @@ function pdrKademeUyumlu(className, kademe) {
   return k === kademe;
 }
 
-// Soyadı (ve varsa üçüncü/orta ismi) gizlilik için maskeler: ilk 2 harf (ya
-// da kelime daha kısaysa tamamı) görünür kalır, ardından HER ZAMAN SABİT 4
-// yıldız eklenir (örn. "Yılmaz" -> "Yı****", "Ay" -> "Ay****"). İlk isim
-// (adın kendisi) hiç dokunulmaz.
-// ÖNEMLİ DÜZELTME: eskiden kalan harf sayısı kadar yıldız konuyordu (örn.
-// "Yılmaz" -> "Yı****" ama "Ay" gibi 2 harfli bir soyad hiç maskelenmiyordu,
-// olduğu gibi görünüyordu) — bu hem soyadın uzunluğunu ele veriyordu (yıldız
-// sayısından tahmin edilebiliyordu) hem de kısa soyadları tamamen açık
-// bırakıyordu. Şimdi yıldız sayısı SABİT (4) — soyad ne kadar uzun/kısa
-// olursa olsun aynı görünüyor, tahmin edilecek bir ipucu kalmıyor.
+// Soyadı (ve varsa üçüncü/orta ismi) gizlilik için maskeler. İlk isim (adın
+// kendisi) hiç dokunulmaz. Kural (14.10.2026):
+//  • 3 ve daha uzun harfli soyad → ilk 2 harf + 5 yıldız   ("Yılmaz" → "Yı*****", "Can" → "Ca*****")
+//  • 2 harfli soyad              → ilk harf + 5 yıldız      ("Ak" → "A*****")
+//  • Yıldız sayısı HER ZAMAN 5: soyadın uzunluğu yıldızlardan tahmin edilemez.
+// Eski kurallarla maskelenmiş bir kelime ("Yı****", "AB**") yeniden verilirse görünen
+// harfleri (en çok 2) korunur ve yıldızlar 5'e eşitlenir; işlem tekrar uygulanabilir.
+const PDR_MASKE_YILDIZ = "*****";
+function pdrSoyadParcaMaskele(p) {
+  const kelime = String(p || "");
+  if (!kelime) return kelime;
+  const maskeliydi = kelime.includes("*");
+  const harfler = Array.from(kelime.replace(/\*/g, ""));
+  if (!harfler.length) return kelime;
+  const goster = maskeliydi ? Math.min(2, harfler.length) : (harfler.length >= 3 ? 2 : 1);
+  return harfler.slice(0, goster).join("") + PDR_MASKE_YILDIZ;
+}
 function pdrSoyadMaskele(adSoyad) {
   const parcalar = (adSoyad || "").trim().split(/\s+/).filter(Boolean);
   if (parcalar.length <= 1) return (adSoyad || "").trim();
-  const ilk = parcalar[0];
-  const SABIT_YILDIZ = "****";
-  const kalan = parcalar.slice(1).map(p => p.slice(0, Math.min(2, p.length)) + SABIT_YILDIZ);
-  return [ilk, ...kalan].join(" ");
+  return [parcalar[0], ...parcalar.slice(1).map(pdrSoyadParcaMaskele)].join(" ");
 }
 
 function pdrAyniOgrenci(ad1, sinif1, ad2, sinif2, no1, no2) {
@@ -19493,18 +19497,31 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
     // 1) Değişecek öğrencileri belirle — adında zaten "*" olanlar daha önce
     // maskelenmiş sayılır, tekrar işlenmez (işlemi güvenle birden fazla kez
     // çalıştırabilmek için).
+    // Eski kurallarla maskelenmiş adlar da standart 5 yıldıza getirilir. Çakışma koruması:
+    // aynı sınıfta iki farklı öğrenci aynı maskeli ada düşüyor ve numaraları onları ayırt
+    // etmeye yetmiyorsa o öğrencilere dokunulmaz (kayıtları karışmasın).
+    const aday = ogrenciler.map(o => ({ o, eskiAd: o.studentName || "", yeniAd: pdrSoyadMaskele(o.studentName || "") }));
+    const grupAnahtar = (ad, sinif) => (ad || "").toLocaleLowerCase("tr").trim() + "|" + (sinif || "").toLocaleLowerCase("tr").trim();
+    const gruplar = {};
+    aday.forEach(x => { const k = grupAnahtar(x.yeniAd, x.o.className); (gruplar[k] = gruplar[k] || []).push(x); });
+    const cakisan = new Set();
+    Object.values(gruplar).forEach(g => {
+      if (g.length < 2) return;
+      const farkliKisi = new Set(g.map(x => x.eskiAd.toLocaleLowerCase("tr").trim())).size > 1;
+      const numaralar = g.map(x => String(x.o.numara || "").trim());
+      const ayirtEdilir = numaralar.every(Boolean) && new Set(numaralar).size === numaralar.length;
+      if (farkliKisi && !ayirtEdilir) g.forEach(x => cakisan.add(x.o));
+    });
     const eslesme = [];
-    const yeniOgrenciler = ogrenciler.map(o => {
-      const eskiAd = o.studentName || "";
-      if (eskiAd.includes("*")) return o;
-      const yeniAd = pdrSoyadMaskele(eskiAd);
-      if (yeniAd === eskiAd) return o;
+    const yeniOgrenciler = aday.map(({ o, eskiAd, yeniAd }) => {
+      if (yeniAd === eskiAd || cakisan.has(o)) return o;
       eslesme.push({ eskiAd, yeniAd, className: o.className || "", numara: o.numara || "" });
       return { ...o, studentName: yeniAd };
     });
+    const cakismaNotu = cakisan.size ? ` ${cakisan.size} öğrenciye dokunulmadı: aynı sınıfta aynı maskeli ada düşüyorlar ve numaraları eksik/aynı (${[...cakisan].slice(0, 4).map(o => `${o.studentName} ${o.className}`).join(", ")}${cakisan.size > 4 ? "…" : ""}). Bu öğrencilere numara girip işlemi yeniden çalıştırın.` : "";
 
     if (eslesme.length === 0) {
-      setMaskelemeSonuc("Maskelenecek yeni bir isim bulunamadı — muhtemelen hepsi zaten maskelenmiş.");
+      setMaskelemeSonuc("Tüm öğrenci adları zaten standart biçimde (ilk 2 harf + 5 yıldız)." + cakismaNotu);
       setMaskelemeCalisiyor(false);
       setMaskelemeOnay(false);
       return;
@@ -19617,7 +19634,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
     setTestKayitlari(yeniTestKayitlari); await saveTestKayitlari(yeniTestKayitlari);
     setSosyometri(yeniSosyometri); await saveSosyometri(yeniSosyometri);
 
-    setMaskelemeSonuc(`${eslesme.length} öğrencinin soyadı maskelendi, ilgili tüm kayıtlar güncellendi.`);
+    setMaskelemeSonuc(`${eslesme.length} öğrencinin adı standart biçime getirildi (ilk 2 harf + 5 yıldız), ilgili tüm kayıtlar güncellendi.` + cakismaNotu);
     setMaskelemeCalisiyor(false);
     setMaskelemeOnay(false);
   }
@@ -19850,7 +19867,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
         <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 14, color: "#C0392B" }}>🔒 Kayıtlı Öğrenci Soyadlarını Maskele</div>
         <div style={{ fontSize: 13, color: MUTED, marginBottom: 10, lineHeight: 1.5 }}>
           Şu anda kayıtlı tüm öğrencilerin soyadını (ve varsa üçüncü/orta ismini), ilk 2 harf dışındaki
-          harfleri yıldızlayarak (örn. "Yılmaz" → "Yı****") maskeler — görüşme, risk, profil, deneme,
+          harfleri yıldızlayarak maskeler — standart: ilk 2 harf + her zaman 5 yıldız ("Yılmaz" → "Yı*****"), 2 harfli soyadda ilk harf + 5 yıldız ("Ak" → "A*****"); eski biçimde maskelenmiş adlar da 5 yıldıza eşitlenir. Aynı sınıfta aynı maskeli ada düşen ve numarasıyla ayırt edilemeyen öğrencilere dokunulmaz. İşlem — görüşme, risk, profil, deneme,
           test, sevk ve sosyometri kayıtları dahil ilgili HER yerde tutarlı olacak şekilde günceller.
           Bundan sonra elle/toplu eklenen öğrenciler zaten otomatik maskeleniyor, bu sadece <b>önceden
           eklenmiş</b> öğrenciler için tek seferlik bir işlem. <b>Geri alınamaz</b> — önce yukarıdan
@@ -19864,7 +19881,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
         ) : (
           <div>
             <div style={{ fontSize: 12.5, color: "#C0392B", fontWeight: 700, marginBottom: 10 }}>
-              Emin misin? {ogrenciler.length} öğrencinin kaydı taranacak, soyadı olanlar maskelenecek. Bu işlem geri alınamaz.
+              Emin misin? {ogrenciler.length} öğrencinin kaydı taranacak; standart biçimde olmayanlar güncellenecek ({ogrenciler.filter(o => pdrSoyadMaskele(o.studentName || "") !== (o.studentName || "")).length} öğrenci). Bu işlem geri alınamaz.
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={() => setMaskelemeOnay(false)} disabled={maskelemeCalisiyor} style={{
