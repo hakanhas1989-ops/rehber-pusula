@@ -7044,17 +7044,25 @@ function pdrSoyadMaskele(adSoyad) {
 }
 
 function pdrAyniOgrenci(ad1, sinif1, ad2, sinif2, no1, no2) {
-  const s1 = (sinif1 || "").toLocaleLowerCase("tr").trim();
-  const s2 = (sinif2 || "").toLocaleLowerCase("tr").trim();
-  const n1 = (no1 || "").toString().trim();
-  const n2 = (no2 || "").toString().trim();
+  // Sınıf yazımı farkları ("8-A", "8/A", "8 A", "8A") ve numaradaki baştaki
+  // sıfırlar ("012" / "12") aynı sayılır — aksi halde deneme/devamsızlık
+  // Excel'i yüklenince aynı öğrenci ikinci kez ekleniyordu.
+  const s1 = (sinif1 || "").toLocaleLowerCase("tr").replace(/[^0-9a-zçğıöşü]/g, "");
+  const s2 = (sinif2 || "").toLocaleLowerCase("tr").replace(/[^0-9a-zçğıöşü]/g, "");
+  const n1 = (no1 || "").toString().trim().replace(/^0+(?=\d)/, "");
+  const n2 = (no2 || "").toString().trim().replace(/^0+(?=\d)/, "");
 
   // Öncelik 1: Sınıf + numara ikisi de dolu ve eşleşiyorsa, isim yazımı farklı
   // olsa bile aynı öğrencidir.
   if (s1 && s2 && s1 === s2 && n1 && n2 && n1 === n2) return true;
 
-  const a1 = (ad1 || "").toLocaleLowerCase("tr").trim();
-  const a2 = (ad2 || "").toLocaleLowerCase("tr").trim();
+  let a1 = (ad1 || "").toLocaleLowerCase("tr").trim().replace(/\s+/g, " ");
+  let a2 = (ad2 || "").toLocaleLowerCase("tr").trim().replace(/\s+/g, " ");
+  // Biri maskeli ("Ayşe Yı*****"), diğeri Excel'den gelen tam ad ("Ayşe Yılmaz")
+  // ise ikisi de aynı kuralla maskelenip karşılaştırılır.
+  if (a1 !== a2 && a1.includes("*") !== a2.includes("*") && typeof pdrSoyadMaskele === "function") {
+    a1 = pdrSoyadMaskele(a1).toLocaleLowerCase("tr"); a2 = pdrSoyadMaskele(a2).toLocaleLowerCase("tr");
+  }
 
   // Öncelik 2: İsim + numara ikisi de dolu ve eşleşiyorsa, SINIF FARKLI OLSA
   // BİLE aynı öğrencidir — öğrenci sınıf değiştirmiş olabilir, eski kayıttaki
@@ -19612,7 +19620,7 @@ function SifrelemeKarti({ yedekIndir, yedekIndiriliyor, sonYedekTarihi }) {
 function pdrKayipAdNorm(ad) {
   return pdrSoyadMaskele(ad || "").toLocaleLowerCase("tr").replace(/\*/g, "").replace(/\s+/g, " ").trim();
 }
-function KayipKayitBul({ records, setRecords, ogrenciler }) {
+function KayipKayitBul({ records, setRecords, ogrenciler, setOgrenciler, aktifYil }) {
   const [acik, setAcik] = useState(false);
   const [arsiv, setArsiv] = useState(null);
   const [arama, setArama] = useState("");
@@ -19626,6 +19634,25 @@ function KayipKayitBul({ records, setRecords, ogrenciler }) {
   const mevcutId = new Set((records || []).map(r => r.id));
   const silinenler = (arsiv || []).filter(x => x.kayit && !mevcutId.has(x.kayit.id) && filtre(x.kayit.studentName));
   const sahipsizMi = (r) => !(ogrenciler || []).some(o => pdrAyniOgrenci(o.studentName, o.className, r.studentName, r.className, o.numara, r.numara));
+  // Görüşmesi olan ama öğrenci listesinde karşılığı olmayan öğrenciler
+  const sahipsizler = (() => {
+    if (!acik) return [];
+    const m = new Map();
+    (records || []).forEach(r => {
+      if (!r || !r.studentName || !filtre(r.studentName) || !sahipsizMi(r)) return;
+      const k = pdrKayipAdNorm(r.studentName) + "|" + (r.className || "") + "|" + (r.numara || "");
+      if (!m.has(k)) m.set(k, { studentName: r.studentName, className: r.className || "", numara: r.numara || "", n: 0, son: r.date });
+      const g = m.get(k); g.n++; if (pdrTarihMs(r.date) > pdrTarihMs(g.son)) g.son = r.date;
+    });
+    return [...m.values()].sort((a, b) => b.n - a.n);
+  })();
+  async function listeyeEkle(g) {
+    if (!setOgrenciler) return;
+    if (!confirm(`${g.studentName}${g.className ? " (" + g.className + ")" : ""} öğrenci listesine eklensin mi? Görüşmeleri bu öğrenciye bağlanır.`)) return;
+    const yeni = [...(ogrenciler || []), { id: uid(), studentName: g.studentName, className: g.className, numara: g.numara, yil: aktifYil, tarih: today() }];
+    setOgrenciler(yeni); await saveOgrenciler(yeni);
+    setMesaj(`✓ ${g.studentName} öğrenci listesine geri eklendi.`);
+  }
   const bulunan = q ? (records || []).filter(r => filtre(r.studentName)).sort((a, b) => pdrTarihMs(b.date) - pdrTarihMs(a.date)) : [];
 
   async function geriGetir(x) {
@@ -19648,6 +19675,16 @@ function KayipKayitBul({ records, setRecords, ogrenciler }) {
         <div>
           <input value={arama} onChange={e => setArama(e.target.value)} placeholder="Öğrenci adı (ör. Ayşe Yı) — boş bırakırsan hepsi" style={{ width: "100%", padding: 10, borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 14, marginBottom: 10, boxSizing: "border-box" }} />
           {mesaj && <div style={{ fontSize: 13, color: "#1A8C5B", fontWeight: 700, marginBottom: 8 }}>{mesaj}</div>}
+
+          <div style={{ fontWeight: 700, fontSize: 13, margin: "6px 0" }}>👤 Görüşmesi var, öğrenci listesinde yok ({sahipsizler.length})</div>
+          {sahipsizler.length === 0 ? <div style={{ fontSize: 12, color: MUTED, marginBottom: 8 }}>Yok — tüm görüşmeler bir öğrenciye bağlı.</div> :
+            sahipsizler.slice(0, 60).map(g => (
+              <div key={g.studentName + g.className + g.numara} data-testid="sahipsiz-satir" style={kutu}>
+                <b>{g.studentName}</b> {g.className ? `(${g.className})` : ""} {g.numara ? `No: ${g.numara}` : ""} · {g.n} görüşme · son: {g.son}
+                <div style={{ color: MUTED, fontSize: 11.5 }}>Öğrenci listeden silinmiş ya da adı/sınıfı farklı kaydedilmiş. Doğru kişiyse listeye geri ekle.</div>
+                {setOgrenciler && <button onClick={() => listeyeEkle(g)} style={btn}>➕ Öğrenci listesine ekle</button>}
+              </div>
+            ))}
 
           <div style={{ fontWeight: 700, fontSize: 13, margin: "6px 0" }}>🗑️ Son silinen görüşmeler ({silinenler.length})</div>
           {arsiv === null ? <div style={{ fontSize: 12, color: MUTED }}>Yükleniyor…</div> :
@@ -20160,7 +20197,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
         )}
         {maskelemeSonuc && <div style={{ fontSize: 13, color: "#1A8C5B", fontWeight: 700, marginTop: 8 }}>{maskelemeSonuc}</div>}
       </div>
-      <KayipKayitBul records={records} setRecords={setRecords} ogrenciler={ogrenciler} />
+      <KayipKayitBul records={records} setRecords={setRecords} ogrenciler={ogrenciler} setOgrenciler={setOgrenciler} aktifYil={aktifYil} />
 
 
       <div style={{ fontSize: 14, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
@@ -20694,6 +20731,14 @@ function OgrenciYonetim({
   ), [tumOgrenciler, aramaDebounce]);
 
   async function handleOgrenciSil(studentName, className, numara) {
+    const kopyaSay = (ogrenciler || []).filter(o => pdrAyniOgrenci(studentName, className, o.studentName, o.className, numara, o.numara)).length;
+    if (kopyaSay > 1) {
+      if (!confirm(`Bu öğrenci listede ${kopyaSay} kez görünüyor (kopya). Sadece bu kopya silinecek; görüşmeler ve diğer kayıtlar kalan kayıtta korunur. Devam edilsin mi?`)) return;
+      await onOgrenciSil(studentName, className, numara);
+      if (aktifOgrenci?.name === studentName) setAktifOgrenci({ name: "", className: "" });
+      setSeciliOgrenci(null);
+      return;
+    }
     const gorusmeSay = (records || []).filter(r => pdrAyniOgrenci(studentName, className, r.studentName, r.className, numara, r.numara)).length;
     if (gorusmeSay && !confirm(`Bu öğrenciyle birlikte ${gorusmeSay} görüşme notu ve diğer tüm kayıtları da silinecek.\n\nSilinen görüşmeler Ayarlar → Kayıp Kayıt Bul → "Son silinenler"den geri getirilebilir. Devam edilsin mi?`)) return;
     await onOgrenciSil(studentName, className, numara);
@@ -26743,9 +26788,17 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
               setCastDegerlendirmeler(yeniCast); await saveCastDegerlendirmeler(yeniCast);
             }}
             onOgrenciSil={async (studentName, className, numara) => {
-              const silinecekMi = (ad, sinif, no) => pdrAyniOgrenci(studentName, className, ad, sinif, numara, no);
+              // Yalnızca tıklanan öğrenci kaydı silinir. Aynı öğrencinin bir kopyası
+              // (ör. deneme Excel'inden ikinci kez eklenmiş) listede kalıyorsa,
+              // görüşme ve diğer veriler ona ait sayılır ve SİLİNMEZ.
+              const tamMi = (o) => (o.studentName || "") === (studentName || "") && (o.className || "") === (className || "") && String(o.numara || "") === String(numara || "");
+              let hedefIdx = ogrenciler.findIndex(tamMi);
+              if (hedefIdx < 0) hedefIdx = ogrenciler.findIndex(o => pdrAyniOgrenci(studentName, className, o.studentName, o.className, numara, o.numara));
+              const updOgr = ogrenciler.filter((_, i) => i !== hedefIdx);
+              const kopyaKaldi = updOgr.some(o => pdrAyniOgrenci(studentName, className, o.studentName, o.className, numara, o.numara));
+              const silinecekMi = (ad, sinif, no) => !kopyaKaldi && pdrAyniOgrenci(studentName, className, ad, sinif, numara, no);
 
-              const updOgr = ogrenciler.filter(o => !silinecekMi(o.studentName, o.className, o.numara));
+              setOgrenciler(updOgr); await saveOgrenciler(updOgr);
               setOgrenciler(updOgr); await saveOgrenciler(updOgr);
 
               const updRec = records.filter(r => !silinecekMi(r.studentName, r.className, r.numara));
