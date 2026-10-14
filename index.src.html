@@ -19716,6 +19716,29 @@ function KayipKayitBul({ records, setRecords, ogrenciler, setOgrenciler, aktifYi
   );
 }
 
+// Ekran düzeni bekçisi ayarı (taşma/sıkışma otomatik düzeltme)
+function EkranBekcisiAyar() {
+  const [acik, setAcik] = useState(() => { try { return localStorage.getItem("pdr_tasma_bekci") !== "kapali"; } catch (e) { return true; } });
+  const sayi = (window.__pdrTasmaKayit || []).length;
+  function degistir() {
+    const yeni = !acik; setAcik(yeni);
+    try { localStorage.setItem("pdr_tasma_bekci", yeni ? "acik" : "kapali"); } catch (e) {}
+    if (yeni && window.pdrTasmaTara) setTimeout(window.pdrTasmaTara, 50);
+  }
+  return (
+    <div data-testid="ekran-bekcisi" style={{ background: "#F4F6F7", borderRadius: 12, padding: 14, marginBottom: 16 }}>
+      <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+        <input type="checkbox" checked={acik} onChange={degistir} style={{ width: 18, height: 18 }} />
+        <span style={{ fontWeight: 700, fontSize: 14 }}>🧩 Ekran düzeni bekçisi</span>
+      </label>
+      <div style={{ fontSize: 12.5, color: MUTED, marginTop: 6, lineHeight: 1.5 }}>
+        Dar ekranda yazıların sıkışıp üst üste binmesini ve ekrandan taşmasını otomatik bulup düzeltir. Sadece görünümü değiştirir, veriye dokunmaz.
+        {acik && sayi > 0 && <> Bu oturumda <b>{sayi}</b> düzen sorunu düzeltildi.</>}
+      </div>
+    </div>
+  );
+}
+
 function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profiles, setProfiles, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, castDegerlendirmeler, setCastDegerlendirmeler, akademikTaramalar, setAkademikTaramalar, ilkokulTaramalar, setIlkokulTaramalar, liseTaramalar, setLiseTaramalar, benlikOlcekleri, setBenlikOlcekleri, riskListesi, setRiskListesi, denemeler, setDenemeler, sevkler, setSevkler, mudahalePlan, setMudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, profNotlari, setProfNotlari, kutuphane, setKutuphane, yillar, setYillar, sinifListesi, setSinifListesi, aktifYil, setAktifYil, kademe, setKademe, sinavTuru, setSinavTuru, testKayitlari, setTestKayitlari, hatirlatmalar, setHatirlatmalar, netHaritasiKayitlari, setNetHaritasiKayitlari, konuHaritasiVerisi, setKonuHaritasiVerisi, sosyometri, setSosyometri, onTumOzellikler }) {
   const [sonYedekTarihi, setSonYedekTarihi] = useState(null);
   useEffect(() => { loadSonYedek().then(v => setSonYedekTarihi(v || null)); }, []);
@@ -20198,6 +20221,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
         {maskelemeSonuc && <div style={{ fontSize: 13, color: "#1A8C5B", fontWeight: 700, marginTop: 8 }}>{maskelemeSonuc}</div>}
       </div>
       <KayipKayitBul records={records} setRecords={setRecords} ogrenciler={ogrenciler} setOgrenciler={setOgrenciler} aktifYil={aktifYil} />
+      <EkranBekcisiAyar />
 
 
       <div style={{ fontSize: 14, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
@@ -27538,5 +27562,118 @@ window.__pdrAuthReady.then(() => {
 });
 </script>
 
+<script>
+// ===== EKRAN DÜZENİ BEKÇİSİ (taşma / sıkışma otomatik düzeltme) =====
+// Dar ekranda (telefon) bir satırdaki etiketler/düğmeler fazla yer kaplayınca
+// yanındaki ad/tarih sütunu birkaç piksele sıkışıp yazılar üst üste
+// biniyordu. Bu bekçi ekran her değiştiğinde (sekme açma, liste yenilenme,
+// ekran döndürme) sessizce tarar:
+//  • Sıkışmış yazı bulursa, bulunduğu satırı "sığmazsa alt satıra in"
+//    düzenine geçirir ve sıkışan sütuna en az bir genişlik verir.
+//  • Kutusundan taşan uzun kelimeleri (ör. uzun ad, bağlantı) kutuya sardırır.
+//  • Sayfayı yana kaydıran öğeleri ekran genişliğiyle sınırlar.
+// Hiçbir veriyi değiştirmez, sadece görünümü düzeltir. Ayarlar'dan
+// kapatılabilir (localStorage "pdr_tasma_bekci" = "kapali").
+(function () {
+  var KAYIT = window.__pdrTasmaKayit = [];
+  function kapaliMi() { try { return localStorage.getItem("pdr_tasma_bekci") === "kapali"; } catch (e) { return false; } }
+  function satirFlexMi(cs) { return (cs.display === "flex" || cs.display === "inline-flex") && cs.flexDirection.indexOf("row") === 0; }
+  function kaydet(tur, el) {
+    try {
+      var t = (el.textContent || "").trim().slice(0, 40);
+      if (KAYIT.length < 200) KAYIT.push({ tur: tur, metin: t, zaman: Date.now() });
+    } catch (e) {}
+  }
+  function sikismaDuzelt(el) {
+    // Yukarı doğru, sıkışmış dalı (cocuk) taşıyan ilk yatay flex satırı bul
+    var cocuk = el, ust = el.parentElement, adim = 0;
+    while (ust && ust.id !== "root" && adim < 6) {
+      var cs = getComputedStyle(ust);
+      if (satirFlexMi(cs)) {
+        var cw = cocuk.getBoundingClientRect().width;
+        if (cw < 90 && !cocuk.hasAttribute("data-tasma-cocuk")) {
+          if (cs.flexWrap === "nowrap") ust.style.flexWrap = "wrap";
+          var ccs = getComputedStyle(cocuk);
+          // Sıkışan sütun en az 140px (ya da satırın tamamı) alsın; sığmayan kardeşler alt satıra iner
+          cocuk.style.minWidth = "min(140px, 100%)";
+          if (ccs.flexShrink !== "0" && ccs.flexBasis === "0%") cocuk.style.flexBasis = "140px";
+          cocuk.setAttribute("data-tasma-cocuk", "1");
+          // Kardeşlerdeki küçülmeyen etiket kapları kendi içinde de sarılabilsin
+          Array.prototype.forEach.call(ust.children, function (k) {
+            if (k === cocuk) return;
+            var kcs = getComputedStyle(k);
+            if (satirFlexMi(kcs) && kcs.flexWrap === "nowrap" && k.children.length > 1) { k.style.flexWrap = "wrap"; k.style.maxWidth = "100%"; }
+          });
+          kaydet("sıkışma", cocuk);
+          return true;
+        }
+      }
+      cocuk = ust; ust = ust.parentElement; adim++;
+    }
+    return false;
+  }
+  var tarandi = 0;
+  function tara() {
+    if (kapaliMi()) return;
+    var kok = document.getElementById("root"); if (!kok) return;
+    var vw = window.innerWidth;
+    var gorulen = new Set(), duzeltilen = 0;
+    var yuruyucu = document.createTreeWalker(kok, NodeFilter.SHOW_TEXT, null);
+    var n, sayac = 0;
+    while ((n = yuruyucu.nextNode()) && sayac < 6000) {
+      sayac++;
+      var el = n.parentElement;
+      if (!el || gorulen.has(el)) continue;
+      gorulen.add(el);
+      var metin = (n.textContent || "").trim();
+      if (metin.length < 4) continue;
+      var r = el.getBoundingClientRect();
+      if (!r.height && !r.width) continue;
+      var cs = getComputedStyle(el);
+      if (cs.visibility === "hidden" || cs.position === "fixed") continue;
+      var fs = parseFloat(cs.fontSize) || 12;
+      // 1) Sıkışma: kutu çok dar ama içerik geniş / çok satıra bölünmüş
+      var dar = r.width < 50 && (el.scrollWidth > r.width + 10 || (r.height > fs * 1.4 * 3 && metin.length > 8));
+      if (dar && !el.closest("[data-tasma-yoksay]")) { if (sikismaDuzelt(el)) duzeltilen++; continue; }
+      // 2) Taşan uzun kelime: kutudan yatay taşıyor, kaydırma çubuğu yok, bilerek tek satır değil
+      if (el.scrollWidth > el.clientWidth + 3 && el.clientWidth > 0 && cs.overflowX === "visible" && cs.whiteSpace !== "nowrap" && cs.whiteSpace !== "pre" && !el.hasAttribute("data-tasma-kelime")) {
+        el.style.overflowWrap = "anywhere"; el.style.minWidth = "0";
+        el.setAttribute("data-tasma-kelime", "1"); kaydet("taşan kelime", el); duzeltilen++;
+        continue;
+      }
+      // 3) Ekranın sağından dışarı taşan (sayfayı yana kaydıran) öğe
+      if (r.right > vw + 4 && r.left >= 0 && r.left < vw && r.width > 40 && !el.hasAttribute("data-tasma-genis")) {
+        var kaydirmali = false, a = el.parentElement;
+        while (a && a !== kok) { var acs = getComputedStyle(a); if (acs.overflowX === "auto" || acs.overflowX === "scroll" || acs.overflowX === "hidden") { kaydirmali = true; break; } a = a.parentElement; }
+        if (!kaydirmali && cs.whiteSpace !== "nowrap") {
+          el.style.maxWidth = "100%"; el.style.overflowWrap = "anywhere"; el.style.boxSizing = "border-box";
+          el.setAttribute("data-tasma-genis", "1"); kaydet("ekran dışı", el); duzeltilen++;
+        }
+      }
+    }
+    tarandi++;
+    if (duzeltilen) { try { console.info("[ekran bekçisi] " + duzeltilen + " düzen sorunu düzeltildi"); } catch (e) {} }
+    return duzeltilen;
+  }
+  window.pdrTasmaTara = tara;
+  var zamanlayici = null;
+  function planla() {
+    clearTimeout(zamanlayici);
+    zamanlayici = setTimeout(function () {
+      var calis = function () { var d = tara(); if (d) setTimeout(tara, 120); }; // düzeltmeden sonra bir tur daha (zincirleme)
+      if (window.requestIdleCallback) window.requestIdleCallback(calis, { timeout: 1500 }); else calis();
+    }, 500);
+  }
+  function baslat() {
+    var kok = document.getElementById("root"); if (!kok) { setTimeout(baslat, 500); return; }
+    new MutationObserver(planla).observe(kok, { childList: true, subtree: true, characterData: true });
+    window.addEventListener("resize", planla);
+    window.addEventListener("orientationchange", planla);
+    planla();
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", baslat); else baslat();
+})();
+// ===== EKRAN DÜZENİ BEKÇİSİ BİTİŞ =====
+</script>
 </body>
 </html>
