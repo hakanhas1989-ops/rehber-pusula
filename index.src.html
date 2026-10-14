@@ -19334,6 +19334,89 @@ const PDR_YEDEK_EK_ALANLAR = [
   ["sinavTuru", loadSinavTuru, saveSinavTuru]
 ];
 const PDR_YEDEK_UYARI_GUN = 30;
+
+// ── Yedekle BİRLEŞTİRME ──────────────────────────────────────────────────────
+// Yedekteki kayıtlardan şu anda programda OLMAYANLARI ekler; mevcut hiçbir kayıt
+// silinmez ya da değiştirilmez (çakışmada mevcut kayıt kazanır).
+//  • Liste alanları: id'si (yoksa içeriği) mevcutta bulunmayan öğeler eklenir.
+//    Öğrenciler ayrıca ad+sınıf+numara ile de karşılaştırılır (aynı kişi iki kez eklenmez).
+//  • Öğrenci anahtarlı sözlükler (denemeler, testler, notlar…): olmayan anahtar eklenir;
+//    ikisinde de varsa listeler id'ye göre birleşir, nesnelerde yalnızca eksik alt alanlar eklenir.
+//  • Yedekteki adlar eski maskeleme biçiminde olabilir ("Yı****"); mevcut öğrenciyle
+//    eşleşen adlar mevcut biçime çevrilir, böylece kayıt doğru öğrenciye bağlanır.
+//  • Tek değerli ayarlar (kademe, sınav türü, aktif yıl) değiştirilmez.
+const PDR_YEDEK_ALAN_AD = { ogrenciler: "Öğrenciler", records: "Görüşme kayıtları", profiles: "Profil 1", profiles2: "Profil 2", riskListesi: "Risk kayıtları", denemeler: "Denemeler (öğrenci)", sevkler: "Sevkler", mudahalePlan: "Müdahale planları", hazirlikNotlari: "Seans hazırlık notları", ilerlemeNotlari: "İlerleme notları", profNotlari: "Prof. Hakan notları", kutuphane: "Kütüphane", testKayitlari: "Test kayıtları", hatirlatmalar: "Hatırlatmalar", netHaritasiKayitlari: "Net haritası", konuHaritasiVerisi: "Konu haritası", bireyiTanima: "Bireyi tanıma", bdtAnaliz: "BDT analizi", sinavKaygisi: "Sınav kaygısı", oogDegerlendirmeler: "ÖÖG ön-tarama", castDegerlendirmeler: "Otizm taraması", pasDegerlendirmeler: "CAS taraması", pasPerformanslar: "CAS performans", akademikTaramalar: "Akademik düzey taraması", ilkokulTaramalar: "İlkokul düzey taraması", liseTaramalar: "Lise düzey taraması", benlikOlcekleri: "Benlik ölçeği", bilproDegerlendirmeler: "BİLPRO", sosyometri: "Sosyometri", krizKayitlari: "Kriz kayıtları", grupCalismalari: "Grup çalışmaları", uyumIzleme: "Uyum izleme", riskHaritasi: "Risk haritası", mudahaleOnerileri: "Müdahale önerileri", yillar: "Yıllar", sinifListesi: "Sınıf listesi" };
+function pdrYedekAdEsle(ad, sinif, numara, ogrenciler) {
+  if (!ad || !ogrenciler || !ogrenciler.length) return ad;
+  const n = (x) => pdrSoyadMaskele(String(x || "")).toLocaleLowerCase("tr").trim();
+  const hedef = n(ad), s = String(sinif || "").toLocaleLowerCase("tr").trim(), no = String(numara || "").trim();
+  const aday = ogrenciler.filter(o => n(o.studentName) === hedef && (!s || String(o.className || "").toLocaleLowerCase("tr").trim() === s));
+  const tam = aday.find(o => no && String(o.numara || "").trim() === no) || (aday.length === 1 ? aday[0] : null);
+  return tam ? tam.studentName : ad;
+}
+function pdrYedekAnahtarEsle(anahtar, ogrenciler) {
+  const p = String(anahtar).split(" || ");
+  if (p.length < 2) return anahtar;
+  const yeniAd = pdrYedekAdEsle(p[0], p[1], p[2], ogrenciler);
+  return yeniAd === p[0] ? anahtar : [yeniAd, ...p.slice(1)].join(" || ");
+}
+function pdrYedekKimlik(x) { return x && typeof x === "object" && x.id != null ? "id:" + x.id : "js:" + JSON.stringify(x); }
+function pdrYedekListeBirlestir(mevcut, yedek, ogrenciler, ogrenciMi) {
+  const m = Array.isArray(mevcut) ? mevcut : [];
+  const kimlikler = new Set(m.map(pdrYedekKimlik));
+  const ogrAnahtar = (o) => pdrSoyadMaskele(String(o.studentName || "")).toLocaleLowerCase("tr").trim() + "|" + String(o.className || "").toLocaleLowerCase("tr").trim() + "|" + String(o.numara || "").trim();
+  const ogrSet = ogrenciMi ? new Set(m.map(ogrAnahtar)) : null;
+  const eklenen = [];
+  (Array.isArray(yedek) ? yedek : []).forEach(x => {
+    let y = x;
+    if (!ogrenciMi && y && typeof y === "object" && y.studentName) {
+      const ad = pdrYedekAdEsle(y.studentName, y.className, y.numara, ogrenciler);
+      if (ad !== y.studentName) y = { ...y, studentName: ad };
+    }
+    if (kimlikler.has(pdrYedekKimlik(x)) || kimlikler.has(pdrYedekKimlik(y))) return;
+    if (ogrenciMi && ogrSet.has(ogrAnahtar(y))) return;
+    kimlikler.add(pdrYedekKimlik(y)); if (ogrSet) ogrSet.add(ogrAnahtar(y));
+    eklenen.push(y);
+  });
+  return { deger: [...m, ...eklenen], eklenen };
+}
+function pdrYedekSozlukBirlestir(mevcut, yedek, ogrenciler) {
+  const m = mevcut && typeof mevcut === "object" && !Array.isArray(mevcut) ? mevcut : {};
+  const sonuc = { ...m }; let eklenen = 0; const eklenenAnahtar = [];
+  Object.entries(yedek && typeof yedek === "object" ? yedek : {}).forEach(([k0, v]) => {
+    const k = pdrYedekAnahtarEsle(k0, ogrenciler);
+    if (!(k in sonuc)) { sonuc[k] = v; eklenen += Array.isArray(v) ? v.length || 1 : 1; eklenenAnahtar.push(k); return; }
+    const mv = sonuc[k];
+    if (Array.isArray(mv) && Array.isArray(v)) { const r = pdrYedekListeBirlestir(mv, v, ogrenciler, false); if (r.eklenen.length) { sonuc[k] = r.deger; eklenen += r.eklenen.length; eklenenAnahtar.push(k); } }
+    else if (mv && v && typeof mv === "object" && typeof v === "object" && !Array.isArray(mv) && !Array.isArray(v)) {
+      const eksik = Object.keys(v).filter(a => !(a in mv));
+      if (eksik.length) { sonuc[k] = { ...v, ...mv }; eklenen += eksik.length; eklenenAnahtar.push(k); }
+    }
+  });
+  return { deger: sonuc, eklenen, eklenenAnahtar };
+}
+// Tüm alanlar için birleştirme planı (önizleme ve uygulama aynı sonucu kullanır)
+function pdrYedekBirlestirmePlani(mevcutTum, yedek) {
+  const tekil = new Set(["kademe", "sinavTuru", "aktifYil", "yedekTarihi"]);
+  // Önce öğrenciler: diğer alanlardaki adlar birleşmiş öğrenci listesine göre eşlenir
+  const ogr = pdrYedekListeBirlestir(mevcutTum.ogrenciler, yedek.ogrenciler, [], true);
+  const ogrenciler = ogr.deger;
+  const plan = { ogrenciler: { deger: ogrenciler, eklenen: ogr.eklenen.length, ornek: ogr.eklenen.slice(0, 8).map(o => `${o.studentName} (${o.className || "—"})`) } };
+  Object.keys(yedek).forEach(alan => {
+    if (alan === "ogrenciler" || tekil.has(alan) || yedek[alan] === undefined) return;
+    const mv = mevcutTum[alan], yv = yedek[alan];
+    if (Array.isArray(yv)) {
+      if (yv.every(x => typeof x !== "object")) { const set = new Set(mv || []); const ek = yv.filter(x => !set.has(x)); plan[alan] = { deger: [...(mv || []), ...ek], eklenen: ek.length, ornek: ek.slice(0, 5).map(String) }; return; }
+      const r = pdrYedekListeBirlestir(mv, yv, ogrenciler, false);
+      plan[alan] = { deger: r.deger, eklenen: r.eklenen.length, ornek: r.eklenen.slice(0, 20).map(x => [x.date || x.tarih || "", x.studentName || x.ad || x.baslik || x.etkilenen || x.sinif || "", x.topic || x.konu || x.metin || x.tur || ""].filter(Boolean).join(" · ").slice(0, 120)).filter(Boolean) };
+    } else if (yv && typeof yv === "object") {
+      const r = pdrYedekSozlukBirlestir(mv, yv, ogrenciler);
+      plan[alan] = { deger: r.deger, eklenen: r.eklenen, ornek: r.eklenenAnahtar.slice(0, 8).map(k => String(k).split(" || ").slice(0, 2).join(" ")) };
+    }
+  });
+  return plan;
+}
+
 async function loadSonYedek() { try { const r = await window.storage.get("pdr-son-yedek"); return r ? r.value : null; } catch (e) { return null; } }
 async function saveSonYedek(iso) { try { await window.storage.set("pdr-son-yedek", iso); } catch (e) {} }
 // Son yedek 30 günden eskiyse (ya da hiç alınmadıysa) her ekranda görünen uyarı bandı
@@ -19476,6 +19559,8 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
   const [geriYuklemeOnay, setGeriYuklemeOnay] = useState(null); // dosyadan okunan veri, onay bekliyor
   const [geriYukleniyor, setGeriYukleniyor] = useState(false);
   const [geriYuklemeSonuc, setGeriYuklemeSonuc] = useState("");
+  const [birlesimPlani, setBirlesimPlani] = useState(null);   // yedek seçilince hesaplanan önizleme
+  const [tamDegistirOnay, setTamDegistirOnay] = useState(false);
   const [maskelemeOnay, setMaskelemeOnay] = useState(false);
   const [maskelemeCalisiyor, setMaskelemeCalisiyor] = useState(false);
   const [maskelemeSonuc, setMaskelemeSonuc] = useState("");
@@ -19659,6 +19744,9 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
           return;
         }
         setGeriYuklemeOnay(veri);
+        setTamDegistirOnay(false);
+        setBirlesimPlani(null);
+        mevcutTumVeri().then(m => setBirlesimPlani(pdrYedekBirlestirmePlani(m, veri))).catch(e2 => setBirlesimPlani({ hata: e2.message }));
       } catch (err) {
         alert("Dosya okunamadı: " + err.message);
       }
@@ -19667,37 +19755,70 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
     e.target.value = ""; // aynı dosyayı tekrar seçebilmek için
   }
 
-  async function handleGeriYuklemeOnayla() {
+  const yedekAlanlari = () => [
+    ["ogrenciler", setOgrenciler, saveOgrenciler],
+    ["records", setRecords, saveRecords],
+    ["profiles", setProfiles, saveProfiles],
+    ["profiles2", setProfiles2, saveProfiles2],
+    ["oogDegerlendirmeler", setOogDegerlendirmeler, saveOogDegerlendirmeler],
+    ["castDegerlendirmeler", setCastDegerlendirmeler, saveCastDegerlendirmeler],
+    ["akademikTaramalar", setAkademikTaramalar, saveAkademikTaramalar],
+    ["ilkokulTaramalar", setIlkokulTaramalar, saveIlkokulTaramalar],
+    ["liseTaramalar", setLiseTaramalar, saveLiseTaramalar],
+    ["benlikOlcekleri", setBenlikOlcekleri, saveBenlikOlcekleri],
+    ["riskListesi", setRiskListesi, saveRiskListesi],
+    ["denemeler", setDenemeler, saveDenemeler],
+    ["sevkler", setSevkler, saveSevkler],
+    ["mudahalePlan", setMudahalePlan, saveMudahalePlan],
+    ["hazirlikNotlari", setHazirlikNotlari, saveHazirlikNotlari],
+    ["ilerlemeNotlari", setIlerlemeNotlari, saveIlerlemeNotlari],
+    ["profNotlari", setProfNotlari, saveProfNotlari],
+    ["kutuphane", setKutuphane, saveKutuphane],
+    ["yillar", setYillar, saveYillar],
+    ["sinifListesi", setSinifListesi, saveSinifListesi],
+    ["testKayitlari", setTestKayitlari, saveTestKayitlari],
+    ["hatirlatmalar", setHatirlatmalar, saveHatirlatmalar],
+    ["netHaritasiKayitlari", setNetHaritasiKayitlari, saveNetHaritasi],
+    ["konuHaritasiVerisi", setKonuHaritasiVerisi, saveKonuHaritasi],
+  ];
+
+  async function mevcutTumVeri() {
+    const m = { ogrenciler, records, profiles, profiles2, oogDegerlendirmeler, castDegerlendirmeler, akademikTaramalar, ilkokulTaramalar, liseTaramalar, benlikOlcekleri, riskListesi, denemeler, sevkler, mudahalePlan, hazirlikNotlari, ilerlemeNotlari, profNotlari, kutuphane, yillar, sinifListesi, testKayitlari, hatirlatmalar, netHaritasiKayitlari, konuHaritasiVerisi, sosyometri };
+    for (const [alan, yukle] of PDR_YEDEK_EK_ALANLAR) { if (m[alan] === undefined) { try { m[alan] = await yukle(); } catch (e) {} } }
+    return m;
+  }
+  // Yedekteki eksik kayıtları ekler — mevcut hiçbir şey silinmez
+  async function handleBirlestir() {
     const veri = geriYuklemeOnay;
     if (!veri) return;
     setGeriYukleniyor(true);
     try {
-      const alanlar = [
-        ["ogrenciler", setOgrenciler, saveOgrenciler],
-        ["records", setRecords, saveRecords],
-        ["profiles", setProfiles, saveProfiles],
-        ["profiles2", setProfiles2, saveProfiles2],
-        ["oogDegerlendirmeler", setOogDegerlendirmeler, saveOogDegerlendirmeler],
-        ["castDegerlendirmeler", setCastDegerlendirmeler, saveCastDegerlendirmeler],
-        ["akademikTaramalar", setAkademikTaramalar, saveAkademikTaramalar],
-        ["ilkokulTaramalar", setIlkokulTaramalar, saveIlkokulTaramalar],
-        ["liseTaramalar", setLiseTaramalar, saveLiseTaramalar],
-        ["benlikOlcekleri", setBenlikOlcekleri, saveBenlikOlcekleri],
-        ["riskListesi", setRiskListesi, saveRiskListesi],
-        ["denemeler", setDenemeler, saveDenemeler],
-        ["sevkler", setSevkler, saveSevkler],
-        ["mudahalePlan", setMudahalePlan, saveMudahalePlan],
-        ["hazirlikNotlari", setHazirlikNotlari, saveHazirlikNotlari],
-        ["ilerlemeNotlari", setIlerlemeNotlari, saveIlerlemeNotlari],
-        ["profNotlari", setProfNotlari, saveProfNotlari],
-        ["kutuphane", setKutuphane, saveKutuphane],
-        ["yillar", setYillar, saveYillar],
-        ["sinifListesi", setSinifListesi, saveSinifListesi],
-        ["testKayitlari", setTestKayitlari, saveTestKayitlari],
-        ["hatirlatmalar", setHatirlatmalar, saveHatirlatmalar],
-        ["netHaritasiKayitlari", setNetHaritasiKayitlari, saveNetHaritasi],
-        ["konuHaritasiVerisi", setKonuHaritasiVerisi, saveKonuHaritasi],
-      ];
+      const plan = pdrYedekBirlestirmePlani(await mevcutTumVeri(), veri);
+      const setler = Object.fromEntries(yedekAlanlari().map(([alan, st, sv]) => [alan, [st, sv]]));
+      let toplam = 0, alanSay = 0, yenile = false;
+      for (const [alan, p] of Object.entries(plan)) {
+        if (!p || !p.eklenen) continue;
+        const ss = setler[alan];
+        if (ss && ss[1]) { if (ss[0]) ss[0](p.deger); await ss[1](p.deger); }
+        else { const ek = PDR_YEDEK_EK_ALANLAR.find(x => x[0] === alan); if (!ek) continue; await ek[2](p.deger); yenile = true; }
+        toplam += p.eklenen; alanSay++;
+      }
+      setGeriYuklemeSonuc(toplam ? `✓ Birleştirildi: ${alanSay} veri türünde ${toplam} eksik kayıt yedekten eklendi. Mevcut hiçbir kayıt silinmedi.` : "✓ Yedekte, programda olmayan bir kayıt bulunmadı — hiçbir şey değişmedi.");
+      setGeriYuklemeOnay(null); setBirlesimPlani(null);
+      if (yenile) setTimeout(() => window.location.reload(), 2500);
+      setTimeout(() => setGeriYuklemeSonuc(""), 9000);
+    } catch (e) { alert("Birleştirme sırasında hata oluştu: " + e.message); }
+    setGeriYukleniyor(false);
+  }
+
+  async function handleGeriYuklemeOnayla() {
+    const veri = geriYuklemeOnay;
+    if (!veri) return;
+    setGeriYukleniyor(true);
+    // Güvenlik: üzerine yazmadan önce şu anki veri otomatik indirilir
+    try { await handleYedekIndir(); } catch (e) {}
+    try {
+      const alanlar = yedekAlanlari();
       let guncellenenSayisi = 0;
       for (const [alan, setter, saver] of alanlar) {
         if (veri[alan] !== undefined && setter && saver) {
@@ -19842,23 +19963,37 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
       </div>
 
       {geriYuklemeOnay && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-          <div style={{ background: "#fff", borderRadius: 16, maxWidth: 420, width: "100%", padding: 22 }}>
-            <div style={{ fontSize: 17, fontWeight: 900, color: "#C0392B", marginBottom: 10 }}>⚠️ Emin misin?</div>
-            <div style={{ fontSize: 13, color: TEXT, lineHeight: 1.6, marginBottom: 8 }}>
-              Bu yedek {geriYuklemeOnay.yedekTarihi ? new Date(geriYuklemeOnay.yedekTarihi).toLocaleDateString("tr-TR") : "bilinmeyen bir tarihte"} alınmış. İçindeki veri türleri, <b>şu andaki verinin üzerine yazılacak</b> — bu işlem geri alınamaz.
-            </div>
-            <div style={{ fontSize: 12, color: MUTED, marginBottom: 16 }}>
-              Emin değilsen önce "Yedeği İndir" ile şu anki verini yedekle, sonra geri yüklemeye devam et.
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => setGeriYuklemeOnay(null)} style={{
-                flex: 1, padding: 12, background: "none", border: `1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", color: MUTED, borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer"
-              }}>Vazgeç</button>
-              <button onClick={handleGeriYuklemeOnayla} disabled={geriYukleniyor} style={{
-                flex: 1, padding: 12, background: "#C0392B", color: "#fff", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: "pointer", opacity: geriYukleniyor?0.6:1
-              }}>{geriYukleniyor ? "Yükleniyor…" : "Evet, Geri Yükle"}</button>
-            </div>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
+          <div style={{ background: "#fff", borderRadius: 16, maxWidth: 460, width: "100%", padding: 18, maxHeight: "88vh", overflowY: "auto" }}>
+            <div style={{ fontSize: 16, fontWeight: 900, color: TEXT, marginBottom: 6 }}>📦 Yedek: {geriYuklemeOnay.yedekTarihi ? new Date(geriYuklemeOnay.yedekTarihi).toLocaleDateString("tr-TR") : "tarihi bilinmiyor"}</div>
+            {!birlesimPlani ? <div style={{ fontSize: 13, color: MUTED, margin: "10px 0" }}>Yedek, programdaki verilerle karşılaştırılıyor…</div>
+            : birlesimPlani.hata ? <div style={{ fontSize: 13, color: "#B91C1C", margin: "10px 0" }}>Karşılaştırma yapılamadı: {birlesimPlani.hata}</div>
+            : (() => {
+              const satirlar = Object.entries(birlesimPlani).filter(([, p]) => p && p.eklenen > 0);
+              const top = satirlar.reduce((a, [, p]) => a + p.eklenen, 0);
+              return (
+                <div data-testid="yedek-onizleme">
+                  <div style={{ fontSize: 13, color: TEXT, lineHeight: 1.5, marginBottom: 8 }}>{top ? <>Yedekte olup <b>şu anda programda olmayan {top} kayıt</b> bulundu:</> : <b style={{ color: "#15803D" }}>Yedekteki her şey programda zaten var — eksik kayıt yok.</b>}</div>
+                  {satirlar.map(([alan, p]) => (
+                    <div key={alan} style={{ border: `1px solid ${BORDER}`, borderRadius: 10, padding: "7px 10px", marginBottom: 6 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 800, color: TEXT }}>{PDR_YEDEK_ALAN_AD[alan] || alan}: <span style={{ color: "#B45309" }}>{p.eklenen} eksik</span></div>
+                      {(p.ornek || []).length > 0 && <div style={{ fontSize: 11.5, color: MUTED, marginTop: 3, lineHeight: 1.5 }}>{p.ornek.map((o, i) => <div key={i}>• {o}</div>)}{p.eklenen > p.ornek.length ? <div>• …</div> : null}</div>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            <button data-testid="yedek-birlestir" onClick={handleBirlestir} disabled={geriYukleniyor || !birlesimPlani || birlesimPlani.hata} style={{ width: "100%", padding: 12, marginTop: 8, background: ACCENT, color: "#fff", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: "pointer", opacity: (geriYukleniyor || !birlesimPlani) ? 0.6 : 1 }}>{geriYukleniyor ? "Uygulanıyor…" : "🔀 Birleştir (önerilen)"}</button>
+            <div style={{ fontSize: 11.5, color: MUTED, margin: "4px 2px 10px", lineHeight: 1.5 }}>Yalnızca yukarıdaki eksik kayıtlar eklenir. Şu andaki hiçbir kayıt silinmez ya da değişmez; yedekten sonra girdiğin kayıtlar korunur.</div>
+            {!tamDegistirOnay ? (
+              <button onClick={() => setTamDegistirOnay(true)} style={{ width: "100%", padding: 10, background: "#fff", color: "#C0392B", border: "1.5px solid #C0392B", borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>♻️ Tamamen değiştir (yedek tarihine dön)…</button>
+            ) : (
+              <div style={{ background: "#FDECEA", borderRadius: 10, padding: 10 }}>
+                <div style={{ fontSize: 12.5, color: "#C0392B", fontWeight: 700, lineHeight: 1.5, marginBottom: 8 }}>Program yedek alındığı güne döner: yedekten SONRA girilen her şey silinir. Güvenlik için önce şu anki verin otomatik olarak indirilecek.</div>
+                <button onClick={handleGeriYuklemeOnayla} disabled={geriYukleniyor} style={{ width: "100%", padding: 11, background: "#C0392B", color: "#fff", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 13.5, cursor: "pointer", opacity: geriYukleniyor ? 0.6 : 1 }}>{geriYukleniyor ? "Yükleniyor…" : "Evet, tamamen değiştir"}</button>
+              </div>
+            )}
+            <button onClick={() => { setGeriYuklemeOnay(null); setBirlesimPlani(null); }} style={{ width: "100%", padding: 11, marginTop: 8, background: "none", border: `1px solid ${BORDER}`, color: MUTED, borderRadius: 10, fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>Vazgeç</button>
           </div>
         </div>
       )}
