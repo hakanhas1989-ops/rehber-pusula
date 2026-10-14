@@ -1441,6 +1441,58 @@ if ("serviceWorker" in navigator) {
 }
 
 // Storage API — localStorage tabanlı + Firestore bulut senkronizasyonu
+// ===== GÖRÜŞME KAYIP KORUMASI =====
+// Görüşme notları tek bir liste olarak (tamamı birden) kaydediliyor. İki
+// cihaz kullanılırken biri eski listeyle kaydederse, diğer cihazda girilmiş
+// ama bu cihaza henüz gelmemiş görüşme üzerine yazılıp kaybolabiliyordu.
+// Artık her kayıttan önce buluttaki liste okunur:
+//  • Bu cihazın HİÇ görmediği (başka cihazda girilmiş) görüşmeler listeye
+//    geri eklenir — sessizce kaybolmaz.
+//  • Bu cihazda listeden çıkan (silinen) görüşmeler "Son silinenler"
+//    arşivine kopyalanır; Ayarlar → Kayıp Kayıt Bul'dan geri getirilebilir.
+const PDR_SILINEN_ANAHTAR = "pdr-silinen-gorusmeler";
+const PDR_SILINEN_LIMIT = 400;
+function pdrJsonDizi(v) { try { const x = typeof v === "string" ? JSON.parse(v) : v; return Array.isArray(x) ? x : null; } catch (e) { return null; } }
+async function pdrGorusmeKorumasi(value) {
+  const yeni = pdrJsonDizi(value);
+  if (!yeni) return value;
+  let onceki = null; try { onceki = pdrJsonDizi(localStorage.getItem("rpusula__pdr-records")); } catch (e) {}
+  let bulut = null;
+  const user = pdrAuth.currentUser;
+  if (user && navigator.onLine !== false) {
+    try {
+      const ham = await Promise.race([pdrFirestoreOku(user.uid, "pdr-records"), new Promise(r => setTimeout(() => r(undefined), 5000))]);
+      bulut = ham === undefined ? null : pdrJsonDizi(ham);
+    } catch (e) { bulut = null; }
+  }
+  const yeniIdler = new Set(yeni.map(r => r && r.id).filter(Boolean));
+  const oncekiIdler = new Set((onceki || []).map(r => r && r.id).filter(Boolean));
+  // 1) Başka cihazdan gelmiş, bu cihazın hiç görmediği görüşmeler korunur
+  const geriEklenen = (bulut || []).filter(r => r && r.id && !yeniIdler.has(r.id) && !oncekiIdler.has(r.id));
+  // 2) Bu cihazda listeden çıkarılanlar arşive
+  const kaynak = new Map();
+  (bulut || []).forEach(r => { if (r && r.id) kaynak.set(r.id, r); });
+  (onceki || []).forEach(r => { if (r && r.id) kaynak.set(r.id, r); });
+  const cikarilan = [...kaynak.values()].filter(r => !yeniIdler.has(r.id) && oncekiIdler.has(r.id));
+  if (cikarilan.length) {
+    try {
+      let arsiv = null;
+      const a = await window.storage.get(PDR_SILINEN_ANAHTAR);
+      arsiv = (a && pdrJsonDizi(a.value)) || [];
+      const simdi = new Date().toLocaleString("tr-TR");
+      const varOlan = new Set(arsiv.map(x => x.kayit && x.kayit.id));
+      const ekle = cikarilan.filter(r => !varOlan.has(r.id)).map(r => ({ silinme: simdi, silinmeMs: Date.now(), kayit: r }));
+      if (ekle.length) await window.storage.set(PDR_SILINEN_ANAHTAR, JSON.stringify([...ekle, ...arsiv].slice(0, PDR_SILINEN_LIMIT)));
+    } catch (e) { console.warn("Silinen görüşme arşivi yazılamadı:", e); }
+  }
+  if (!geriEklenen.length) return value;
+  console.warn("Görüşme koruması:", geriEklenen.length, "görüşme başka cihazdan geldiği için korundu");
+  try { if (window.pdrToastGoster) window.pdrToastGoster(`🛡️ Başka cihazda girilmiş ${geriEklenen.length} görüşme korundu`); } catch (e) {}
+  const birlesik = [...yeni, ...geriEklenen];
+  setTimeout(() => { try { window.dispatchEvent(new CustomEvent("pdr-gorusme-korundu", { detail: birlesik })); } catch (e) {} }, 0);
+  return JSON.stringify(birlesik);
+}
+
 window.storage = {
   get: async (key) => {
     // ÖNEMLİ DÜZELTME: eskiden yerelde HERHANGİ bir değer varsa (ne kadar
@@ -1472,6 +1524,9 @@ window.storage = {
   },
   set: async (key, value) => {
     let yerelBasarili = true;
+    if (key === "pdr-records") {
+      try { value = await pdrGorusmeKorumasi(value); } catch (e) { console.warn("Görüşme koruması atlandı:", e); }
+    }
     try {
       localStorage.setItem("rpusula__" + key, value);
     } catch (e) {
@@ -19549,6 +19604,81 @@ function SifrelemeKarti({ yedekIndir, yedekIndiriliyor, sonYedekTarihi }) {
   );
 }
 
+// ── Kayıp Kayıt Bul ─────────────────────────────────────────────────────────
+// Tamamen cihazda çalışır; hiçbir ad yapay zekâya ya da başka bir yere gitmez.
+// 1) Son silinen görüşmeler (görüşme koruması arşivi) — geri getirilebilir
+// 2) Ada göre arama: tüm görüşmelerde, öğrenci listesinde karşılığı olmayan
+//    ("sahipsiz") kayıtlar dahil
+function pdrKayipAdNorm(ad) {
+  return pdrSoyadMaskele(ad || "").toLocaleLowerCase("tr").replace(/\*/g, "").replace(/\s+/g, " ").trim();
+}
+function KayipKayitBul({ records, setRecords, ogrenciler }) {
+  const [acik, setAcik] = useState(false);
+  const [arsiv, setArsiv] = useState(null);
+  const [arama, setArama] = useState("");
+  const [mesaj, setMesaj] = useState("");
+  useEffect(() => {
+    if (!acik) return;
+    (async () => { try { const a = await window.storage.get(PDR_SILINEN_ANAHTAR); setArsiv((a && pdrJsonDizi(a.value)) || []); } catch (e) { setArsiv([]); } })();
+  }, [acik, records]);
+  const q = pdrKayipAdNorm(arama);
+  const filtre = (ad) => !q || pdrKayipAdNorm(ad).includes(q);
+  const mevcutId = new Set((records || []).map(r => r.id));
+  const silinenler = (arsiv || []).filter(x => x.kayit && !mevcutId.has(x.kayit.id) && filtre(x.kayit.studentName));
+  const sahipsizMi = (r) => !(ogrenciler || []).some(o => pdrAyniOgrenci(o.studentName, o.className, r.studentName, r.className, o.numara, r.numara));
+  const bulunan = q ? (records || []).filter(r => filtre(r.studentName)).sort((a, b) => pdrTarihMs(b.date) - pdrTarihMs(a.date)) : [];
+
+  async function geriGetir(x) {
+    if (!confirm(`${x.kayit.date || ""} tarihli ${x.kayit.studentName || ""} görüşmesi geri getirilsin mi?`)) return;
+    const yeni = [x.kayit, ...(records || [])];
+    setRecords(yeni); await saveRecords(yeni);
+    setMesaj("✓ Görüşme geri getirildi.");
+  }
+  const kutu = { background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10, padding: 10, marginBottom: 8, fontSize: 12.5, lineHeight: 1.5 };
+  const btn = { padding: "6px 12px", background: "#1F618D", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer", marginTop: 6 };
+  return (
+    <div data-testid="kayip-kayit" style={{ background: "#EAF2F8", borderRadius: 12, padding: 14, marginBottom: 16 }}>
+      <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 14, color: "#1F618D" }}>🔎 Kayıp Kayıt Bul</div>
+      <div style={{ fontSize: 13, color: MUTED, marginBottom: 10, lineHeight: 1.5 }}>
+        Silinen ya da kaybolmuş görünen görüşmeleri arar. Arama tamamen bu cihazda yapılır, isimler hiçbir yere gönderilmez.
+      </div>
+      {!acik ? (
+        <button onClick={() => setAcik(true)} style={{ ...btn, width: "100%", padding: 12, fontSize: 14 }}>🔎 Taramayı Başlat</button>
+      ) : (
+        <div>
+          <input value={arama} onChange={e => setArama(e.target.value)} placeholder="Öğrenci adı (ör. Ayşe Yı) — boş bırakırsan hepsi" style={{ width: "100%", padding: 10, borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 14, marginBottom: 10, boxSizing: "border-box" }} />
+          {mesaj && <div style={{ fontSize: 13, color: "#1A8C5B", fontWeight: 700, marginBottom: 8 }}>{mesaj}</div>}
+
+          <div style={{ fontWeight: 700, fontSize: 13, margin: "6px 0" }}>🗑️ Son silinen görüşmeler ({silinenler.length})</div>
+          {arsiv === null ? <div style={{ fontSize: 12, color: MUTED }}>Yükleniyor…</div> :
+            silinenler.length === 0 ? <div style={{ fontSize: 12, color: MUTED, marginBottom: 8 }}>Kayıt yok. (Bu koruma bu sürümle başladı; daha önce silinenler burada görünmez.)</div> :
+            silinenler.slice(0, 50).map(x => (
+              <div key={x.kayit.id} data-testid="silinen-satir" style={kutu}>
+                <b>{x.kayit.date}</b> · {x.kayit.studentName} {x.kayit.className ? `(${x.kayit.className})` : ""} · {x.kayit.topic || "—"}
+                <div style={{ color: MUTED }}>{String(x.kayit.summary || x.kayit.raw || "").slice(0, 160)}</div>
+                <div style={{ fontSize: 11, color: MUTED }}>Listeden çıkma: {x.silinme}</div>
+                <button onClick={() => geriGetir(x)} style={btn}>↩️ Geri getir</button>
+              </div>
+            ))}
+
+          {q && (
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 13, margin: "12px 0 6px" }}>📋 Bu adla kayıtlı görüşmeler ({bulunan.length})</div>
+              {bulunan.length === 0 ? <div style={{ fontSize: 12, color: MUTED }}>Bulunamadı.</div> :
+                bulunan.slice(0, 80).map(r => (
+                  <div key={r.id} data-testid="bulunan-satir" style={kutu}>
+                    <b>{r.date}</b> · {r.studentName} {r.className ? `(${r.className})` : ""} · {r.topic || "—"}
+                    {sahipsizMi(r) && <span style={{ color: "#C0392B", fontWeight: 700 }}> · ⚠️ öğrenci listesinde karşılığı yok (ad/sınıf farklı yazılmış olabilir)</span>}
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profiles, setProfiles, profiles2, setProfiles2, oogDegerlendirmeler, setOogDegerlendirmeler, castDegerlendirmeler, setCastDegerlendirmeler, akademikTaramalar, setAkademikTaramalar, ilkokulTaramalar, setIlkokulTaramalar, liseTaramalar, setLiseTaramalar, benlikOlcekleri, setBenlikOlcekleri, riskListesi, setRiskListesi, denemeler, setDenemeler, sevkler, setSevkler, mudahalePlan, setMudahalePlan, hazirlikNotlari, setHazirlikNotlari, ilerlemeNotlari, setIlerlemeNotlari, profNotlari, setProfNotlari, kutuphane, setKutuphane, yillar, setYillar, sinifListesi, setSinifListesi, aktifYil, setAktifYil, kademe, setKademe, sinavTuru, setSinavTuru, testKayitlari, setTestKayitlari, hatirlatmalar, setHatirlatmalar, netHaritasiKayitlari, setNetHaritasiKayitlari, konuHaritasiVerisi, setKonuHaritasiVerisi, sosyometri, setSosyometri, onTumOzellikler }) {
   const [sonYedekTarihi, setSonYedekTarihi] = useState(null);
   useEffect(() => { loadSonYedek().then(v => setSonYedekTarihi(v || null)); }, []);
@@ -20030,6 +20160,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
         )}
         {maskelemeSonuc && <div style={{ fontSize: 13, color: "#1A8C5B", fontWeight: 700, marginTop: 8 }}>{maskelemeSonuc}</div>}
       </div>
+      <KayipKayitBul records={records} setRecords={setRecords} ogrenciler={ogrenciler} />
 
 
       <div style={{ fontSize: 14, color: MUTED, marginBottom: 16, lineHeight: 1.5 }}>
@@ -20563,6 +20694,8 @@ function OgrenciYonetim({
   ), [tumOgrenciler, aramaDebounce]);
 
   async function handleOgrenciSil(studentName, className, numara) {
+    const gorusmeSay = (records || []).filter(r => pdrAyniOgrenci(studentName, className, r.studentName, r.className, numara, r.numara)).length;
+    if (gorusmeSay && !confirm(`Bu öğrenciyle birlikte ${gorusmeSay} görüşme notu ve diğer tüm kayıtları da silinecek.\n\nSilinen görüşmeler Ayarlar → Kayıp Kayıt Bul → "Son silinenler"den geri getirilebilir. Devam edilsin mi?`)) return;
     await onOgrenciSil(studentName, className, numara);
     if (aktifOgrenci?.name === studentName) setAktifOgrenci({ name: "", className: "" });
     setSeciliOgrenci(null);
@@ -24436,7 +24569,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
               {sinifSilOnay === sube ? (
                 <div style={{position:"absolute", top:6, right:6, left:6, zIndex:3, background:"#FDECEA", border:"1px solid #F28B82", borderRadius:8, padding:8}}>
                   <div style={{fontSize:10, color:"#C0392B", fontWeight:600, marginBottom:6, lineHeight:1.5}}>
-                    <b>{st.ogr.length} öğrenci</b> ve tüm görüşme/risk/profil/deneme verisi silinecek.
+                    <b>{st.ogr.length} öğrenci</b> ve tüm görüşme/risk/profil/deneme verisi silinecek{(() => { const n = (records || []).filter(r => st.ogr.some(o => pdrAyniOgrenci(o.studentName, o.className, r.studentName, r.className, o.numara, r.numara))).length; return n ? <> — <b>{n} görüşme notu dahil</b></> : null; })()}. Liste yenilemek için silme; yeni listeyi yükle, var olanlar korunur.
                   </div>
                   <div style={{display:"flex", gap:4}}>
                     <button disabled={sinifSiliniyor} onClick={(e)=>{e.stopPropagation(); handleSinifSil(sube);}} style={{flex:1, background:"#C0392B",color:"#fff",border:"none",borderRadius:6,padding:"4px 7px",fontSize:10,fontWeight:800,cursor:sinifSiliniyor?"default":"pointer",opacity:sinifSiliniyor?0.6:1}}>{sinifSiliniyor?"Siliniyor…":"Evet, Sil"}</button>
@@ -24962,6 +25095,13 @@ export default function App() {
     setToastMesaj(mesaj);
     toastZamanlayiciRef.current = setTimeout(() => setToastMesaj(null), 3200);
   }
+  window.pdrToastGoster = pdrToastGoster;
+  // Görüşme koruması başka cihazdan gelen görüşmeleri listeye geri eklediğinde ekran da güncellensin
+  useEffect(() => {
+    const dinle = (e) => { if (e && Array.isArray(e.detail)) setRecords(e.detail); };
+    window.addEventListener("pdr-gorusme-korundu", dinle);
+    return () => window.removeEventListener("pdr-gorusme-korundu", dinle);
+  }, []);
 
   useEffect(() => {
     function tusDinleyici(e) {
