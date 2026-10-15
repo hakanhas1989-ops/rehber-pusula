@@ -20937,6 +20937,7 @@ function OgrenciYonetim({
               // geri kalaninda da bu ikisi hep ayri tutuluyor).
               const tumKayitlarDuz = records
                 .filter(r => (r.date||"").split(".").length === 3)
+                .filter(r => pdrKademeUyumlu(r.className, kademe))
                 .map(r => {
                   const ogr = tumOgrenciler.find(o => pdrAyniOgrenci(o.studentName, o.className, r.studentName, r.className));
                   return {
@@ -25698,15 +25699,17 @@ export default function App() {
     setProfForm(f => ({ ...f, scores: { ...scores }, analysis: analysis || f.analysis }));
   }
 
-  const filtered = records.filter(r =>
+  // Seçili kademeye ait görüşmeler (ilkokul seçiliyken ortaokul görüşmeleri sayılmaz/listelenmez; veri silinmez)
+  const kademeRecords = records.filter(r => pdrKademeUyumlu(r.className, kademe));
+  const filtered = kademeRecords.filter(r =>
     r.studentName.toLocaleLowerCase("tr").includes(search.toLocaleLowerCase("tr")) || r.className?.toLocaleLowerCase("tr").includes(search.toLocaleLowerCase("tr"))
   );
   const byStudent = filtered.reduce((acc, r) => { acc[r.studentName] = acc[r.studentName] || []; acc[r.studentName].push(r); return acc; }, {});
   const byDate = filtered.reduce((acc, r) => { acc[r.date] = acc[r.date] || []; acc[r.date].push(r); return acc; }, {});
 
-  const totalRecs = records.length;
-  const studentRecs = records.filter(r => (r.meetingType || "Öğrenci") === "Öğrenci");
-  const veliRecs = records.filter(r => r.meetingType === "Veli");
+  const totalRecs = kademeRecords.length;
+  const studentRecs = kademeRecords.filter(r => (r.meetingType || "Öğrenci") === "Öğrenci");
+  const veliRecs = kademeRecords.filter(r => r.meetingType === "Veli");
   // Tekillestirme isim+sinif+numara ile yapilir. Yalnizca isimle yapilirsa
   // ayni isimli iki AYRI ogrenci tek kisi sayilir ve sayac eksik gosterir;
   // soyadi maskelemesi ("Ahmet Yılmaz" -> "Ahmet Yı****") bu cakisma
