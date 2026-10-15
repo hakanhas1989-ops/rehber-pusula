@@ -20984,7 +20984,7 @@ function OgrenciYonetim({
                     const acik = !!acikAylar[ay];
                     return (
                     <div key={ay} style={{ background:CARD, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:12, overflow:"hidden" }}>
-                      <div onClick={() => setAcikAylar(a => ({ ...a, [ay]: !a[ay] }))}
+                      <div onClick={(e) => { const el = e.currentTarget, acilacak = !acikAylar[ay]; setAcikAylar(acilacak ? { [ay]: true } : {}); if (acilacak) setTimeout(() => { try { el.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (er) {} }, 60); }}
                         style={{ fontSize:13, fontWeight:800, color:ACCENT, padding:"12px 14px", display:"flex", alignItems:"center", gap:6, cursor:"pointer", background:acik?ACCENT_LIGHT:CARD }}>
                         <span style={{ display:"inline-block", transform:acik?"rotate(90deg)":"rotate(0deg)", transition:"transform 0.15s ease", fontSize:11 }}>›</span>
                         📅 {ay} <span style={{ fontSize:10, fontWeight:600, color:MUTED }}>({veri.kayitlar.length} görüşme · {new Set(veri.kayitlar.map(k => pdrOgrAnahtar(k.studentName, k.className, k.numara))).size} öğrenci)</span>
@@ -20997,10 +20997,12 @@ function OgrenciYonetim({
                             // kacinciGorusme/tekrarli yukarıda TÜM aylar için tek seferde
                             // hesaplandı, burada sadece kullanılıyor.
                             const ayAdiKisa = ay.split(" ")[0];
+                            // En son kayıt en üstte: haftalar ve hafta içindeki kayıtlar yeniden eskiye
+                            // (kacinciGorusme sayacı yukarıda eskiden yeniye hesaplandı, etkilenmez)
                             const haftalar = ayHaftalariniHesapla(veri.ayIndex, veri.yil).map(h => ({
                               ...h,
-                              kayitlar: veri.kayitlar.filter(k => { const t = pdrTarihParcala(k.date); return t && t.gun >= h.ilkGun && t.gun <= h.sonGun; }),
-                            })).filter(h => h.kayitlar.length > 0);
+                              kayitlar: veri.kayitlar.filter(k => { const t = pdrTarihParcala(k.date); return t && t.gun >= h.ilkGun && t.gun <= h.sonGun; }).slice().reverse(),
+                            })).filter(h => h.kayitlar.length > 0).reverse();
                             return haftalar.map(h => (
                               <div key={h.haftaNo}>
                                 <div style={{ fontSize:10.5, fontWeight:700, color:MUTED, padding:"2px 2px 4px" }}>
