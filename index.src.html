@@ -1620,7 +1620,7 @@ function pdrKalkanAdlariGuncelle(adlar, siniflar) {
   PDR_KALKAN.orijinal = orijinal;
   const liste = [...desen.keys()].sort((a, b) => b.length - a.length).map(pdrKalkanRegexKac);
   if (typeof window !== "undefined") window.__pdrKalkanAdSayisi = orijinal.size; // denetim için: kaç kişi korunuyor
-  PDR_KALKAN.regex = liste.length ? new RegExp("(^|[^\\p{L}\\p{N}])(" + liste.join("|") + ")(?=[^\\p{L}\\p{N}]|$)", "gu") : null;
+  PDR_KALKAN.regex = liste.length ? new RegExp("(^|[^\\p{L}\\p{N}])(" + liste.join("|") + ")(?=" + PDR_KALKAN_EK + "?(?:[^\\p{L}\\p{N}]|$))", "gu") : null;
   // Kısaltılmış kayıtlı adlar ("MUSTAFA AB** AK"): danışman tam adı yazarsa ("Mustafa Aber Ak")
   // da yakalansın diye yıldızlı parça önek olarak eşlenir. Büyük/küçük harf Türkçeye göre.
   const harf = (ch) => { const k = pdrKalkanKucukHarf(ch), b = pdrKalkanBuyukHarf(ch); return /\p{L}/u.test(ch) ? `[${pdrKalkanRegexKac(k)}${b !== k ? pdrKalkanRegexKac(b) : ""}]` : pdrKalkanRegexKac(ch); };
@@ -1638,14 +1638,27 @@ function pdrKalkanAdlariGuncelle(adlar, siniflar) {
   });
   PDR_KALKAN.maske = maske.map(m => ({ ...m, re: new RegExp("^(?:" + m.desen + ")$", "u") }));
   PDR_KALKAN.maskeRegex = maske.length ? new RegExp("(^|[^\\p{L}\\p{N}])(" + maske.map(m => m.desen).sort((a, b) => b.length - a.length).join("|") + ")(?=[^\\p{L}\\p{N}*]|$)", "gu") : null;
-  const sListe = [...sinifTekil].sort((a, b) => b.length - a.length).map(pdrKalkanRegexKac);
-  PDR_KALKAN.sinifRegex = sListe.length ? new RegExp("(^|[^\\p{L}\\p{N}])(" + sListe.join("|") + ")(?=[^\\p{L}\\p{N}]|$)", "gu") : null;
+  // Sınıf yazımları esnek: "8-A", "8/A", "8 A", "8A", "8a" aynı sınıf sayılır
+  const sDesen = new Map(), sOrijinal = new Map();
+  sinifTekil.forEach(c => {
+    const m = c.match(/^(\d{1,2})\s*[-/. ]?\s*([\p{L}]{1,3})$/u);
+    if (!m) { sDesen.set(pdrKalkanRegexKac(c), c); sOrijinal.set(pdrKalkanKucukHarf(c), c); return; }
+    const harf = [...m[2]].map(ch => { const k = pdrKalkanKucukHarf(ch), b = pdrKalkanBuyukHarf(ch); return `[${pdrKalkanRegexKac(k)}${b !== k ? pdrKalkanRegexKac(b) : ""}]`; }).join("");
+    sDesen.set(m[1] + "\\s?[-/.]?\\s?" + harf, c);
+    const n = m[1] + "|" + pdrKalkanKucukHarf(m[2]);
+    if (!sOrijinal.has(n)) sOrijinal.set(n, c);
+  });
+  PDR_KALKAN.sinifOrijinal = sOrijinal;
+  const sListe = [...sDesen.keys()].sort((a, b) => b.length - a.length);
+  PDR_KALKAN.sinifRegex = sListe.length ? new RegExp("(^|[^\\p{L}\\p{N}])(" + sListe.join("|") + ")(?=['’]|[^\\p{L}\\p{N}]|$)", "gu") : null;
 }
+// Ada kesme işaretsiz eklenen yaygın ekler: Kayanın, Demirin, Kayaya, Demirde, Kayayla
+const PDR_KALKAN_EK = "(n[ıiuü]n|[ıiuü]n|y[ae]|n[ae]|[dt][ae]n|[dt][ae]|y[ıiuü]|y?l[ae]|ler|lar|[ıiuü])";
 const PDR_KALKAN_NUMARA_ANAHTARLARI = ["numara", "ogrenciNo", "okulNo", "ogrenciNumara", "studentNumber", "ogrNo"];
 
 // Tek bir istek için kod tablosu
 function pdrKalkanOturum() {
-  return { kod: new Map(), geri: new Map(), sayac: 0, ek: { TC: 0, TELEFON: 0, EPOSTA: 0, N: 0, "KİŞİ": 0, OKUL: 0, YER: 0, IBAN: 0, PLAKA: 0, "DOĞUM": 0 }, sinif: new Map(), numara: new Map(), buIstekteTam: new Set(), genis: false, genisKod: new Map(), dosya: 0, dosyaImza: [] };
+  return { kod: new Map(), geri: new Map(), sayac: 0, ek: { TC: 0, TELEFON: 0, EPOSTA: 0, N: 0, "KİŞİ": 0, OKUL: 0, YER: 0, IBAN: 0, PLAKA: 0, "DOĞUM": 0, HESAP: 0 }, sinif: new Map(), numara: new Map(), buIstekteTam: new Set(), genis: false, genisKod: new Map(), dosya: 0, dosyaImza: [] };
 }
 function pdrKalkanKodVer(o, anahtar, gorunen) {
   if (!o.kod.has(anahtar)) { o.sayac += 1; const k = "Öğrenci-" + o.sayac; o.kod.set(anahtar, k); o.geri.set(k, gorunen); }
@@ -1654,6 +1667,10 @@ function pdrKalkanKodVer(o, anahtar, gorunen) {
 function pdrKalkanMetin(s, o) {
   if (typeof s !== "string" || !s) return s;
   let t = s;
+  const etiket0 = (tur, deger) => { o.ek[tur] += 1; const k = `[${tur}-${o.ek[tur]}]`; o.geri.set(k, deger); return k; };
+  t = t.replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, v => etiket0("EPOSTA", v));
+  t = t.replace(/(^|[^\w@.\[])@([A-Za-z0-9_.]{3,30})(?![\w@])/g, (m, on, v) => on + etiket0("HESAP", "@" + v));
+  if (o.genis) t = pdrKalkanOkulYer(t, o);
   if (PDR_KALKAN.maskeRegex) {
     t = t.replace(PDR_KALKAN.maskeRegex, (m, on, ad) => {
       const e = PDR_KALKAN.maske.find(x => x.re.test(ad));
@@ -1665,55 +1682,63 @@ function pdrKalkanMetin(s, o) {
   if (PDR_KALKAN.regex) {
     // 1. tur: bu metinde geçen tam adları topla (parça eşleşmelerini doğru kişiye bağlamak için)
     t.replace(PDR_KALKAN.regex, (m, on, ad) => { const d = PDR_KALKAN.desen.get(ad); if (d && d.tur === "tam") o.buIstekteTam.add(d.anahtar); return m; });
-    t = t.replace(PDR_KALKAN.regex, (m, on, ad, konum, butun) => {
+    t = t.replace(PDR_KALKAN.regex, (m, on, ad, ek, konum, butun) => {
       const d = PDR_KALKAN.desen.get(ad);
       if (!d) return m;
+      // Bitişik ek yalnızca güvenilir biçimlerde kabul edilir (kısa/küçük harfli parça sıradan sözcük olabilir)
+      if (ek && d.tur === "parca" && (ad.length < 4 || ad === pdrKalkanKucukHarf(ad))) return m;
       // Zaten verilmiş bir kodun ("Öğrenci-3") parçası yeniden kodlanmaz
       if (/^-\d/.test(butun.slice(konum + on.length + ad.length, konum + on.length + ad.length + 2))) return m;
       // "Prof. Hakan", "Dr. Ayşe" gibi unvanlı adlar öğrenci değildir (ör. AI personası)
       if (/(Prof|Dr|Doç|Uzm|Av)\.\s*$/.test(butun.slice(Math.max(0, konum - 8), konum + on.length))) return m;
-      if (d.tur === "tam") return on + pdrKalkanKodVer(o, "T:" + d.anahtar, ad);
+      const kes = ek ? "'" : "";
+      if (d.tur === "tam") return on + pdrKalkanKodVer(o, "T:" + d.anahtar, ad) + kes;
       const sahipler = [...(PDR_KALKAN.parcaSahibi.get(d.anahtar) || [])];
       const buradakiler = sahipler.filter(a => o.buIstekteTam.has(a));
       const sahip = buradakiler.length === 1 ? buradakiler[0] : sahipler.length === 1 ? sahipler[0] : null;
       if (sahip) {
-        return on + pdrKalkanKodVer(o, "T:" + sahip, PDR_KALKAN.orijinal.get(sahip) || ad);
+        return on + pdrKalkanKodVer(o, "T:" + sahip, PDR_KALKAN.orijinal.get(sahip) || ad) + kes;
       }
-      return on + pdrKalkanKodVer(o, "P:" + d.anahtar, ad);
+      return on + pdrKalkanKodVer(o, "P:" + d.anahtar, ad) + kes;
     });
   }
   const etiket = (tur, deger) => { o.ek[tur] += 1; const k = `[${tur}-${o.ek[tur]}]`; o.geri.set(k, deger); return k; };
   // Sınıf: "5-A" -> "5-Ş1" (düzey kalır, şube gizlenir; aynı istekte aynı sınıf hep aynı kod)
   if (PDR_KALKAN.sinifRegex) {
     t = t.replace(PDR_KALKAN.sinifRegex, (m, on, c) => {
-      if (!o.sinif.has(c)) { const duzey = (c.match(/\d{1,2}/) || [""])[0]; const k = `${duzey}-Ş${o.sinif.size + 1}`; o.sinif.set(c, k); o.geri.set(k, c); }
-      return on + o.sinif.get(c);
+      const mm = c.match(/^(\d{1,2})\s?[-/.]?\s?([\p{L}]{1,3})$/u);
+      const n = mm ? mm[1] + "|" + pdrKalkanKucukHarf(mm[2]) : pdrKalkanKucukHarf(c);
+      const gercek = (PDR_KALKAN.sinifOrijinal && PDR_KALKAN.sinifOrijinal.get(n)) || c;
+      if (!o.sinif.has(n)) { const duzey = (c.match(/\d{1,2}/) || [""])[0]; const k = `${duzey}-Ş${o.sinif.size + 1}`; o.sinif.set(n, k); o.geri.set(k, gercek); }
+      return on + o.sinif.get(n);
     });
   }
   // Okul numarası: programın kimlik biçimi "No:12" ve kayıt anahtarı "Ad||Sınıf||12" -> "[N-1]"
   // (Soru no, madde no gibi başka sayılara dokunulmaz.)
   t = t.replace(/(^|[^\p{L}])((?:(?:Okul|Öğrenci|Öğr|Ögr)\.?\s*No\.?\s*:?\s*)|(?:No\s*:\s*)|(?:Numara(?:sı)?\s*:\s*))(\d{1,6})(?!\d)/giu, (m, on, no, v) => on + no + pdrKalkanNumara(o, v));
   t = t.replace(/(\|\|)(\d{1,6})$/, (m, on, v) => on + pdrKalkanNumara(o, v));
+  t = t.replace(/(^|[^\p{L}\p{N}.,])(\d{1,5})(\s*(?:numaralı|numarali|nolu|no['’]lu))/giu, (m, on, v, son) => on + pdrKalkanNumara(o, v) + son);
   // IBAN, doğum tarihi ve araç plakası (TC/telefon taramasından önce)
   t = t.replace(/(^|[^\p{L}\p{N}])(TR\s?\d{2}(?:\s?[0-9A-Z]{4}){5}\s?[0-9A-Z]{2})(?![\p{L}\p{N}])/giu, (m, on, v) => on + etiket("IBAN", v));
-  t = t.replace(/((?:doğum\s*tarihi|doğum\s*t\.|d\.\s*tarihi|doğum)\s*[:\-]?\s*)(\d{1,2}[./-]\d{1,2}[./-]\d{2,4})(?!\d)/giu, (m, on, v) => on + etiket("DOĞUM", v));
-  t = t.replace(/(^|[^\d.])(\d{1,2}[./-]\d{1,2}[./-]\d{4})(\s+doğumlu)/giu, (m, on, v, son) => on + etiket("DOĞUM", v) + son);
+  t = t.replace(/((?:doğum\s*tarihi|doğum\s*t\.|d\.\s*tarihi|d\.\s*t\.?|doğum)\s*[:\-]?\s*)(\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{4}[./-]\d{1,2}[./-]\d{1,2})(?!\d)/giu, (m, on, v) => on + etiket("DOĞUM", v));
+  t = t.replace(/(^|[^\d.])(\d{1,2}[./-]\d{1,2}[./-]\d{4}|\d{4}[./-]\d{1,2}[./-]\d{1,2})(\s+doğumlu)/giu, (m, on, v, son) => on + etiket("DOĞUM", v) + son);
   t = t.replace(/(^|[^\p{L}\p{N}])((?:0[1-9]|[1-7]\d|8[01])\s?([A-Z]{1,3})\s?(\d{2,5}))(?![\p{L}\p{N}])/gu, (m, on, v, harf, sayi) => {
     const uygun = (harf.length === 1 && sayi.length >= 4) || (harf.length === 2 && sayi.length >= 3 && sayi.length <= 4) || (harf.length === 3 && sayi.length <= 3);
     return uygun && !PDR_KALKAN_PLAKA_DEGIL.has(harf) ? on + etiket("PLAKA", v) : m;
   });
   t = t.replace(/(^|\D)([1-9]\d{10})(?!\d)/g, (m, on, v) => on + etiket("TC", v));
-  t = t.replace(/(^|[^\d+])((?:\+?90[\s-]?)?0?5\d{2}[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2})(?!\d)/g, (m, on, v) => on + etiket("TELEFON", v));
+  t = t.replace(/(^|\D)([1-9]\d{2}[ .]\d{3}[ .]\d{3}[ .]\d{2})(?!\d)/g, (m, on, v) => on + etiket("TC", v));   // 123 456 789 01
+  // Cep: 0532 123 45 67, 05321234567, +90 (532) 123 45 67, 532-123-4567, 0 532 1234567
+  t = t.replace(/(^|[^\d+])((?:\+?90[\s-]*)?(?:\(?0\)?[\s-]*)?\(?5\d{2}\)?[\s-]*\d{3}[\s-]*(?:\d{2}[\s-]*\d{2}|\d{4}))(?!\d)/g, (m, on, v) => on + etiket("TELEFON", v));
   // Sabit hat: 0312 456 78 90, (0212) 456 78 90, +90 232 456 78 90
   t = t.replace(/(^|[^\d+])((?:\+?90[\s-]?\(?|\(?0)[2-4]\d{2}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2})(?!\d)/g, (m, on, v) => on + etiket("TELEFON", v));
-  t = t.replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, v => etiket("EPOSTA", v));
   if (o.genis) t = pdrKalkanGenisMetin(t, o);
   return t;
 }
 // Geniş kalkan (Asistan istekleri): öğrenci dışındaki kişi (veli, öğretmen,
 // yakın), okul ve yer adlarını da "[KİŞİ-1]", "[OKUL-1]", "[YER-1]" yapar.
 // Aynı istekte aynı ad hep aynı kodu alır; yanıtta cihazda geri çevrilir.
-const PDR_KALKAN_AD_DEGIL = new Set(["öğrenci", "öğrencisi", "matematik", "türkçe", "fen", "sosyal", "ingilizce", "almanca", "arapça", "din", "beden", "müzik", "resim", "görsel", "rehber", "rehberlik", "psikolojik", "danışman", "sınıf", "branş", "okul", "müdür", "müdürü", "yardımcısı", "bilişim", "teknoloji", "tarih", "coğrafya", "fizik", "kimya", "biyoloji", "edebiyat", "felsefe", "hayat", "bilgisi", "bilimleri", "nöbetçi", "özel", "eğitim", "inkılap", "sayın", "prof", "dr", "doç", "uzm", "bu", "şu", "o", "bir", "ve", "ama", "ancak", "veli", "anne", "baba", "kardeş", "ders", "dersi", "pazartesi", "salı", "çarşamba", "perşembe", "cuma", "cumartesi", "pazar", "ocak", "şubat", "mart", "nisan", "mayıs", "haziran", "temmuz", "ağustos", "eylül", "ekim", "kasım", "aralık", "bugün", "dün", "yarın", "geçen", "sonra", "önce", "kendisi", "kendi", "ayrıca", "fakat", "çünkü", "evet", "hayır", "tüm", "her", "hiç", "çok", "daha", "en", "ile", "için", "gibi", "lgs", "yks", "ram", "bep", "türkiye", "türk", "allah"]);
+const PDR_KALKAN_AD_DEGIL = new Set(["öğrenci", "öğrencisi", "matematik", "türkçe", "fen", "sosyal", "ingilizce", "almanca", "arapça", "din", "beden", "müzik", "resim", "görsel", "rehber", "rehberlik", "psikolojik", "danışman", "sınıf", "branş", "okul", "müdür", "müdürü", "yardımcısı", "bilişim", "teknoloji", "tarih", "coğrafya", "fizik", "kimya", "biyoloji", "edebiyat", "felsefe", "hayat", "bilgisi", "bilimleri", "nöbetçi", "özel", "eğitim", "inkılap", "sayın", "prof", "dr", "doç", "uzm", "bu", "şu", "o", "bir", "ve", "ama", "ancak", "veli", "anne", "baba", "kardeş", "ders", "dersi", "pazartesi", "salı", "çarşamba", "perşembe", "cuma", "cumartesi", "pazar", "ocak", "şubat", "mart", "nisan", "mayıs", "haziran", "temmuz", "ağustos", "eylül", "ekim", "kasım", "aralık", "bugün", "dün", "yarın", "geçen", "sonra", "önce", "kendisi", "kendi", "ayrıca", "fakat", "çünkü", "evet", "hayır", "tüm", "her", "hiç", "çok", "daha", "en", "ile", "için", "gibi", "lgs", "yks", "ram", "bep", "türkiye", "türk", "allah", "adı", "ad", "soyadı", "soyad", "isim", "ismi", "adres", "adresi", "tel", "telefon", "no", "numara", "numarası", "günaydın", "hepinize", "merhaba", "akademik"]);
 const PDR_KALKAN_ILISKI = /^(?:üvey|anneanne|babaanne|anne|baba|abla|abi|ağabey|kız|erkek|kardeş|teyze|dayı|amca|hala|dede|nine|eş|veli|vasi|arkadaş|sevgili|komşu|kuzen|yeğen|enişte|yenge)(?:si|sı|i|ı|leri|ları)?(?:nin|nın|nun|nün|ne|na|ye|ya|yle|yla|le|la)?$/;
 function pdrKalkanAdDegil(k) { const w = pdrKalkanKucukHarf(k.replace(/['’].*$/, "")); return PDR_KALKAN_AD_DEGIL.has(w) || PDR_KALKAN_ILISKI.test(w); }
 function pdrKalkanGenisKod(o, tur, deger) {
@@ -1727,18 +1752,69 @@ const PDR_KALKAN_AD = `[${PDR_KALKAN_BH}][${PDR_KALKAN_KH}]+`;
 const PDR_KALKAN_RE_UNVAN = new RegExp(`(^|[^\\p{L}\\p{N}\\-\\[])(${PDR_KALKAN_AD}(?:\\s+${PDR_KALKAN_AD})?)(\\s+)(Hanım|Bey|Hoca|Öğretmen)(?=[^\\p{L}]|[${PDR_KALKAN_KH}]|$)`, "gu");
 const PDR_KALKAN_RE_YAKIN = new RegExp(`(^|[^\\p{L}])((?:üvey\\s+)?(?:anneanne|babaanne|anne|baba|abla|abi|ağabey|kız\\s+kardeş|erkek\\s+kardeş|kardeş|teyze|dayı|amca|hala|dede|nine|eş|veli|vasi|arkadaş|sevgili|komşu|kuzen|yeğen|enişte|yenge)(?:si|sı|i|ı|leri|ları)?(?:nin|nın|nun|nün)?(?:\\s*[:(]\\s*|\\s+))(${PDR_KALKAN_AD}(?:\\s+${PDR_KALKAN_AD})?)(?![\\p{L}\\-])`, "giu");
 const PDR_KALKAN_RE_OKUL = new RegExp(`(^|[^\\p{L}\\p{N}\\-\\[])((?:(?:[${PDR_KALKAN_BH}][\\p{L}]*|\\d{1,3}\\.?)\\s+){1,5})((?:İlkokul|Ortaokul|Okul|Anaokul)u|Lisesi|Koleji)([\\p{L}'’]*)`, "gu");
-const PDR_KALKAN_RE_YER = new RegExp(`(^|[^\\p{L}\\p{N}\\-\\[])((?:(?:[${PDR_KALKAN_BH}][\\p{L}]*|\\d{1,4}\\.?)\\s+){1,4})(Mahallesi|Mahalle|Mah\\.|Sokağı|Sokak|Caddesi|Cad\\.|Bulvarı|Sitesi|Apartmanı|Köyü)([\\p{L}'’]*)`, "gu");
-function pdrKalkanGenisMetin(t, o) {
-  // okul ve yer önce (içlerindeki adlar kişi sanılmasın)
+const PDR_KALKAN_AD_DESEN = `[${PDR_KALKAN_BH}][\\p{L}]+`;
+const PDR_KALKAN_RE_ETIKET = new RegExp(`(^|[^\\p{L}])((?:(?:anne|baba|veli|öğrenci|öğretmen|kardeş|vasi|danışan|öğrencinin|velinin|annenin|babanın)(?:\\s+(?:adı\\s*[-/]?\\s*soyadı|ad\\s*[-/]?\\s*soyad|adı|ad|ismi|isim))?|adı\\s*[-/]?\\s*soyadı|ad\\s*[-/]?\\s*soyad|isim|ismi|adı)\\s*[:=]\\s*)([\\p{L}][^\\n]{0,60})`, "giu");
+const PDR_KALKAN_RE_ROL = new RegExp(`(^|[^\\p{L}])((?:öğretmen(?:i|imiz|leri)?|hoca(?:sı|mız)?|müdür(?:ü|ümüz)?(?:\\s+yardımcısı)?|müdire(?:si)?|doktor(?:u)?|psikolo(?:g|ğu)|psikiyatrist(?:i)?|terapist(?:i)?|avukat(?:ı)?|uzman(?:ı)?|antrenör(?:ü)?|muhtar(?:ı)?|imam(?:ı)?|sosyal\\s+hizmet\\s+uzmanı)\\s+)(${PDR_KALKAN_AD_DESEN}(?:\\s+${PDR_KALKAN_AD_DESEN})?)`, "giu");
+const PDR_KALKAN_RE_SOYAD = new RegExp(`(^|[^\\p{L}\\p{N}\\-\\[])([${PDR_KALKAN_BH}][${PDR_KALKAN_KH}]{2,})(\\s+)([${PDR_KALKAN_BH}][${PDR_KALKAN_KH}]*(?:oğlu|oğulları|türk|soy|gil|kaya|taş|demir|doğan|yıldız|çelik|aslan|arslan|şahin|kurt|baş|tekin|yılmaz|özdemir|polat|erdoğan|koç|kılıç|güler|akın|çınar|öztürk|aydın|bulut|yüksel|keskin|altun|altın|karaca|yiğit|ekinci|uçar|duman|kaplan|bozkurt|tunç|sezer|ateş))(?![\\p{L}])`, "gu");
+const PDR_KALKAN_RE_YER = new RegExp(`(^|[^\\p{L}\\p{N}\\-\\[])((?:(?:[${PDR_KALKAN_BH}][\\p{L}]*|\\d{1,4}\\.?)\\s+){1,4})(Mahallesi|Mahalle|Mah\\.|Sokağı|Sokak|Sok\\.|Sk\\.|Caddesi|Cad\\.|Cd\\.|Bulvarı|Blv\\.|Sitesi|Apartmanı|Apt\\.|Köyü)([\\p{L}'’]*)`, "gu");
+const PDR_KALKAN_OKUL_TURU = new Set(["anadolu", "fen", "sosyal", "bilimler", "meslek", "mesleki", "teknik", "ve", "imam", "hatip", "kız", "erkek", "spor", "güzel", "sanatlar", "endüstri", "meslek", "ticaret", "sağlık", "çok", "programlı", "mahalle", "akşam", "açık", "temel", "ortaokulu", "ilkokulu", "lisesi", "özel", "devlet", "yatılı", "bölge", "pansiyonlu", "proje", "okulu", "imam-hatip"]);
+// Okul ve yer adları, öğrenci adlarından ÖNCE kodlanır ("Ali Çebi Ortaokulu" öğrenci Ali sanılmasın)
+function pdrKalkanOkulYer(t, o) {
   const zincir = (tur) => (m, on0, on, ek, ekSon) => {
     const kelimeler = on.trim().split(/\s+/);
     let i = 0; while (i < kelimeler.length && pdrKalkanAdDegil(kelimeler[i])) i++;
     if (i === kelimeler.length) return m;
+    // Yalnızca okul TÜRÜ yazıyorsa ("Anadolu Lisesi", "Fen Lisesi", "İmam Hatip") gizlenmez
+    if (kelimeler.slice(i).every(w => PDR_KALKAN_OKUL_TURU.has(pdrKalkanKucukHarf(w.replace(/['’].*$/, ""))))) return m;
     const onEk = kelimeler.slice(0, i).join(" ");
     return on0 + (onEk ? onEk + " " : "") + pdrKalkanGenisKod(o, tur, kelimeler.slice(i).join(" ") + " " + ek) + ekSon;
   };
   t = t.replace(PDR_KALKAN_RE_OKUL, zincir("OKUL"));
   t = t.replace(PDR_KALKAN_RE_YER, zincir("YER"));
+  // İlçe/il: "Esenyurt/İstanbul", "Kadıköy, İstanbul"
+  t = t.replace(PDR_KALKAN_RE_ILCE, (m, on, ilce, ayr, il) => pdrKalkanAdDegil(ilce) ? m : on + pdrKalkanGenisKod(o, "YER", ilce) + ayr + il);
+  t = t.replace(PDR_KALKAN_RE_ILCE_TEK, (m, on, ilce, konum, butun) => /(Prof|Dr|Sultan)\.?\s*$/.test(butun.slice(Math.max(0, konum - 8), konum + on.length)) ? m : on + pdrKalkanGenisKod(o, "YER", ilce));
+  return t;
+}
+const PDR_KALKAN_ILLER = "Adana|Adıyaman|Afyonkarahisar|Ağrı|Aksaray|Amasya|Ankara|Antalya|Ardahan|Artvin|Aydın|Balıkesir|Bartın|Batman|Bayburt|Bilecik|Bingöl|Bitlis|Bolu|Burdur|Bursa|Çanakkale|Çankırı|Çorum|Denizli|Diyarbakır|Düzce|Edirne|Elazığ|Erzincan|Erzurum|Eskişehir|Gaziantep|Giresun|Gümüşhane|Hakkari|Hatay|Iğdır|Isparta|İstanbul|İzmir|Kahramanmaraş|Karabük|Karaman|Kars|Kastamonu|Kayseri|Kırıkkale|Kırklareli|Kırşehir|Kilis|Kocaeli|Konya|Kütahya|Malatya|Manisa|Mardin|Mersin|Muğla|Muş|Nevşehir|Niğde|Ordu|Osmaniye|Rize|Sakarya|Samsun|Siirt|Sinop|Sivas|Şanlıurfa|Şırnak|Tekirdağ|Tokat|Trabzon|Tunceli|Uşak|Van|Yalova|Yozgat|Zonguldak";
+const PDR_KALKAN_ILCELER = "Adalar|Arnavutköy|Ataşehir|Avcılar|Bağcılar|Bahçelievler|Bakırköy|Başakşehir|Bayrampaşa|Beşiktaş|Beykoz|Beylikdüzü|Beyoğlu|Büyükçekmece|Çatalca|Çekmeköy|Esenler|Esenyurt|Eyüpsultan|Fatih|Gaziosmanpaşa|Güngören|Kadıköy|Kağıthane|Kartal|Küçükçekmece|Maltepe|Pendik|Sancaktepe|Sarıyer|Silivri|Sultanbeyli|Sultangazi|Şile|Şişli|Tuzla|Ümraniye|Üsküdar|Zeytinburnu";
+const PDR_KALKAN_RE_ILCE_TEK = new RegExp(`(^|[^\\p{L}\\p{N}\\-\\[])(${PDR_KALKAN_ILCELER})(?=['’]|[^\\p{L}]|$)`, "gu");
+const PDR_KALKAN_RE_ILCE = new RegExp(`(^|[^\\p{L}\\p{N}\\-\\[])([${PDR_KALKAN_BH}][${PDR_KALKAN_KH}]+)(\\s*[/,-]\\s*)(${PDR_KALKAN_ILLER})(?![\\p{L}])`, "gu");
+function pdrKalkanGenisMetin(t, o) {
+  const BAS = /^[A-ZÇĞİÖŞÜÂÎÛ]/;
+  const adlariAl = (metin, enFazla) => {
+    // metnin başındaki ad sözcüklerini (kod olmayan, "ad değil" listesinde olmayan) toplar
+    const k = metin.split(/\s+/); const al = [];
+    for (const w of k) {
+      const temiz = w.replace(/[,.;:)(!?]+$/, "");
+      if (!temiz || /^(Öğrenci-\d|\[)/.test(temiz) || pdrKalkanAdDegil(temiz) || !/^[\p{L}'’]+$/u.test(temiz)) break;
+      if (al.length && !BAS.test(temiz) && !PDR_KALKAN_SOZLUK.has(pdrKalkanKucukHarf(temiz.replace(/['’].*$/, "")))) break;
+      al.push(temiz.replace(/['’].*$/, "")); if (al.length >= enFazla || temiz !== w || /['’]/.test(temiz)) break;
+    }
+    return al.join(" ");
+  };
+  // Etiketli adlar: "Anne adı: Gülfiye Akbaş", "Adı Soyadı: …", "Öğretmen: …", "İsim: …"
+  // (aynı satırda birden çok etiket olabilir: eşleşme metni yuttuğu için birkaç tur dönülür)
+  for (let tur = 0; tur < 6; tur++) {
+    const y = t.replace(PDR_KALKAN_RE_ETIKET, (m, on, etk, devam) => {
+      const ad = adlariAl(devam, 3);
+      if (!ad || (!BAS.test(ad) && ad.includes(" "))) return m;
+      const ilk = ad.split(" ")[0];
+      if (!PDR_KALKAN_SOZLUK.has(pdrKalkanKucukHarf(ilk)) && (pdrKalkanBaslikEki(ilk) || /(me|ma|ması|mesi)$/u.test(pdrKalkanKucukHarf(ilk)))) return m; // "Veli: Bilgilendirme"
+      return on + etk + pdrKalkanGenisKod(o, "KİŞİ", ad) + devam.slice(devam.indexOf(ad) + ad.length);
+    });
+    if (y === t) break;
+    t = y;
+  }
+  // Rol + ad: "sınıf öğretmeni Gülfiye Akbaş", "müdür yardımcısı Kemal", "psikoloğu Ayten"
+  t = t.replace(PDR_KALKAN_RE_ROL, (m, on, rol, devam) => {
+    if (!BAS.test(devam)) return m;
+    const ad = adlariAl(devam, 2);
+    if (!ad) return m;
+    return on + rol + pdrKalkanGenisKod(o, "KİŞİ", ad) + devam.slice(ad.length);
+  });
+  // Küçük harfle yazılmış ad + unvan: "ayşe hanım", "kemal bey"
+  t = t.replace(/(^|[^\p{L}])([a-zçğıöşü]{3,})(\s+)(hanım|bey|hoca)(?![\p{L}])/gu, (m, on, ad, b, u) => PDR_KALKAN_SOZLUK.has(ad) ? on + pdrKalkanGenisKod(o, "KİŞİ", ad) + b + u : m);
   t = t.replace(PDR_KALKAN_RE_UNVAN, (m, on, ad, bosluk, unvan, konum, butun) => {
     const yer = konum + on.length;
     if (/(Prof|Dr|Doç|Uzm|Av)\.\s*$/.test(butun.slice(Math.max(0, yer - 8), yer))) return m;
@@ -1754,6 +1830,11 @@ function pdrKalkanGenisMetin(t, o) {
     if (pdrKalkanBaslikEki(k[0]) || /(me|ma)$/u.test(pdrKalkanKucukHarf(k[0])) && !PDR_KALKAN_SOZLUK.has(pdrKalkanKucukHarf(k[0]))) return m; // "veli Görüşmesi", "veli Bilgilendirme"
     const al = (k.length > 1 && !pdrKalkanAdDegil(k[1]) && /^[A-ZÇĞİÖŞÜÂÎÛ]/.test(k[1])) ? k.join(" ") : k[0];
     return on + iliski + pdrKalkanGenisKod(o, "KİŞİ", al) + ad.slice(al.length);
+  });
+  // Soyadı sezgisi: "Gülfiye Akbaş", "Elvanur Sağıroğlu" (ad sözlükte olmasa da tipik soyadı sonu)
+  t = t.replace(PDR_KALKAN_RE_SOYAD, (m, on, ad, b, soyad) => {
+    if (pdrKalkanAdDegil(ad) || pdrKalkanAdDegil(soyad)) return m;
+    return on + pdrKalkanGenisKod(o, "KİŞİ", ad + b + soyad);
   });
   // Ad sözlüğü: programda kayıtlı OLMAYAN kişilerin adları ("teneffüste Emre vurmuş")
   t = t.replace(PDR_KALKAN_RE_BUYUK_DIZI, (m, on, dizi, konum, butun) => {
@@ -1808,8 +1889,20 @@ function pdrKalkanVeriMi(s) {
 const PDR_KALKAN_DOKUNMA = ["apiKey", "model", "action", "media_type", "type"];
 // JSON gövdesini gezer: metinleri ve nesne anahtarlarını ayıklar; fotoğraf/PDF
 // verisine, API anahtarına, model ve eylem adına dokunmaz.
+const PDR_KALKAN_ANAHTAR_TUR = [
+  [/^(veli|anne|baba|vasi|kardes|kardeş|ogretmen|öğretmen|sinifOgretmeni|sınıfÖğretmeni|danisman|yakin)(Ad|Adi|Adı|AdSoyad|AdiSoyadi|Isim|İsim|Ismi)?$|^(adSoyad|adiSoyadi|isim|ismi|veliAdi|anneAdi|babaAdi|parentName|teacherName)$/i, "KİŞİ"],
+  [/^(telefon|tel|gsm|cep|cepTel|telNo|phone|veliTel|veliTelefon|anneTel|babaTel)$/i, "TELEFON"],
+  [/^(adres|evAdresi|address|adresi)$/i, "YER"],
+  [/^(tc|tcNo|tcKimlik|tckn|kimlikNo|tcKimlikNo)$/i, "TC"],
+  [/^(dogumTarihi|doğumTarihi|dogum|birthDate|dob)$/i, "DOĞUM"],
+  [/^(eposta|ePosta|email|mail)$/i, "EPOSTA"],
+];
 function pdrKalkanGez(x, o, anahtar) {
   if (PDR_KALKAN_NUMARA_ANAHTARLARI.includes(anahtar) && (typeof x === "string" || typeof x === "number") && String(x).trim()) return pdrKalkanNumara(o, x);
+  if (anahtar && (typeof x === "string" || typeof x === "number") && String(x).trim() && !/^(Öğrenci-\d+|\[[^\]]+\])$/.test(String(x).trim())) {
+    const tur = (PDR_KALKAN_ANAHTAR_TUR.find(([re]) => re.test(anahtar)) || [])[1];
+    if (tur) return tur === "KİŞİ" ? pdrKalkanGenisKod(o, "KİŞİ", String(x).trim()) : (o.ek[tur] += 1, o.geri.set(`[${tur}-${o.ek[tur]}]`, String(x)), `[${tur}-${o.ek[tur]}]`);
+  }
   if (typeof x === "string") {
     if (PDR_KALKAN_DOKUNMA.includes(anahtar)) return x;
     if (pdrKalkanVeriMi(x)) { o.dosya += 1; o.dosyaImza.push(x.length + ":" + x.slice(-60)); return x; }
@@ -1832,7 +1925,7 @@ function pdrKalkanGez(x, o, anahtar) {
 function pdrKalkanGeriCevir(x, o) {
   if (typeof x === "string") {
     let t = x.replace(/Öğrenci-(\d+)/giu, (m, n) => o.geri.get("Öğrenci-" + n) || m);
-    t = t.replace(/\[(TC|TELEFON|EPOSTA|N|KİŞİ|OKUL|YER|IBAN|PLAKA|DOĞUM)-(\d+)\]/gu, m => o.geri.get(m) || m);
+    t = t.replace(/\[(TC|TELEFON|EPOSTA|N|KİŞİ|OKUL|YER|IBAN|PLAKA|DOĞUM|HESAP)-(\d+)\]/gu, m => o.geri.get(m) || m);
     t = t.replace(/(^|[^\[\p{L}])(KİŞİ|OKUL|YER)-(\d+)(?!\])/gu, (m, on, a, n) => { const v = o.geri.get(`[${a}-${n}]`); return v ? on + v : m; });
     t = t.replace(/\d{0,2}-Ş\d+/gu, m => o.geri.get(m) || m);
     return t;
@@ -19798,7 +19891,7 @@ function YedekHatirlatmaBandi({ ogrenciSayisi, tab, setTab }) {
 }
 
 // ── Ayarlar: AI Gizlilik Kalkanı kartı (deneme kutusu + gizlilik kaydı) ──
-const PDR_KALKAN_ETIKET = { ogrenci: "öğrenci", sinif: "sınıf", "KİŞİ": "kişi", OKUL: "okul", YER: "yer/adres", TC: "T.C. no", TELEFON: "telefon", EPOSTA: "e-posta", N: "okul no", IBAN: "IBAN", PLAKA: "plaka", "DOĞUM": "doğum tarihi" };
+const PDR_KALKAN_ETIKET = { ogrenci: "öğrenci", sinif: "sınıf", "KİŞİ": "kişi", OKUL: "okul", YER: "yer/adres", TC: "T.C. no", TELEFON: "telefon", EPOSTA: "e-posta", N: "okul no", IBAN: "IBAN", PLAKA: "plaka", "DOĞUM": "doğum tarihi", HESAP: "sosyal medya hesabı" };
 function pdrKalkanSayiMetni(s) {
   const p = Object.keys(PDR_KALKAN_ETIKET).filter(k => s && s[k]).map(k => `${s[k]} ${PDR_KALKAN_ETIKET[k]}`);
   return p.length ? p.join(" · ") : "gizlenecek bilgi yoktu";
@@ -19823,8 +19916,9 @@ function KalkanKarti() {
     <div data-testid="kalkan-karti" style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 12, padding: 14, marginBottom: 16 }}>
       <div style={{ fontWeight: 800, marginBottom: 6, fontSize: 14, color: "#1E3A8A" }}>🛡️ AI Gizlilik Kalkanı <span style={{ fontSize: 11, background: "#1E3A8A", color: "#fff", borderRadius: 8, padding: "2px 8px", marginLeft: 6 }}>AÇIK</span></div>
       <div style={{ fontSize: 13, color: TEXT, lineHeight: 1.55, marginBottom: 8 }}>
-        Yapay zekâya giden her istek önce bu telefonda taranır. Öğrenci adları, veli/öğretmen/yakın adları, okul ve adres, T.C. no, telefon, e-posta, IBAN, plaka ve doğum tarihi koda çevrilir; yanıt gelince kodlar yine telefonda gerçek adlara döner.
+        Yapay zekâya giden her istek önce bu telefonda taranır. Öğrenci adları, veli/öğretmen/yakın adları, okul, ilçe ve adres, T.C. no, telefon, e-posta, sosyal medya hesabı, IBAN, plaka ve doğum tarihi koda çevrilir; yanıt gelince kodlar yine telefonda gerçek adlara döner.
         <div style={{ marginTop: 6, fontSize: 12, color: MUTED }}>Gönderimden hemen önce ikinci bir kontrol yapılır: açık bir bilgi kalmışsa ya da kalkan isteği okuyamazsa istek <b>hiç gönderilmez</b>. Korunan kayıtlı öğrenci: <b>{korunan}</b>.</div>
+        <div style={{ marginTop: 6, fontSize: 12, color: MUTED }}>🎤 Not: Sesle yazdırırken sesini yazıya telefonun kendi ses tanıma hizmeti (Google/Apple) çevirir; bu kısım kalkanın dışındadır. Hassas bir şeyi sesle söylerken ad yerine "öğrenci" demek daha güvenlidir.</div>
       </div>
 
       <div style={{ background: "#fff", border: "1px solid #DBEAFE", borderRadius: 10, padding: 10, marginBottom: 10 }}>
@@ -25108,7 +25202,7 @@ function KutuphaneEkle({ kutuphane, setKutuphane }) {
         const resp = await fetch(PDR_AI_WORKER_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "kutuphane_ozet", apiKey, data: { pdfBase64: b64, baslik, tur: kaynakTuru } }),
+          body: JSON.stringify({ action: "kutuphane_ozet", apiKey, __kalkanDosyaOnayli: true, data: { pdfBase64: b64, baslik, tur: kaynakTuru } }),
         });
         const data = await resp.json();
         const ozet = data.content?.[0]?.text || "Özet alınamadı.";
