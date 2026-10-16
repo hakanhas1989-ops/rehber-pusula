@@ -1573,6 +1573,10 @@ const XLSX = window.XLSX;
 // çevrilir. Böylece ad AI şirketine hiç gitmez, ekranda yine ad görünür.
 // Kodlar her istek için yeniden verilir (okul numarası bile gönderilmez).
 // Sınırı: fotoğraf/PDF'in İÇİNDE yazılı olan ad ayıklanamaz.
+// Güçlendirme (16.10.2026): kalkan isteği okuyamazsa istek GİTMEZ (kapalı güvenlik);
+// gönderimden önce "sızıntı bekçisi" ikinci kez tarar; kayıtlı olmayan kişiler için
+// Türkçe ad sözlüğü; IBAN, plaka, doğum tarihi, sabit hat; listede olmayan bir adrese
+// giden yapay zekâ isteği de yakalanır; her istek "Gizlilik kaydı"na yazılır (ad içermez).
 const PDR_KALKAN_HEDEFLER = ["pdr-api.hakanhas1989.workers.dev", "rehber-pusula-ai.hakanhas1989.workers.dev"];
 // Küçük harfle yazıldığında sıradan bir kelime de olan adlar — bunlar yalnızca
 // büyük harfle başladığında ad sayılır (metin bozulmasın diye).
@@ -1617,6 +1621,23 @@ function pdrKalkanAdlariGuncelle(adlar, siniflar) {
   const liste = [...desen.keys()].sort((a, b) => b.length - a.length).map(pdrKalkanRegexKac);
   if (typeof window !== "undefined") window.__pdrKalkanAdSayisi = orijinal.size; // denetim için: kaç kişi korunuyor
   PDR_KALKAN.regex = liste.length ? new RegExp("(^|[^\\p{L}\\p{N}])(" + liste.join("|") + ")(?=[^\\p{L}\\p{N}]|$)", "gu") : null;
+  // Kısaltılmış kayıtlı adlar ("MUSTAFA AB** AK"): danışman tam adı yazarsa ("Mustafa Aber Ak")
+  // da yakalansın diye yıldızlı parça önek olarak eşlenir. Büyük/küçük harf Türkçeye göre.
+  const harf = (ch) => { const k = pdrKalkanKucukHarf(ch), b = pdrKalkanBuyukHarf(ch); return /\p{L}/u.test(ch) ? `[${pdrKalkanRegexKac(k)}${b !== k ? pdrKalkanRegexKac(b) : ""}]` : pdrKalkanRegexKac(ch); };
+  const maske = [];
+  tekil.filter(t => t.includes("*")).forEach(tam => {
+    const parca = tam.split(" ").filter(Boolean);
+    if (parca.length < 2) return;
+    const desenM = parca.map(p => {
+      if (p.length <= 2 && !p.includes("*")) p = p + "*";   // 1-2 harflik parça da kısaltmadır
+      const on = p.replace(/\*+$/, "");
+      if (!on) return "[\\p{L}*]+";
+      return [...on].map(harf).join("") + (p.includes("*") ? "[\\p{L}*]*" : "");
+    }).join("\\s+");
+    maske.push({ desen: desenM, anahtar: pdrKalkanKucukHarf(tam) });
+  });
+  PDR_KALKAN.maske = maske.map(m => ({ ...m, re: new RegExp("^(?:" + m.desen + ")$", "u") }));
+  PDR_KALKAN.maskeRegex = maske.length ? new RegExp("(^|[^\\p{L}\\p{N}])(" + maske.map(m => m.desen).sort((a, b) => b.length - a.length).join("|") + ")(?=[^\\p{L}\\p{N}*]|$)", "gu") : null;
   const sListe = [...sinifTekil].sort((a, b) => b.length - a.length).map(pdrKalkanRegexKac);
   PDR_KALKAN.sinifRegex = sListe.length ? new RegExp("(^|[^\\p{L}\\p{N}])(" + sListe.join("|") + ")(?=[^\\p{L}\\p{N}]|$)", "gu") : null;
 }
@@ -1624,7 +1645,7 @@ const PDR_KALKAN_NUMARA_ANAHTARLARI = ["numara", "ogrenciNo", "okulNo", "ogrenci
 
 // Tek bir istek için kod tablosu
 function pdrKalkanOturum() {
-  return { kod: new Map(), geri: new Map(), sayac: 0, ek: { TC: 0, TELEFON: 0, EPOSTA: 0, N: 0 }, sinif: new Map(), numara: new Map(), buIstekteTam: new Set() };
+  return { kod: new Map(), geri: new Map(), sayac: 0, ek: { TC: 0, TELEFON: 0, EPOSTA: 0, N: 0, "KİŞİ": 0, OKUL: 0, YER: 0, IBAN: 0, PLAKA: 0, "DOĞUM": 0 }, sinif: new Map(), numara: new Map(), buIstekteTam: new Set(), genis: false, genisKod: new Map(), dosya: 0 };
 }
 function pdrKalkanKodVer(o, anahtar, gorunen) {
   if (!o.kod.has(anahtar)) { o.sayac += 1; const k = "Öğrenci-" + o.sayac; o.kod.set(anahtar, k); o.geri.set(k, gorunen); }
@@ -1633,12 +1654,22 @@ function pdrKalkanKodVer(o, anahtar, gorunen) {
 function pdrKalkanMetin(s, o) {
   if (typeof s !== "string" || !s) return s;
   let t = s;
+  if (PDR_KALKAN.maskeRegex) {
+    t = t.replace(PDR_KALKAN.maskeRegex, (m, on, ad) => {
+      const e = PDR_KALKAN.maske.find(x => x.re.test(ad));
+      if (!e) return m;
+      o.buIstekteTam.add(e.anahtar);
+      return on + pdrKalkanKodVer(o, "T:" + e.anahtar, PDR_KALKAN.orijinal.get(e.anahtar) || ad);
+    });
+  }
   if (PDR_KALKAN.regex) {
     // 1. tur: bu metinde geçen tam adları topla (parça eşleşmelerini doğru kişiye bağlamak için)
     t.replace(PDR_KALKAN.regex, (m, on, ad) => { const d = PDR_KALKAN.desen.get(ad); if (d && d.tur === "tam") o.buIstekteTam.add(d.anahtar); return m; });
     t = t.replace(PDR_KALKAN.regex, (m, on, ad, konum, butun) => {
       const d = PDR_KALKAN.desen.get(ad);
       if (!d) return m;
+      // Zaten verilmiş bir kodun ("Öğrenci-3") parçası yeniden kodlanmaz
+      if (/^-\d/.test(butun.slice(konum + on.length + ad.length, konum + on.length + ad.length + 2))) return m;
       // "Prof. Hakan", "Dr. Ayşe" gibi unvanlı adlar öğrenci değildir (ör. AI personası)
       if (/(Prof|Dr|Doç|Uzm|Av)\.\s*$/.test(butun.slice(Math.max(0, konum - 8), konum + on.length))) return m;
       if (d.tur === "tam") return on + pdrKalkanKodVer(o, "T:" + d.anahtar, ad);
@@ -1663,24 +1694,124 @@ function pdrKalkanMetin(s, o) {
   // (Soru no, madde no gibi başka sayılara dokunulmaz.)
   t = t.replace(/(^|[^\p{L}])(No:)(\d{1,6})(?!\d)/gu, (m, on, no, v) => on + no + pdrKalkanNumara(o, v));
   t = t.replace(/(\|\|)(\d{1,6})$/, (m, on, v) => on + pdrKalkanNumara(o, v));
+  // IBAN, doğum tarihi ve araç plakası (TC/telefon taramasından önce)
+  t = t.replace(/(^|[^\p{L}\p{N}])(TR\s?\d{2}(?:\s?[0-9A-Z]{4}){5}\s?[0-9A-Z]{2})(?![\p{L}\p{N}])/giu, (m, on, v) => on + etiket("IBAN", v));
+  t = t.replace(/((?:doğum\s*tarihi|doğum\s*t\.|d\.\s*tarihi|doğum)\s*[:\-]?\s*)(\d{1,2}[./-]\d{1,2}[./-]\d{2,4})(?!\d)/giu, (m, on, v) => on + etiket("DOĞUM", v));
+  t = t.replace(/(^|[^\d.])(\d{1,2}[./-]\d{1,2}[./-]\d{4})(\s+doğumlu)/giu, (m, on, v, son) => on + etiket("DOĞUM", v) + son);
+  t = t.replace(/(^|[^\p{L}\p{N}])((?:0[1-9]|[1-7]\d|8[01])\s?([A-Z]{1,3})\s?(\d{2,5}))(?![\p{L}\p{N}])/gu, (m, on, v, harf, sayi) => {
+    const uygun = (harf.length === 1 && sayi.length >= 4) || (harf.length === 2 && sayi.length >= 3 && sayi.length <= 4) || (harf.length === 3 && sayi.length <= 3);
+    return uygun && !PDR_KALKAN_PLAKA_DEGIL.has(harf) ? on + etiket("PLAKA", v) : m;
+  });
   t = t.replace(/(^|\D)([1-9]\d{10})(?!\d)/g, (m, on, v) => on + etiket("TC", v));
   t = t.replace(/(^|[^\d+])((?:\+?90[\s-]?)?0?5\d{2}[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2})(?!\d)/g, (m, on, v) => on + etiket("TELEFON", v));
+  // Sabit hat: 0312 456 78 90, (0212) 456 78 90, +90 232 456 78 90
+  t = t.replace(/(^|[^\d+])((?:\+?90[\s-]?\(?|\(?0)[2-4]\d{2}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2})(?!\d)/g, (m, on, v) => on + etiket("TELEFON", v));
   t = t.replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, v => etiket("EPOSTA", v));
+  if (o.genis) t = pdrKalkanGenisMetin(t, o);
   return t;
 }
+// Geniş kalkan (Asistan istekleri): öğrenci dışındaki kişi (veli, öğretmen,
+// yakın), okul ve yer adlarını da "[KİŞİ-1]", "[OKUL-1]", "[YER-1]" yapar.
+// Aynı istekte aynı ad hep aynı kodu alır; yanıtta cihazda geri çevrilir.
+const PDR_KALKAN_AD_DEGIL = new Set(["öğrenci", "öğrencisi", "matematik", "türkçe", "fen", "sosyal", "ingilizce", "almanca", "arapça", "din", "beden", "müzik", "resim", "görsel", "rehber", "rehberlik", "psikolojik", "danışman", "sınıf", "branş", "okul", "müdür", "müdürü", "yardımcısı", "bilişim", "teknoloji", "tarih", "coğrafya", "fizik", "kimya", "biyoloji", "edebiyat", "felsefe", "hayat", "bilgisi", "bilimleri", "nöbetçi", "özel", "eğitim", "inkılap", "sayın", "prof", "dr", "doç", "uzm", "bu", "şu", "o", "bir", "ve", "ama", "ancak", "veli", "anne", "baba", "kardeş", "ders", "dersi", "pazartesi", "salı", "çarşamba", "perşembe", "cuma", "cumartesi", "pazar", "ocak", "şubat", "mart", "nisan", "mayıs", "haziran", "temmuz", "ağustos", "eylül", "ekim", "kasım", "aralık", "bugün", "dün", "yarın", "geçen", "sonra", "önce", "kendisi", "kendi", "ayrıca", "fakat", "çünkü", "evet", "hayır", "tüm", "her", "hiç", "çok", "daha", "en", "ile", "için", "gibi", "lgs", "yks", "ram", "bep", "türkiye", "türk", "allah"]);
+const PDR_KALKAN_ILISKI = /^(?:üvey|anneanne|babaanne|anne|baba|abla|abi|ağabey|kız|erkek|kardeş|teyze|dayı|amca|hala|dede|nine|eş|veli|vasi|arkadaş|sevgili|komşu|kuzen|yeğen|enişte|yenge)(?:si|sı|i|ı|leri|ları)?(?:nin|nın|nun|nün|ne|na|ye|ya|yle|yla|le|la)?$/;
+function pdrKalkanAdDegil(k) { const w = pdrKalkanKucukHarf(k.replace(/['’].*$/, "")); return PDR_KALKAN_AD_DEGIL.has(w) || PDR_KALKAN_ILISKI.test(w); }
+function pdrKalkanGenisKod(o, tur, deger) {
+  const anahtar = tur + "|" + pdrKalkanKucukHarf(deger);
+  if (!o.genisKod.has(anahtar)) { o.ek[tur] += 1; const k = `[${tur}-${o.ek[tur]}]`; o.genisKod.set(anahtar, k); o.geri.set(k, deger); }
+  return o.genisKod.get(anahtar);
+}
+const PDR_KALKAN_BH = "A-ZÇĞİÖŞÜÂÎÛ", PDR_KALKAN_KH = "a-zçğıöşüâîû";
+const PDR_KALKAN_AD = `[${PDR_KALKAN_BH}][${PDR_KALKAN_KH}]+`;
+// Not: eski Safari "geriye bakma" (?<…) desteklemediği için önek grubu kullanılır
+const PDR_KALKAN_RE_UNVAN = new RegExp(`(^|[^\\p{L}\\p{N}\\-\\[])(${PDR_KALKAN_AD}(?:\\s+${PDR_KALKAN_AD})?)(\\s+)(Hanım|Bey|Hoca|Öğretmen)(?=[^\\p{L}]|[${PDR_KALKAN_KH}]|$)`, "gu");
+const PDR_KALKAN_RE_YAKIN = new RegExp(`(^|[^\\p{L}])((?:üvey\\s+)?(?:anneanne|babaanne|anne|baba|abla|abi|ağabey|kız\\s+kardeş|erkek\\s+kardeş|kardeş|teyze|dayı|amca|hala|dede|nine|eş|veli|vasi|arkadaş|sevgili|komşu|kuzen|yeğen|enişte|yenge)(?:si|sı|i|ı|leri|ları)?(?:nin|nın|nun|nün)?(?:\\s*[:(]\\s*|\\s+))(${PDR_KALKAN_AD}(?:\\s+${PDR_KALKAN_AD})?)(?![\\p{L}\\-])`, "giu");
+const PDR_KALKAN_RE_OKUL = new RegExp(`(^|[^\\p{L}\\p{N}\\-\\[])((?:(?:[${PDR_KALKAN_BH}][\\p{L}]*|\\d{1,3}\\.?)\\s+){1,5})((?:İlkokul|Ortaokul|Okul|Anaokul)u|Lisesi|Koleji)([\\p{L}'’]*)`, "gu");
+const PDR_KALKAN_RE_YER = new RegExp(`(^|[^\\p{L}\\p{N}\\-\\[])((?:(?:[${PDR_KALKAN_BH}][\\p{L}]*|\\d{1,4}\\.?)\\s+){1,4})(Mahallesi|Mahalle|Mah\\.|Sokağı|Sokak|Caddesi|Cad\\.|Bulvarı|Sitesi|Apartmanı|Köyü)([\\p{L}'’]*)`, "gu");
+function pdrKalkanGenisMetin(t, o) {
+  // okul ve yer önce (içlerindeki adlar kişi sanılmasın)
+  const zincir = (tur) => (m, on0, on, ek, ekSon) => {
+    const kelimeler = on.trim().split(/\s+/);
+    let i = 0; while (i < kelimeler.length && pdrKalkanAdDegil(kelimeler[i])) i++;
+    if (i === kelimeler.length) return m;
+    const onEk = kelimeler.slice(0, i).join(" ");
+    return on0 + (onEk ? onEk + " " : "") + pdrKalkanGenisKod(o, tur, kelimeler.slice(i).join(" ") + " " + ek) + ekSon;
+  };
+  t = t.replace(PDR_KALKAN_RE_OKUL, zincir("OKUL"));
+  t = t.replace(PDR_KALKAN_RE_YER, zincir("YER"));
+  t = t.replace(PDR_KALKAN_RE_UNVAN, (m, on, ad, bosluk, unvan, konum, butun) => {
+    const yer = konum + on.length;
+    if (/(Prof|Dr|Doç|Uzm|Av)\.\s*$/.test(butun.slice(Math.max(0, yer - 8), yer))) return m;
+    const k = ad.split(/\s+/).filter(w => !pdrKalkanAdDegil(w));
+    if (!k.length) return m;
+    const temiz = k.join(" ");
+    const i = ad.indexOf(temiz);
+    return on + ad.slice(0, i) + pdrKalkanGenisKod(o, "KİŞİ", temiz) + ad.slice(i + temiz.length) + bosluk + unvan;
+  });
+  t = t.replace(PDR_KALKAN_RE_YAKIN, (m, on, iliski, ad) => {
+    const k = ad.split(/\s+/);
+    if (!/^[A-ZÇĞİÖŞÜÂÎÛ]/.test(k[0]) || pdrKalkanAdDegil(k[0])) return m;
+    const al = (k.length > 1 && !pdrKalkanAdDegil(k[1]) && /^[A-ZÇĞİÖŞÜÂÎÛ]/.test(k[1])) ? k.join(" ") : k[0];
+    return on + iliski + pdrKalkanGenisKod(o, "KİŞİ", al) + ad.slice(al.length);
+  });
+  // Ad sözlüğü: programda kayıtlı OLMAYAN kişilerin adları ("teneffüste Emre vurmuş")
+  t = t.replace(PDR_KALKAN_RE_BUYUK_DIZI, (m, on, dizi, konum, butun) => {
+    const k = dizi.split(/\s+/);
+    const yer = konum + on.length;
+    const once = butun.slice(0, yer);
+    if (/(Prof|Dr|Doç|Uzm|Av)\.\s*$/.test(once)) return m;           // AI personası ("Dr. Ayşe Kara")
+    if (/\d[\s.]*$/.test(once)) return m;                             // tarih ("15 Eylül")
+    const cumleBasi = /(^|[.!?…:;•\n"“(*\-–])\s*$/.test(once);
+    let i = -1;
+    for (let j = 0; j < k.length; j++) {
+      const w = k[j], wk = pdrKalkanKucukHarf(w);
+      if (!PDR_KALKAN_SOZLUK.has(wk) || pdrKalkanAdDegil(w)) continue;
+      const baslik = w[0] === pdrKalkanBuyukHarf(w[0]) && w.slice(1) === pdrKalkanKucukHarf(w.slice(1));
+      if (PDR_KALKAN_SOZLUK_KELIME.has(wk) && (!baslik || (j === 0 && cumleBasi))) continue; // "Umut ediyorum"
+      i = j; break;
+    }
+    if (i < 0) return m;
+    let s = i + 1;
+    while (s < k.length && !pdrKalkanAdDegil(k[s])) s++;
+    const ad = k.slice(i, s).join(" ");
+    return on + [...k.slice(0, i), pdrKalkanGenisKod(o, "KİŞİ", ad), ...k.slice(s)].join(" ");
+  });
+  return t;
+}
+// Yaygın Türkçe adlar (küçük harf). Yalnızca büyük harfle başlayan sözcüklerde aranır.
+const PDR_KALKAN_SOZLUK = new Set("abdi abdulkadir abdullah abdurrahman abdülhamit abdülkadir abidin adem adil adnan affan ahmet ahsen akif akça akın alaaddin alara alemdar alev ali alican alihan alim alin alis almila alp alparslan alper alperen alptekin altan altay amine anıl aras arda aren arif arslan arya arzu asaf asel asena asil asiye aslan aslı aslıhan asya asım atakan atilla aybars ayberk aybike aybüke aycan ayda aydan ayfer aygül aygün ayhan aykut aylin aynur ayperi aysu aytaç ayten ayça ayşe ayşegül ayşenur ayşin azad aziz azra bade bahadır bahar balca baran bartu barış basri batu batuhan bayram bedirhan bedri bekir belgin belin belinay belkıs bera berat beren berfin beril berk berkant berkay berke berkin berna berra beste betül beyda beyza beyzanur bilal bilge bilgehan birgül birol bora buket bulut bulutay burak burcu burhan burçin buse busenur buğlem buğra bünyamin büşra cafer can canan canberk candan caner cansel cansu cavit celal cem cemal cemil cemile cemre cenay cengiz cenk cennet ceren cevat cevdet ceyda ceylan ceylin cihan cihangir cüneyt damla davut defne demet demir deniz deren derin derman derya devrim didem dila dilan dilara dilay dilek dilruba dilşad dilşah doruk dorukhan doğa doğan doğukan duru duygu dünya ebru ece ecem ecenur ecesu ecrin eda edanur edip efe efsa efsane egemen ekin ekrem ela elanur elif elifnur elvan elvin elçin emel emin emine emir emircan emirhan emre ender enes engin ensar enver erdal erdem eren ergün erhan erkan erol ersin ertan ertuğrul erva esat esila esin eslem esma esmanur esra eylül eymen eyüp ezgi fadimana fadime fahri faik faruk fatih fatma fatmanur fazıl ferhat feride feyza feyzanur fidan figen fikret filiz fuat fulya funda furkan fırat gamze gizem gonca gökay gökhan göksel göktuğ gökçe gönül görkem gözde gül gülay gülbahar gülcan güldeniz güler gülizar gülnur gülsen gülsüm gülten gülşah gülşen günay güney güneş güngör gürkan güven habibe hacer hadi hafize hakan hale halil halime halit hamdi hamit hamza handan hande hanife harun hasan hasret hatice hayati haydar hayrettin hayriye hayrünnisa hazal helin hikmet hilal hira hiranur hülya hümeyra hüseyin hüsnü ibrahim iclal idris ihsan iknur ilayda ilgaz ilhan ilkay ilker ilkim ilknur ilyas inci ipek irem irmak isa ismail kaan kader kadir kamil kaplan kardelen kayla kayra kazım kemal kenan kerem keremcan kerim kevser kezban kutay kuzey kübra kürşat kıvanç lale latif latife lavin leman lemi levent leyla lina lütfi lütfiye mahir mahmut mahsun maide makbule mazlum mehmet mehmetali mehmetcan melda melek melih melike melis melisa meltem meral mert mertcan merve meryem mesut metin mevlüt mihra mina mine mira mirac miran miray miraç mirza mithat muammer muhammed muhammet muharrem murat mustafa muzaffer mücahit müge mükerrem münevver mürvet naci nadir nail nalan naz nazan nazlı necati necdet necla necmettin necmi nedim nefise nehir nehirsu nermin neslihan nesrin nevzat neşe nihal nihan nihat nil nilay nilgün nilsu nilüfer nisa nisanur nur nuran nurcan nurdan nurettin nurgül nurhan nuri nursel nurten nurullah nusret okan oktay onur orhan osman ozan oğuz oğuzhan pakize pelin pembe pera perihan pervin polat poyraz pınar rabia rahime rahmi ramazan rana rasim raşit recep refik remzi rengin reyhan reşat rojin rukiye rumeysa rüya rüzgar rüştü rıdvan rıza saadet sabri sabriye sadettin sadık safa safiye sahra sait salih salim samet sami sanem sare sarp sarya savaş seda sedat sefa sela selahattin selami selcan selda selen selim selin selma selçuk sema semanur semih semiha semra sena senanur sencer serap serdar seren serhat serkan sermin serpil serra sertaç servet sevda sevgi sevil sevilay sevim sevinç seyfi seyit sezai sezen sezer seçil sibel simay simge sinan sinem soner songül suat sude sudenur sultan sumru suzan süleyman sümeyye süreyya sıla taha tahir tahsin talha talya tamer taner tansu tarık tayfun tayyip tekin temel tolga toprak tuana tuba tuna tunahan turan turgay turgut tuğba tuğberk tuğrul tuğçe tülay tülin tümay türkan ufuk ulaş umay umut ural utku uğur uğurcan vahit vedat veli veysel vildan volkan yade yahya yakup yalçın yaprak yaren yasemin yasin yavuz yağmur yağmurnur yağız yaşar yeliz yeşim yiğit yunus yunusemre yusuf yüksel yıldırım yıldız yılmaz zafer zahide zehra zekeriya zeki zeliha zeren zerrin zeynel zeynep zeynepnur zeyno zuhal zübeyde zülfikar zümra çağan çağatay çağdaş çağla çağlar çağrı çağıl çetin çisem çiğdem çınar ömer önder öykü özcan özden özge özgen özgür özkan özlem ümit ümmü ümran ünal ıdil ılgın ırmak ışık ışıl şaban şahin şakir şenay şengül şenol şerafettin şeref şerife şevket şevval şeyda şeyma şirin şule şükran şükrü".split(" "));
+// Aynı zamanda sıradan sözcük olan adlar: cümle başında ya da tümü büyük harfse ad sayılmaz.
+const PDR_KALKAN_SOZLUK_KELIME = new Set([...PDR_KALKAN_KELIME_ADLAR, ..."temel kader yaşar dünya toprak yaprak rüzgar emir pembe kaplan savaş arif salim sadık kamil latif nadir hadi hayati sami şeref servet neşe doruk derin devrim engin ender güven hasret reyhan sema seçil naz nehir ipek ışıl kayra umay sultan cennet sevil safa sefa çağrı ufuk ulaş utku yağız yiğit yavuz zafer hikmet ihsan nail güney kuzey fidan filiz gonca nil aras baran berk eylül ege asya alp cem tuna fırat ilkay ilker irmak ılgın oya mira lina pera sare bade hale leman reşat zeki emin selim".split(" ")]);
+const PDR_KALKAN_PLAKA_DEGIL = new Set(["TYT", "AYT", "LGS", "YKS", "YDT", "KPSS", "ALES", "MSÜ", "TC", "NO", "SN", "DK", "SA", "VE", "ML", "KG", "GR", "CM", "MM", "KM", "TL", "TR", "AM", "PM", "ÖS", "ÖG", "SB", "FB", "MAT", "FEN", "TRK", "İNG", "DKAB", "BEP", "RAM"]);
+// Ardışık 1-4 büyük harfle başlayan sözcük ("Emre", "Emre Yılmaz", "EMRE YILMAZ")
+const PDR_KALKAN_RE_BUYUK_DIZI = new RegExp(`(^|[^\\p{L}\\p{N}\\-\\[])((?:[${PDR_KALKAN_BH}](?:[${PDR_KALKAN_KH}]+|[${PDR_KALKAN_BH}]+))(?: (?:[${PDR_KALKAN_BH}](?:[${PDR_KALKAN_KH}]+|[${PDR_KALKAN_BH}]+))){0,3})(?=[^\\p{L}\\p{N}\\-]|$)`, "gu");
 function pdrKalkanNumara(o, v) {
   const d = String(v).trim();
   if (!o.numara.has(d)) { o.ek.N += 1; const k = `[N-${o.ek.N}]`; o.numara.set(d, k); o.geri.set(k, d); }
   return o.numara.get(d);
 }
+// Fotoğraf/PDF verisi mi? (data:…;base64, ya da uzun base64 dizisi) — dokunulmaz, ama sayılır
+function pdrKalkanVeriMi(s) {
+  return typeof s === "string" && (/^data:[\w.+-]+\/[\w.+-]+;base64,/.test(s) || (s.length > 2000 && /^[A-Za-z0-9+/=\r\n]+$/.test(s)));
+}
+const PDR_KALKAN_DOKUNMA = ["apiKey", "model", "action", "media_type", "type"];
 // JSON gövdesini gezer: metinleri ve nesne anahtarlarını ayıklar; fotoğraf/PDF
 // verisine, API anahtarına, model ve eylem adına dokunmaz.
 function pdrKalkanGez(x, o, anahtar) {
   if (PDR_KALKAN_NUMARA_ANAHTARLARI.includes(anahtar) && (typeof x === "string" || typeof x === "number") && String(x).trim()) return pdrKalkanNumara(o, x);
-  if (typeof x === "string") return ["apiKey", "model", "action", "media_type", "type"].includes(anahtar) ? x : pdrKalkanMetin(x, o);
+  if (typeof x === "string") {
+    if (PDR_KALKAN_DOKUNMA.includes(anahtar)) return x;
+    if (pdrKalkanVeriMi(x)) { o.dosya += 1; return x; }
+    return pdrKalkanMetin(x, o);
+  }
+  // Sayı olarak yazılmış TC / telefon (10-11 haneli tam sayı)
+  if (typeof x === "number" && Number.isInteger(x) && Math.abs(x) >= 1e9 && Math.abs(x) < 1e11) {
+    const t = pdrKalkanMetin(String(x), o);
+    return t === String(x) ? x : t;
+  }
   if (Array.isArray(x)) return x.map(e => pdrKalkanGez(e, o));
   if (x && typeof x === "object") {
-    if (x.type === "base64" && typeof x.data === "string") return x;
+    if (x.type === "base64" && typeof x.data === "string") { o.dosya += 1; return x; }
     const y = {};
     Object.keys(x).forEach(k => { y[["apiKey", "model", "action"].includes(k) ? k : pdrKalkanMetin(k, o)] = pdrKalkanGez(x[k], o, k); });
     return y;
@@ -1690,7 +1821,8 @@ function pdrKalkanGez(x, o, anahtar) {
 function pdrKalkanGeriCevir(x, o) {
   if (typeof x === "string") {
     let t = x.replace(/Öğrenci-(\d+)/giu, (m, n) => o.geri.get("Öğrenci-" + n) || m);
-    t = t.replace(/\[(TC|TELEFON|EPOSTA|N)-(\d+)\]/g, m => o.geri.get(m) || m);
+    t = t.replace(/\[(TC|TELEFON|EPOSTA|N|KİŞİ|OKUL|YER|IBAN|PLAKA|DOĞUM)-(\d+)\]/gu, m => o.geri.get(m) || m);
+    t = t.replace(/(^|[^\[\p{L}])(KİŞİ|OKUL|YER)-(\d+)(?!\])/gu, (m, on, a, n) => { const v = o.geri.get(`[${a}-${n}]`); return v ? on + v : m; });
     t = t.replace(/\d{0,2}-Ş\d+/gu, m => o.geri.get(m) || m);
     return t;
   }
@@ -1698,19 +1830,148 @@ function pdrKalkanGeriCevir(x, o) {
   if (x && typeof x === "object") { const y = {}; Object.keys(x).forEach(k => { y[pdrKalkanGeriCevir(k, o)] = pdrKalkanGeriCevir(x[k], o); }); return y; }
   return x;
 }
+
+// ── SIZINTI BEKÇİSİ: kodlamadan sonra, gönderimden hemen önce ikinci kontrol ──
+// Kalkanın gözünden bir şey kaçtıysa (açık bir kayıtlı öğrenci adı-soyadı, geçerli
+// bir T.C. kimlik no, cep telefonu, e-posta, IBAN) istek GÖNDERİLMEZ.
+function pdrKalkanTcGecerli(v) {
+  const d = String(v).split("").map(Number);
+  if (d.length !== 11 || d[0] === 0) return false;
+  const t1 = (d[0] + d[2] + d[4] + d[6] + d[8]) * 7 - (d[1] + d[3] + d[5] + d[7]);
+  if (((t1 % 10) + 10) % 10 !== d[9]) return false;
+  return d.slice(0, 10).reduce((a, b) => a + b, 0) % 10 === d[10];
+}
+function pdrKalkanSizintiMetin(s) {
+  if (typeof s !== "string" || !s || pdrKalkanVeriMi(s)) return "";
+  if (PDR_KALKAN.regex) {
+    const re = new RegExp(PDR_KALKAN.regex.source, "gu");
+    let m;
+    while ((m = re.exec(s))) {
+      const d = PDR_KALKAN.desen.get(m[2]);
+      const yer = m.index + m[1].length;
+      if (d && d.tur === "tam" && /\s/.test(m[2]) && !/(Prof|Dr|Doç|Uzm|Av)\.\s*$/.test(s.slice(Math.max(0, yer - 8), yer))) return "kayıtlı bir öğrencinin adı-soyadı";
+      if (m[0].length === 0) re.lastIndex++;
+    }
+  }
+  const tc = s.match(/(^|\D)([1-9]\d{10})(?!\d)/g);
+  if (tc && tc.some(x => pdrKalkanTcGecerli(x.replace(/\D/g, "")))) return "T.C. kimlik numarası";
+  if (/(^|[^\d+])(?:\+?90[\s-]?)?0?5\d{2}[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}(?!\d)/.test(s)) return "telefon numarası";
+  if (/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/.test(s)) return "e-posta adresi";
+  if (/(^|[^\p{L}\p{N}])TR\s?\d{2}(?:\s?[0-9A-Z]{4}){5}\s?[0-9A-Z]{2}(?![\p{L}\p{N}])/iu.test(s)) return "IBAN";
+  return "";
+}
+function pdrKalkanSizintiAra(x, anahtar) {
+  if (typeof x === "string") return PDR_KALKAN_DOKUNMA.includes(anahtar) ? "" : pdrKalkanSizintiMetin(x);
+  if (typeof x === "number") return pdrKalkanSizintiMetin(String(x));
+  if (Array.isArray(x)) { for (const e of x) { const r = pdrKalkanSizintiAra(e); if (r) return r; } return ""; }
+  if (x && typeof x === "object") {
+    if (x.type === "base64" && typeof x.data === "string") return "";
+    for (const k of Object.keys(x)) {
+      if (!["apiKey", "model", "action"].includes(k)) { const rk = pdrKalkanSizintiMetin(k); if (rk) return rk; }
+      const r = pdrKalkanSizintiAra(x[k], k); if (r) return r;
+    }
+  }
+  return "";
+}
+// Yapay zekâ isteğine benziyor mu? (kalkan listesinde olmayan bir adrese gitse bile yakalanır)
+function pdrKalkanAiIstegiMi(g) {
+  if (!g || typeof g !== "object" || Array.isArray(g)) return false;
+  const mesaj = Array.isArray(g.messages) || Array.isArray(g.contents) || typeof g.prompt === "string" || typeof g.input === "string";
+  return mesaj && ("model" in g || "system" in g || "max_tokens" in g || "generationConfig" in g || "temperature" in g);
+}
+
+// ── GİZLİLİK KAYDI: son 30 yapay zekâ isteğinin özeti (ad içermez, yalnızca bu cihazda) ──
+const PDR_KALKAN_KAYIT_ANAHTAR = "pdr_kalkan_kayit";
+function pdrKalkanKayitOku() { try { const a = JSON.parse(localStorage.getItem(PDR_KALKAN_KAYIT_ANAHTAR) || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function pdrKalkanKayitEkle(k) {
+  try {
+    const kayit = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), z: Date.now(), ...k };
+    const giden = kayit.giden; delete kayit.giden;
+    // Gidenin kendisi (kodlanmış metin) yalnızca bu oturumda, bellekte tutulur
+    if (typeof window !== "undefined") {
+      window.__pdrKalkanOturumGiden = window.__pdrKalkanOturumGiden || {};
+      if (giden) window.__pdrKalkanOturumGiden[kayit.id] = giden;
+    }
+    const liste = [kayit, ...pdrKalkanKayitOku()].slice(0, 30);
+    try { localStorage.setItem(PDR_KALKAN_KAYIT_ANAHTAR, JSON.stringify(liste)); } catch (e) {}
+    if (typeof window !== "undefined") window.dispatchEvent(new Event("pdr-kalkan-kayit"));
+  } catch (e) {}
+}
+function pdrKalkanBildir(metin) {
+  try {
+    let el = document.getElementById("pdr-kalkan-bildirim");
+    if (!el) { el = document.createElement("div"); el.id = "pdr-kalkan-bildirim"; Object.assign(el.style, { position: "fixed", left: "50%", transform: "translateX(-50%)", top: "16px", maxWidth: "90vw", background: "#7F1D1D", color: "#fff", padding: "10px 14px", borderRadius: "12px", fontSize: "13px", fontWeight: "700", zIndex: "2147483001", boxShadow: "0 6px 18px rgba(0,0,0,0.3)", transition: "opacity .3s", pointerEvents: "none", lineHeight: "1.45" }); document.body.appendChild(el); }
+    el.textContent = metin; el.style.opacity = "1";
+    clearTimeout(el._t); el._t = setTimeout(() => { el.style.opacity = "0"; }, 7000);
+  } catch (e) {}
+}
+function pdrKalkanHedefAdi(url, asistan) {
+  let h = ""; try { h = new URL(url, typeof location !== "undefined" ? location.href : undefined).host; } catch (e) { h = String(url).slice(0, 40); }
+  if (asistan) return "Asistan";
+  if (h.includes("pdr-api") || h.includes("rehber-pusula-ai")) return "AI analizi";
+  if (PDR_KALKAN_HEDEFLER.some(x => h.includes(x))) return "Asistan / ücretsiz model";
+  return "Diğer adres (" + h + ")";
+}
+// Ayarlardaki "Kalkanı dene" kutusu için: metni AI'ya göndermeden, telefonda kodlar
+function pdrKalkanDene(metin) {
+  const o = pdrKalkanOturum(); o.genis = true;
+  const t = pdrKalkanMetin(String(metin || ""), o);
+  return { metin: t, sizinti: pdrKalkanSizintiMetin(t), sayilar: { ogrenci: o.sayac, ...o.ek } };
+}
 (function pdrKalkanKur() {
   if (typeof window === "undefined" || !window.fetch || window.__pdrKalkanKuruldu) return;
   window.__pdrKalkanKuruldu = true;
   const asil = window.fetch.bind(window);
   window.fetch = async function (girdi, ayar) {
     const url = String(girdi && girdi.url ? girdi.url : girdi);
-    if (!PDR_KALKAN_HEDEFLER.some(h => url.includes(h)) || !ayar || typeof ayar.body !== "string") return asil(girdi, ayar);
+    const hedefte = PDR_KALKAN_HEDEFLER.some(h => url.includes(h));
+    const govdeVar = ayar && ayar.body != null && ayar.body !== "";
+    const durdur = (neden, hedef) => {
+      pdrKalkanKayitEkle({ hedef: hedef || pdrKalkanHedefAdi(url, false), durum: "durduruldu", neden });
+      pdrKalkanBildir("🛡️ Gizlilik kalkanı isteği durdurdu: " + neden + ". Yapay zekâya hiçbir şey gönderilmedi.");
+      return new Response(JSON.stringify({ error: { type: "gizlilik_kalkani", message: "Gizlilik kalkanı bu isteği durdurdu (" + neden + "). Yapay zekâya hiçbir şey gönderilmedi." } }), { status: 451, headers: { "Content-Type": "application/json" } });
+    };
     let govde;
-    try { govde = JSON.parse(ayar.body); } catch (e) { return asil(girdi, ayar); }
+    if (!hedefte) {
+      // Listede olmayan adres: gövde bir yapay zekâ isteğine benziyorsa o da kalkandan geçer
+      if (!govdeVar || typeof ayar.body !== "string" || ayar.body.length < 20 || ayar.body[0] !== "{") return asil(girdi, ayar);
+      try { govde = JSON.parse(ayar.body); } catch (e) { return asil(girdi, ayar); }
+      if (!pdrKalkanAiIstegiMi(govde)) return asil(girdi, ayar);
+    } else {
+      // KAPALI GÜVENLİK: kalkan gövdeyi okuyamazsa istek gönderilmez
+      if (!govdeVar) {
+        if (girdi && typeof girdi === "object" && girdi.method && !/^(GET|HEAD)$/i.test(girdi.method)) return durdur("istek gövdesi okunamadı");
+        return asil(girdi, ayar);
+      }
+      if (typeof ayar.body !== "string") return durdur("istek biçimi tanınmadı");
+      try { govde = JSON.parse(ayar.body); } catch (e) { return durdur("istek gövdesi okunamadı"); }
+      if (!govde || typeof govde !== "object") return durdur("istek biçimi tanınmadı");
+    }
     const o = pdrKalkanOturum();
-    const temiz = pdrKalkanGez(govde, o);
+    // Veli/öğretmen/okul/yer adları da TÜM yapay zekâ isteklerinde kodlanır (Asistan bunu
+    // __kalkanGenis ile zaten istiyordu; diğer analizler için de varsayılan oldu).
+    const asistanIstegi = !!(govde && govde.__kalkanGenis);
+    o.genis = true;
+    if (govde && govde.__kalkanGenis) delete govde.__kalkanGenis;
+    if (govde && govde.__asistan) delete govde.__asistan;
+    const hedefAdi = pdrKalkanHedefAdi(url, asistanIstegi);
+    let temiz;
+    try { temiz = pdrKalkanGez(govde, o); } catch (e) { return durdur("kodlama sırasında hata", hedefAdi); }
+    // Asistan dışındaki analizlerde modele kodların anlamı kısaca bildirilir
+    if (!asistanIstegi && temiz && typeof temiz.system === "string" && (o.ek["KİŞİ"] || o.ek.OKUL || o.ek.YER)) {
+      temiz.system += "\n\n(Gizlilik: Metindeki [KİŞİ-n], [OKUL-n], [YER-n] kodları gerçek kişi, okul ve yer adlarının yerine konmuştur; yanıtında bu kodları aynen kullan.)";
+    }
+    // Sızıntı bekçisi
+    let sizinti = "";
+    try { sizinti = pdrKalkanSizintiAra(temiz); } catch (e) { sizinti = "son kontrol yapılamadı"; }
+    if (sizinti) return durdur(sizinti + " kodlanmadan kalmıştı", hedefAdi);
+    const gidenMetin = JSON.stringify(temiz);
     window.__pdrKalkanSon = { kod: o.sayac, ek: { ...o.ek } }; // test/denetim için: kaç ad gizlendi
-    const yanit = await asil(girdi, { ...ayar, body: JSON.stringify(temiz) });
+    window.__pdrKalkanSonGiden = gidenMetin; // "Modele ne gitti?" görünümü için
+    const sayilar = { ogrenci: o.sayac, sinif: o.sinif.size };
+    Object.keys(o.ek).forEach(k => { if (o.ek[k]) sayilar[k] = o.ek[k]; });
+    pdrKalkanKayitEkle({ hedef: hedefAdi, durum: "gönderildi", sayilar, dosya: o.dosya, boyut: gidenMetin.length, giden: gidenMetin.length > 60000 ? gidenMetin.slice(0, 60000) + "…" : gidenMetin });
+    const yanit = await asil(girdi, { ...ayar, body: gidenMetin });
     if (o.geri.size === 0) return yanit;
     const metin = await yanit.text();
     let cikti = metin;
@@ -19510,6 +19771,76 @@ function YedekHatirlatmaBandi({ ogrenciSayisi, tab, setTab }) {
   );
 }
 
+// ── Ayarlar: AI Gizlilik Kalkanı kartı (deneme kutusu + gizlilik kaydı) ──
+const PDR_KALKAN_ETIKET = { ogrenci: "öğrenci", sinif: "sınıf", "KİŞİ": "kişi", OKUL: "okul", YER: "yer/adres", TC: "T.C. no", TELEFON: "telefon", EPOSTA: "e-posta", N: "okul no", IBAN: "IBAN", PLAKA: "plaka", "DOĞUM": "doğum tarihi" };
+function pdrKalkanSayiMetni(s) {
+  const p = Object.keys(PDR_KALKAN_ETIKET).filter(k => s && s[k]).map(k => `${s[k]} ${PDR_KALKAN_ETIKET[k]}`);
+  return p.length ? p.join(" · ") : "gizlenecek bilgi yoktu";
+}
+function KalkanKarti() {
+  const [kayit, setKayit] = useState(() => (typeof pdrKalkanKayitOku === "function" ? pdrKalkanKayitOku() : []));
+  const [deneMetin, setDeneMetin] = useState("");
+  const [deneSonuc, setDeneSonuc] = useState(null);
+  const [acik, setAcik] = useState(null);
+  const [hepsi, setHepsi] = useState(false);
+  useEffect(() => {
+    const yenile = () => setKayit(pdrKalkanKayitOku());
+    window.addEventListener("pdr-kalkan-kayit", yenile);
+    return () => window.removeEventListener("pdr-kalkan-kayit", yenile);
+  }, []);
+  const korunan = window.__pdrKalkanAdSayisi || 0;
+  const durdurulan = kayit.filter(k => k.durum === "durduruldu").length;
+  const gorunen = hepsi ? kayit : kayit.slice(0, 5);
+  const tarih = (z) => { const d = new Date(z), i = n => String(n).padStart(2, "0"); return `${i(d.getDate())}.${i(d.getMonth() + 1)} ${i(d.getHours())}:${i(d.getMinutes())}`; };
+  const oturumGiden = (id) => (window.__pdrKalkanOturumGiden || {})[id];
+  return (
+    <div data-testid="kalkan-karti" style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 12, padding: 14, marginBottom: 16 }}>
+      <div style={{ fontWeight: 800, marginBottom: 6, fontSize: 14, color: "#1E3A8A" }}>🛡️ AI Gizlilik Kalkanı <span style={{ fontSize: 11, background: "#1E3A8A", color: "#fff", borderRadius: 8, padding: "2px 8px", marginLeft: 6 }}>AÇIK</span></div>
+      <div style={{ fontSize: 13, color: TEXT, lineHeight: 1.55, marginBottom: 8 }}>
+        Yapay zekâya giden her istek önce bu telefonda taranır. Öğrenci adları, veli/öğretmen/yakın adları, okul ve adres, T.C. no, telefon, e-posta, IBAN, plaka ve doğum tarihi koda çevrilir; yanıt gelince kodlar yine telefonda gerçek adlara döner.
+        <div style={{ marginTop: 6, fontSize: 12, color: MUTED }}>Gönderimden hemen önce ikinci bir kontrol yapılır: açık bir bilgi kalmışsa ya da kalkan isteği okuyamazsa istek <b>hiç gönderilmez</b>. Korunan kayıtlı öğrenci: <b>{korunan}</b>.</div>
+      </div>
+
+      <div style={{ background: "#fff", border: "1px solid #DBEAFE", borderRadius: 10, padding: 10, marginBottom: 10 }}>
+        <div style={{ fontWeight: 700, fontSize: 12.5, color: "#1E3A8A", marginBottom: 6 }}>Kalkanı dene (hiçbir yere gönderilmez)</div>
+        <textarea data-testid="kalkan-dene-metin" value={deneMetin} onChange={e => setDeneMetin(e.target.value)} rows={3} placeholder="Örn: Teneffüste Emre ona vurmuş, annesi Ayşe Hanım 0532 123 45 67'den aradı." style={{ width: "100%", boxSizing: "border-box", padding: 8, border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit", resize: "vertical" }} />
+        <button data-testid="kalkan-dene" onClick={() => setDeneSonuc(deneMetin.trim() ? pdrKalkanDene(deneMetin) : null)} style={{ marginTop: 6, padding: "8px 12px", background: "#1E3A8A", color: "#fff", border: "none", borderRadius: 8, fontWeight: 800, cursor: "pointer" }}>Yapay zekâ ne görürdü?</button>
+        {deneSonuc && (
+          <div data-testid="kalkan-dene-sonuc" style={{ marginTop: 8, fontSize: 12.5, lineHeight: 1.5 }}>
+            <div style={{ background: "#F8FAFC", border: `1px solid ${BORDER}`, borderRadius: 8, padding: 8, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{deneSonuc.metin}</div>
+            <div style={{ marginTop: 4, color: deneSonuc.sizinti ? "#B91C1C" : "#166534", fontWeight: 700 }}>{deneSonuc.sizinti ? `⛔ ${deneSonuc.sizinti} kalmıştı; böyle bir istek durdurulurdu.` : `✓ Gizlenen: ${pdrKalkanSayiMetni(deneSonuc.sayilar)}`}</div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ fontWeight: 700, fontSize: 12.5, color: "#1E3A8A", marginBottom: 6 }}>Gizlilik kaydı — son istekler {durdurulan ? <span style={{ color: "#B91C1C" }}>({durdurulan} durduruldu)</span> : null}</div>
+      {!kayit.length ? (
+        <div style={{ fontSize: 12.5, color: MUTED }}>Henüz yapay zekâya istek gönderilmedi.</div>
+      ) : (
+        <div data-testid="kalkan-kayit" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {gorunen.map(k => (
+            <div key={k.id} style={{ background: k.durum === "durduruldu" ? "#FEF2F2" : "#fff", border: `1px solid ${k.durum === "durduruldu" ? "#FECACA" : "#DBEAFE"}`, borderRadius: 8, padding: "7px 9px", fontSize: 12, lineHeight: 1.45 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 6, flexWrap: "wrap" }}>
+                <b>{k.durum === "durduruldu" ? "⛔ Durduruldu" : "✓ Gönderildi"} · {k.hedef}</b>
+                <span style={{ color: MUTED }}>{tarih(k.z)}</span>
+              </div>
+              {k.durum === "durduruldu" ? <div style={{ color: "#B91C1C" }}>Neden: {k.neden}. Hiçbir şey gönderilmedi.</div>
+                : <div style={{ color: TEXT }}>Gizlenen: {pdrKalkanSayiMetni(k.sayilar)}</div>}
+              {k.dosya ? <div style={{ color: "#92400E" }}>📎 {k.dosya} fotoğraf/PDF de gitti — içindeki yazılar kalkandan geçemez.</div> : null}
+              {oturumGiden(k.id) ? (
+                <button onClick={() => setAcik(acik === k.id ? null : k.id)} style={{ marginTop: 4, padding: "3px 8px", fontSize: 11.5, background: "#fff", border: "1px solid #BFDBFE", color: "#1E3A8A", borderRadius: 6, fontWeight: 700, cursor: "pointer" }}>{acik === k.id ? "Gizle" : "Modele ne gitti?"}</button>
+              ) : null}
+              {acik === k.id && oturumGiden(k.id) ? <pre style={{ marginTop: 6, maxHeight: 220, overflow: "auto", background: "#F8FAFC", border: `1px solid ${BORDER}`, borderRadius: 6, padding: 6, fontSize: 11, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{oturumGiden(k.id)}</pre> : null}
+            </div>
+          ))}
+          {kayit.length > 5 && <button onClick={() => setHepsi(!hepsi)} style={{ alignSelf: "flex-start", padding: "4px 10px", fontSize: 12, background: "none", border: "none", color: "#1E3A8A", fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>{hepsi ? "Daha az göster" : `Tümünü göster (${kayit.length})`}</button>}
+          <div style={{ fontSize: 11, color: MUTED }}>Kayıtta ad ya da not bulunmaz; yalnızca bu cihazda durur. "Modele ne gitti?" yalnızca program açıkken yapılan istekler için görünür.</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Ayarlar: Cihazda Şifreleme kartı ──
 function SifrelemeKarti({ yedekIndir, yedekIndiriliyor, sonYedekTarihi }) {
   const durumOku = () => (window.pdrSifreDurum ? window.pdrSifreDurum() : { destek: false, acik: false });
@@ -20130,6 +20461,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
       </div>
 
       <SifrelemeKarti yedekIndir={handleYedekIndir} yedekIndiriliyor={yedekIndiriliyor} sonYedekTarihi={sonYedekTarihi} />
+      <KalkanKarti />
 
       <div style={{ background: "#F8FAFC", border: `1px solid ${BORDER}`, borderRadius: 12, padding: 14, marginBottom: 16 }}>
         <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 14, color: TEXT }}>📄 Sözleşme ve KVKK Metinleri</div>
