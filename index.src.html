@@ -1645,7 +1645,7 @@ const PDR_KALKAN_NUMARA_ANAHTARLARI = ["numara", "ogrenciNo", "okulNo", "ogrenci
 
 // Tek bir istek için kod tablosu
 function pdrKalkanOturum() {
-  return { kod: new Map(), geri: new Map(), sayac: 0, ek: { TC: 0, TELEFON: 0, EPOSTA: 0, N: 0, "KİŞİ": 0, OKUL: 0, YER: 0, IBAN: 0, PLAKA: 0, "DOĞUM": 0 }, sinif: new Map(), numara: new Map(), buIstekteTam: new Set(), genis: false, genisKod: new Map(), dosya: 0 };
+  return { kod: new Map(), geri: new Map(), sayac: 0, ek: { TC: 0, TELEFON: 0, EPOSTA: 0, N: 0, "KİŞİ": 0, OKUL: 0, YER: 0, IBAN: 0, PLAKA: 0, "DOĞUM": 0 }, sinif: new Map(), numara: new Map(), buIstekteTam: new Set(), genis: false, genisKod: new Map(), dosya: 0, dosyaImza: [] };
 }
 function pdrKalkanKodVer(o, anahtar, gorunen) {
   if (!o.kod.has(anahtar)) { o.sayac += 1; const k = "Öğrenci-" + o.sayac; o.kod.set(anahtar, k); o.geri.set(k, gorunen); }
@@ -1692,7 +1692,7 @@ function pdrKalkanMetin(s, o) {
   }
   // Okul numarası: programın kimlik biçimi "No:12" ve kayıt anahtarı "Ad||Sınıf||12" -> "[N-1]"
   // (Soru no, madde no gibi başka sayılara dokunulmaz.)
-  t = t.replace(/(^|[^\p{L}])(No:)(\d{1,6})(?!\d)/gu, (m, on, no, v) => on + no + pdrKalkanNumara(o, v));
+  t = t.replace(/(^|[^\p{L}])((?:(?:Okul|Öğrenci|Öğr|Ögr)\.?\s*No\.?\s*:?\s*)|(?:No\s*:\s*)|(?:Numara(?:sı)?\s*:\s*))(\d{1,6})(?!\d)/giu, (m, on, no, v) => on + no + pdrKalkanNumara(o, v));
   t = t.replace(/(\|\|)(\d{1,6})$/, (m, on, v) => on + pdrKalkanNumara(o, v));
   // IBAN, doğum tarihi ve araç plakası (TC/telefon taramasından önce)
   t = t.replace(/(^|[^\p{L}\p{N}])(TR\s?\d{2}(?:\s?[0-9A-Z]{4}){5}\s?[0-9A-Z]{2})(?![\p{L}\p{N}])/giu, (m, on, v) => on + etiket("IBAN", v));
@@ -1812,7 +1812,7 @@ function pdrKalkanGez(x, o, anahtar) {
   if (PDR_KALKAN_NUMARA_ANAHTARLARI.includes(anahtar) && (typeof x === "string" || typeof x === "number") && String(x).trim()) return pdrKalkanNumara(o, x);
   if (typeof x === "string") {
     if (PDR_KALKAN_DOKUNMA.includes(anahtar)) return x;
-    if (pdrKalkanVeriMi(x)) { o.dosya += 1; return x; }
+    if (pdrKalkanVeriMi(x)) { o.dosya += 1; o.dosyaImza.push(x.length + ":" + x.slice(-60)); return x; }
     return pdrKalkanMetin(x, o);
   }
   // Sayı olarak yazılmış TC / telefon (10-11 haneli tam sayı)
@@ -1822,7 +1822,7 @@ function pdrKalkanGez(x, o, anahtar) {
   }
   if (Array.isArray(x)) return x.map(e => pdrKalkanGez(e, o));
   if (x && typeof x === "object") {
-    if (x.type === "base64" && typeof x.data === "string") { o.dosya += 1; return x; }
+    if (x.type === "base64" && typeof x.data === "string") { o.dosya += 1; o.dosyaImza.push(x.data.length + ":" + x.data.slice(-60)); return x; }
     const y = {};
     Object.keys(x).forEach(k => { y[["apiKey", "model", "action"].includes(k) ? k : pdrKalkanMetin(k, o)] = pdrKalkanGez(x[k], o, k); });
     return y;
@@ -1923,6 +1923,16 @@ function pdrKalkanHedefAdi(url, asistan) {
   if (PDR_KALKAN_HEDEFLER.some(x => h.includes(x))) return "Asistan / ücretsiz model";
   return "Diğer adres (" + h + ")";
 }
+// Fotoğraf/PDF uyarısı. Aynı dosya bu oturumda onaylandıysa yeniden sorulmaz.
+function pdrKalkanDosyaSor(adet, imzalar) {
+  try {
+    window.__pdrKalkanDosyaOnay = window.__pdrKalkanDosyaOnay || new Set();
+    if (imzalar.length && imzalar.every(i => window.__pdrKalkanDosyaOnay.has(i))) return true;
+    const tamam = window.confirm(`📎 Bu işlemde ${adet} fotoğraf/PDF yapay zekâya gidecek.\n\nGizlilik kalkanı fotoğrafın ya da PDF'in İÇİNDEKİ yazıları göremez. Kâğıtta öğrenci adı, numarası, T.C. no ya da imza görünüyorsa göndermeden önce kapat veya kırp.\n\nGönderilsin mi?`);
+    if (tamam) imzalar.forEach(i => window.__pdrKalkanDosyaOnay.add(i));
+    return !!tamam;
+  } catch (e) { return false; }
+}
 // Ayarlardaki "Kalkanı dene" kutusu için: metni AI'ya göndermeden, telefonda kodlar
 function pdrKalkanDene(metin) {
   const o = pdrKalkanOturum(); o.genis = true;
@@ -1937,10 +1947,11 @@ function pdrKalkanDene(metin) {
     const url = String(girdi && girdi.url ? girdi.url : girdi);
     const hedefte = PDR_KALKAN_HEDEFLER.some(h => url.includes(h));
     const govdeVar = ayar && ayar.body != null && ayar.body !== "";
-    const durdur = (neden, hedef) => {
+    const durdur = (neden, hedef, sessiz) => {
       pdrKalkanKayitEkle({ hedef: hedef || pdrKalkanHedefAdi(url, false), durum: "durduruldu", neden });
-      pdrKalkanBildir("🛡️ Gizlilik kalkanı isteği durdurdu: " + neden + ". Yapay zekâya hiçbir şey gönderilmedi.");
-      return new Response(JSON.stringify({ error: { type: "gizlilik_kalkani", message: "Gizlilik kalkanı bu isteği durdurdu (" + neden + "). Yapay zekâya hiçbir şey gönderilmedi." } }), { status: 451, headers: { "Content-Type": "application/json" } });
+      if (!sessiz) pdrKalkanBildir("🛡️ Gizlilik kalkanı isteği durdurdu: " + neden + ". Yapay zekâya hiçbir şey gönderilmedi.");
+      const mesaj = sessiz ? "Gönderim iptal edildi; yapay zekâya hiçbir şey gönderilmedi." : "Gizlilik kalkanı bu isteği durdurdu (" + neden + "). Yapay zekâya hiçbir şey gönderilmedi.";
+      return new Response(JSON.stringify({ error: mesaj, kalkan: true }), { status: 451, headers: { "Content-Type": "application/json" } });
     };
     let govde;
     if (!hedefte) {
@@ -1965,6 +1976,8 @@ function pdrKalkanDene(metin) {
     o.genis = true;
     if (govde && govde.__kalkanGenis) delete govde.__kalkanGenis;
     if (govde && govde.__asistan) delete govde.__asistan;
+    const dosyaOnayli = !!(govde && govde.__kalkanDosyaOnayli);   // ör. kütüphane kaynağı: öğrenci belgesi değil
+    if (govde && "__kalkanDosyaOnayli" in govde) delete govde.__kalkanDosyaOnayli;
     const hedefAdi = pdrKalkanHedefAdi(url, asistanIstegi);
     let temiz;
     try { temiz = pdrKalkanGez(govde, o); } catch (e) { return durdur("kodlama sırasında hata", hedefAdi); }
@@ -1976,6 +1989,8 @@ function pdrKalkanDene(metin) {
     let sizinti = "";
     try { sizinti = pdrKalkanSizintiAra(temiz); } catch (e) { sizinti = "son kontrol yapılamadı"; }
     if (sizinti) return durdur(sizinti + " kodlanmadan kalmıştı", hedefAdi);
+    // Fotoğraf/PDF: kalkan içindeki yazıyı göremez → göndermeden önce danışmana sorulur
+    if (o.dosya > 0 && !dosyaOnayli && !pdrKalkanDosyaSor(o.dosya, o.dosyaImza)) return durdur("fotoğraf/PDF gönderimi danışman tarafından iptal edildi", hedefAdi, true);
     const gidenMetin = JSON.stringify(temiz);
     window.__pdrKalkanSon = { kod: o.sayac, ek: { ...o.ek } }; // test/denetim için: kaç ad gizlendi
     window.__pdrKalkanSonGiden = gidenMetin; // "Modele ne gitti?" görünümü için
