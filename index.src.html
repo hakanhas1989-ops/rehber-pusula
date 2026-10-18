@@ -7502,6 +7502,47 @@ function ayHaftalariniHesapla(ayIndex, yil) {
   return Object.values(haftalar);
 }
 
+// ── Öğrenci eşleştirme yardımcıları (sekmeler arası tutarlılık) ──
+// Kayıtlar öğrenciyi farklı biçimlerde taşıyabilir: numara bir kayıtta boş, diğerinde
+// dolu; sınıf "8B" / "8-B"; öğrenci sonradan şube değiştirmiş. Kayıtları birebir
+// "Ad || Sınıf || Numara" metniyle gruplamak aynı öğrenciyi iki kişi sayar (ör. takip
+// listesinde yanlış "30+ gün"). pdrOgrenciGrupla her kaydı önce kayıtlı öğrenciye
+// bağlar, sonra pdrAyniOgrenci ile birleştirir.
+function pdrIlkAd(ad) { return String(ad || "").toLocaleLowerCase("tr").trim().split(/\s+/)[0] || ""; }
+function pdrOgrenciGrupla(kayitlar, ogrenciler) {
+  const dizin = new Map();
+  (ogrenciler || []).forEach(o => { const k = pdrIlkAd(o.studentName || o.name); if (!dizin.has(k)) dizin.set(k, []); dizin.get(k).push(o); });
+  const kayitliBul = (ad, sn, no) => {
+    const uy = (o) => pdrAyniOgrenci(o.studentName || o.name, o.className, ad, sn, o.numara, no);
+    return (dizin.get(pdrIlkAd(ad)) || []).find(uy) || (no && sn ? (ogrenciler || []).find(uy) : null);
+  };
+  const gruplar = [], gDizin = new Map();
+  (kayitlar || []).forEach(r => {
+    const ad = r.studentName || r.name || "", sn = r.className || "", no = r.numara || "";
+    const k = kayitliBul(ad, sn, no);
+    const c = k ? { studentName: k.studentName || k.name, className: k.className || "", numara: k.numara || "" } : { studentName: ad, className: sn, numara: no };
+    const ilk = pdrIlkAd(c.studentName);
+    let g = (gDizin.get(ilk) || []).find(x => pdrAyniOgrenci(x.studentName, x.className, c.studentName, c.className, x.numara, c.numara));
+    if (!g) { g = { ...c, kayitlar: [] }; gruplar.push(g); if (!gDizin.has(ilk)) gDizin.set(ilk, []); gDizin.get(ilk).push(g); }
+    else if (!g.numara && c.numara) g.numara = c.numara;
+    g.kayitlar.push(r);
+  });
+  return gruplar;
+}
+// Ekranlarda öğrenci çoğunlukla yalnız adıyla seçili tutuluyor; maskeli soyad yüzünden
+// farklı şubelerde aynı görünen iki öğrenci olabilir. Etkin öğrencinin şubesi
+// biliniyorsa önce ona uyan kayıt seçilir (yoksa eski davranış: adı uyan ilk kayıt).
+function pdrSeciliOgr(liste, ad, aktif, alan) {
+  alan = alan || "name"; if (!ad) return undefined;
+  const ayni = (liste || []).filter(o => o && o[alan] === ad);
+  if (ayni.length <= 1) return ayni[0];
+  if (aktif && aktif.name === ad) {
+    const sn = (x) => String(x || "").toLocaleLowerCase("tr").replace(/[^0-9a-zçğıöşü]/g, "");
+    const uy = ayni.find(o => sn(o.className) === sn(aktif.className) && (!aktif.numara || !o.numara || String(o.numara) === String(aktif.numara)));
+    if (uy) return uy;
+  }
+  return ayni[0];
+}
 function pdrOgrAnahtar(name, className, numara) {
   const n = (name || "").trim();
   const c = (className || "").trim();
@@ -15504,7 +15545,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
     else setSeciliAd("");
   }, [aktifOgrenci?.name]);
 
-  const seciliOgr = kayitliListesi.find(o => o.name === seciliAd);
+  const seciliOgr = pdrSeciliOgr(kayitliListesi, seciliAd, aktifOgrenci);
   const seciliSinif = seciliOgr?.className || aktifOgrenci?.className || "";
   const seciliNumara = seciliOgr?.numara || aktifOgrenci?.numara || "";
   const kayitlar = (pdrSozlukOku(testKayitlari, seciliAd, seciliSinif, seciliNumara) || []).sort((a,b) => new Date(b.tarih) - new Date(a.tarih));
@@ -16355,7 +16396,7 @@ function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mud
 
   useEffect(() => { if (aktifOgrenci?.name) setSeciliAd(aktifOgrenci.name); else setSeciliAd(""); }, [aktifOgrenci?.name]);
 
-  const seciliSinif = kayitliListesi.find(o => o.name === seciliAd)?.className || aktifOgrenci?.className || "";
+  const seciliSinif = pdrSeciliOgr(kayitliListesi, seciliAd, aktifOgrenci)?.className || aktifOgrenci?.className || "";
   const ogrPlanlar = (pdrSozlukOku(mudahalePlan, seciliAd, seciliSinif) || []).sort((a,b) => new Date(b.tarih) - new Date(a.tarih));
   const ogrRec = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, seciliAd, seciliSinif));
 
@@ -16384,7 +16425,7 @@ function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mud
       body: JSON.stringify({
         action: "mudahale_plani",
         apiKey,
-        data: { studentName: seciliAd, className: seciliSinif, numara: kayitliListesi.find(o => o.name === seciliAd)?.numara, notlar, kademeMetni, kutuphaneBaglam, kademe, kutuphaneVarMi: kutuphane?.length > 0 },
+        data: { studentName: seciliAd, className: seciliSinif, numara: pdrSeciliOgr(kayitliListesi, seciliAd, aktifOgrenci)?.numara, notlar, kademeMetni, kutuphaneBaglam, kademe, kutuphaneVarMi: kutuphane?.length > 0 },
       }),
     });
     const data = await res.json();
@@ -16842,7 +16883,7 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
     else setSeciliAd("");
   }, [aktifOgrenci?.name]);
 
-  const seciliOgr = kayitliListesi.find(o => o.name === seciliAd);
+  const seciliOgr = pdrSeciliOgr(kayitliListesi, seciliAd, aktifOgrenci);
   const seciliSinif = seciliOgr?.className || aktifOgrenci?.className || "";
   const seciliNumara = seciliOgr?.numara || aktifOgrenci?.numara || "";
 
@@ -17675,7 +17716,7 @@ function KonuHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, kon
   const dersListesi = liseMi ? (sinavTip === "ayt" ? AYT_KONU_HARITASI_DERSLER : TYT_KONU_HARITASI_DERSLER) : LGS_KONU_HARITASI_DERSLER;
   function dersAnahtari(ders) { return liseMi ? `${sinavTip.toUpperCase()}-${ders}` : ders; }
 
-  const seciliOgr = kayitliListesi.find(o => o.name === seciliAd);
+  const seciliOgr = pdrSeciliOgr(kayitliListesi, seciliAd, aktifOgrenci);
   const seciliSinif = seciliOgr?.className || aktifOgrenci?.className || "";
   const seciliNumara = seciliOgr?.numara || aktifOgrenci?.numara || "";
   const ogrAnahtar = seciliAd ? pdrOgrAnahtar(seciliAd, seciliSinif, seciliNumara) : null;
@@ -17966,11 +18007,11 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
     else setSeciliAd("");
   }, [aktifOgrenci?.name]);
 
-  const seciliOgr = kayitliListesi.find(o => o.name === seciliAd);
+  const seciliOgr = pdrSeciliOgr(kayitliListesi, seciliAd, aktifOgrenci);
   const seciliSinif = seciliOgr?.className || aktifOgrenci?.className || "";
   const seciliNumara = seciliOgr?.numara || aktifOgrenci?.numara || "";
 
-  const ogrKayitlar = (netHaritasiKayitlari||[]).filter(k => k.studentName === seciliAd).sort((a,b) => pdrTarihMs(b.tarih) - pdrTarihMs(a.tarih));
+  const ogrKayitlar = (netHaritasiKayitlari||[]).filter(k => pdrAyniOgrenci(k.studentName, k.className, seciliAd, seciliSinif, k.numara, seciliNumara)).sort((a,b) => pdrTarihMs(b.tarih) - pdrTarihMs(a.tarih));
 
   // Öğrencinin tüm denemelerindeki hata türü işaretlemelerini tek bir tabloya
   // toplar: ders → hata türü → (her deneme için sayı) + toplam. Hiç işaretleme
@@ -18563,7 +18604,7 @@ function SevkTakipEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, sevkle
         <label style={lbl}>ÖĞRENCİ</label>
         <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
           {kayitliListesi.filter(o=>o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) || o.numara?.includes(aramaMetni)).slice(0,12).map(o=>{
-            const s=form.studentName===o.name;
+            const s=form.studentName===o.name && (form.className||"")===(o.className||"");
             return <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={()=>{setForm(f=>({...f,studentName:o.name,className:o.className||""})); if(setAktifOgrenci) setAktifOgrenci({ name:o.name, className:o.className||"" });}} style={{padding:"4px 10px",borderRadius:16,border:`2px solid ${s?ACCENT:BORDER}`,background:s?ACCENT_LIGHT:CARD,color:s?ACCENT:MUTED,fontSize:11,fontWeight:s?700:500,cursor:"pointer"}}>{o.name}</button>;
           })}
         </div>
@@ -18646,7 +18687,7 @@ function MEBRaporEkrani({ records, profiles, riskListesi, sevkler, kayitliListes
   const toplamGorusme = records.length;
   const ogrenciGorusme = records.filter(r => (r.meetingType||"Öğrenci")==="Öğrenci").length;
   const veliGorusme = records.filter(r => r.meetingType==="Veli").length;
-  const benzersizOgrenci = new Set(records.map(r => r.studentName?.toLocaleLowerCase("tr").trim())).size;
+  const benzersizOgrenci = pdrOgrenciGrupla(records.filter(r => (r.meetingType || "Öğrenci") !== "Veli"), []).length;
   const aktifRisk = riskListesi.filter(r => !r.kapandi).length;
   const tamamlananSevk = sevkler.filter(s => !s.sonucBekleniyor).length;
   const bekleyenSevk = sevkler.filter(s => s.sonucBekleniyor).length;
@@ -18769,7 +18810,7 @@ function VeliMektubu({ kayitliListesi, aktifOgrenci, records }) {
 
   useEffect(() => { if (aktifOgrenci?.name) setSeciliAd(aktifOgrenci.name); }, [aktifOgrenci?.name]);
 
-  const seciliSinif = kayitliListesi.find(o => o.name === seciliAd)?.className || aktifOgrenci?.className || "";
+  const seciliSinif = pdrSeciliOgr(kayitliListesi, seciliAd, aktifOgrenci)?.className || aktifOgrenci?.className || "";
   const ogrRec = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, seciliAd, seciliSinif));
 
   async function handleOlustur() {
@@ -21287,8 +21328,8 @@ function OgrenciYonetim({
   }
 
   // Seçili öğrencinin verileri
-  const seciliOgrenciSinif = tumOgrenciler.find(x => x.studentName === seciliOgrenci)?.className || "";
-  const seciliOgrenciNumara = tumOgrenciler.find(x => x.studentName === seciliOgrenci)?.numara || "";
+  const seciliOgrenciSinif = pdrSeciliOgr(tumOgrenciler, seciliOgrenci, aktifOgrenci, "studentName")?.className || "";
+  const seciliOgrenciNumara = pdrSeciliOgr(tumOgrenciler, seciliOgrenci, aktifOgrenci, "studentName")?.numara || "";
   const ogrRec = records.filter(r => pdrAyniOgrenci(r.studentName, r.className, seciliOgrenci, seciliOgrenciSinif, r.numara, seciliOgrenciNumara));
   const ogrP1 = profiles.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliOgrenci, seciliOgrenciSinif, p.numara, seciliOgrenciNumara));
   const ogrP2 = profiles2.find(p => pdrAyniOgrenci(p.studentName, p.className, seciliOgrenci, seciliOgrenciSinif, p.numara, seciliOgrenciNumara));
@@ -21393,8 +21434,8 @@ function OgrenciYonetim({
                 .map(r => {
                   const ogr = tumOgrenciler.find(o => pdrAyniOgrenci(o.studentName, o.className, r.studentName, r.className));
                   return {
-                    id: r.id, date: r.date, studentName: r.studentName, meetingType: r.meetingType || "Öğrenci", topic: r.topic || "", altKonu: r.altKonu || "",
-                    className: r.className || ogr?.className || "", numara: ogr?.numara || "",
+                    id: r.id, date: r.date, studentName: ogr?.studentName || r.studentName, meetingType: r.meetingType || "Öğrenci", topic: r.topic || "", altKonu: r.altKonu || "",
+                    className: ogr?.className || r.className || "", numara: ogr?.numara || r.numara || "",
                   };
                 })
                 // ÖNEMLİ: tarih DD.MM.YYYY formatında — birden fazla ay/yıl arasında
@@ -21689,7 +21730,7 @@ function OgrenciYonetim({
                 profil2: ogrP2 || null,
                 gorusmeler: ogrRec,
                 denemeler: ogrDeneme,
-                kaynastirma: tumOgrenciler.find(x => x.studentName === seciliOgrenci)?.kaynastirma || []
+                kaynastirma: pdrSeciliOgr(tumOgrenciler, seciliOgrenci, aktifOgrenci, "studentName")?.kaynastirma || []
               });
             }} style={{ background:ACCENT, color:"#fff", border:"none", borderRadius:8, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer" }}>📄 Rapor</button>
           </div>
@@ -21711,6 +21752,9 @@ function OgrenciYonetim({
                   const yAd = pdrSoyadMaskele(yeniAdDegeri.trim()), yeSinif = yeniSinifDegeri.trim();
                   if (!yAd || !yeSinif || (yAd === seciliOgrenci && yeSinif === seciliOgrenciSinif)) { setSinifGuncelleAcik(false); return; }
                   await onSinifGuncelle(seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara, yAd, yeSinif);
+                  // Ekran yeni ad/sınıftaki öğrencide kalsın (ad değiştiyse seçim kaybolmasın)
+                  setSeciliOgrenci(yAd);
+                  if (setAktifOgrenci) setAktifOgrenci({ name: yAd, className: yeSinif, numara: seciliOgrenciNumara || "" });
                   setSinifGuncelleAcik(false);
                 }} disabled={!yeniAdDegeri.trim() || !yeniSinifDegeri.trim()} style={{ padding:"8px 14px", background:(yeniAdDegeri.trim()&&yeniSinifDegeri.trim())?ACCENT:BORDER, color:(yeniAdDegeri.trim()&&yeniSinifDegeri.trim())?"#fff":MUTED, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer" }}>💾 Kaydet</button>
               </div>
@@ -21836,9 +21880,9 @@ function OgrenciYonetim({
               ilerlemeNotlari={ilerlemeNotlari}
               setIlerlemeNotlari={setIlerlemeNotlari}
               setTab={setTab}
-              devamsizlikGecmisi={tumOgrenciler.find(x => x.studentName === seciliOgrenci)?.devamsizlikGecmisi || []}
+              devamsizlikGecmisi={pdrSeciliOgr(tumOgrenciler, seciliOgrenci, aktifOgrenci, "studentName")?.devamsizlikGecmisi || []}
               onDevamsizlikGuncelle={async (yeniDeger, tarih) => {
-                const hedefOgr = tumOgrenciler.find(x => x.studentName === seciliOgrenci);
+                const hedefOgr = pdrSeciliOgr(tumOgrenciler, seciliOgrenci, aktifOgrenci, "studentName");
                 const eskiGecmis = hedefOgr?.devamsizlikGecmisi || [];
                 const yeniGecmis = [...eskiGecmis, { tarih: tarih || today(), gun: yeniDeger }];
                 const updated = ogrenciler.map(o => pdrAyniOgrenci(o.studentName, o.className, seciliOgrenci, seciliOgrenciSinif, o.numara, seciliOgrenciNumara) ? { ...o, devamsizlikGecmisi: yeniGecmis } : o);
@@ -21846,9 +21890,9 @@ function OgrenciYonetim({
                 await saveOgrenciler(updated);
               }}
               kademe={kademe}
-              olayKayitlari={tumOgrenciler.find(x => x.studentName === seciliOgrenci)?.olayKayitlari || []}
+              olayKayitlari={pdrSeciliOgr(tumOgrenciler, seciliOgrenci, aktifOgrenci, "studentName")?.olayKayitlari || []}
               onOlayEkle={async (yeniOlay) => {
-                const hedefOgr = tumOgrenciler.find(x => x.studentName === seciliOgrenci);
+                const hedefOgr = pdrSeciliOgr(tumOgrenciler, seciliOgrenci, aktifOgrenci, "studentName");
                 const eskiOlaylar = hedefOgr?.olayKayitlari || [];
                 const yeniOlaylar = [...eskiOlaylar, { tarih: today(), ...yeniOlay }];
                 const updated = ogrenciler.map(o => pdrAyniOgrenci(o.studentName, o.className, seciliOgrenci, seciliOgrenciSinif, o.numara, seciliOgrenciNumara) ? { ...o, olayKayitlari: yeniOlaylar } : o);
@@ -22485,8 +22529,8 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
     o.className?.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) ||
     o.numara?.includes(aramaMetni)
   );
-  const seciliOgrenciSinif = kayitliListesi.find(o => o.name === seciliOgrenci)?.className || aktifOgrenci?.className || "";
-  const seciliOgrenciNumara = kayitliListesi.find(o => o.name === seciliOgrenci)?.numara || "";
+  const seciliOgrenciSinif = pdrSeciliOgr(kayitliListesi, seciliOgrenci, aktifOgrenci)?.className || aktifOgrenci?.className || "";
+  const seciliOgrenciNumara = pdrSeciliOgr(kayitliListesi, seciliOgrenci, aktifOgrenci)?.numara || "";
 
   const ogrenciDenemeler = pdrSozlukOku(denemeler, seciliOgrenci, seciliOgrenciSinif, seciliOgrenciNumara) || {};
   const sinif7Data = ogrenciDenemeler["7sinif"] || null;
@@ -24527,8 +24571,7 @@ function SinifProfili({ ogrenciler, setOgrenciler, records, riskListesi, aktifYi
     });
 
     // Kaç FARKLI öğrenci en az 1 kez servise gelmiş (toplam görüşme sayısından farklı)
-    const gelenOgrenciAdlari = new Set(gorusmeler.map(r => r.studentName?.toLocaleLowerCase("tr").trim()).filter(Boolean));
-    const gelenOgrenciSayisi = gelenOgrenciAdlari.size;
+    const gelenOgrenciSayisi = pdrOgrenciGrupla(gorusmeler.filter(r => r.studentName && (r.meetingType || "Öğrenci") !== "Veli"), ogrenciler).length;
 
     // Görüşme konuları — standart KONU_LISTESI'ne göre dağılım
     const konuDagilim = {};
@@ -26169,8 +26212,8 @@ export default function App() {
   // soyadi maskelemesi ("Ahmet Yılmaz" -> "Ahmet Yı****") bu cakisma
   // ihtimalini ayrica artiriyor. Programin geri kalani zaten pdrOgrAnahtar
   // kullaniyor, bu iki sayac atlanmisti.
-  const uniqueStudents = new Set(studentRecs.map(r => pdrOgrAnahtar(r.studentName, r.className, r.numara))).size;
-  const uniqueParents = new Set(veliRecs.map(r => pdrOgrAnahtar(r.studentName, r.className, r.numara))).size;
+  const uniqueStudents = useMemo(() => pdrOgrenciGrupla(studentRecs, ogrenciler).length, [records, ogrenciler, kademe]);
+  const uniqueParents = useMemo(() => pdrOgrenciGrupla(veliRecs, ogrenciler).length, [records, ogrenciler, kademe]);
   const bekleyenSevk = sevkler.filter(s => s.sonucBekleniyor).length;
   const bugunkuHatirlatma = (hatirlatmalar||[]).filter(h => !h.tamamlandi && pdrKalanGunHesapla(pdrHatirlatmaEfektifTarih(h)) <= 0).length;
   const tickerItems = [
@@ -26230,15 +26273,12 @@ export default function App() {
   // 30+ gün geçmiş öğrenciler — hiç görüşülmemiş öğrenciler burada YER ALMAZ,
   // bu sadece "açık bir vakayı/takibi unutmuş olabilirim" uyarısı.
   const TAKIP_ESIK_GUN = 30;
-  const ogrSonGorusme = {};
-  studentRecs.forEach(r => {
-    const key = pdrOgrAnahtar(r.studentName, r.className, r.numara);
-    const ms = pdrTarihMs(r.date);
-    if (!ogrSonGorusme[key] || ms > ogrSonGorusme[key].ms) {
-      ogrSonGorusme[key] = { ms, studentName: r.studentName, className: r.className, numara: r.numara, tarih: r.date };
-    }
-  });
-  const takipListesi = Object.values(ogrSonGorusme)
+  // DÜZELTME: aynı öğrencinin numarasız ve numaralı kayıtları tek öğrenci sayılır (yanlış "30+ gün" uyarısı)
+  const ogrSonGorusme = useMemo(() => pdrOgrenciGrupla(studentRecs, ogrenciler).map(g => {
+    const son = g.kayitlar.reduce((m, r) => pdrTarihMs(r.date) > pdrTarihMs(m.date) ? r : m, g.kayitlar[0]);
+    return { ms: pdrTarihMs(son.date), studentName: g.studentName, className: g.className, numara: g.numara, tarih: son.date };
+  }), [records, ogrenciler, kademe]);
+  const takipListesi = ogrSonGorusme
     .map(o => ({ ...o, gunFarki: Math.floor((Date.now() - o.ms) / (1000 * 60 * 60 * 24)), riskAcik: riskListesi.some(r => pdrAyniOgrenci(r.studentName, r.className, o.studentName, o.className, r.numara, o.numara) && !r.kapandi) }))
     .filter(o => o.gunFarki >= TAKIP_ESIK_GUN)
     .sort((a, b) => b.gunFarki - a.gunFarki);
@@ -27183,23 +27223,33 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
 
               // İsimle anahtarlanan sözlükler: eski anahtardaki veriyi yeni (ad/sınıf güncellenmiş) anahtara taşı
               function pdrSozlukTasi(sozluk) {
-                // pdrSozlukOku ÜÇ anahtarı sırayla dener: isim+sınıf+numara,
-                // isim+sınıf, sadece isim. Bu fonksiyon ÖNCEDEN sadece ikisini
-                // kontrol ediyordu (numaralı anahtarı atlıyordu) — deneme/GDO
-                // verisi genelde numaralı anahtarda saklandığı için, isim
-                // güncellemesinde bu veri "kayboluyormuş" gibi görünüyordu.
-                // Artık üçünü de sırayla kontrol edip, bulduğunu YENİ numaralı
-                // anahtara taşıyor.
-                const eskiKeyNumarali = pdrOgrAnahtar(eskiAd, eskiSinif, eskiNumara);
-                const eskiKeySinif = pdrOgrAnahtar(eskiAd, eskiSinif);
-                let veri, eskiKeyBulunan;
-                if (eskiNumara && sozluk[eskiKeyNumarali] !== undefined) { veri = sozluk[eskiKeyNumarali]; eskiKeyBulunan = eskiKeyNumarali; }
-                else if (sozluk[eskiKeySinif] !== undefined) { veri = sozluk[eskiKeySinif]; eskiKeyBulunan = eskiKeySinif; }
-                else if (sozluk[eskiAd] !== undefined) { veri = sozluk[eskiAd]; eskiKeyBulunan = eskiAd; }
-                else return sozluk;
+                // Öğrencinin bu sözlükteki TÜM anahtarlarını bulur ("Ad || Sınıf || No",
+                // "Ad || Sınıf", farklı sınıf yazımı "8B"/"8-B", numarasız eski kayıt) ve
+                // hepsini yeni ad/sınıf anahtarında birleştirir. Eskiden yalnız ilk bulunan
+                // anahtar taşınıyordu; ikinci bir anahtarda kalan veri eski sınıfta kalıp
+                // "kayboluyordu". Yalnız adla tutulmuş çok eski anahtar, başka anahtar
+                // bulunamazsa taşınır (aynı adlı başka öğrenciye ait olabilir).
+                if (!sozluk || typeof sozluk !== "object") return sozluk;
+                const bulunan = Object.keys(sozluk).filter(k => {
+                  const p = k.split(" || ");
+                  if (p.length < 2) return false;
+                  return pdrAyniOgrenci(p[0], p[1], eskiAd, eskiSinif, p[2] || "", eskiNumara);
+                });
+                if (!bulunan.length && sozluk[eskiAd] !== undefined) bulunan.push(eskiAd);
+                if (!bulunan.length) return sozluk;
+                // Numaralı anahtar öncelikli (en güncel biçim); nesneler alan alan birleşir
+                bulunan.sort((a, b) => b.split(" || ").length - a.split(" || ").length);
+                let veri;
+                bulunan.slice().reverse().forEach(k => {
+                  const v = sozluk[k];
+                  if (veri === undefined) veri = v;
+                  else if (Array.isArray(veri) && Array.isArray(v)) veri = [...veri, ...v.filter(x => !veri.some(y => y && x && y.id && y.id === x.id))];
+                  else if (veri && v && typeof veri === "object" && typeof v === "object" && !Array.isArray(veri) && !Array.isArray(v)) veri = { ...veri, ...v };
+                  else veri = v;
+                });
                 const yeniKey = pdrOgrAnahtar(yeniAd, yeniSinif, eskiNumara);
                 const guncel = { ...sozluk };
-                delete guncel[eskiKeyBulunan];
+                bulunan.forEach(k => { delete guncel[k]; });
                 guncel[yeniKey] = veri;
                 return guncel;
               }
@@ -27525,7 +27575,7 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
                         o.className?.toLocaleLowerCase("tr").includes(riskOgrenciArama.toLocaleLowerCase("tr")) ||
                         o.numara?.includes(riskOgrenciArama)
                       ).slice(0, 20).map(o => {
-                        const s = riskForm.studentName === o.name;
+                        const s = riskForm.studentName === o.name && (riskForm.className || "") === (o.className || "");
                         return (
                           <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => { setRiskForm(f => ({ ...f, studentName: o.name, className: o.className, numara: o.numara || "" })); setAktifOgrenci({ name: o.name, className: o.className || "" }); setRiskOgrenciArama(""); }} style={{
                             padding: "6px 12px", borderRadius: 18,
