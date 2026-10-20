@@ -50,6 +50,9 @@ window.addEventListener('unhandledrejection', function(e) {
   var reason = e && e.reason;
   var msg = (reason && reason.message) || String(reason);
   var stack = (reason && reason.stack) || '';
+  // Arka plandan dönünce internet henüz gelmemişse güncelleme kontrolü (sw.js)
+  // başarısız olabilir; bu zararsızdır, uygulamayı kilitlememeli.
+  if (/ServiceWorker|sw\.js/i.test(msg)) { try { console.warn(msg); } catch (_) {} return; }
   showPdrFatalError('(promise hatası) ' + msg, stack, '');
 });
 function showPdrFatalError(msg, stack, src) {
@@ -1423,7 +1426,7 @@ if ("serviceWorker" in navigator) {
     // Sayfa uzun süre açık kalırsa bile yeni sürüm kontrolü yapılabilsin diye
     // periyodik olarak (15 dakikada bir) güncelleme kontrolü tetiklenir.
     setInterval(() => {
-      navigator.serviceWorker.getRegistration().then(reg => reg && reg.update());
+      navigator.serviceWorker.getRegistration().then(reg => reg && reg.update()).catch(() => {});
     }, 15 * 60 * 1000);
   });
 
