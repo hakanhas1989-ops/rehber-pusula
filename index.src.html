@@ -15248,7 +15248,7 @@ function testFormGecerliMi(tip, form) {
 // kullanılır; kimlik sütunları dışındaki her hücre madde metinleriyle
 // karşılaştırılır (Google Forms'ta çoklu seçim soruları virgülle ayrılmış
 // metin olarak tek hücrede gelir).
-function MesEgilimTopluYukle({ testKayitlari, setTestKayitlari, onKapat }) {
+function MesEgilimTopluYukle({ testKayitlari, setTestKayitlari, onKapat, ogrenciler }) {
   const [yukleniyor, setYukleniyor] = useState(false);
   const [sonuc, setSonuc] = useState(null);
 
@@ -15301,8 +15301,13 @@ function MesEgilimTopluYukle({ testKayitlari, setTestKayitlari, onKapat }) {
           if (isaretli.length === 0) { eslesmeyenSatir.push(adSoyad); continue; }
 
           const yeni = { id: uid(), kategori: "objektif", testAdi: "Mesleki Eğilim Belirleme Testi (160 Madde)", tip: "mesleki_egilim_160", tarih: today(), not: "Google Forms toplu yükleme", veri: { isaretliMaddeler: isaretli, genelYorum: "", guvenlikUyarisi: "" } };
-          const key = pdrOgrAnahtar(adSoyad, sinif, numara);
-          const mevcutListe = pdrSozlukOku(yeniKayitlar, adSoyad, sinif, numara) || [];
+          // Kayıtlı öğrenciyle eşleşirse onun kendi ad/sınıf/numarasıyla kaydedilir
+          // (öğrenci kartında görünsün); eşleşmezse soyadı maskelenerek saklanır.
+          const kayitli = (ogrenciler || []).find(o => pdrAyniOgrenci(o.studentName, o.className, adSoyad, sinif, o.numara, numara));
+          const yAd = kayitli ? kayitli.studentName : pdrSoyadMaskele(adSoyad);
+          const ySinif = kayitli ? kayitli.className : sinif, yNo = kayitli ? kayitli.numara : numara;
+          const key = pdrOgrAnahtar(yAd, ySinif, yNo);
+          const mevcutListe = pdrSozlukOku(yeniKayitlar, yAd, ySinif, yNo) || [];
           yeniKayitlar[key] = [yeni, ...mevcutListe];
           islenenOgrenci++;
           toplamIsaretli += isaretli.length;
@@ -15712,7 +15717,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
 
       {/* Mesleki Eğilim Testi — Google Forms/Excel toplu yükleme (öğrenci seçiminden bağımsız, sınıf/okul geneli) */}
       {topluYuklemeAcik ? (
-        <MesEgilimTopluYukle testKayitlari={testKayitlari} setTestKayitlari={setTestKayitlari} onKapat={()=>setTopluYuklemeAcik(false)} />
+        <MesEgilimTopluYukle testKayitlari={testKayitlari} setTestKayitlari={setTestKayitlari} ogrenciler={(kayitliListesi || []).map(o => ({ studentName: o.name, className: o.className, numara: o.numara }))} onKapat={()=>setTopluYuklemeAcik(false)} />
       ) : (
         <button onClick={()=>setTopluYuklemeAcik(true)} style={{
           width:"100%", padding:"10px 14px", background:"#fff", border:`2px dashed ${PURPLE}`, borderRadius:12,
@@ -20884,6 +20889,9 @@ function ExcelTopluYukle({ ogrenciler, setOgrenciler, denemeler, setDenemeler, a
           }
         }
 
+        // Başlık satırı bulunduysa veri ondan SONRA başlar (küçük harfli "Ad Soyad"
+        // başlığı yukarıdaki kontrolden geçip öğrenci gibi eklenmesin)
+        if (baslikSatiri !== -1 && baslangic <= baslikSatiri) baslangic = baslikSatiri + 1;
         for (let i = baslangic; i < rows.length; i++) {
           const row = rows[i];
           const no = String(row[colNo] || "").trim();
