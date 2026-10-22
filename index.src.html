@@ -5650,8 +5650,11 @@ function GrupCalismalariEkrani({ grupCalismalari, setGrupCalismalari, aktifYil, 
     setGrupCalismalari(yeni); await saveGrupCalismalari(yeni);
   }
   function duzenle(g) {
-    setForm({ tur:g.tur, tarih:g.tarih, hedefKitle:g.hedefKitle, katilimci:g.katilimci, konu:g.konu, alan:g.alan, not:g.not || "" });
-    setDuzenlenen(g.id); setFormAcik(true);
+    setForm({ tur:g.tur || GRUP_TURLERI[0], tarih:g.tarih || today(), hedefKitle:g.hedefKitle || "", katilimci:g.katilimci || "", konu:g.konu || "", alan:g.alan || MEB_CALISMA_ALANLARI[0], not:g.not || "" });
+    // Düzenleme formu kartın hemen altında açılır (eskiden sayfanın en üstünde açılıyor,
+    // aşağıdaki bir karttan basınca görünmediği için düğme çalışmıyor gibi görünüyordu)
+    setDuzenlenen(g.id); setFormAcik(false);
+    setTimeout(() => { const el = document.getElementById("grup-duzenle-" + g.id); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }); }, 80);
   }
 
   const alanSayilari = {};
@@ -5662,36 +5665,7 @@ function GrupCalismalariEkrani({ grupCalismalari, setGrupCalismalari, aktifYil, 
   const inputStil = { width:"100%", padding:"9px 11px", borderRadius:9, border:`1px solid ${BORDER}`, fontSize:13, boxSizing:"border-box", background:CARD, color:TEXT };
   const etiketStil = { fontSize:11, fontWeight:700, color:MUTED, display:"block", marginBottom:4, marginTop:9 };
 
-  return (
-    <div>
-      <div style={{ fontSize:18, fontWeight:900, marginBottom:4, color:ACCENT }}>👪 Grup Çalışmaları</div>
-      <div style={{ fontSize:12, color:MUTED, lineHeight:1.55, marginBottom:14 }}>
-        Sınıf rehberliği, psikoeğitim, grup çalışması, veli eğitimi ve öğretmen bilgilendirme
-        çalışmalarını buradan kaydet. Her kayıt bir MEB çalışma alanıyla etiketlenir; yıl sonu
-        raporunda "hangi alanda kaç çalışma yapıldı" sorusunun cevabı buradan çıkar.
-      </div>
-
-      <div style={{ display:"flex", gap:8, marginBottom:12 }}>
-        <div style={{ flex:1, background:CARD, border:`1px solid ${BORDER}`, boxShadow:"0 4px 12px rgba(20,40,32,0.14)", borderRadius:12, padding:"10px 12px", textAlign:"center" }}>
-          <div style={{ fontSize:20, fontWeight:900, color:ACCENT }}>{yilKayitlari.length}</div>
-          <div style={{ fontSize:10.5, color:MUTED, fontWeight:700 }}>Çalışma</div>
-        </div>
-        <div style={{ flex:1, background:CARD, border:`1px solid ${BORDER}`, boxShadow:"0 4px 12px rgba(20,40,32,0.14)", borderRadius:12, padding:"10px 12px", textAlign:"center" }}>
-          <div style={{ fontSize:20, fontWeight:900, color:PURPLE }}>{toplamKatilimci}</div>
-          <div style={{ fontSize:10.5, color:MUTED, fontWeight:700 }}>Katılımcı</div>
-        </div>
-        <div style={{ flex:1, background:CARD, border:`1px solid ${BORDER}`, boxShadow:"0 4px 12px rgba(20,40,32,0.14)", borderRadius:12, padding:"10px 12px", textAlign:"center" }}>
-          <div style={{ fontSize:20, fontWeight:900, color:ACCENT }}>{Object.keys(alanSayilari).length}</div>
-          <div style={{ fontSize:10.5, color:MUTED, fontWeight:700 }}>Alan</div>
-        </div>
-      </div>
-
-      <button onClick={() => { setFormAcik(!formAcik); setDuzenlenen(null); setForm(bosForm); }} style={{
-        width:"100%", padding:"11px", borderRadius:11, border:"none", background:PURPLE, color:"#fff",
-        fontSize:14, fontWeight:800, cursor:"pointer", marginBottom:12
-      }}>{formAcik ? "✕ Kapat" : "+ Yeni Çalışma Ekle"}</button>
-
-      {formAcik && (
+  const formBlok = (
         <div style={{ background:CARD, border:`1px solid ${BORDER}`, boxShadow:"0 4px 12px rgba(20,40,32,0.14)", borderRadius:14, padding:14, marginBottom:14 }}>
           <label style={etiketStil}>Çalışma Türü</label>
           <select value={form.tur} onChange={e=>setForm({...form, tur:e.target.value})} style={inputStil}>
@@ -5726,8 +5700,39 @@ function GrupCalismalariEkrani({ grupCalismalari, setGrupCalismalari, aktifYil, 
             width:"100%", padding:"11px", borderRadius:11, border:"none", background:ACCENT, color:"#fff",
             fontSize:14, fontWeight:800, cursor:"pointer", marginTop:12
           }}>{duzenlenen ? "Güncelle" : "Kaydet"}</button>
+          {duzenlenen && <button data-testid="grup-vazgec" onClick={() => { setDuzenlenen(null); setForm(bosForm); }} style={{ width:"100%", padding:"9px", borderRadius:11, border:`1px solid ${BORDER}`, background:CARD, color:TEXT, fontSize:13, fontWeight:700, cursor:"pointer", marginTop:8 }}>Vazgeç</button>}
         </div>
-      )}
+  );
+  return (
+    <div>
+      <div style={{ fontSize:18, fontWeight:900, marginBottom:4, color:ACCENT }}>👪 Grup Çalışmaları</div>
+      <div style={{ fontSize:12, color:MUTED, lineHeight:1.55, marginBottom:14 }}>
+        Sınıf rehberliği, psikoeğitim, grup çalışması, veli eğitimi ve öğretmen bilgilendirme
+        çalışmalarını buradan kaydet. Her kayıt bir MEB çalışma alanıyla etiketlenir; yıl sonu
+        raporunda "hangi alanda kaç çalışma yapıldı" sorusunun cevabı buradan çıkar.
+      </div>
+
+      <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+        <div style={{ flex:1, background:CARD, border:`1px solid ${BORDER}`, boxShadow:"0 4px 12px rgba(20,40,32,0.14)", borderRadius:12, padding:"10px 12px", textAlign:"center" }}>
+          <div style={{ fontSize:20, fontWeight:900, color:ACCENT }}>{yilKayitlari.length}</div>
+          <div style={{ fontSize:10.5, color:MUTED, fontWeight:700 }}>Çalışma</div>
+        </div>
+        <div style={{ flex:1, background:CARD, border:`1px solid ${BORDER}`, boxShadow:"0 4px 12px rgba(20,40,32,0.14)", borderRadius:12, padding:"10px 12px", textAlign:"center" }}>
+          <div style={{ fontSize:20, fontWeight:900, color:PURPLE }}>{toplamKatilimci}</div>
+          <div style={{ fontSize:10.5, color:MUTED, fontWeight:700 }}>Katılımcı</div>
+        </div>
+        <div style={{ flex:1, background:CARD, border:`1px solid ${BORDER}`, boxShadow:"0 4px 12px rgba(20,40,32,0.14)", borderRadius:12, padding:"10px 12px", textAlign:"center" }}>
+          <div style={{ fontSize:20, fontWeight:900, color:ACCENT }}>{Object.keys(alanSayilari).length}</div>
+          <div style={{ fontSize:10.5, color:MUTED, fontWeight:700 }}>Alan</div>
+        </div>
+      </div>
+
+      <button onClick={() => { setFormAcik(!formAcik); setDuzenlenen(null); setForm(bosForm); }} style={{
+        width:"100%", padding:"11px", borderRadius:11, border:"none", background:PURPLE, color:"#fff",
+        fontSize:14, fontWeight:800, cursor:"pointer", marginBottom:12
+      }}>{formAcik ? "✕ Kapat" : "+ Yeni Çalışma Ekle"}</button>
+
+      {formAcik && !duzenlenen && formBlok}
 
       {Object.keys(alanSayilari).length > 0 && (
         <div style={{ background:CARD, border:`1px solid ${BORDER}`, boxShadow:"0 4px 12px rgba(20,40,32,0.14)", borderRadius:14, padding:14, marginBottom:14 }}>
@@ -5779,7 +5784,7 @@ function GrupCalismalariEkrani({ grupCalismalari, setGrupCalismalari, aktifYil, 
               </div>
             </div>
             <div style={{ display:"flex", gap:5, flexShrink:0 }}>
-              <button onClick={()=>duzenle(g)} title="Düzenle" style={{ padding:"3px 8px", borderRadius:8, border:`1px solid ${BORDER}`, background:CARD, fontSize:11, cursor:"pointer" }}>✏️</button>
+              <button data-testid="grup-duzenle" onClick={()=>duzenle(g)} title="Düzenle" style={{ padding:"3px 8px", borderRadius:8, border:`1px solid ${BORDER}`, background:CARD, fontSize:11, cursor:"pointer" }}>✏️</button>
               <button onClick={()=>sil(g.id)} title="Sil" style={{ padding:"3px 8px", borderRadius:8, border:"1px solid #F5B7B1", background:CARD, fontSize:11, cursor:"pointer" }}>🗑️</button>
             </div>
           </div>
@@ -5788,6 +5793,7 @@ function GrupCalismalariEkrani({ grupCalismalari, setGrupCalismalari, aktifYil, 
             {g.alan && <span style={{ background:PURPLE_LIGHT, color:PURPLE, borderRadius:10, padding:"2px 9px", fontSize:10, fontWeight:700 }}>{g.alan}</span>}
           </div>
           {g.not && <div style={{ fontSize:11.5, color:MUTED, lineHeight:1.55, marginTop:8, whiteSpace:"pre-wrap" }}>{g.not}</div>}
+          {duzenlenen === g.id && <div id={"grup-duzenle-" + g.id} style={{ marginTop:10 }}>{formBlok}</div>}
         </div>
       ))}
     </div>
