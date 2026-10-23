@@ -17227,82 +17227,85 @@ function netIlerlemeSVGOlustur(ogrKayitlar, genislik, yukseklik) {
 }
 
 // ── Konu Haritası (LGS) ──────────────────────────────────────────────────────
-// LGS'nin 6 dersi için konu listesi + son 7 yılda (2020-2026) o konudan çıkan
+// LGS'nin 6 dersi için konu listesi + 2018-2026 yıllarında (9 LGS) o konudan çıkan
 // toplam soru sayısı. Kaynak: danışmanın paylaştığı "LGS Konulara Göre Soru
-// Dağılımı" tabloları. Her ders kendi içinde soru sayısına göre azalan sırada
+// Dağılımı" tabloları; LGS sayıları "LGS Konu Başlıkları ve Çıkmış Soru Dağılımı (2018-2026)"
+// tablosundan (23.10.2026). Tabloda olmayan eski konular (Fiillerde Çatı, Söz Sanatları, Hz. Musa) 0.
+// Her ders kendi içinde soru sayısına göre azalan sırada
 // — en sık sorulan konu en üstte çıksın, önceliklendirme kolaylaşsın. Bu bir
 // yardımcı referans, kesin/güncel müfredat kaynağı değil; ÖSYM'nin resmi bir
 // yayını değildir, danışmanın kendi topladığı istatistiksel bir özettir.
 const LGS_KONU_HARITASI = {
   "Türkçe": [
-    { konu: "Parçada Anlam", gecmisSoru: 51 },
-    { konu: "Sözel Mantık", gecmisSoru: 24 },
-    { konu: "Cümlede Anlam", gecmisSoru: 16 },
-    { konu: "Sözcükte Anlam", gecmisSoru: 12 },
-    { konu: "Yazım Kuralları", gecmisSoru: 6 },
-    { konu: "Noktalama İşaretleri", gecmisSoru: 6 },
-    { konu: "Metin Türleri", gecmisSoru: 5 },
-    { konu: "Fiilimsiler", gecmisSoru: 3 },
-    { konu: "Deyimler ve Atasözleri", gecmisSoru: 3 },
+    { konu: "Parçada Anlam", gecmisSoru: 54 },
+    { konu: "Sözel Mantık", gecmisSoru: 33 },
+    { konu: "Cümlede Anlam", gecmisSoru: 20 },
+    { konu: "Sözcükte Anlam", gecmisSoru: 19 },
+    { konu: "Yazım Kuralları", gecmisSoru: 8 },
+    { konu: "Noktalama İşaretleri", gecmisSoru: 8 },
+    { konu: "Fiilimsiler", gecmisSoru: 8 },
+    { konu: "Metin Türleri", gecmisSoru: 7 },
+    { konu: "Deyimler ve Atasözleri", gecmisSoru: 5 },
+    { konu: "Anlatım Bozukluğu", gecmisSoru: 5 },
     { konu: "Cümlenin Ögeleri", gecmisSoru: 3 },
-    { konu: "Fiillerde Çatı", gecmisSoru: 3 },
     { konu: "Cümle Türleri", gecmisSoru: 3 },
-    { konu: "Anlatım Bozukluğu", gecmisSoru: 3 },
-    { konu: "Söz Sanatları", gecmisSoru: 2 },
+    { konu: "Fiillerde Çatı", gecmisSoru: 0 },
+    { konu: "Söz Sanatları", gecmisSoru: 0 },
   ],
   "Matematik": [
-    { konu: "Köklü Sayılar", gecmisSoru: 22 },
-    { konu: "Üslü Sayılar", gecmisSoru: 19 },
-    { konu: "Cebirsel İfadeler", gecmisSoru: 18 },
-    { konu: "Doğrusal Denklemler ve Eğim", gecmisSoru: 15 },
-    { konu: "Çarpanlar ve Katlar", gecmisSoru: 13 },
+    { konu: "Köklü Sayılar", gecmisSoru: 29 },
+    { konu: "Üslü Sayılar", gecmisSoru: 23 },
+    { konu: "Cebirsel İfadeler", gecmisSoru: 21 },
+    { konu: "Doğrusal Denklemler ve Eğim", gecmisSoru: 20 },
+    { konu: "Çarpanlar ve Katlar", gecmisSoru: 16 },
+    { konu: "Üçgenler", gecmisSoru: 13 },
+    { konu: "Eşitsizlikler", gecmisSoru: 13 },
     { konu: "Veri Analizi", gecmisSoru: 12 },
-    { konu: "Olasılık", gecmisSoru: 10 },
-    { konu: "Üçgenler", gecmisSoru: 10 },
-    { konu: "Eşitsizlikler", gecmisSoru: 8 },
-    { konu: "Eşlik ve Benzerlik", gecmisSoru: 5 },
-    { konu: "Dönüşüm Geometrisi", gecmisSoru: 4 },
-    { konu: "Geometrik Cisimler", gecmisSoru: 4 },
+    { konu: "Olasılık", gecmisSoru: 12 },
+    { konu: "Eşlik ve Benzerlik", gecmisSoru: 7 },
+    { konu: "Geometrik Cisimler", gecmisSoru: 7 },
+    { konu: "Dönüşüm Geometrisi", gecmisSoru: 6 },
   ],
   "Fen Bilimleri": [
-    { konu: "DNA ve Genetik Kod", gecmisSoru: 35 },
-    { konu: "Madde ve Endüstri", gecmisSoru: 33 },
-    { konu: "Basınç", gecmisSoru: 20 },
-    { konu: "Enerji Dönüşümleri ve Çevre Bilimi", gecmisSoru: 19 },
+    { konu: "Madde ve Endüstri", gecmisSoru: 45 },
+    { konu: "DNA ve Genetik Kod", gecmisSoru: 39 },
+    { konu: "Enerji Dönüşümleri ve Çevre Bilimi", gecmisSoru: 27 },
+    { konu: "Basınç", gecmisSoru: 24 },
+    { konu: "Elektrik Yükleri ve Elektrik Enerjisi", gecmisSoru: 17 },
     { konu: "Mevsimler ve İklim", gecmisSoru: 15 },
-    { konu: "Basit Makineler", gecmisSoru: 10 },
-    { konu: "Elektrik Yükleri ve Elektrik Enerjisi", gecmisSoru: 10 },
+    { konu: "Basit Makineler", gecmisSoru: 14 },
   ],
   "İnkılap Tarihi": [
-    { konu: "Milli Uyanış: Bağımsızlık Yolunda Atılan Adımlar", gecmisSoru: 20 },
-    { konu: "Ya İstiklal Ya Ölüm", gecmisSoru: 14 },
-    { konu: "Atatürkçülük ve Çağdaşlaşan Türkiye", gecmisSoru: 14 },
-    { konu: "Bir Kahraman Doğuyor", gecmisSoru: 12 },
-    { konu: "Demokratikleşme Çabaları", gecmisSoru: 5 },
-    { konu: "Atatürk Dönemi Türk Dış Politikası", gecmisSoru: 5 },
-    { konu: "Atatürk'ün Vefatı ve Sonrası", gecmisSoru: 0 },
+    { konu: "Atatürkçülük ve Çağdaşlaşan Türkiye", gecmisSoru: 23 },
+    { konu: "Ya İstiklal Ya Ölüm", gecmisSoru: 20 },
+    { konu: "Milli Uyanış: Bağımsızlık Yolunda Atılan Adımlar", gecmisSoru: 19 },
+    { konu: "Bir Kahraman Doğuyor", gecmisSoru: 15 },
+    { konu: "Atatürk Dönemi Türk Dış Politikası", gecmisSoru: 7 },
+    { konu: "Demokratikleşme Çabaları", gecmisSoru: 4 },
+    { konu: "Atatürk'ün Vefatı ve Sonrası", gecmisSoru: 2 },
   ],
   "Din Kültürü": [
-    { konu: "Din ve Hayat", gecmisSoru: 19 },
-    { konu: "Zekat ve Sadaka", gecmisSoru: 18 },
-    { konu: "Kader İnancı", gecmisSoru: 16 },
-    { konu: "Hz. Muhammed'in Örnekliği", gecmisSoru: 6 },
-    { konu: "Kur'an-ı Kerim'in Özellikleri", gecmisSoru: 6 },
-    { konu: "Bir Peygamber Tanıyorum: Hz. Musa", gecmisSoru: 5 },
+    { konu: "Zekat ve Sadaka", gecmisSoru: 24 },
+    { konu: "Kader İnancı", gecmisSoru: 23 },
+    { konu: "Din ve Hayat", gecmisSoru: 22 },
+    { konu: "Hz. Muhammed'in Örnekliği", gecmisSoru: 16 },
+    { konu: "Kur'an-ı Kerim'in Özellikleri", gecmisSoru: 5 },
+    { konu: "Bir Peygamber Tanıyorum: Hz. Musa", gecmisSoru: 0 },
   ],
   "İngilizce": [
-    { konu: "Friendship", gecmisSoru: 14 },
-    { konu: "In The Kitchen", gecmisSoru: 10 },
-    { konu: "On The Phone", gecmisSoru: 9 },
-    { konu: "The Internet", gecmisSoru: 9 },
-    { konu: "Teen Life", gecmisSoru: 7 },
-    { konu: "Tourism", gecmisSoru: 6 },
-    { konu: "Adventures", gecmisSoru: 5 },
-    { konu: "Chores", gecmisSoru: 5 },
-    { konu: "Science", gecmisSoru: 5 },
-    { konu: "Natural Forces", gecmisSoru: 1 },
+    { konu: "Friendship", gecmisSoru: 16 },
+    { konu: "Teen Life", gecmisSoru: 13 },
+    { konu: "In The Kitchen", gecmisSoru: 11 },
+    { konu: "The Internet", gecmisSoru: 11 },
+    { konu: "On The Phone", gecmisSoru: 8 },
+    { konu: "Tourism", gecmisSoru: 8 },
+    { konu: "Adventures", gecmisSoru: 7 },
+    { konu: "Chores", gecmisSoru: 7 },
+    { konu: "Science", gecmisSoru: 6 },
+    { konu: "Natural Forces", gecmisSoru: 0 },
   ],
 };
+
 const LGS_KONU_HARITASI_DERSLER = Object.keys(LGS_KONU_HARITASI);
 
 const TYT_KONU_HARITASI = {
@@ -17758,7 +17761,7 @@ function KonuHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, kon
     <div style={{ padding: 16, maxWidth: 640 }}>
       <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4, color:PURPLE }}>📚 Konu Haritası <span style={{fontSize:12, fontWeight:700, background:PURPLE_LIGHT, color:PURPLE, borderRadius:8, padding:"2px 8px", marginLeft:4}}>{liseMi ? sinavTip.toUpperCase() : "LGS"}</span></div>
       <div style={{ fontSize: 12, color: MUTED, marginBottom: liseMi?10:16, lineHeight: 1.5 }}>
-        Görüşme sırasında öğrencinin ne kadarını bitirdiğini işaretle (%25/%50/%75/%100) — ders başlığındaki yüzde, konuların ortalamasına göre otomatik hesaplanır. Konunun yanındaki sayı, o konudan son 8 yılda (2018-2025) {liseMi ? sinavTip.toUpperCase() : "LGS"}'de kaç soru çıktığını gösterir; henüz bitmemiş ama sık çıkan konulara öncelik verilebilir.
+        Görüşme sırasında öğrencinin ne kadarını bitirdiğini işaretle (%25/%50/%75/%100) — ders başlığındaki yüzde, konuların ortalamasına göre otomatik hesaplanır. Konunun yanındaki sayı, o konudan {liseMi ? `son 8 yılda (2018-2025) ${sinavTip.toUpperCase()}` : "2018-2026 arasındaki 9 LGS"}'de kaç soru çıktığını gösterir; henüz bitmemiş ama sık çıkan konulara öncelik verilebilir.
       </div>
 
       {liseMi && (
