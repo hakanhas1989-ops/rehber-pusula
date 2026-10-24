@@ -6713,11 +6713,41 @@ async function loadSevkler() {
 async function saveSevkler(items) {
   try { await window.storage.set("pdr-sevkler", JSON.stringify(items)); } catch(e) { console.warn(e); }
 }
+// 🔒 Hatırlatmalar bildirim sunucusu okuyabilsin diye ŞİFRESİZ saklanır (PDR_SIFRE_MUAF).
+// Metni hassas ifade içeren hatırlatmanın asıl metni ayrı ve ŞİFRELİ bir anahtarda tutulur;
+// şifresiz listede ve telefon bildiriminde yalnızca nötr bir metin görünür. Program açıkken
+// iki kayıt birleştirilir, danışman asıl metni görür.
+const PDR_HAT_AYRINTI = "pdr-hatirlatma-ayrinti";
+const PDR_HAT_NOTR = "🔒 Takip hatırlatması (ayrıntı programda)";
+function pdrHatHassasMi(metin) {
+  const t = String(metin || "").toLocaleLowerCase("tr");
+  return /intihar|kendine zarar|kendini kes|kesik|jilet|ölmek iste|ölüm|istismar|taciz|tecavüz|cinsel|mahrem|şiddet|dayak|darp|boğaz|uyuşturucu|madde kullan|alkol|bağımlı|depresyon|kaygı bozukluğu|psikiyatri|ilaç|tanı|rapor|gebe|hamile|boşan|cezaevi|hapis|tutuklu|polis|savcı|mahkeme|koruma kararı|ihmal|kriz|risk/.test(t);
+}
+async function pdrHatAyrintiOku() { try { const r = await window.storage.get(PDR_HAT_AYRINTI); const o = r ? JSON.parse(r.value) : {}; return o && typeof o === "object" ? o : {}; } catch { return {}; } }
 async function loadHatirlatmalar() {
-  try { const r = await window.storage.get("pdr-hatirlatmalar"); return r ? JSON.parse(r.value) : []; } catch { return []; }
+  try {
+    const r = await window.storage.get("pdr-hatirlatmalar"); const l = r ? JSON.parse(r.value) : [];
+    const ayr = await pdrHatAyrintiOku();
+    const birlesik = (Array.isArray(l) ? l : []).map(h => h && h.id && ayr[h.id] !== undefined && h.metin === PDR_HAT_NOTR ? { ...h, metin: ayr[h.id] } : h);
+    // Eski sürümden kalan, şifresiz listede hassas metin taşıyan hatırlatmalar bir kez taşınır
+    if ((Array.isArray(l) ? l : []).some(h => h && h.id && h.metin !== PDR_HAT_NOTR && pdrHatHassasMi(h.metin))) setTimeout(() => { saveHatirlatmalar(birlesik); }, 1500);
+    return birlesik;
+  } catch { return []; }
 }
 async function saveHatirlatmalar(items) {
-  try { await window.storage.set("pdr-hatirlatmalar", JSON.stringify(items)); } catch(e) { console.warn(e); }
+  try {
+    const ayr = await pdrHatAyrintiOku(), yeniAyr = {};
+    const duz = (items || []).map(h => {
+      if (!h || !h.id) return h;
+      const m = String(h.metin || "");
+      if (m === PDR_HAT_NOTR && ayr[h.id] !== undefined) { yeniAyr[h.id] = ayr[h.id]; return h; }
+      if (pdrHatHassasMi(m)) { yeniAyr[h.id] = m; return { ...h, metin: PDR_HAT_NOTR }; }
+      return h;
+    });
+    // Önce şifreli ayrıntı, sonra şifresiz liste: yarıda kesilirse hassas metin şifresiz tarafa düşmez
+    await window.storage.set(PDR_HAT_AYRINTI, JSON.stringify(yeniAyr));
+    await window.storage.set("pdr-hatirlatmalar", JSON.stringify(duz));
+  } catch(e) { console.warn(e); }
 }
 async function loadNetHaritasi() {
   try { const r = await window.storage.get("pdr-net-haritasi"); return r ? JSON.parse(r.value) : []; } catch { return []; }
@@ -17186,7 +17216,7 @@ function netIlerlemeSVGOlustur(ogrKayitlar, genislik, yukseklik) {
   siraliKayitlar.forEach((k,i) => {
     const x = xPos(i);
     svg += `<line x1="${x.toFixed(1)}" y1="${ustPad}" x2="${x.toFixed(1)}" y2="${(ustPad+cizimYukseklik).toFixed(1)}" stroke="#F4F2FA" stroke-width="1"/>`;
-    svg += `<text x="${x.toFixed(1)}" y="${yukseklik-9}" font-size="8" fill="#8B8698" text-anchor="middle">${(k.denemeAdi||k.tarih||"").slice(0,12) || (k.tarih||"").slice(0,5)}</text>`;
+    svg += `<text x="${x.toFixed(1)}" y="${yukseklik-9}" font-size="8" fill="#8B8698" text-anchor="middle">${String((k.denemeAdi||k.tarih||"").slice(0,12) || (k.tarih||"").slice(0,5)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</text>`;
   });
 
   // Önce çizgiler (arka planda), sonra noktalar + değer etiketleri (önde) — okunurluk için
@@ -25802,6 +25832,7 @@ export default function App() {
       "pdr-kriz-kayitlari": () => loadKrizKayitlari().then(setKrizKayitlari),
       "pdr-sosyometri": () => loadSosyometri().then(setSosyometri),
       "pdr-hatirlatmalar": () => loadHatirlatmalar().then(setHatirlatmalar),
+      "pdr-hatirlatma-ayrinti": () => loadHatirlatmalar().then(setHatirlatmalar),
       "pdr-net-haritasi": () => loadNetHaritasi().then(setNetHaritasiKayitlari),
       "pdr-konu-haritasi": () => loadKonuHaritasi().then(setKonuHaritasiVerisi),
       // "pdr-rehber-gorundu" ve "pdr-kvkk-bildirim-gorundu" bilerek dahil
@@ -25812,7 +25843,7 @@ export default function App() {
     const yerelBeklemedeAnahtarlar = new Set();
     const ANAHTAR_ETIKETI = {
       "pdr-ogrenciler": "Öğrenci listesi", "pdr-risk": "Risk kayıtları", "pdr-denemeler": "Deneme verileri",
-      "pdr-hatirlatmalar": "Hatırlatmalar", "pdr-sosyometri": "Sosyometri", "pdr-kriz-kayitlari": "Kriz kayıtları",
+      "pdr-hatirlatmalar": "Hatırlatmalar", "pdr-hatirlatma-ayrinti": "Hatırlatma ayrıntıları", "pdr-sosyometri": "Sosyometri", "pdr-kriz-kayitlari": "Kriz kayıtları",
       "pdr-grup-calismalari": "Grup çalışmaları", "pdr-mudahale": "Müdahale planı", "pdr-records": "Görüşme notları",
       "pdr-profiles": "Profil (P1)", "pdr-profiles2": "Profil (P2)", "pdr-net-haritasi": "Net haritası",
       "pdr-konu-haritasi": "Konu haritası", "pdr-test-kayitlari": "Test kayıtları", "pdr-sevkler": "Sevk kayıtları",
