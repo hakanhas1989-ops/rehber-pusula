@@ -6714,23 +6714,29 @@ async function saveSevkler(items) {
   try { await window.storage.set("pdr-sevkler", JSON.stringify(items)); } catch(e) { console.warn(e); }
 }
 // 🔒 Hatırlatmalar bildirim sunucusu okuyabilsin diye ŞİFRESİZ saklanır (PDR_SIFRE_MUAF).
-// Metni hassas ifade içeren hatırlatmanın asıl metni ayrı ve ŞİFRELİ bir anahtarda tutulur;
-// şifresiz listede ve telefon bildiriminde yalnızca nötr bir metin görünür. Program açıkken
-// iki kayıt birleştirilir, danışman asıl metni görür.
+// Her hatırlatmanın öğrenci adı, sınıfı ve asıl metni ayrı ve ŞİFRELİ bir anahtarda tutulur;
+// program açıkken iki kayıt birleştirilir, danışman her şeyi görür.
 const PDR_HAT_AYRINTI = "pdr-hatirlatma-ayrinti";
 const PDR_HAT_NOTR = "🔒 Takip hatırlatması (ayrıntı programda)";
-function pdrHatHassasMi(metin) {
-  const t = String(metin || "").toLocaleLowerCase("tr");
-  return /intihar|kendine zarar|kendini kes|kesik|jilet|ölmek iste|ölüm|istismar|taciz|tecavüz|cinsel|mahrem|şiddet|dayak|darp|boğaz|uyuşturucu|madde kullan|alkol|bağımlı|depresyon|kaygı bozukluğu|psikiyatri|ilaç|tanı (al|kon|var|kondu)|tanısı|gebe|hamile|boşan|cezaevi|hapis|tutuklu|polis|savcı|mahkeme|koruma kararı|ihmal|kriz|risk/.test(t);
-}
 async function pdrHatAyrintiOku() { try { const r = await window.storage.get(PDR_HAT_AYRINTI); const o = r ? JSON.parse(r.value) : {}; return o && typeof o === "object" ? o : {}; } catch { return {}; } }
+// Bulutta şifresiz kalan listede (telefon bildirimi için) yalnızca tarih, tamamlandı bilgisi
+// ve nötr metin durur. Öğrenci adı, sınıf, numara ve asıl metin şifreli ayrıntı kaydına
+// taşınır; bildirim isimsiz gelir ("Bugün 2 takip hatırlatmanız var").
+const PDR_HAT_ACIK_ALANLAR = ["id", "tarih", "tamamlandi"];
+function pdrHatAyrintiliMi(h) { return !!h && Object.keys(h).some(k => !PDR_HAT_ACIK_ALANLAR.includes(k) && !(k === "metin" && h.metin === PDR_HAT_NOTR)); }
+function pdrHatBirlestir(h, a) {
+  if (!h || !h.id || a === undefined) return h;
+  if (a && typeof a === "object") return { ...h, ...a };
+  return h.metin === PDR_HAT_NOTR ? { ...h, metin: a } : h; // eski sürüm: yalnızca metin saklanırdı
+}
 async function loadHatirlatmalar() {
   try {
     const r = await window.storage.get("pdr-hatirlatmalar"); const l = r ? JSON.parse(r.value) : [];
+    const liste = Array.isArray(l) ? l : [];
     const ayr = await pdrHatAyrintiOku();
-    const birlesik = (Array.isArray(l) ? l : []).map(h => h && h.id && ayr[h.id] !== undefined && h.metin === PDR_HAT_NOTR ? { ...h, metin: ayr[h.id] } : h);
-    // Eski sürümden kalan, şifresiz listede hassas metin taşıyan hatırlatmalar bir kez taşınır
-    if ((Array.isArray(l) ? l : []).some(h => h && h.id && h.metin !== PDR_HAT_NOTR && pdrHatHassasMi(h.metin))) setTimeout(() => { saveHatirlatmalar(birlesik); }, 1500);
+    const birlesik = liste.map(h => pdrHatBirlestir(h, h && h.id ? ayr[h.id] : undefined));
+    // Eski sürümden kalan, şifresiz listede ad/sınıf/metin taşıyan hatırlatmalar bir kez taşınır
+    if (liste.some(h => h && h.id && pdrHatAyrintiliMi(h))) setTimeout(() => { saveHatirlatmalar(birlesik); }, 1500);
     return birlesik;
   } catch { return []; }
 }
@@ -6739,13 +6745,30 @@ async function saveHatirlatmalar(items) {
     const ayr = await pdrHatAyrintiOku(), yeniAyr = {};
     const duz = (items || []).map(h => {
       if (!h || !h.id) return h;
-      const m = String(h.metin || "");
-      if (m === PDR_HAT_NOTR && ayr[h.id] !== undefined) { yeniAyr[h.id] = ayr[h.id]; return h; }
-      if (pdrHatHassasMi(m)) { yeniAyr[h.id] = m; return { ...h, metin: PDR_HAT_NOTR }; }
-      return h;
+      const acik = { id: h.id, tarih: h.tarih || "", tamamlandi: !!h.tamamlandi, metin: PDR_HAT_NOTR };
+      if (pdrHatAyrintiliMi(h)) {
+        const ayrinti = {};
+        Object.keys(h).forEach(k => { if (!PDR_HAT_ACIK_ALANLAR.includes(k)) ayrinti[k] = h[k]; });
+        // Bellekte yalnızca nötr metin varsa (ayrıntı okunamamışsa) eski asıl metin korunur
+        if (ayrinti.metin === PDR_HAT_NOTR) {
+          const e = ayr[h.id];
+          if (typeof e === "string") ayrinti.metin = e;
+          else if (e && typeof e === "object" && e.metin !== undefined) ayrinti.metin = e.metin;
+          else delete ayrinti.metin;
+        }
+        const eski = ayr[h.id] && typeof ayr[h.id] === "object" ? ayr[h.id] : {};
+        yeniAyr[h.id] = { ...eski, ...ayrinti };
+      } else if (ayr[h.id] !== undefined) {
+        yeniAyr[h.id] = ayr[h.id]; // ayrıntısı bu cihazda okunamadıysa silinmez
+      }
+      return acik;
     });
-    // Önce şifreli ayrıntı, sonra şifresiz liste: yarıda kesilirse hassas metin şifresiz tarafa düşmez
-    await window.storage.set(PDR_HAT_AYRINTI, JSON.stringify(yeniAyr));
+    // Ayrıntısı bilinmeyen kayıt varsa (şifreli ayrıntı bu cihazda okunamamış) ayrıntı kaydı
+    // ezilmez — yoksa öğrenci adı ve metinler silinirdi.
+    const bilinmeyen = (items || []).some(h => h && h.id && !pdrHatAyrintiliMi(h) && ayr[h.id] === undefined);
+    // Önce şifreli ayrıntı, sonra şifresiz liste: yarıda kesilirse ad/metin şifresiz tarafa düşmez
+    if (bilinmeyen) console.warn("Hatırlatma ayrıntıları okunamadı; ayrıntı kaydı korunuyor.");
+    else await window.storage.set(PDR_HAT_AYRINTI, JSON.stringify(yeniAyr));
     await window.storage.set("pdr-hatirlatmalar", JSON.stringify(duz));
   } catch(e) { console.warn(e); }
 }
