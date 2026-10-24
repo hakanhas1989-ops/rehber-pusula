@@ -6107,6 +6107,11 @@ function SosyometriEkrani({ sosyometri, setSosyometri, ogrenciler, aktifYil, sin
   // etkilemiyor.
   async function satirKaydet(ogrAd, ucluListe) {
     const temiz = ucluListe.map(x => (x||"").trim()).filter(Boolean).slice(0,3);
+    const oncekiSecim = secimler[ogrAd] || [];
+    // Boş bir kutuya dokunup çıkmak (odak kaybı) da bu fonksiyonu tetikliyor.
+    // Hiçbir şey yazılmamışsa ve önceden de kayıt yoksa boşuna kayıt
+    // oluşturulmaz — aksi halde sosyometri "veri girilmiş" gibi görünüyordu.
+    if (temiz.length === 0 && oncekiSecim.length === 0) return;
     const yeniSecimler = { ...secimler, [ogrAd]: temiz };
     const yeniKriterSecimleri = { ...kriterSecimleriTumu, [seciliKriter]: yeniSecimler };
     let yeni;
@@ -15235,6 +15240,11 @@ function testSonucOzeti(k) {
     case "toplam_duzey": return `Toplam Puan: ${v.toplamPuan||"—"}${v.duzey?` · Düzey: ${v.duzey}`:""}`;
     case "toplam_duzey_serbest": return `Toplam Puan: ${v.toplamPuan||"—"}${v.duzeyYorum?` · ${v.duzeyYorum}`:""}`;
     case "kariyer": return `${v.oneCikanAlanlar||"—"}`;
+    case "mesleki_egilim_160": {
+      const sonuc = mesleklEgilimSonucHesapla(v.isaretliMaddeler||[]);
+      const ilk2 = sonuc.slice(0,2).filter(s=>s.puan>0).map(s=>`${s.harf} (${s.puan}p)`).join(", ");
+      return ilk2 ? `En yüksek: ${ilk2}` : "İşaretlenen madde yok";
+    }
     case "nitel": return k.not ? "Nitel değerlendirme (nota bakınız)" : "—";
     case "beier_form_a": {
       const maddeler = v.maddeler || [];
@@ -15275,6 +15285,7 @@ function testVeriOlustur(tip, testTanim, form) {
     case "kariyer": return { oneCikanAlanlar: form.oneCikanAlanlar, genelYorum: form.genelYorum };
     case "beier_form_a": return { maddeler: form.maddeler || [], genelYorum: form.genelYorum, guvenlikUyarisi: form.guvenlikUyarisi || "" };
     case "scas_cocuk": return { cevaplar: form.scasCevaplar || [] };
+    case "mesleki_egilim_160": return { isaretliMaddeler: form.isaretliMaddeler || [] };
     default: return {};
   }
 }
@@ -15288,6 +15299,7 @@ function testFormGecerliMi(tip, form) {
     case "kariyer": return !!form.oneCikanAlanlar.trim();
     case "beier_form_a": return (form.maddeler||[]).some(m => m.cevap && m.cevap.trim());
     case "scas_cocuk": return (form.scasCevaplar||[]).some(c => Number.isInteger(c.puan) && c.puan>=0 && c.puan<=3);
+    case "mesleki_egilim_160": return (form.isaretliMaddeler||[]).length > 0;
     case "nitel": return !!form.not.trim();
     default: return false;
   }
@@ -16777,8 +16789,19 @@ function pdrMetindenTarihCikar(metin) {
   const sayiPattern = `(\\d+|${sayiAdlari})`;
   let gm = t.match(new RegExp(`${sayiPattern}\\s*hafta\\s*sonra\\s*(${gunAdlari})`));
   if (gm) { const n = pdrSayiCoz(gm[1]); if (n) return pdrGunOffsetTarih(PDR_GUNLER[gm[2]], n); }
-  gm = t.match(new RegExp(`(gelecek|önümüzdeki|haftaya)\\s*hafta?\\s*(${gunAdlari})`));
+  // "hafta" kelimesi burada OPSİYONEL: "haftaya çarşamba" (hafta kelimesi hiç
+  // geçmiyor) ve "gelecek hafta çarşamba" (geçiyor) ikisi de gün adını doğru
+  // yakalamalı — önceden "hafta?" yazımı sadece sondaki "a"yı opsiyonel
+  // yapıyordu (regex'te ? bir önceki TEK karaktere uygulanır), "haft" kısmı
+  // zorunlu kalıyordu; bu yüzden "haftaya çarşamba" hiç eşleşmiyordu.
+  gm = t.match(new RegExp(`(gelecek|önümüzdeki|haftaya)\\s*(?:hafta\\s*)?(${gunAdlari})`));
   if (gm) return pdrGunOffsetTarih(PDR_GUNLER[gm[2]], 1);
+  // Gün adı hiç belirtilmeden tek başına "haftaya" / "gelecek hafta" /
+  // "önümüzdeki hafta" yazılırsa (en yaygın kullanım biçimlerinden biri),
+  // bugünün tarihinden tam 7 gün sonrasını hesapla.
+  if (/(haftaya|gelecek\s*hafta|önümüzdeki\s*hafta)/.test(t)) {
+    const d = new Date(); d.setDate(d.getDate()+7); return pdrTarihFormatla(d);
+  }
   gm = t.match(new RegExp(`bu\\s*hafta\\s*(${gunAdlari})`));
   if (gm) return pdrGunOffsetTarih(PDR_GUNLER[gm[1]], 0);
   gm = t.match(new RegExp(`(${gunAdlari})\\s*günü`)) || t.match(new RegExp(`\\b(${gunAdlari})\\b`));
@@ -20422,6 +20445,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
     const yeniIlerleme = sozlukGuncelle(ilerlemeNotlari);
     const yeniProfNotlari = sozlukGuncelle(profNotlari);
     const yeniTestKayitlari = sozlukGuncelle(testKayitlari);
+    const yeniKonuHaritasi = sozlukGuncelle(konuHaritasiVerisi || {});
 
     // 4) Sosyometri — özel yapı: secimler hem anahtar (kimin seçimleri)
     // hem de değer dizisi (kimleri seçti) olarak öğrenci adı içeriyor.
@@ -20469,6 +20493,7 @@ function AyarlarEkrani({ ogrenciler, setOgrenciler, records, setRecords, profile
     setIlerlemeNotlari(yeniIlerleme); await saveIlerlemeNotlari(yeniIlerleme);
     setProfNotlari(yeniProfNotlari); await saveProfNotlari(yeniProfNotlari);
     setTestKayitlari(yeniTestKayitlari); await saveTestKayitlari(yeniTestKayitlari);
+    if (setKonuHaritasiVerisi) { setKonuHaritasiVerisi(yeniKonuHaritasi); await saveKonuHaritasi(yeniKonuHaritasi); }
     setSosyometri(yeniSosyometri); await saveSosyometri(yeniSosyometri);
 
     setMaskelemeSonuc(`${eslesme.length} öğrencinin adı standart biçime getirildi (ilk 2 harf + 5 yıldız), ilgili tüm kayıtlar güncellendi.` + cakismaNotu);
@@ -26224,6 +26249,18 @@ export default function App() {
     const updProfNotlari2 = pdrSozlukSinifTemizle(profNotlari);
     setProfNotlari(updProfNotlari2); await saveProfNotlari(updProfNotlari2);
 
+    // Önceden sınıf silmede geride kalan kayıtlar — öğrenci silmeyle aynı kapsam
+    const updHatSinif = (hatirlatmalar||[]).filter(h => !silinecekMi(h.studentName, h.className, h.numara));
+    setHatirlatmalar(updHatSinif); await saveHatirlatmalar(updHatSinif);
+    const updNetSinif = (netHaritasiKayitlari||[]).filter(k => !silinecekMi(k.studentName, k.className, k.numara));
+    setNetHaritasiKayitlari(updNetSinif); await saveNetHaritasi(updNetSinif);
+    const updTestSinif = pdrSozlukSinifTemizle(testKayitlari||{});
+    setTestKayitlari(updTestSinif); await saveTestKayitlari(updTestSinif);
+    const updKonuSinif = pdrSozlukSinifTemizle(konuHaritasiVerisi||{});
+    setKonuHaritasiVerisi(updKonuSinif); await saveKonuHaritasi(updKonuSinif);
+    // Bu sınıfın (aktif yıl) sosyometri kayıtları da kaldırılır
+    const updSosyoSinif = (sosyometri||[]).filter(k => !((k.sinif||"").trim() === hedefSinif && (!k.yil || k.yil === aktifYil)));
+    setSosyometri(updSosyoSinif); await saveSosyometri(updSosyoSinif);
     // Elle eklenen sınıf listesinden de kaldır — aksi halde öğrencisiz olsa da kart tekrar görünür/eklenebilir kalır.
     const updSinifListesi = (sinifListesi||[]).filter(s => s !== hedefSinif);
     setSinifListesi(updSinifListesi); await saveSinifListesi(updSinifListesi);
