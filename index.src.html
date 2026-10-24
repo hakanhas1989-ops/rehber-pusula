@@ -25,9 +25,12 @@
     const trimmed = key.trim();
     localStorage.setItem("rpusula__apiKey", trimmed);
     const user = window.pdrAuth && window.pdrAuth.currentUser;
-    if (user && window.pdrDb) {
-      window.pdrDb.collection("users").doc(user.uid).collection("data").doc("apiKey")
-        .set({ value: trimmed, updatedAt: Date.now() })
+    // Anahtar diğer veriler gibi pdrFirestoreYaz üzerinden yazılır: böylece
+    // cihazda şifreleme açıkken buluta ŞİFRELİ gider. (Eskiden doğrudan
+    // pdrDb ile yazılıyordu ve müşterinin Anthropic anahtarı Firestore'da
+    // düz metin duruyordu — şifreleme katmanını atlıyordu.)
+    if (user && typeof window.pdrFirestoreYaz === "function") {
+      window.pdrFirestoreYaz(user.uid, "apiKey", trimmed)
         .catch(err => console.log("API anahtarı buluta kaydedilemedi:", err));
     }
   }
@@ -1044,8 +1047,11 @@ window.pdrSifreCihazdaUnut = async () => { const user = pdrAuth.currentUser; if 
 
 async function pdrSyncDown(uid) {
   const lastUid = localStorage.getItem("pdr_last_uid");
-  if (lastUid && lastUid !== uid) {
+  if (!lastUid || lastUid !== uid) {
     // Cihazda önceden başka bir hesap açılmış — eski veriler karışmasın diye temizle.
+    // lastUid hiç yoksa da temizlenir: bu cihazda kime ait olduğu bilinmeyen
+    // eski bir önbellek kalmış olabilir (eski sürüm, yarıda kalmış çıkış).
+    // Gerçek veri buluttan hemen aşağıda yeniden indirilir. (PDR Program'daki kural.)
     pdrClearLocalCache();
   }
   localStorage.setItem("pdr_last_uid", uid);
