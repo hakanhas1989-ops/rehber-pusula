@@ -6721,7 +6721,7 @@ const PDR_HAT_AYRINTI = "pdr-hatirlatma-ayrinti";
 const PDR_HAT_NOTR = "🔒 Takip hatırlatması (ayrıntı programda)";
 function pdrHatHassasMi(metin) {
   const t = String(metin || "").toLocaleLowerCase("tr");
-  return /intihar|kendine zarar|kendini kes|kesik|jilet|ölmek iste|ölüm|istismar|taciz|tecavüz|cinsel|mahrem|şiddet|dayak|darp|boğaz|uyuşturucu|madde kullan|alkol|bağımlı|depresyon|kaygı bozukluğu|psikiyatri|ilaç|tanı|rapor|gebe|hamile|boşan|cezaevi|hapis|tutuklu|polis|savcı|mahkeme|koruma kararı|ihmal|kriz|risk/.test(t);
+  return /intihar|kendine zarar|kendini kes|kesik|jilet|ölmek iste|ölüm|istismar|taciz|tecavüz|cinsel|mahrem|şiddet|dayak|darp|boğaz|uyuşturucu|madde kullan|alkol|bağımlı|depresyon|kaygı bozukluğu|psikiyatri|ilaç|tanı (al|kon|var|kondu)|tanısı|gebe|hamile|boşan|cezaevi|hapis|tutuklu|polis|savcı|mahkeme|koruma kararı|ihmal|kriz|risk/.test(t);
 }
 async function pdrHatAyrintiOku() { try { const r = await window.storage.get(PDR_HAT_AYRINTI); const o = r ? JSON.parse(r.value) : {}; return o && typeof o === "object" ? o : {}; } catch { return {}; } }
 async function loadHatirlatmalar() {
