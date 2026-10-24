@@ -20240,6 +20240,18 @@ function KayipKayitBul({ records, setRecords, ogrenciler, setOgrenciler, aktifYi
   }
   const bulunan = q ? (records || []).filter(r => filtre(r.studentName)).sort((a, b) => pdrTarihMs(b.date) - pdrTarihMs(a.date)) : [];
 
+  // KVKK: silinen görüşmenin arşivdeki kopyasını kalıcı olarak yok eder (geri alınamaz)
+  async function arsivdenKaliciSil(idler, soru) {
+    if (!idler.length || !confirm(soru)) return;
+    const sil = new Set(idler);
+    try {
+      const a = await window.storage.get(PDR_SILINEN_ANAHTAR);
+      const guncel = ((a && pdrJsonDizi(a.value)) || []).filter(x => !(x && x.kayit && sil.has(x.kayit.id)));
+      await window.storage.set(PDR_SILINEN_ANAHTAR, JSON.stringify(guncel));
+      setArsiv(guncel);
+      setMesaj(`✓ ${idler.length} görüşme arşivden kalıcı olarak silindi.`);
+    } catch (e) { alert("Silinemedi: " + ((e && e.message) || "bilinmeyen hata")); }
+  }
   async function geriGetir(x) {
     if (!confirm(`${x.kayit.date || ""} tarihli ${x.kayit.studentName || ""} görüşmesi geri getirilsin mi?`)) return;
     const yeni = [x.kayit, ...(records || [])];
@@ -20279,9 +20291,20 @@ function KayipKayitBul({ records, setRecords, ogrenciler, setOgrenciler, aktifYi
                 <b>{x.kayit.date}</b> · {x.kayit.studentName} {x.kayit.className ? `(${x.kayit.className})` : ""} · {x.kayit.topic || "—"}
                 <div style={{ color: MUTED }}>{String(x.kayit.summary || x.kayit.raw || "").slice(0, 160)}</div>
                 <div style={{ fontSize: 11, color: MUTED }}>Listeden çıkma: {x.silinme}</div>
-                <button onClick={() => geriGetir(x)} style={btn}>↩️ Geri getir</button>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <button onClick={() => geriGetir(x)} style={btn}>↩️ Geri getir</button>
+                  <button data-testid="kalici-sil" onClick={() => arsivdenKaliciSil([x.kayit.id], `${x.kayit.date || ""} tarihli ${x.kayit.studentName || ""} görüşmesi arşivden KALICI olarak silinsin mi?\n\nBu işlem geri alınamaz; görüşme bir daha geri getirilemez.`)} style={{ ...btn, background: "#C0392B" }}>🗑️ Kalıcı sil</button>
+                </div>
               </div>
             ))}
+          {arsiv !== null && silinenler.length > 0 && (
+            <button data-testid="arsiv-bosalt" onClick={() => arsivdenKaliciSil(silinenler.map(x => x.kayit.id), q
+              ? `"${arama.trim()}" aramasına uyan ${silinenler.length} silinmiş görüşme arşivden KALICI olarak silinsin mi?\n\nBu işlem geri alınamaz.`
+              : `Arşivdeki ${silinenler.length} silinmiş görüşmenin TAMAMI kalıcı olarak silinsin mi?\n\nBu işlem geri alınamaz; hiçbiri bir daha geri getirilemez.`)}
+              style={{ ...btn, background: "#fff", color: "#C0392B", border: "1.5px solid #C0392B", width: "100%", marginBottom: 8 }}>
+              {q ? `🗑️ Bu aramadaki ${silinenler.length} silinmiş görüşmeyi kalıcı sil` : `🗑️ Arşivi tamamen boşalt (${silinenler.length})`}
+            </button>
+          )}
 
           {q && (
             <div>
