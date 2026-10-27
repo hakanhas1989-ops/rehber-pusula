@@ -1628,16 +1628,23 @@ function pdrKalkanAdlariGuncelle(adlar, siniflar) {
   // da yakalansın diye yıldızlı parça önek olarak eşlenir. Büyük/küçük harf Türkçeye göre.
   const harf = (ch) => { const k = pdrKalkanKucukHarf(ch), b = pdrKalkanBuyukHarf(ch); return /\p{L}/u.test(ch) ? `[${pdrKalkanRegexKac(k)}${b !== k ? pdrKalkanRegexKac(b) : ""}]` : pdrKalkanRegexKac(ch); };
   const maske = [];
-  tekil.filter(t => t.includes("*")).forEach(tam => {
+  const parcaDesen = (p, buyukBas) => {
+    if (p.length <= 2 && !p.includes("*")) p = p + "*";   // 1-2 harflik parça da kısaltmadır
+    const on = p.replace(/\*+$/, "");
+    if (!on) return "[\\p{L}*]+";
+    const harfler = [...on].map((ch, i) => i === 0 && buyukBas && /\p{L}/u.test(ch) ? pdrKalkanRegexKac(pdrKalkanBuyukHarf(ch)) : harf(ch));
+    return harfler.join("") + (p.includes("*") ? "[\\p{L}*]*" : "");
+  };
+  tekil.forEach(tam => {
     const parca = tam.split(" ").filter(Boolean);
     if (parca.length < 2) return;
-    const desenM = parca.map(p => {
-      if (p.length <= 2 && !p.includes("*")) p = p + "*";   // 1-2 harflik parça da kısaltmadır
-      const on = p.replace(/\*+$/, "");
-      if (!on) return "[\\p{L}*]+";
-      return [...on].map(harf).join("") + (p.includes("*") ? "[\\p{L}*]*" : "");
-    }).join("\\s+");
-    maske.push({ desen: desenM, anahtar: pdrKalkanKucukHarf(tam) });
+    if (tam.includes("*")) maske.push({ desen: parca.map(p => parcaDesen(p, false)).join("\\s+"), anahtar: pdrKalkanKucukHarf(tam) });
+    // Üç ve daha çok parçalı adlarda danışman çoğu zaman iki parçasını yazar ("Egemen Buğra" ← EGEMEN BU***** ŞE*****):
+    // ilk iki parça ve ad + son parça da bu öğrenci sayılır; ikinci parça büyük harfle başlamalı ("Egemen bugün" eşleşmez).
+    if (parca.length >= 3) [[0, 1], [0, parca.length - 1]].forEach(([i, j]) => {
+      if (parca[i].replace(/\*/g, "").length < 3) return;
+      maske.push({ desen: parcaDesen(parca[i], false) + "\\s+" + parcaDesen(parca[j], true), anahtar: pdrKalkanKucukHarf(tam), alt: true });
+    });
   });
   PDR_KALKAN.maske = maske.map(m => ({ ...m, re: new RegExp("^(?:" + m.desen + ")$", "u") }));
   PDR_KALKAN.maskeRegex = maske.length ? new RegExp("(^|[^\\p{L}\\p{N}])(" + maske.map(m => m.desen).sort((a, b) => b.length - a.length).join("|") + ")(?=[^\\p{L}\\p{N}*]|$)", "gu") : null;
