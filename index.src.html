@@ -11526,7 +11526,7 @@ function RaporModalIc({ rapor, onKapat }) {
 
             {/* Bir Sonraki Seans Planı */}
             {(() => {
-              const aktifPlanlar = (raporMudahale[ogrenci] || []).filter(p => p.durum === "Devam Ediyor");
+              const aktifPlanlar = (pdrSozlukOku(raporMudahale || {}, ogrenci, ogrenciSinif) || (raporMudahale || {})[ogrenci] || []).filter(p => p.durum === "Devam Ediyor");
               const sonGorusme = gorusmeler?.length > 0 ? [...gorusmeler].sort((a,b) => {
                 const parse = d => { const [g,ay,y]=(d||"").split("."); return new Date(`${y}-${ay}-${g}`); };
                 return parse(b.date) - parse(a.date);
