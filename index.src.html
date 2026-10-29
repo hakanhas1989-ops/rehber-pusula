@@ -25922,7 +25922,19 @@ function AylikGorusmeGrafigi({ records, yil }) {
         <rect x={sl} y={us} width={W - sl - sg} height={H - us - al} fill="none" stroke="#B9CFBE" strokeWidth="1.1" />
         {gecen.length > 1 && seriler.map(s => <path key={s.k} d={gecen.map((v, i) => (i ? "L" : "M") + x(v.i).toFixed(1) + " " + y(v[s.k]).toFixed(1)).join(" ")} fill="none" stroke={s.renk} strokeWidth={s.k === "top" ? 2.6 : 1.8} strokeLinejoin="round" strokeLinecap="round" />)}
         {seriler.map(s => gecen.map(v => <circle key={s.k + v.i} cx={x(v.i)} cy={y(v[s.k])} r={s.k === "top" ? 3 : 2.3} fill="#fff" stroke={s.renk} strokeWidth="1.6" />))}
-        {gecen.map(v => <text key={"t" + v.i} x={x(v.i)} y={y(v.top) - 6} fontSize="8.5" fontWeight="700" fill="#127C56" textAnchor="middle">{v.top}</text>)}
+        {gecen.map(v => {
+          // Her noktanın üstüne değeri; çakışırsa altına yazılır, aynı değerse tekrar yazılmaz
+          const dolu = [];
+          return seriler.map(s => {
+            const py = y(v[s.k]);
+            if (dolu.some(d => d.deger === v[s.k] && Math.abs(d.py - py) < 1)) return null;
+            let ty = py - 6;
+            if (dolu.some(d => Math.abs(d.ty - ty) < 9)) ty = py + 12;
+            if (dolu.some(d => Math.abs(d.ty - ty) < 9)) return null;
+            dolu.push({ py, ty, deger: v[s.k] });
+            return <text key={"t" + s.k + v.i} x={x(v.i)} y={ty} fontSize="8.5" fontWeight="700" fill={s.renk} textAnchor="middle">{v[s.k]}</text>;
+          });
+        })}
         {veri.map(v => <text key={"e" + v.i} x={x(v.i)} y={H - 7} fontSize="8" fontWeight={v.i === bugunSira ? 800 : 400} fill={v.i <= sonIdx ? "#475569" : "#B8C2CC"} textAnchor="middle">{v.kisa}</text>)}
       </svg>
       {gecen.length > 0 && (
