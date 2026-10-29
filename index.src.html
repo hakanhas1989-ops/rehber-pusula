@@ -25873,6 +25873,67 @@ function OzellikRehberiModal({ onKapat, tabs }) {
 }
 
 // ── MAIN ──────────────────────────────────────────────────────────────────────
+// İstatistik: ay ay öğrenci / veli / toplam görüşme sayısı (çizgi grafik + tablo)
+function AylikGorusmeGrafigi({ records }) {
+  const AY = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+  const veri = useMemo(() => {
+    const m = {};
+    (records || []).forEach(r => {
+      const p = String(r.date || "").split(".");
+      if (p.length !== 3) return;
+      const ay = parseInt(p[1], 10), yil = parseInt(p[2], 10);
+      if (!ay || ay > 12 || !yil) return;
+      const k = yil + "-" + String(ay).padStart(2, "0");
+      const x = m[k] || (m[k] = { k, etiket: AY[ay - 1] + " " + String(yil).slice(2), ogr: 0, veli: 0, top: 0 });
+      x.top++;
+      const t = r.meetingType || "Öğrenci";
+      if (t === "Öğrenci") x.ogr++; else if (t === "Veli") x.veli++;
+    });
+    // Aradaki boş aylar da 0 olarak gösterilir; en fazla son 12 ay
+    const anahtarlar = Object.keys(m).sort();
+    if (!anahtarlar.length) return [];
+    const l = []; let [y, a] = anahtarlar[0].split("-").map(Number); const [sy, sa] = anahtarlar[anahtarlar.length - 1].split("-").map(Number);
+    while (y < sy || (y === sy && a <= sa)) { const k = y + "-" + String(a).padStart(2, "0"); l.push(m[k] || { k, etiket: AY[a - 1] + " " + String(y).slice(2), ogr: 0, veli: 0, top: 0 }); a++; if (a > 12) { a = 1; y++; } }
+    return l.slice(-12);
+  }, [records]);
+  if (!veri.length) return null;
+  const seriler = [{ k: "top", ad: "Toplam", renk: "#127C56" }, { k: "ogr", ad: "Öğrenci", renk: "#2563EB" }, { k: "veli", ad: "Veli", renk: "#E07A1F" }];
+  const W = 340, H = 170, sl = 26, sg = 10, us = 14, al = 22, n = veri.length;
+  const mx = Math.max(1, ...veri.map(v => v.top)); const ust = Math.ceil(mx / 4) * 4 || 4;
+  const x = i => sl + (n > 1 ? i * (W - sl - sg) / (n - 1) : (W - sl - sg) / 2), y = v => us + (H - us - al) * (1 - v / ust);
+  const topToplam = veri.reduce((t, v) => t + v.top, 0);
+  return (
+    <div data-aylik-gorusme="1" style={{ background: CARD, border: `1px solid ${BORDER}`, boxShadow: "0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius: 12, padding: 14, marginBottom: 16 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>📈 Aylara göre görüşme sayısı</div>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11.5, marginBottom: 4 }}>
+        {seriler.map(s => <span key={s.k} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 14, height: 3, background: s.renk, borderRadius: 2, display: "inline-block" }} />{s.ad}</span>)}
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+        <defs><pattern id="aylikGorKare" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M 8 0 L 0 0 0 8" fill="none" stroke="#DDE8E2" strokeWidth="0.5" /></pattern></defs>
+        <rect x={sl} y={us} width={W - sl - sg} height={H - us - al} fill="#FCFDFC" />
+        <rect x={sl} y={us} width={W - sl - sg} height={H - us - al} fill="url(#aylikGorKare)" />
+        {veri.map((v, i) => <line key={"d" + i} x1={x(i)} y1={us} x2={x(i)} y2={H - al} stroke="#BBD3C6" strokeWidth="0.9" />)}
+        {[0, 1, 2, 3, 4].map(i => { const v = ust * i / 4, py = y(v); return <g key={i}><line x1={sl} y1={py} x2={W - sg} y2={py} stroke="#BBD3C6" strokeWidth="0.9" /><text x={sl - 4} y={py + 3} fontSize="8" fill="#7D9188" fontWeight="600" textAnchor="end">{Math.round(v)}</text></g>; })}
+        <rect x={sl} y={us} width={W - sl - sg} height={H - us - al} fill="none" stroke="#B9CFBE" strokeWidth="1.1" />
+        {seriler.map(s => <path key={s.k} d={veri.map((v, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(v[s.k]).toFixed(1)).join(" ")} fill="none" stroke={s.renk} strokeWidth={s.k === "top" ? 2.6 : 1.8} strokeLinejoin="round" strokeLinecap="round" />)}
+        {seriler.map(s => veri.map((v, i) => <circle key={s.k + i} cx={x(i)} cy={y(v[s.k])} r={s.k === "top" ? 3 : 2.3} fill="#fff" stroke={s.renk} strokeWidth="1.6" />))}
+        {veri.map((v, i) => <text key={"t" + i} x={x(i)} y={y(v.top) - 6} fontSize="8.5" fontWeight="700" fill="#127C56" textAnchor="middle">{v.top}</text>)}
+        {veri.map((v, i) => (n <= 8 || i % 2 === 0 || i === n - 1) && <text key={"e" + i} x={x(i)} y={H - 6} fontSize="8" fill="#64748B" textAnchor="middle">{v.etiket}</text>)}
+      </svg>
+      <div style={{ overflowX: "auto", marginTop: 6 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5 }}>
+          <thead><tr>{["Ay", "Öğrenci", "Veli", "Toplam"].map(h => <th key={h} style={{ textAlign: h === "Ay" ? "left" : "right", padding: "4px 6px", color: MUTED, borderBottom: `1px solid ${BORDER}`, fontWeight: 700 }}>{h}</th>)}</tr></thead>
+          <tbody>
+            {[...veri].reverse().map(v => <tr key={v.k}><td style={{ padding: "3px 6px" }}>{v.etiket}</td><td style={{ padding: "3px 6px", textAlign: "right", color: "#2563EB" }}>{v.ogr}</td><td style={{ padding: "3px 6px", textAlign: "right", color: "#E07A1F" }}>{v.veli}</td><td style={{ padding: "3px 6px", textAlign: "right", fontWeight: 800, color: "#127C56" }}>{v.top}</td></tr>)}
+            <tr><td style={{ padding: "4px 6px", fontWeight: 800, borderTop: `1px solid ${BORDER}` }}>Toplam</td><td style={{ padding: "4px 6px", textAlign: "right", fontWeight: 800, borderTop: `1px solid ${BORDER}`, color: "#2563EB" }}>{veri.reduce((t, v) => t + v.ogr, 0)}</td><td style={{ padding: "4px 6px", textAlign: "right", fontWeight: 800, borderTop: `1px solid ${BORDER}`, color: "#E07A1F" }}>{veri.reduce((t, v) => t + v.veli, 0)}</td><td style={{ padding: "4px 6px", textAlign: "right", fontWeight: 800, borderTop: `1px solid ${BORDER}`, color: "#127C56" }}>{topToplam}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style={{ fontSize: 10, color: MUTED, marginTop: 4 }}>Toplama öğrenci ve veli dışındaki görüşme türleri de (öğretmen, grup vb.) dahildir.{n === 12 ? " Son 12 ay gösteriliyor." : ""}</div>
+    </div>
+  );
+}
+
 export default function App() {
   const [records, setRecords] = useState([]);
   const [profiles, setProfiles] = useState([]);
@@ -28241,6 +28302,7 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
                 </div>
               ))}
             </div>
+            <AylikGorusmeGrafigi records={kademeRecords} />
             {takipListesi.length > 0 && (
               <div style={{ background: "#FFF8E7", border: "1px solid #F0D68A", borderRadius: 12, padding: 16, marginBottom: 16 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#B07D1A", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>🔔 Takip Gereken Öğrenciler ({TAKIP_ESIK_GUN}+ gündür görüşülmedi)</div>
