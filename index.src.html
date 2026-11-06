@@ -503,7 +503,7 @@ async function pdrBildirimTokenKaydet(uid) {
     // bildirim gitmesine (çift bildirim) yol açıyordu.
     const tokenDeger = (x) => (typeof x === "string" ? x : x?.token);
     if (!mevcut.some(x => tokenDeger(x) === token)) {
-      mevcut.push({ token, tarih: today() });
+      mevcut.push({ token, tarih: new Date().toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" }) });   // (bu betik modülün dışında: today() burada tanımlı değil)
       await pdrFirestoreYaz(uid, "fcmTokens", JSON.stringify(mevcut));
     }
   } catch (e) {
