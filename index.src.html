@@ -2393,7 +2393,7 @@ function DevamsizlikEkrani({ ogrenciler, setOgrenciler, kademe, aktifYil, setTab
               style={{ width:"100%", padding:"8px 10px", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", borderRadius:8, fontSize:12.5, boxSizing:"border-box", marginBottom:8 }} />
             {manuelArama.trim().length >= 2 && (
               <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10, maxHeight:150, overflowY:"auto" }}>
-                {yilOgrencileri.filter(o => o.studentName.toLocaleLowerCase("tr").includes(manuelArama.toLocaleLowerCase("tr"))).slice(0,15).map(o => (
+                {yilOgrencileri.filter(o => pdrAdAra(o.studentName, manuelArama)).slice(0,15).map(o => (
                   <button key={pdrOgrAnahtar(o.studentName,o.className,o.numara)} onClick={()=>{ setManuelSecili(o); setManuelArama(""); }} style={{
                     padding:"5px 11px", borderRadius:16, border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", background:"#fff", color:MUTED, fontSize:11.5, cursor:"pointer"
                   }}>{o.studentName} <span style={{fontSize:10}}>({o.className})</span></button>
@@ -3864,6 +3864,30 @@ const KS_MESLEK_RIASEC = [
 ];
 const KS_MEB_NOT = (p) => p >= 85 ? "pekiyi" : p >= 70 ? "iyi" : p >= 60 ? "orta" : p >= 50 ? "geçer" : "geçmez";
 
+// D2 yüzdelik (TN-E PR) bandı — el kitabı: 50–60 averaj (risk grubu), 60–70 vasat, 70–85 normal, 85+ iyi; %75 üstü beklenir
+function d2PrBant(pr) {
+  const p = parseFloat(String(pr == null ? "" : pr).replace(",", ".")); if (!isFinite(p)) return null;
+  if (p < 25) return { ad: "zayıf" }; if (p < 50) return { ad: "ortalamanın altı (risk)" }; if (p < 60) return { ad: "averaj (risk grubu)" };
+  if (p < 70) return { ad: "vasat" }; if (p < 85) return { ad: "normal" }; return { ad: "iyi" };
+}
+// PR ve hata yüzdesine göre genel dikkat sonucu (E%: 0–1,5 normal, 1,5–2,5 dikkat edilmeli, 2,5 üstü problem)
+function d2GenelSonuc(v) {
+  v = v || {}; const sy = x => { const n = parseFloat(String(x == null ? "" : x).replace(",", ".")); return isFinite(n) ? n : null; };
+  let e = sy(v.E_yuzde); const pr = sy(v.PR), tn = sy(v.TN);
+  if (e === null && tn) { const e1 = sy(v.E1) || 0, e2 = sy(v.E2) || 0; if (e1 || e2) e = Math.round((e1 + e2) / tn * 10000) / 100; }
+  if (pr === null && e === null) return null;
+  const eD = e === null ? null : e <= 1.5 ? "n" : e <= 2.5 ? "s" : "y", pD = pr === null ? null : pr >= 75 ? "i" : "d";
+  let m;
+  if (pD === "i" && eD === "n") m = "Dikkat yeterli: hem hızlı hem özenli çalışıyor.";
+  else if (pD === "i" && eD === "y") m = "Hızlı ama özensiz: yoğunlaşma (odaklanma) problemi var; performansı iyi görünse de dikkat eğitimi önerilir.";
+  else if (pD === "i" && eD === "s") m = "Performans iyi, hata oranı sınırda: yoğunlaşma izlenmeli.";
+  else if (pD === "d" && eD === "n") m = `Yavaş ama dikkatli: hata az, ancak psikomotor hız / algıladığını harekete dönüştürme ${pr < 50 ? "belirgin biçimde " : ""}zayıf.`;
+  else if (pD === "d" && eD === "y") m = "Dikkat problemi belirgin: hem test performansı düşük hem hata oranı yüksek; uzmana yönlendirme ve dikkat eğitimi önerilir.";
+  else if (pD === "d" && eD === "s") m = "Performans beklenenin (%75) altında, hata oranı sınırda: dikkat desteği önerilir.";
+  else if (pD === null) m = eD === "y" ? "Hata oranı yüksek: yoğunlaşma problemi (performans için PR gerekli)." : eD === "s" ? "Hata oranı sınırda (performans için PR gerekli)." : "Hata oranı normal (performans için PR gerekli).";
+  else m = pD === "i" ? "Test performansı beklenen düzeyde (hata oranı için TN, E1, E2 gerekli)." : "Test performansı beklenenin (%75) altında (hata oranı için TN, E1, E2 gerekli).";
+  return { metin: m };
+}
 function pdrKapaliP2Analizi({ sinavlar = {}, d2 = {}, gecmisYillar = {}, ilgiler = [], kariyer_hedef = "", aile_notu = "", gorusmeler = [], denemeGirilen = [], dersListesi = [], sinavTuru = "lgs", dersEtiketleri = null, kademe = "" }) {
   const etiket = dersEtiketleri || { turkce: "Türkçe", mat: "Matematik", inkilap: "İnkılap Tarihi", fen: "Fen Bilimleri", ingilizce: "İngilizce", din: "Din Kültürü" };
   const sayi = (v) => { const n = parseFloat(String(v).replace(",", ".")); return isNaN(n) ? null : n; };
@@ -3908,14 +3932,17 @@ function pdrKapaliP2Analizi({ sinavlar = {}, d2 = {}, gecmisYillar = {}, ilgiler
   if (PR !== null || TNE !== null || EY !== null) {
     const parcalar = [];
     if (PR !== null) {
-      const duz = PR >= 75 ? "ortalamanın üstünde" : PR >= 25 ? "ortalama düzeyde" : PR >= 10 ? "ortalamanın altında" : "belirgin biçimde düşük";
-      parcalar.push(`D2 dikkat testinde yüzdelik sıra ${PR}; genel dikkat performansı yaşıtlarına göre ${duz}`);
+      const duz = (d2PrBant(PR) || { ad: "" }).ad;
+      parcalar.push(`D2 dikkat testinde (TN-E) yüzdelik sıra ${PR}; genel dikkat performansı ${duz}${PR < 75 ? " (%75 üstü beklenir)" : ""}`);
     }
-    if (EY !== null) parcalar.push(EY > 10 ? `hata yüzdesi (%${EY}) yüksek — hız uğruna doğruluktan ödün veriyor olabilir, dikkatsizlik hatalarına eğilim var` : EY < 3 ? `hata yüzdesi (%${EY}) düşük — dikkatli ve özenli çalışıyor` : `hata yüzdesi (%${EY}) olağan aralıkta`);
-    if (FR !== null && FR >= 15) parcalar.push(`satırlar arası dalgalanma (FR ${FR}) yüksek — dikkatin süreklilik içinde iniş çıkış gösterdiğini düşündürüyor`);
+    if (EY !== null) parcalar.push(EY > 2.5 ? `hata yüzdesi (%${EY}) 2,5'in üstünde — dikkat problemi göstergesi; hız uğruna doğruluktan ödün veriyor olabilir` : EY > 1.5 ? `hata yüzdesi (%${EY}) 1,5–2,5 aralığında — dikkat edilmeli` : `hata yüzdesi (%${EY}) normal aralıkta (0–1,5)`);
+    { const e1 = sayi(d2.E1), e2 = sayi(d2.E2); if (e1 !== null && e2 !== null && e1 + e2 > 0) parcalar.push(e1 >= e2 * 3 ? "hataların çoğu atlama (E1) — tarama sırasında hedefleri kaçırıyor" : e2 > e1 ? "hataların çoğu yanlış işaretleme (E2) — dürtüsellik ya da görsel ayırt etme güçlüğü araştırılabilir" : "atlama ve yanlış işaretleme dengeli"); }
+    if (sayi(d2.CP) !== null && sayi(d2.CP) < 0) parcalar.push("CP negatif — rastgele işaretleme olabilir, sonuç geçerliliği şüpheli");
+    if (FR !== null && FR >= 30) parcalar.push(`satırlar arası dalgalanma (FR ${FR}) yüksek — dikkatin süreklilik içinde iniş çıkış gösterdiğini düşündürüyor`);
     let yorum = parcalar.join("; ") + ".";
-    if (PR !== null && PR < 25) yorum += " Dikkat desteği önerilir: kısa ve bölünmüş çalışma blokları (25 dk çalışma + 5 dk mola), dikkat dağıtıcıların azaltılması, ön sıralarda oturma. Sınıf içi gözlemle birlikte belirtiler belirginse ve birden çok ortamda görülüyorsa uzman değerlendirmesi önerilebilir.";
-    if (PR !== null && PR < 25 && dersOrt.length && dersOrt.reduce((s, d) => s + d.ort, 0) / dersOrt.length < 60) yorum += " Düşük dikkat performansı ile akademik düşüklük birlikte görülüyor; akademik güçlükte dikkatin payı olabilir.";
+    { const gs = d2GenelSonuc(d2); if (gs) yorum = "Genel sonuç: " + gs.metin + " " + yorum; }
+    if (PR !== null && PR < 60) yorum += " Dikkat eksikliği açısından risk grubunda; dikkat eğitimi ve desteği önerilir: kısa ve bölünmüş çalışma blokları (25 dk çalışma + 5 dk mola), dikkat dağıtıcıların azaltılması, ön sıralarda oturma. Sınıf içi gözlemle birlikte belirtiler belirginse ve birden çok ortamda görülüyorsa uzman değerlendirmesi önerilebilir.";
+    if (PR !== null && PR < 50 && dersOrt.length && dersOrt.reduce((s, d) => s + d.ort, 0) / dersOrt.length < 60) yorum += " Düşük dikkat performansı ile akademik düşüklük birlikte görülüyor; akademik güçlükte dikkatin payı olabilir.";
     else if (PR !== null && PR >= 50 && dersOrt.length && dersOrt.reduce((s, d) => s + d.ort, 0) / dersOrt.length < 60) yorum += " Dikkat performansı yeterli olduğu hâlde akademik puanlar düşük; düşüklüğün nedeni dikkatten çok çalışma alışkanlığı, motivasyon ya da konu eksikleri olabilir.";
     dk = yorum;
   } else dk = "D2 verisi girilmemiş.";
@@ -4924,7 +4951,7 @@ function pdrKapaliSupervizyon(girdi) {
   if ((c.turPuan["Sağlık"] || 0) >= 2) zemin.push("sağlık sorunu");
   if ((c.turPuan["Ekonomik Güçlük"] || 0) >= 2) zemin.push("ekonomik güçlük");
   if (c.ozGecmisVar) zemin.push("geçmişte öz zarar öyküsü");
-  const d2 = X.profil2 && X.profil2.d2; if (d2 && parseFloat(d2.PR) < 25) zemin.push(`düşük dikkat performansı (D2 yüzdelik ${d2.PR})`);
+  const d2 = X.profil2 && X.profil2.d2; if (d2 && parseFloat(d2.PR) < 50) zemin.push(`düşük dikkat performansı (D2 yüzdelik ${d2.PR})`);
   if (X.profil1 && X.profil1.scores && X.profil1.scores.ozguven > 0 && X.profil1.scores.ozguven <= 2) zemin.push("düşük öz güven");
   if (r.islev.includes("devam") || (c.turPuan["Devamsızlık"] || 0) >= 2) surduren.push("kaçınma (okula gelmeme/devamsızlık) — kısa vadede rahatlatıp uzun vadede sorunu büyütür");
   if (c.ekranBelirti === "Var") surduren.push("ekran kullanımı ve uyku düzensizliği");
@@ -5080,7 +5107,7 @@ function pdrKapaliSoruYanitla(soruId, girdi) {
       const o = [];
       if (X.kaygi) o.push("Kaygı belirtileri için bir kaygı tarama ölçeği (örn. programdaki SCAS).");
       if (X.depresif) o.push("Depresif belirtiler için yaşa uygun bir depresyon tarama ölçeği.");
-      if ((c.turPuan["Özel Öğrenme Güçlüğü"] || 0) >= 1 || (X.profil2 && X.profil2.d2 && parseFloat(X.profil2.d2.PR) < 25)) o.push("Dikkat için D2 / Çeldiricili Dikkat Testi ve ÖÖG ön değerlendirme aracı.");
+      if ((c.turPuan["Özel Öğrenme Güçlüğü"] || 0) >= 1 || (X.profil2 && X.profil2.d2 && parseFloat(X.profil2.d2.PR) < 50)) o.push("Dikkat için D2 / Çeldiricili Dikkat Testi ve ÖÖG ön değerlendirme aracı.");
       if ((c.turPuan["Akran-Zorbalık"] || 0) >= 1) o.push("Sınıf içi konum için sosyometri.");
       if (X.r.tur === "Akademik" || (c.turPuan["Akademik"] || 0) >= 1) o.push("Akademik Benlik Kavramı Ölçeği ve Düzey Taraması (yapabiliyor/inanıyor karşılaştırması için).");
       if (X.kd !== "ilkokul") o.push("Kariyer planlaması için Mesleki Eğilim Testi.");
@@ -7021,7 +7048,7 @@ function DegerlendirmeEkrani({ onTransfer, onClose, records, profiles, profiles2
                 {degOgrenciArama.trim().length >= 2 ? (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
                     {kayitliListesi.filter(o =>
-                      o.name.toLocaleLowerCase("tr").includes(degOgrenciArama.toLocaleLowerCase("tr")) ||
+                      pdrAdAra(o.name, degOgrenciArama) ||
                       o.className?.toLocaleLowerCase("tr").includes(degOgrenciArama.toLocaleLowerCase("tr")) ||
                       o.numara?.includes(degOgrenciArama)
                     ).slice(0, 20).map(o => (
@@ -7646,6 +7673,25 @@ function pdrSekmeAyikla(etiket) {
   return m ? { ikon: m[1], metin: m[2] } : { ikon: null, metin: etiket || "" };
 }
 
+// Görüşme kaydının metni: özet boşsa ham not; özet ham notun kırpılmış başıysa (formsuz kayıt) ham notun tamamı.
+function pdrKayitMetni(r) {
+  const oz = String(r.summary || "").trim(), ham = String(r.raw || "").trim();
+  if (!oz) return ham;
+  if (!r.form && ham.length > oz.length && ham.startsWith(oz)) return ham;
+  return oz;
+}
+// Öğrenci adı araması: ad, ikinci ad ya da soyadıyla, kelime sırası fark
+// etmeden ve Türkçe harf yazılmasa da (yilmaz → Yılmaz) bulur. Yazılan her
+// kelime adın içinde geçmeli: "ali kaya" → "Ali Rıza Kaya" bulunur.
+function pdrAraNorm(s) {
+  return String(s == null ? "" : s).toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/ı/g, "i").replace(/ş/g, "s").replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ö/g, "o").replace(/ç/g, "c")
+    .replace(/\s+/g, " ").trim();
+}
+function pdrAdAra(ad, q) {
+  const a = pdrAraNorm(ad), k = pdrAraNorm(q).split(" ").filter(Boolean);
+  return k.every(w => a.includes(w));
+}
 function pdrSozlukOku(sozluk, name, className, numara) {
   if (!sozluk) return undefined;
   if (numara) {
@@ -7654,6 +7700,12 @@ function pdrSozlukOku(sozluk, name, className, numara) {
   }
   const yeniKey = pdrOgrAnahtar(name, className);
   if (sozluk[yeniKey] !== undefined) return sozluk[yeniKey];
+  // Numara bilinmeden okunuyorsa: kayıt numaralı anahtarla yazılmış olabilir ("Ad || Sınıf || No").
+  // Aynı ad ve sınıfta TEK numaralı kayıt varsa onu döndür (birden fazlaysa hangisi olduğu belirsiz, dokunma).
+  if (!numara && (className || "").trim()) {
+    const on = yeniKey + " || ", adaylar = Object.keys(sozluk).filter(k => k.startsWith(on));
+    if (adaylar.length === 1) return sozluk[adaylar[0]];
+  }
   return sozluk[name]; // eski format (sadece isim) — geriye dönük uyumluluk
 }
 // Yazarken en spesifik (numara varsa isim+sınıf+numara, yoksa isim+sınıf) anahtara
@@ -8931,7 +8983,7 @@ function pdrGorusmeGecmisiMetni(records, ad, sinif, numara, haricId) {
 
   const satirlar = son.map((r, i) => {
     const sira = toplam - son.length + i + 1;
-    const ozet = (r.summary || r.raw || "").trim();
+    const ozet = pdrKayitMetni(r);
     const kisa = ozet.length > 600 ? ozet.slice(0, 600) + "…" : ozet;
     return `${sira}. görüşme (${r.date}${r.meetingType ? ", " + r.meetingType : ""}${r.topic ? " — " + r.topic : ""}): ${kisa || "(not boş)"}`;
   });
@@ -8974,7 +9026,7 @@ function pdrSeansKronolojisi(ogrRec) {
       if (!isNaN(fark)) ara = ` [önceki seanstan ${fark} gün sonra]`;
     }
     const bas = `SEANS ${i + 1} (${r.date}${pdrGunAdi(r.date) ? " " + pdrGunAdi(r.date) : ""}${r.meetingType ? ", " + r.meetingType : ""}${r.topic ? ", konu: " + r.topic : ""})${ara}`;
-    return `${bas}: ${(r.summary || r.raw || "").trim() || "(not boş)"}`;
+    return `${bas}: ${pdrKayitMetni(r) || "(not boş)"}`;
   }).join("\n\n");
 }
 
@@ -8999,7 +9051,7 @@ function pdrGorusmeListesiMetni(liste, secenek) {
     const bilgi = [r.date];
     if (o.tur) bilgi.push(r.meetingType || "Öğrenci");
     if (o.konu && r.topic) bilgi.push(r.topic);
-    return `${etiket} ${baslangic + i + 1} (${bilgi.join(", ")}): ${(r.summary || "").trim()}`;
+    return `${etiket} ${baslangic + i + 1} (${bilgi.join(", ")}): ${pdrKayitMetni(r)}`;
   }).join(o.ayrac || "\n\n");
 }
 // ===== GORUSME GECMIS BITIS =====
@@ -11749,7 +11801,7 @@ function RadarChart({ scores, size = 240, glass = false }) {
   const labelColor = glass ? "#ffffff" : TEXT;
 
   return (
-    <svg width="100%" height="auto" style={{ maxWidth: totalW, display: "block" }} viewBox={`0 0 ${totalW} ${totalH}`}>
+    <svg width="100%" style={{ maxWidth: totalW, display: "block", height: "auto" }} viewBox={`0 0 ${totalW} ${totalH}`}>
       <defs>
         <radialGradient id={gid} cx="50%" cy="45%" r="60%">
           <stop offset="0%" stopColor={fillColor} stopOpacity={glass ? 0.5 : 0.6} />
@@ -15828,7 +15880,7 @@ function TestlerEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, testKayi
             {ogrenciArama.trim().length >= 2 ? (
               <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
                 {kayitliListesi.filter(o =>
-                  o.name.toLocaleLowerCase("tr").includes(ogrenciArama.toLocaleLowerCase("tr")) ||
+                  pdrAdAra(o.name, ogrenciArama) ||
                   o.className?.toLocaleLowerCase("tr").includes(ogrenciArama.toLocaleLowerCase("tr")) ||
                   o.numara?.includes(ogrenciArama)
                 ).slice(0,20).map(o => (
@@ -16582,7 +16634,7 @@ function MudahalePlanEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, mud
       {/* Öğrenci seç */}
       <input placeholder="Öğrenci ara..." value={aramaMetni} onChange={e=>setAramaMetni(e.target.value)} style={{...inp, marginBottom:8}} />
       <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:14}}>
-        {kayitliListesi.filter(o=>o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) || o.numara?.includes(aramaMetni)).slice(0,15).map(o=>{
+        {kayitliListesi.filter(o=>pdrAdAra(o.name, aramaMetni) || o.numara?.includes(aramaMetni)).slice(0,15).map(o=>{
           const s=seciliAd===o.name;
           return <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={()=>{setSeciliAd(o.name); if(setAktifOgrenci) setAktifOgrenci({ name:o.name, className:o.className||"" });}} style={{padding:"4px 10px",borderRadius:16,border:`2px solid ${s?ACCENT:BORDER}`,background:s?ACCENT_LIGHT:CARD,color:s?ACCENT:MUTED,fontSize:11,fontWeight:s?700:500,cursor:"pointer"}}>{o.name}</button>;
         })}
@@ -16996,7 +17048,7 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
   let aktifler = (hatirlatmalar||[]).filter(h => !h.tamamlandi);
   if (filtreMetni.trim()) {
     const f = filtreMetni.toLocaleLowerCase("tr");
-    aktifler = aktifler.filter(h => h.studentName?.toLocaleLowerCase("tr").includes(f) || h.className?.toLocaleLowerCase("tr").includes(f));
+    aktifler = aktifler.filter(h => pdrAdAra(h.studentName, f) || h.className?.toLocaleLowerCase("tr").includes(f));
   }
   // Her hatırlatmaya kalan gün + kategori ekleyip, kategori içinde tarihe göre sırala
   const zenginlestirilmis = aktifler.map(h => { const eTarih = pdrHatirlatmaEfektifTarih(h); return { ...h, _efektifTarih: eTarih, _kalanGun: pdrKalanGunHesapla(eTarih), _kategori: pdrHatirlatmaKategori(pdrKalanGunHesapla(eTarih)) }; })
@@ -17113,7 +17165,7 @@ function HatirlaticiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, hati
               {ogrenciArama.trim().length >= 2 && (
                 <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
                   {kayitliListesi.filter(o =>
-                    o.name.toLocaleLowerCase("tr").includes(ogrenciArama.toLocaleLowerCase("tr")) ||
+                    pdrAdAra(o.name, ogrenciArama) ||
                     o.className?.toLocaleLowerCase("tr").includes(ogrenciArama.toLocaleLowerCase("tr"))
                   ).slice(0,20).map(o => (
                     <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => { setSeciliAd(o.name); setAktifOgrenci({ name:o.name, className:o.className||"" }); setOgrenciArama(""); }} style={{
@@ -17881,7 +17933,7 @@ function KonuHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, kon
           {ogrenciArama.trim().length >= 2 && (
             <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:16 }}>
               {kayitliListesi.filter(o =>
-                o.name.toLocaleLowerCase("tr").includes(ogrenciArama.toLocaleLowerCase("tr")) ||
+                pdrAdAra(o.name, ogrenciArama) ||
                 o.className?.toLocaleLowerCase("tr").includes(ogrenciArama.toLocaleLowerCase("tr"))
               ).slice(0,20).map(o => (
                 <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => { setSeciliAd(o.name); setAktifOgrenci({ name:o.name, className:o.className||"" }); setOgrenciArama(""); }} style={{
@@ -18360,7 +18412,7 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
           {ogrenciArama.trim().length >= 2 && (
             <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:16 }}>
               {kayitliListesi.filter(o =>
-                o.name.toLocaleLowerCase("tr").includes(ogrenciArama.toLocaleLowerCase("tr")) ||
+                pdrAdAra(o.name, ogrenciArama) ||
                 o.className?.toLocaleLowerCase("tr").includes(ogrenciArama.toLocaleLowerCase("tr"))
               ).slice(0,20).map(o => (
                 <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={() => { setSeciliAd(o.name); setAktifOgrenci({ name:o.name, className:o.className||"" }); setOgrenciArama(""); }} style={{
@@ -18695,7 +18747,7 @@ function SevkTakipEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, sevkle
     if (gosterFiltre === "Bekliyor") return s.sonucBekleniyor;
     if (gosterFiltre === "Tamamlandı") return !s.sonucBekleniyor;
     return true;
-  }).filter(s => !aramaMetni || s.studentName?.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) || s.numara?.toString().includes(aramaMetni));
+  }).filter(s => !aramaMetni || pdrAdAra(s.studentName, aramaMetni) || s.numara?.toString().includes(aramaMetni));
 
   const sevkYerleri = ["RAM","Psikolog","Psikiyatrist","Özel Eğitim","Sosyal Hizmetler","Rehberlik Araştırma","Diğer"];
 
@@ -18712,7 +18764,7 @@ function SevkTakipEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, sevkle
         {/* Öğrenci seç */}
         <label style={lbl}>ÖĞRENCİ</label>
         <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
-          {kayitliListesi.filter(o=>o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) || o.numara?.includes(aramaMetni)).slice(0,12).map(o=>{
+          {kayitliListesi.filter(o=>pdrAdAra(o.name, aramaMetni) || o.numara?.includes(aramaMetni)).slice(0,12).map(o=>{
             const s=form.studentName===o.name && (form.className||"")===(o.className||"");
             return <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={()=>{setForm(f=>({...f,studentName:o.name,className:o.className||""})); if(setAktifOgrenci) setAktifOgrenci({ name:o.name, className:o.className||"" });}} style={{padding:"4px 10px",borderRadius:16,border:`2px solid ${s?ACCENT:BORDER}`,background:s?ACCENT_LIGHT:CARD,color:s?ACCENT:MUTED,fontSize:11,fontWeight:s?700:500,cursor:"pointer"}}>{o.name}</button>;
           })}
@@ -18966,7 +19018,7 @@ function VeliMektubu({ kayitliListesi, aktifOgrenci, records }) {
 
       <input placeholder="Öğrenci ara..." value={aramaMetni} onChange={e=>setAramaMetni(e.target.value)} style={{width:"100%",padding:"9px 11px",border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)",borderRadius:9,fontSize:13,boxSizing:"border-box",marginBottom:8}} />
       <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:12}}>
-        {kayitliListesi.filter(o=>o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) || o.numara?.includes(aramaMetni)).slice(0,12).map(o=>{
+        {kayitliListesi.filter(o=>pdrAdAra(o.name, aramaMetni) || o.numara?.includes(aramaMetni)).slice(0,12).map(o=>{
           const s=seciliAd===o.name;
           return <button key={pdrOgrAnahtar(o.name, o.className, o.numara)} onClick={()=>setSeciliAd(o.name)} style={{padding:"4px 10px",borderRadius:16,border:`2px solid ${s?ACCENT:BORDER}`,background:s?ACCENT_LIGHT:CARD,color:s?ACCENT:MUTED,fontSize:11,fontWeight:s?700:500,cursor:"pointer"}}>{o.name}</button>;
         })}
@@ -21349,24 +21401,6 @@ function OgrenciYonetim({
     await saveRecords(updated);
   }
 
-  async function handleOgrenciSil(studentName) {
-    const ad = studentName.toLocaleLowerCase("tr").trim();
-    const updOgr = ogrenciler.filter(o => o.studentName.toLocaleLowerCase("tr").trim() !== ad);
-    setOgrenciler(updOgr); await saveOgrenciler(updOgr);
-    const updRec = records.filter(r => r.studentName?.toLocaleLowerCase("tr").trim() !== ad);
-    setRecords(updRec); await saveRecords(updRec);
-    const updP1 = profiles.filter(p => p.studentName?.toLocaleLowerCase("tr").trim() !== ad);
-    setProfiles(updP1); await saveProfiles(updP1);
-    const updP2 = profiles2.filter(p => p.studentName?.toLocaleLowerCase("tr").trim() !== ad);
-    setProfiles2(updP2); await saveProfiles2(updP2);
-    const updDen = { ...denemeler };
-    Object.keys(updDen).forEach(k => { if (k.toLocaleLowerCase("tr").trim() === ad) delete updDen[k]; });
-    setDenemeler(updDen); await saveDenemeler(updDen);
-    const updRisk = riskListesi.filter(r => r.studentName?.toLocaleLowerCase("tr").trim() !== ad);
-    setRiskListesi(updRisk); await saveRiskListesi(updRisk);
-    if (setAktifOgrenci) setAktifOgrenci({ name: "", className: "" });
-    setSeciliOgrenci(null);
-  }
 
   // Öğrenci listesi — aktif yıla ve seçili okul kademesine göre filtrele (useMemo ile cache)
   const tumOgrenciler = useMemo(() =>
@@ -21379,7 +21413,7 @@ function OgrenciYonetim({
 
   const filtreliListe = useMemo(() => tumOgrenciler.filter(o =>
     !aramaDebounce ||
-    o.studentName?.toLocaleLowerCase("tr").includes(aramaDebounce.toLocaleLowerCase("tr")) ||
+    pdrAdAra(o.studentName, aramaDebounce) ||
     o.className?.toLocaleLowerCase("tr").includes(aramaDebounce.toLocaleLowerCase("tr")) ||
     o.numara?.includes(aramaDebounce)
   ), [tumOgrenciler, aramaDebounce]);
@@ -22662,7 +22696,7 @@ function DenemeTabip({ denemeler, setDenemeler, kayitliListesi, aktifOgrenci, se
   const [kaydedildi, setKaydedildi] = useState(false);
 
   const filtreliListe = kayitliListesi.filter(o =>
-    o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) ||
+    pdrAdAra(o.name, aramaMetni) ||
     o.className?.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) ||
     o.numara?.includes(aramaMetni)
   );
@@ -24042,7 +24076,7 @@ function ProfilMerkez({
   }, [seciliAd, profiles, profiles2]);
 
   const filtreliListe = kayitliListesi.filter(o =>
-    o.name.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) || o.className?.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) || o.numara?.includes(aramaMetni)
+    pdrAdAra(o.name, aramaMetni) || o.className?.toLocaleLowerCase("tr").includes(aramaMetni.toLocaleLowerCase("tr")) || o.numara?.includes(aramaMetni)
   );
 
   // AI: görüşme notlarından puan
@@ -26633,7 +26667,7 @@ export default function App() {
   // Seçili kademeye ait görüşmeler (ilkokul seçiliyken ortaokul görüşmeleri sayılmaz/listelenmez; veri silinmez)
   const kademeRecords = records.filter(r => pdrKademeUyumlu(r.className, kademe));
   const filtered = kademeRecords.filter(r =>
-    r.studentName.toLocaleLowerCase("tr").includes(search.toLocaleLowerCase("tr")) || r.className?.toLocaleLowerCase("tr").includes(search.toLocaleLowerCase("tr"))
+    pdrAdAra(r.studentName, search) || r.className?.toLocaleLowerCase("tr").includes(search.toLocaleLowerCase("tr"))
   );
   const byStudent = filtered.reduce((acc, r) => { acc[r.studentName] = acc[r.studentName] || []; acc[r.studentName].push(r); return acc; }, {});
   const byDate = filtered.reduce((acc, r) => { acc[r.date] = acc[r.date] || []; acc[r.date].push(r); return acc; }, {});
@@ -27052,17 +27086,17 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
         const sonuclar = q.length < 2 ? [] : (() => {
           const bulunanlar = [];
           (ogrenciler || []).forEach(o => {
-            if ((o.studentName || "").toLocaleLowerCase("tr").includes(q) || (o.className || "").toLocaleLowerCase("tr").includes(q) || (o.numara || "").toString().includes(q)) {
+            if (pdrAdAra((o.studentName || ""), q) || (o.className || "").toLocaleLowerCase("tr").includes(q) || (o.numara || "").toString().includes(q)) {
               bulunanlar.push({ tip: "👤", baslik: o.studentName, alt: [o.className, o.numara ? `No: ${o.numara}` : ""].filter(Boolean).join(" · "), git: () => { setAktifOgrenci({ name: o.studentName, className: o.className, numara: o.numara }); setTab("yeni"); } });
             }
           });
           (riskListesi || []).forEach(r => {
-            if ((r.studentName || "").toLocaleLowerCase("tr").includes(q) || (r.riskTuru || "").toLocaleLowerCase("tr").includes(q) || (r.aciklama || "").toLocaleLowerCase("tr").includes(q) || (r.numara || "").toString().includes(q)) {
+            if (pdrAdAra((r.studentName || ""), q) || (r.riskTuru || "").toLocaleLowerCase("tr").includes(q) || (r.aciklama || "").toLocaleLowerCase("tr").includes(q) || (r.numara || "").toString().includes(q)) {
               bulunanlar.push({ tip: "⚠", baslik: r.studentName, alt: `Risk: ${r.riskTuru || "belirtilmemiş"}`, git: () => { setAktifOgrenci({ name: r.studentName, className: r.className, numara: r.numara }); setTab("risk"); } });
             }
           });
           (hatirlatmalar || []).forEach(h => {
-            if ((h.studentName || "").toLocaleLowerCase("tr").includes(q) || (h.metin || "").toLocaleLowerCase("tr").includes(q) || (h.numara || "").toString().includes(q)) {
+            if (pdrAdAra((h.studentName || ""), q) || (h.metin || "").toLocaleLowerCase("tr").includes(q) || (h.numara || "").toString().includes(q)) {
               bulunanlar.push({ tip: "🔔", baslik: h.studentName || "Hatırlatma", alt: h.metin || "", git: () => { setAktifOgrenci(h.studentName ? { name: h.studentName, className: h.className, numara: h.numara } : null); setTab("hatirlatici"); } });
             }
           });
@@ -27278,7 +27312,7 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
                     {notOgrenciArama.trim().length >= 2 ? (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom:8 }}>
                         {kayitliListesi.filter(o =>
-                          o.name.toLocaleLowerCase("tr").includes(notOgrenciArama.toLocaleLowerCase("tr")) ||
+                          pdrAdAra(o.name, notOgrenciArama) ||
                           o.className?.toLocaleLowerCase("tr").includes(notOgrenciArama.toLocaleLowerCase("tr")) ||
                           o.numara?.includes(notOgrenciArama)
                         ).slice(0, 20).map(o => (
@@ -27328,7 +27362,7 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
                           {kayitliListesi.filter(o =>
                             !pdrAyniOgrenci(o.name, o.className, form.studentName, form.className, o.numara, form.numara) &&
                             !digerKatilimcilar.some(k => pdrAyniOgrenci(k.name, k.className, o.name, o.className, k.numara, o.numara)) &&
-                            (o.name.toLocaleLowerCase("tr").includes(katilimciArama.toLocaleLowerCase("tr")) ||
+                            (pdrAdAra(o.name, katilimciArama) ||
                              o.className?.toLocaleLowerCase("tr").includes(katilimciArama.toLocaleLowerCase("tr")) ||
                              o.numara?.includes(katilimciArama))
                           ).slice(0,15).map(o => (
@@ -28005,7 +28039,7 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
                   {riskOgrenciArama.trim().length >= 2 ? (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {kayitliListesi.filter(o =>
-                        o.name.toLocaleLowerCase("tr").includes(riskOgrenciArama.toLocaleLowerCase("tr")) ||
+                        pdrAdAra(o.name, riskOgrenciArama) ||
                         o.className?.toLocaleLowerCase("tr").includes(riskOgrenciArama.toLocaleLowerCase("tr")) ||
                         o.numara?.includes(riskOgrenciArama)
                       ).slice(0, 20).map(o => {
