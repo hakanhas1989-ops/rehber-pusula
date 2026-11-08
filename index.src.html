@@ -18120,18 +18120,27 @@ function dersBosSayisi(ders) {
 // En çok tekrar eden zayıf kazanımların, deneme deneme başarı% dizisini
 // çıkarır (sparkline çizimi için). konuOzetiOlustur'daki mantığın aynısı ama
 // TOPLAM değil, kronolojik DİZİ döndürür — trend gösterebilmek için.
+// Bir deneme kaydının kazanımları, deneme içinde birleştirilmiş olarak: yayınevi aynı kazanımın her sorusunu ayrı satır
+// yazabiliyor; satır satır saymak "kaç denemede çıktı / kaç kez yanlış" sayılarını şişirir (1 denemede 2 soru = "2 deneme").
+function netKayitKazanimlari(kayit) {
+  const m = {};
+  (kayit && kayit.dersler || []).forEach(ders => (ders.konular || []).forEach(k => {
+    const key = ders.ders + "|||" + k.kazanim;
+    if (!m[key]) m[key] = { key, ders: ders.ders, kazanim: k.kazanim, soru: 0, dogru: 0, yanlis: 0, basariTop: 0, satir: 0 };
+    m[key].soru += Number(k.soru) || 0; m[key].dogru += Number(k.dogru) || 0; m[key].yanlis += Number(k.yanlis) || 0;
+    m[key].basariTop += Number(k.basari) || 0; m[key].satir += 1;
+  }));
+  return Object.values(m).map(x => ({ ...x, basari: x.soru > 0 ? Math.round(x.dogru / x.soru * 100) : Math.round(x.basariTop / x.satir) }));
+}
 function kazanimTrendVerisi(ogrKayitlar, limit) {
   limit = limit || 5;
   const siraliKayitlar = [...(ogrKayitlar||[])].sort((a,b) => pdrTarihMs(a.tarih) - pdrTarihMs(b.tarih));
   const map = {};
   siraliKayitlar.forEach(kayit => {
-    (kayit.dersler||[]).forEach(ders => {
-      (ders.konular||[]).forEach(k => {
-        const key = ders.ders + "|||" + k.kazanim;
-        if (!map[key]) map[key] = { ders: ders.ders, kazanim: k.kazanim, kezYanlis:0, dizi:[] };
-        map[key].dizi.push({ tarih:kayit.tarih, basari: Number(k.basari)||0 });
-        if (k.yanlis > 0) map[key].kezYanlis++;
-      });
+    netKayitKazanimlari(kayit).forEach(k => {
+      if (!map[k.key]) map[k.key] = { ders: k.ders, kazanim: k.kazanim, kezYanlis:0, dizi:[] };
+      map[k.key].dizi.push({ tarih:kayit.tarih, basari: k.basari });
+      if (k.yanlis > 0) map[k.key].kezYanlis++;
     });
   });
   return Object.values(map)
@@ -18330,15 +18339,12 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
     const map = {};
     const siraliKayitlar = [...ogrKayitlar].sort((a,b) => pdrTarihMs(a.tarih) - pdrTarihMs(b.tarih));
     siraliKayitlar.forEach(kayit => {
-      (kayit.dersler||[]).forEach(ders => {
-        (ders.konular||[]).forEach(k => {
-          const key = ders.ders + "|||" + k.kazanim;
-          if (!map[key]) map[key] = { ders: ders.ders, kazanim: k.kazanim, kezToplam:0, kezYanlis:0, sonBasari:null, sonTarih:null };
-          map[key].kezToplam++;
-          if (k.yanlis > 0) map[key].kezYanlis++;
-          map[key].sonBasari = k.basari;
-          map[key].sonTarih = kayit.tarih;
-        });
+      netKayitKazanimlari(kayit).forEach(k => {
+        if (!map[k.key]) map[k.key] = { ders: k.ders, kazanim: k.kazanim, kezToplam:0, kezYanlis:0, sonBasari:null, sonTarih:null };
+        map[k.key].kezToplam++;
+        if (k.yanlis > 0) map[k.key].kezYanlis++;
+        map[k.key].sonBasari = k.basari;
+        map[k.key].sonTarih = kayit.tarih;
       });
     });
     return Object.values(map)
@@ -18391,15 +18397,12 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
     const map = {};
     const siraliKayitlar = [...ogrKayitlar].sort((a,b) => pdrTarihMs(a.tarih) - pdrTarihMs(b.tarih));
     siraliKayitlar.forEach(kayit => {
-      (kayit.dersler||[]).forEach(ders => {
-        (ders.konular||[]).forEach(k => {
-          const key = ders.ders + "|||" + k.kazanim;
-          if (!map[key]) map[key] = { ders: ders.ders, kazanim: k.kazanim, kezToplam:0, kezYanlis:0, sonBasari:null, sonTarih:null };
-          map[key].kezToplam++;
-          if (k.yanlis > 0) map[key].kezYanlis++;
-          map[key].sonBasari = k.basari;
-          map[key].sonTarih = kayit.tarih;
-        });
+      netKayitKazanimlari(kayit).forEach(k => {
+        if (!map[k.key]) map[k.key] = { ders: k.ders, kazanim: k.kazanim, kezToplam:0, kezYanlis:0, sonBasari:null, sonTarih:null };
+        map[k.key].kezToplam++;
+        if (k.yanlis > 0) map[k.key].kezYanlis++;
+        map[k.key].sonBasari = k.basari;
+        map[k.key].sonTarih = kayit.tarih;
       });
     });
     const zayifKonular = Object.values(map).filter(x => x.kezYanlis > 0).sort((a,b) => b.kezYanlis - a.kezYanlis);
