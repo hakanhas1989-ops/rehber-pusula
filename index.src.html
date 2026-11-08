@@ -18204,13 +18204,49 @@ function ogrenciDegerlendirmeRaporuHesapla(ogrKayitlar) {
   return { dersDurumu, bosOrani, hataToplam, hataToplamSayi, denemeSayisi: siraliKayitlar.length };
 }
 
-function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netHaritasiKayitlari, setNetHaritasiKayitlari, kademe }) {
+// Net Haritası → Deneme sekmesi yazım planı (kişisel programdaki asistanın deneme_kaydet kurallarıyla aynı):
+// ders adı eşleştirme ("T.C. İNK. TAR." → Sosyal), net sınırı, boşsa ilk boş deneme numarası.
+const PDR_NET_DERS_ES = { mat: ["mat", "matematik", "temel matematik"], sosyal: ["sosyal", "inkilap", "ink", "tarih", "sosyal bilgiler"], fen: ["fen", "fen bilimleri"], din: ["din", "dkab"], turkce: ["turkce"], ingilizce: ["ingilizce", "yabanci dil", "ing"] };
+function pdrNetTarihNormal(t) { const m = String(t || "").match(/(\d{1,2})[./-](\d{1,2})[./-](\d{4})/); return m ? `${m[1].padStart(2, "0")}.${m[2].padStart(2, "0")}.${m[3]}` : ""; }
+function pdrNetDenemePlani(g, ctx, o) {
+  const kd = String((ctx && ctx.kademe) || "").toLowerCase();
+  if (kd === "ilkokul") return { dersler: [], mevcut: {}, no: 0, netler: {}, eski: null, satirlar: [], sorunlar: ["İlkokul kademesinde deneme sınavı kaydı yapılmaz"] };
+  const dersler = aktifDersler(kd === "lise" && (!ctx.sinavTuru || ctx.sinavTuru === "lgs") ? "tyt" : (ctx.sinavTuru || "lgs"));
+  const mevcut = pdrSozlukOku(ctx.denemeler, o.name, o.className, o.numara) || {};
+  const satirlar = [], sorunlar = [], netler = {};
+  let no = parseInt(g.deneme, 10);
+  if (!(no >= 1 && no <= DENEME_SAYISI)) { no = 0; for (let i = 1; i <= DENEME_SAYISI; i++) if (!mevcut[i] && !mevcut[String(i)]) { no = i; break; } }
+  const bul = (ad) => {
+    const s = ksSade(String(ad || "")).trim().replace(/^t\.?\s?c\.?\s+/, ""); if (!s) return null;
+    const tam = dersler.find(d => ksSade(d.label) === s || d.key === s); if (tam) return tam;
+    const es = Object.keys(PDR_NET_DERS_ES).find(k => PDR_NET_DERS_ES[k].some(e => s === e || s.startsWith(e)));
+    if (es) { const d = dersler.find(x => x.key === es); if (d) return d; }
+    return dersler.find(d => { const v = ksSade(d.label); return v && (v.startsWith(s) || s.startsWith(v) || (s.length >= 4 && v.includes(s))); }) || null;
+  };
+  Object.entries(g.netler || {}).forEach(([ad, v]) => {
+    const d = bul(ad), n = parseFloat(String(v).replace(",", "."));
+    if (!d) { sorunlar.push(`"${ad}" dersi bu sınav türünde yok (${dersler.map(x => x.label).join(", ")})`); return; }
+    if (!isFinite(n) || n > d.maks || n < -d.maks / 3) { sorunlar.push(`${d.label}: net ${v} geçersiz (en fazla ${d.maks})`); return; }
+    netler[d.key] = String(n);
+  });
+  const eski = no ? (mevcut[no] || mevcut[String(no)]) : null;
+  if (Object.keys(netler).length) {
+    if (!no) sorunlar.push(`${DENEME_SAYISI} denemenin hepsi dolu; hangi denemenin üzerine yazılacağını seçin`);
+    else { const top = Object.values(netler).reduce((a, b) => a + parseFloat(b), 0);
+      satirlar.push(`• ${no}. deneme${eski ? " (var olan kayıt güncellenecek)" : ""}: ${dersler.filter(d => netler[d.key] !== undefined).map(d => `${d.label} ${netler[d.key]}`).join(", ")} · toplam ${top.toFixed(2)}`); }
+  }
+  return { dersler, mevcut, no: Object.keys(netler).length ? no : 0, netler, eski, satirlar, sorunlar };
+}
+function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netHaritasiKayitlari, setNetHaritasiKayitlari, kademe, denemeler, setDenemeler, sinavTuru }) {
   const sinavBaglami = netHaritasiSinavBaglami(kademe);
   const [seciliAd, setSeciliAd] = useState(aktifOgrenci?.name || "");
   const [ogrenciArama, setOgrenciArama] = useState("");
   const [yukleniyor, setYukleniyor] = useState(false);
   const [taslak, setTaslak] = useState(null);
   const [taslakTarihi, setTaslakTarihi] = useState(today());
+  // Belgedeki ders netleri Deneme sekmesine de yazılsın mı (varsayılan evet) ve hangi deneme numarasına
+  const [denemeyeYaz, setDenemeyeYaz] = useState(true);
+  const [denemeNo, setDenemeNo] = useState("");
   const [detayAcikId, setDetayAcikId] = useState(null);
   const [tekrarListesi, setTekrarListesi] = useState(null);
   const [tekrarYukleniyor, setTekrarYukleniyor] = useState(false);
@@ -18227,6 +18263,11 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
   const seciliNumara = seciliOgr?.numara || aktifOgrenci?.numara || "";
 
   const ogrKayitlar = (netHaritasiKayitlari||[]).filter(k => pdrAyniOgrenci(k.studentName, k.className, seciliAd, seciliSinif, k.numara, seciliNumara)).sort((a,b) => pdrTarihMs(b.tarih) - pdrTarihMs(a.tarih));
+  // Deneme sekmesine yazım planı: asistanın deneme_kaydet aracıyla aynı kurallar (ders eşleştirme, net sınırı, ilk boş numara)
+  const denemePlani = (taslak && setDenemeler && seciliAd) ? pdrNetDenemePlani(
+    { deneme: denemeNo, netler: Object.fromEntries((taslak.dersler || []).filter(d => d.ders && d.net !== "" && d.net != null).map(d => [d.ders, d.net])), tarih: taslakTarihi },
+    { denemeler: denemeler || {}, sinavTuru: sinavTuru || "lgs", kademe }, { name: seciliAd, className: seciliSinif, numara: seciliNumara }) : null;
+  const denemeMevcut = denemePlani ? denemePlani.mevcut : {};
   // Kaydedilmiş son Yanlış Analizi: AI'a her seferinde yeniden sorulmasın diye öğrencinin bir deneme kaydında saklanır
   // (yanlisAnalizi alanı). Ayrı bir veri türü açılmadı: kayıtla birlikte yedeklenir, eşitlenir, şifrelenir ve silinir.
   const kayitliAnaliz = ogrKayitlar.reduce((en, k) => (k.yanlisAnalizi && k.yanlisAnalizi.metin && (!en || (k.yanlisAnalizi.ms || 0) > (en.ms || 0))) ? k.yanlisAnalizi : en, null);
@@ -18297,8 +18338,15 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
     const guncel = [yeni, ...(netHaritasiKayitlari||[])];
     setNetHaritasiKayitlari(guncel);
     await saveNetHaritasi(guncel);
+    if (denemeyeYaz && denemePlani && denemePlani.no && setDenemeler) {
+      const p = denemePlani, kayit = { ...p.mevcut };
+      kayit[p.no] = { ...(p.eski || {}), ...p.netler, girisTarihi: pdrNetTarihNormal(taslakTarihi) || (p.eski && p.eski.girisTarihi) || today() };
+      const yeniDen = pdrSozlukYaz(denemeler || {}, seciliAd, seciliSinif, kayit, seciliNumara);
+      setDenemeler(yeniDen); await saveDenemeler(yeniDen);
+    }
     setTaslak(null);
     setTaslakTarihi(today());
+    setDenemeNo("");
   }
 
   function taslakSayiGuncelle(dersIdx, konuIdx, alan, deger) {
@@ -18538,6 +18586,26 @@ function NetHaritasiEkrani({ kayitliListesi, aktifOgrenci, setAktifOgrenci, netH
               {(ders.konular||[]).length === 0 && <div style={{ fontSize:11, color:MUTED }}>Bu ders için kazanım detayı bulunamadı.</div>}
             </div>
           ))}
+          {denemePlani && (
+            <div data-net-deneme="1" style={{ background:"#fff", border:"1px solid #F0D68A", borderRadius:8, padding:10, marginTop:6, fontSize:12 }}>
+              <label style={{ display:"flex", alignItems:"center", gap:7, fontWeight:800, color:"#7C2D12", cursor:"pointer" }}>
+                <input data-net-deneme-yaz="1" type="checkbox" checked={denemeyeYaz} onChange={e => setDenemeyeYaz(e.target.checked)} />
+                📊 Ders netlerini Deneme sekmesine de kaydet
+              </label>
+              {denemeyeYaz && (<>
+                <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:6, flexWrap:"wrap" }}>
+                  <span style={{ color:MUTED }}>Deneme no:</span>
+                  <select data-net-deneme-no="1" value={denemeNo || String(denemePlani.no || "")} onChange={e => setDenemeNo(e.target.value)} style={{ padding:"4px 6px", borderRadius:6, border:"1px solid #F0D68A", fontSize:12 }}>
+                    {Array.from({ length: DENEME_SAYISI }, (_, i) => i + 1).map(n => <option key={n} value={String(n)}>{n}. deneme{(denemeMevcut[n] || denemeMevcut[String(n)]) ? " (dolu — üzerine yazılır)" : ""}</option>)}
+                  </select>
+                </div>
+                <div data-net-deneme-onizleme="1" style={{ marginTop:6, color: denemePlani.no ? TEXT : "#B91C1C", lineHeight:1.45 }}>
+                  {denemePlani.satirlar.length ? denemePlani.satirlar.join(" ").replace(/^• /, "") : "Kaydedilecek geçerli net bulunamadı."}
+                  {denemePlani.sorunlar.length > 0 && <div style={{ color:"#B45309", marginTop:3 }}>⚠ {denemePlani.sorunlar.join("; ")}</div>}
+                </div>
+              </>)}
+            </div>
+          )}
           <div style={{ display:"flex", gap:8, marginTop:10 }}>
             <button onClick={handleTaslakKaydet} style={{ flex:1, padding:11, background:PURPLE, color:"#fff", border:"none", borderRadius:10, fontWeight:800, fontSize:13, cursor:"pointer" }}>✓ Doğru, Kaydet</button>
             <button onClick={()=>setTaslak(null)} style={{ padding:11, background:"none", border:`1px solid ${BORDER}`,boxShadow:"0 4px 12px rgba(20,40,32,0.14), 0 1px 3px rgba(20,40,32,0.10)", color:MUTED, borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>İptal</button>
@@ -28026,6 +28094,9 @@ function PdrSekmeRozeti({ etiket, renk, zeminRenk, kenarRenk }) {
             netHaritasiKayitlari={netHaritasiKayitlari}
             setNetHaritasiKayitlari={setNetHaritasiKayitlari}
             kademe={kademe}
+            denemeler={denemeler}
+            setDenemeler={setDenemeler}
+            sinavTuru={sinavTuru}
           />
         )}
 
