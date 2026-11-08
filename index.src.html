@@ -3399,7 +3399,49 @@ function ksTarihYaz(t) {
 }
 
 // ── Ana işlev ─────────────────────────────────────────────────────────────────
+// Görüşme konusu/alt konusu → kapalı analizin tanıyacağı sade ifade. Ana konu etiketleri bazen sözlükte karşılık bulmuyor
+// ("Öz Zarar" gibi), bu yüzden tarif eklenir. Önleyici/gelişimsel alt konularda (bilgilendirme, güçlendirme…) konu
+// risk taramasına hiç katılmaz: "Madde Kullanımı · Önleyici Bilgilendirme" öğrencinin madde kullandığı anlamına gelmez.
+const PDR_KONU_ANALIZ = {
+  "Davranış": "davranış sorunu, kurallara uymama", "Akademik": "akademik konu, derslerde zorlanma", "Aile": "aile konusu, ailede sorun",
+  "Akran / Zorbalık": "akran ilişkileri / zorbalık", "Duygusal": "duygusal konu, stres", "Öz Zarar": "öz zarar, kendine zarar verme riski",
+  "Sağlık": "sağlık, rahatsızlığı", "Yas / Kayıp": "yas / kayıp, özlem",
+};
+const PDR_ALT_KONU_ANALIZ = {
+  "Akran / Zorbalık|Zorbalık Uygulama": "arkadaşlarına zorbalık uygulama", "Akran / Zorbalık|Akran Çatışması": "akran çatışması, arkadaşlarıyla anlaşmazlık", "Akran / Zorbalık|Dışlanma": "akranları tarafından dışlanma",
+  "Aile|İletişim Sorunu": "ailede iletişim sorunu", "Aile|Kardeş İlişkisi": "kardeş ilişkisi",
+  "Akademik|Başarı Düşüklüğü": "başarısı düştü", "Akademik|Motivasyon Eksikliği": "motivasyon eksikliği, derslere isteksiz", "Akademik|Çalışma Alışkanlığı Sorunu": "ders çalışma alışkanlığı sorunu, ders çalışmıyor", "Akademik|Dikkat / Odaklanma Güçlüğü": "dikkat / odaklanma güçlüğü",
+  "Devamsızlık|Okul Reddi / Korkusu": "okul reddi / okul korkusu, devamsızlık",
+  "Sağlık|Süreğen Hastalık": "süreğen (kronik) hastalık", "Sağlık|Psikiyatrik Süreç": "psikiyatrik süreç, psikiyatri takibi",
+  "Madde Kullanımı|Sigara": "sigara kullanımı", "Madde Kullanımı|Alkol": "alkol kullanımı", "Madde Kullanımı|Diğer Madde": "madde kullanımı",
+  "Teknoloji / Ekran Bağımlılığı|Oyun Bağımlılığı": "oyun bağımlılığı, ekran bağımlılığı", "Teknoloji / Ekran Bağımlılığı|Sosyal Medya": "sosyal medya, ekran bağımlılığı",
+  "Yas / Kayıp|Ölüm": "yakınının ölümü, yas, özlem", "Travma|Tanık Olma": "travmatik olaya tanık olma",
+};
+const PDR_GELISIMSEL_ALT = /bilgilendirme|güçlendirme|eğitimi|artırma|hazırlama|geliştirme|verimli|keşfi/i;
+function pdrKonuAnalizMetni(g) {
+  if (!g || !g.topic) return "";
+  const alt = g.altKonu && g.altKonu !== "Diğer" ? g.altKonu : "";
+  if (alt && PDR_GELISIMSEL_ALT.test(alt)) return "";
+  const ana = PDR_KONU_ANALIZ[g.topic] || g.topic;
+  const tarif = alt ? (PDR_ALT_KONU_ANALIZ[g.topic + "|" + alt] || `${alt} (${ana})`) : ana;
+  // "konusu" kelimesi kurgu (film/kitap konusu) filtresine takılıyor; bu yüzden "başlığı" kullanılır
+  return `Görüşme başlığı: ${tarif}. `;
+}
+// Kapalı analizlere giden görüşmeler: not metnine görüşme konusu (alt konusuyla) eklenir; not boşsa ya da kırpılmışsa
+// ham notun tamamı kullanılır. Böylece "Akran zorbalığı" konulu ama notu kısa bir görüşme de analizde fark edilir.
+// _analiz işareti, iç içe çağrılarda (müdahale planı → risk analizi) konunun iki kez eklenmesini önler.
+function pdrAnalizGorusmeleri(gorusmeler, konuEkle = true) {
+  return (gorusmeler || []).map(g => {
+    if (!g || g._analiz) return g;
+    const not = pdrKayitMetni(g);
+    // Not olumsuz bir ifade içeriyorsa ("kendine zarar verme düşüncesi yok", "madde kullanmadığını söyledi") konu
+    // eklenmez; karar notun kendisine bırakılır. Konu, notun yetersiz kaldığı durumlar için bir ipucudur.
+    const olumsuz = /(^|[^a-z])(yok|degil|saptanmadi|gorulmedi|rastlanmadi|bulunmadi|reddet\w*|inkar\w*)(?=[^a-z]|$)|madig|medig/.test(ksSade(not));
+    return { ...g, summary: (konuEkle && !olumsuz ? pdrKonuAnalizMetni(g) : "") + not, _analiz: true };
+  });
+}
 function pdrKapaliRiskAnalizi(riskForm, gorusmeler = [], profil1 = null, kademe = "", denemeOzet = null) {
+  gorusmeler = pdrAnalizGorusmeleri(gorusmeler);
   riskForm = riskForm || {};
   const notlar = [...(gorusmeler || [])].filter(g => g && (g.summary || "").trim())
     .sort(ksTarihSirala);
@@ -3699,6 +3741,7 @@ const KS_BOYUTLAR = ["akademik", "sosyal", "duygusal", "aile", "ozguven", "uyum"
 
 // Notlardan 8 boyutlu puan (1-5). Bilgi yoksa 3 (AI istemindeki kuralla aynı).
 function pdrKapaliProfilPuani(gorusmeler, danismanNotu, denemeOzet) {
+  gorusmeler = pdrAnalizGorusmeleri(gorusmeler);
   const r = ksCekirdek(gorusmeler, danismanNotu, null, "", denemeOzet);
   const c = r.cekirdek;
   const eksi = {}, arti = {}, kanit = {};
@@ -4345,6 +4388,7 @@ const KS_PLAN = {
 const KS_PROGRAM_ESLE = { "Akran-Zorbalık": "zorbalik-maruz-kalan", "Davranış": "zorbalik-yapan", "Duygusal": "psikolojik-saglamlik", "Travma": "psikolojik-saglamlik", "Yas-Kayıp": "psikolojik-saglamlik", "Aile": "psikolojik-saglamlik", "Akademik": "akademik-beceriler", "Özel Öğrenme Güçlüğü": "akademik-beceriler", "Göç-Uyum Süreci": "sosyal-duygusal" };
 
 function pdrKapaliMudahalePlani({ gorusmeler = [], kademe = "", profil1 = null, denemeOzet = null, programlar = null }) {
+  gorusmeler = pdrAnalizGorusmeleri(gorusmeler);
   const kd = kademe || "ortaokul";
   const r = ksCekirdek(gorusmeler, "", profil1, kd, denemeOzet);
   const c = r.cekirdek;
@@ -4440,6 +4484,7 @@ const KS_ETKINLIK_TEMA = {
 const KS_TAKIP_RE = /(\w+(ecek|acak|ecegi\w*|acagi\w*)|bir sonraki|gelecek (hafta|gorusme)|odev ver\w*|odev olarak|planla(ndi|dik|nacak)\w*|soz ver\w*|kararlastir\w*|takip edil\w*|aranacak|gorusulecek|izlenecek|yonlendiril\w*|deneyecek|uygulayacak|getirecek|konusulacak|bakilacak)(?=[^a-z]|$)/;
 
 function pdrKapaliSeansHazirlik({ gorusmeler = [], mudahaleler = [], riskler = [], denemeAvg = null, etkinlikHavuzu = [], kademe = "", profil1 = null }) {
+  gorusmeler = (gorusmeler || []).map(g => g && !g._analiz ? { ...g, summary: pdrKayitMetni(g) } : g);
   const notlar = [...gorusmeler].filter(g => g && (g.summary || "").trim()).sort(ksTarihSirala);
   const r = ksCekirdek(notlar, "", profil1, kademe, denemeAvg ? { ortalama: denemeAvg, toplam: 90, risk: Number(denemeAvg) / 90 >= 0.61 ? "dusuk" : Number(denemeAvg) / 90 >= 0.33 ? "orta" : "yuksek" } : null);
   const c = r.cekirdek;
@@ -8985,7 +9030,7 @@ function pdrGorusmeGecmisiMetni(records, ad, sinif, numara, haricId) {
     const sira = toplam - son.length + i + 1;
     const ozet = pdrKayitMetni(r);
     const kisa = ozet.length > 600 ? ozet.slice(0, 600) + "…" : ozet;
-    return `${sira}. görüşme (${r.date}${r.meetingType ? ", " + r.meetingType : ""}${r.topic ? " — " + r.topic : ""}): ${kisa || "(not boş)"}`;
+    return `${sira}. görüşme (${r.date}${r.meetingType ? ", " + r.meetingType : ""}${r.topic ? " — " + konuGoster(r) : ""}): ${kisa || "(not boş)"}`;
   });
 
   const atlanan = toplam - son.length;
@@ -9025,7 +9070,7 @@ function pdrSeansKronolojisi(ogrRec) {
       const fark = Math.round((gun(r.date) - gun(sirali[i - 1].date)) / 86400000);
       if (!isNaN(fark)) ara = ` [önceki seanstan ${fark} gün sonra]`;
     }
-    const bas = `SEANS ${i + 1} (${r.date}${pdrGunAdi(r.date) ? " " + pdrGunAdi(r.date) : ""}${r.meetingType ? ", " + r.meetingType : ""}${r.topic ? ", konu: " + r.topic : ""})${ara}`;
+    const bas = `SEANS ${i + 1} (${r.date}${pdrGunAdi(r.date) ? " " + pdrGunAdi(r.date) : ""}${r.meetingType ? ", " + r.meetingType : ""}${r.topic ? ", konu: " + konuGoster(r) : ""})${ara}`;
     return `${bas}: ${pdrKayitMetni(r) || "(not boş)"}`;
   }).join("\n\n");
 }
@@ -9050,7 +9095,7 @@ function pdrGorusmeListesiMetni(liste, secenek) {
   return secilen.map((r, i) => {
     const bilgi = [r.date];
     if (o.tur) bilgi.push(r.meetingType || "Öğrenci");
-    if (o.konu && r.topic) bilgi.push(r.topic);
+    if (o.konu && r.topic) bilgi.push(konuGoster(r));
     return `${etiket} ${baslangic + i + 1} (${bilgi.join(", ")}): ${pdrKayitMetni(r)}`;
   }).join(o.ayrac || "\n\n");
 }
