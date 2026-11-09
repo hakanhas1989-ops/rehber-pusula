@@ -3021,10 +3021,17 @@ const KS_SOZLUK = [
   // Öz zarar — C-SSRS basamakları
   ["Öz Zarar", 3, "olmek ist\\w*|olsem\\w*|olup gitsem|keske (hic )?dogmasaydim|keske olsem|yasamak ist(emiyor|emedig\\w*|emedi\\w*)|yasamanin (anlami|bir anlami) yok|yasamaya deger\\w* (bir sey )?(yok|degil)|uyuyup uyanmamak|bir daha uyanmasam|yok olmak ist\\w*|ortadan kaybolmak ist\\w*|herkes bensiz daha|benim olmam(am)? (daha )?iyi|kimse ozlemez|dayanamiyorum artik|her seyi bitirmek ist\\w*", { ogr: true, icNeg: true, cssrs: 1 }],
   ["Öz Zarar", 3, "intihar (dusunce\\w*|etmeyi dusun\\w*|etmek ist\\w*|edece\\w*)|kendini oldurme(yi|k) (dusun\\w*|ist\\w*)|kendimi oldur\\w*|kendini oldur\\w*|canina kiy\\w*|canima kiy\\w*|hayatina son ver\\w*|hayatima son ver\\w*|intihari dusun\\w*|intihar\\w*", { ogr: true, cssrs: 2 }],
-  ["Öz Zarar", 3, "(ilac|hap)(lar)?(la|i icerek| icerek) (olmek|kendini)|koprude?n atla\\w*|yuksekten atla\\w*|kendini as\\w*|bileklerini kes\\w*|nasil (yapacagini|olecegini|intihar)\\w*|yontem\\w* (arastir|dusun)\\w*", { ogr: true, cssrs: 3 }],
-  ["Öz Zarar", 3, "yapacagini soyle\\w*|yapmaya karar ver\\w*|niyetinde\\w*|yapacagim dedi", { ogr: true, cssrs: 4 }],
-  ["Öz Zarar", 3, "intihar plan\\w*|plan(i|ini) var\\w*|ilac biriktir\\w*|hap biriktir\\w*|veda (mektub|not)\\w*|vedalas\\w*|esyalarini dagit\\w*|tarih belirle\\w*", { ogr: true, cssrs: 5 }],
-  ["Öz Zarar", 3, "intihar giris\\w*|intihara kalkis\\w*|kendini oldurmeye calis\\w*|hap(lari)? icti|ilac(lari)? icti|asiri doz\\w*|zehirle\\w*", { ogr: true, cssrs: 6 }],
+  ["Öz Zarar", 3, "(ilac|hap)(lar)?(la|i icerek| icerek) (olmek|kendini)|koprude?n atla\\w*|yuksekten atla\\w*|bileklerini kes\\w*|nasil (olecegini|intihar)\\w*", { ogr: true, cssrs: 3 }],
+  // "kendini aşmak" (olumlu) sade yazımda "kendini asmak" ile aynı: orijinal metinde "s" olmalı
+  ["Öz Zarar", 3, "kendini as\\w*", { ogr: true, cssrs: 3, oIcermeli: "kendini as" }],
+  // baglam: true → günlük dilde de geçen genel ifadeler ("farklı sınav yapacağını söyledi", "toplantı tarihi belirlendi",
+  // "besin zehirlenmesi"); ancak aynı ya da önceki iki cümlecikte ölüm/intihar/kendine zarar ifadesi varsa sayılır
+  ["Öz Zarar", 3, "nasil yapacagini\\w*|yontem\\w* (arastir|dusun)\\w*", { ogr: true, cssrs: 3, baglam: true }],
+  ["Öz Zarar", 3, "yapacagini soyle\\w*|yapmaya karar ver\\w*|niyetinde\\w*|yapacagim dedi", { ogr: true, cssrs: 4, baglam: true }],
+  ["Öz Zarar", 3, "intihar plan\\w*|ilac biriktir\\w*|hap biriktir\\w*|veda (mektub|not)\\w*", { ogr: true, cssrs: 5 }],
+  ["Öz Zarar", 3, "plan(i|ini) var\\w*|vedalas\\w*|esyalarini dagit\\w*|tarih belirle\\w*", { ogr: true, cssrs: 5, baglam: true }],
+  ["Öz Zarar", 3, "intihar giris\\w*|intihara kalkis\\w*|kendini oldurmeye calis\\w*|hap(lari)? icti|ilac(lari)? icti|asiri doz\\w*", { ogr: true, cssrs: 6 }],
+  ["Öz Zarar", 3, "zehirle\\w*", { ogr: true, cssrs: 6, baglam: true }],
   ["Öz Zarar", 3, "kendine zarar\\w*|kendini kes\\w*|kollarini kes\\w*|kolunu kes\\w*|kolunda(ki)? kesik\\w*|kollarinda(ki)? kesik\\w*|bileginde\\w* kesik\\w*|jilet\\w*|kendini yak\\w*|kafasini duvara\\w*|kendini isir\\w*|kendini tirmala\\w*|kendine vur\\w*|kendini yarala\\w*|kesik iz\\w*", { ogr: true, cssrs: 7 }],
 
   // İhmal / istismar (fail genellikle üçüncü kişidir → üçüncü kişi filtresi uygulanmaz)
@@ -3154,10 +3161,13 @@ function ksTon(metin) {
 const KS_OLAY_TURLERI = ["Yas-Kayıp", "Travma", "Aile", "İhmal-İstismar", "Toplumsal Cinsiyet Temelli Şiddet", "Adli Süreç-Danışmanlık Tedbiri"];
 // ── Sözlük taraması ───────────────────────────────────────────────────────────
 // Bir görüşme metnindeki tüm bulguları bağlamıyla çıkarır
+// Öz zarar bağlamı: "baglam" işaretli genel ifadeler yalnız bu kelimelerin yakınında sayılır
+const KS_OZ_BAGLAM = /(^|[^a-z])(intihar\w*|olmek\w*|olmeyi|olume|olumu|olumden|olsem\w*|olecegi\w*|oldur\w*|kendine zarar\w*|kendini (kes|yak|as|at)\w*|canina|canima|hayatina son|yasamak istem\w*|kesik\w*|jilet\w*)/;
 function ksTara(metin, gorusmeEtiket) {
-  const bulgular = [];
+  const bulgular = []; let ozBaglamSon = -9, ci = -1;
   const oncekiUcuncu = new Map(); // aynı görüşmede önceki cümlecikte üçüncü kişiye ait bulunan türler
   for (const c of ksCumlecikler(metin)) {
+    ci++; if (KS_OZ_BAGLAM.test(c.s)) ozBaglamSon = ci;
     const kurgu = KS_KURGU.test(c.s);
     const ogrenciVurgu = /(^|[^a-z])(ogrenci|kendisi|kendi|kendine|kendini|kendisinin)(?=[^a-z])/.test(c.s);
     const oLower = c.o.toLocaleLowerCase("tr");
@@ -3165,6 +3175,7 @@ function ksTara(metin, gorusmeEtiket) {
     const sure = KS_SURE.exec(c.s);
     const gecmis = KS_GECMIS.test(c.s), cozuldu = KS_COZULDU.test(c.s);
     for (const e of KS_SOZLUK_DERLI) {
+      if (e.sec.baglam && ci - ozBaglamSon > 2) continue;
       e.re.lastIndex = 0;
       let m, ilk = null; const farkli = new Set();
       while ((m = e.re.exec(c.s)) !== null) {
